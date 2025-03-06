@@ -184,14 +184,16 @@ export class UsersService {
       const query: SelectQueryBuilder<UsersEntity> =
         this._usersRepository.createQueryBuilder('users');
       const { data, total, totalData } = await this._filterData(filters, query);
+      const size = filters.disablePaginate ? totalData : filters.limit;
       const meta = new PageMetaDto({
         totalData,
         total,
         page: filters.offset,
-        size: filters.disablePaginate ? totalData : filters.limit,
+        size,
+        pageCount: Math.ceil(totalData / (size ?? 10)),
       });
 
-      return new PaginateDto<UsersEntity>(data, meta);
+      return new PaginateDto<UsersEntity>(data as UsersEntity[], meta);
     } catch (error) {
       throw new BadRequestException('Bad Request', {
         cause: new Error(),
