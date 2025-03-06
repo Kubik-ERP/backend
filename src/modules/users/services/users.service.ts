@@ -5,309 +5,177 @@ import { PaginateDto } from '../../../common/dtos/paginate.dto';
 import { PageMetaDto } from '../../../common/dtos/page-meta.dto';
 import { UpdateUserDto } from '../dtos/update-user.dto';
 
-// Entities
-import { UsersEntity } from '../entities/users.entity';
-
-// Helpers
-import { QuerySortingHelper } from '../../../common/helpers/query-sorting.helper';
-
 // NestJS Libraries
 import {
   BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 
-// TypeORM
-import {
-  DataSource,
-  EntityManager,
-  Repository,
-  SelectQueryBuilder,
-} from 'typeorm';
+// Prisma
+import { PrismaService } from '../../../prisma/prisma.service';
+import { UserModel } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectRepository(UsersEntity)
-    private readonly _usersRepository: Repository<UsersEntity>,
-    private readonly _dataSource: DataSource,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * @description Handle added relationship
-   * @param {SelectQueryBuilder<UsersEntity>} query
-   *
-   * @returns {void}
+   * @description Create a user
    */
-  private _addRelations(query: SelectQueryBuilder<UsersEntity>): void {
-    // ? Add relations here
-  }
-
-  /**
-   * @description Handle business logic for searching users
-   */
-  private _searchData(
-    filters: ListOptionDto,
-    query: SelectQueryBuilder<UsersEntity>,
-  ): void {
-    query.andWhere(
-      `(
-        users.username ILIKE :search OR
-        users.email ILIKE :search
-      )
-      ${filters.isDeleted ? '' : 'AND users.deleted_at IS NULL'}
-      `,
-      {
-        search: `%${filters.search}%`,
-      },
-    );
-  }
-
-  /**
-   * @description Handle sorting data
-   */
-  private _sortData(
-    filters: ListOptionDto,
-    query: SelectQueryBuilder<UsersEntity>,
-  ): void {
-    const permitSort = {
-      username: 'users.username',
-      email: 'users.email',
-    };
-
-    QuerySortingHelper(query, filters.sortBy, permitSort);
-  }
-
-  /**
-   * @description Handle filters data
-   */
-  private async _filterData(
-    filters: ListOptionDto,
-    query: SelectQueryBuilder<UsersEntity>,
-  ): Promise<IResultFilter> {
+  public async create(payload: CreateUserDto): Promise<UserModel> {
     try {
-      this._addRelations(query);
-
-      if (filters.search) {
-        this._searchData(filters, query);
-      }
-
-      if (filters.isDeleted) {
-        query.andWhere('users.deleted_at IS NOT NULL');
-      } else {
-        query.andWhere('users.deleted_at IS NULL');
-      }
-
-      if (filters.sortBy.length) {
-        this._sortData(filters, query);
-      }
-
-      if (!filters.disablePaginate) {
-        query.take(filters.limit);
-        query.skip(filters.skip);
-      }
-
-      const [data, totalData] = await query.cache(true).getManyAndCount();
-      const total = data.length;
-
-      return {
-        data,
-        total,
-        totalData,
-      };
+      return await this.prisma.userModel.create({
+        data: payload,
+      });
     } catch (error) {
-      throw new BadRequestException('Bad Request', {
+      throw new BadRequestException('Failed to create user', {
         cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
+        description: error.message,
       });
     }
   }
 
   /**
-   * @description Handle business logic for creating a user
-   */
-  public async create(payload: CreateUserDto): Promise<UsersEntity> {
-    try {
-      const model = new UsersEntity();
-
-      // ? After we initialize the instance of the model, we need to merge the data from the DTO
-      this._usersRepository.merge(model, payload);
-
-      // ? Then, we save the model to the database
-      const user = await this._usersRepository.save(model);
-
-      return user;
-    } catch (error) {
-      throw new BadRequestException('Bad Request', {
-        cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
-      });
-    }
-  }
-
-  /**
-   * @description Handle business logic for listing all users
-   */
-  public async delete(id: string, user: IRequestUser): Promise<UsersEntity> {
-    try {
-      const selectedUser = await this.findOneById(id);
-      const deletedAt = Math.floor(Date.now() / 1000);
-
-      // Merge Two Entity into single one and save it
-      this._usersRepository.merge(selectedUser, {
-        deletedAt,
-      });
-
-      return await this._usersRepository.save(selectedUser, {
-        data: {
-          action: 'DELETE',
-          user,
-        },
-      });
-    } catch (error) {
-      throw new BadRequestException('Bad Request', {
-        cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
-      });
-    }
-  }
-
-  /**
-   * @description Handle find all users
+   * @description Find all users
    */
   public async findAll(
     filters: ListOptionDto,
-  ): Promise<PaginateDto<UsersEntity>> {
+  ): Promise<PaginateDto<UserModel>> {
     try {
-      const query: SelectQueryBuilder<UsersEntity> =
-        this._usersRepository.createQueryBuilder('users');
-      const { data, total, totalData } = await this._filterData(filters, query);
-      const size = filters.disablePaginate ? totalData : filters.limit;
+      const where: any = {};
+
+      if (filters.search) {
+        where.OR = [
+          { username: { contains: filters.search, mode: 'insensitive' } },
+          { email: { contains: filters.search, mode: 'insensitive' } },
+        ];
+      }
+
+      if (!filters.isDeleted) {
+        where.deletedAt = null;
+      }
+
+      const orderBy =
+        Array.isArray(filters.sortBy) && filters.sortBy.length > 0
+          ? filters.sortBy.reduce<Record<string, 'asc' | 'desc'>>(
+              (acc, sortStr) => {
+                const [field, order] = sortStr.split('|'); // Pisahkan "field|order"
+                const normalizedOrder =
+                  order?.toLowerCase() === 'desc' ? 'desc' : 'asc';
+                if (field) {
+                  acc[field] = normalizedOrder; // Simpan dalam objek Prisma
+                }
+                return acc;
+              },
+              {},
+            )
+          : undefined;
+
+      const users = await this.prisma.userModel.findMany({
+        where,
+        skip: filters.skip,
+        take: filters.limit,
+        orderBy,
+      });
+
+      const totalData = await this.prisma.userModel.count({ where });
+
       const meta = new PageMetaDto({
         totalData,
-        total,
+        total: users.length,
         page: filters.offset,
-        size,
-        pageCount: Math.ceil(totalData / (size ?? 10)),
+        size: filters.limit,
+        pageCount: Math.ceil(totalData / filters.limit),
       });
 
-      return new PaginateDto<UsersEntity>(data as UsersEntity[], meta);
+      return new PaginateDto<UserModel>(users, meta);
     } catch (error) {
-      throw new BadRequestException('Bad Request', {
+      throw new BadRequestException('Failed to fetch users', {
         cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
+        description: error.message,
       });
     }
   }
 
   /**
-   * @description Handle business logic for finding a by specific id
+   * @description Find user by ID
    */
-  public async findOneById(id: string): Promise<UsersEntity> {
-    const user = await this._usersRepository.findOne({
-      where: { id },
-    });
+  public async findOneById(id: number): Promise<UserModel> {
+    const user = await this.prisma.userModel.findUnique({ where: { id } });
 
     if (!user) {
-      throw new NotFoundException(`User with id ${id} not found.`);
+      throw new NotFoundException(`User with ID ${id} not found.`);
     }
 
     return user;
   }
 
   /**
-   * @description Handle business logic for finding a user by username
+   * @description Find user by username
    */
-  public async findOneByUsername(
-    username: string,
-  ): Promise<UsersEntity | null> {
-    try {
-      return await this._usersRepository.findOne({
-        where: { username },
-      });
-    } catch (error) {
-      throw new NotFoundException('Not Found', {
-        cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
-      });
-    }
+  public async findOneByUsername(username: string): Promise<UserModel | null> {
+    return this.prisma.userModel.findUnique({
+      where: { username },
+    });
   }
 
   /**
-   * @description Handle business logic for finding a user by email
+   * @description Find user by email
    */
-  public async findOneByEmail(email: string): Promise<UsersEntity | null> {
-    const user = await this._usersRepository.findOne({
+  public async findOneByEmail(email: string): Promise<UserModel | null> {
+    return this.prisma.userModel.findUnique({
       where: { email },
     });
-
-    if (!user) {
-      return null;
-    }
-
-    return user;
   }
 
   /**
-   * @description Handle business logic for restoring a user
+   * @description Update a user
    */
-  public async restore(id: string, user: IRequestUser): Promise<UsersEntity> {
+  public async update(id: number, payload: UpdateUserDto): Promise<UserModel> {
     try {
-      const selectedUser = await this.findOneById(id);
-
-      // Merge Two Entity into single one and save it
-      this._usersRepository.merge(selectedUser, {
-        deletedAt: null,
-      });
-
-      return await this._usersRepository.save(selectedUser, {
-        data: {
-          action: 'RESTORE',
-          user,
-        },
+      return await this.prisma.userModel.update({
+        where: { id },
+        data: payload,
       });
     } catch (error) {
-      throw new BadRequestException('Bad Request', {
+      throw new BadRequestException('Failed to update user', {
         cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
+        description: error.message,
       });
     }
   }
 
   /**
-   * @description Handle business logic for updating a user
+   * @description Soft delete a user
    */
-  public async update(
-    id: string,
-    payload: UpdateUserDto,
-    user: IRequestUser,
-  ): Promise<UsersEntity> {
+  public async delete(id: number): Promise<UserModel> {
     try {
-      await this._dataSource.transaction(async (manager: EntityManager) => {
-        const selectedUser = await this._usersRepository.findOneOrFail({
-          where: {
-            id,
-          },
-        });
-
-        // Merge Two Entity into single one and save it
-        this._usersRepository.merge(selectedUser, payload);
-
-        await manager.save(selectedUser, {
-          data: {
-            action: 'UPDATE',
-            user,
-          },
-        });
+      return await this.prisma.userModel.update({
+        where: { id },
+        data: { deletedAt: new Date() },
       });
-
-      return this.findOneById(id);
     } catch (error) {
-      throw new BadRequestException('Bad Request', {
+      throw new BadRequestException('Failed to delete user', {
         cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Restore a soft-deleted user
+   */
+  public async restore(id: number): Promise<UserModel> {
+    try {
+      return await this.prisma.userModel.update({
+        where: { id },
+        data: { deletedAt: null },
+      });
+    } catch (error) {
+      throw new BadRequestException('Failed to restore user', {
+        cause: new Error(),
+        description: error.message,
       });
     }
   }

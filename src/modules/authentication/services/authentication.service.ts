@@ -8,7 +8,7 @@ import { SALT_OR_ROUND } from '../../../common/constants/common.constant';
 import { RegisterEmailDto } from '../dtos/register.dto';
 
 // Entities
-import { UsersEntity } from '../../users/entities/users.entity';
+import { UserModel } from '@prisma/client';
 
 // Interfaces
 import { ILogin } from '../interfaces/authentication.interface';
@@ -33,7 +33,7 @@ export class AuthenticationService {
   public async validateUser(
     username: string,
     pass: string,
-  ): Promise<UsersEntity | null> {
+  ): Promise<UserModel | null> {
     try {
       const user = await this._usersService.findOneByUsername(username);
       const isMatch = await bcrypt.compare(`${pass}`, user!.password);
@@ -68,7 +68,7 @@ export class AuthenticationService {
   /**
    * @description Handle business logic for registering a user
    */
-  public async register(payload: RegisterEmailDto): Promise<UsersEntity> {
+  public async register(payload: RegisterEmailDto): Promise<UserModel> {
     try {
       const { email, username, password } = payload;
       const emailExists = await this._usersService.findOneByEmail(email);

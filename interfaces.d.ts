@@ -5,7 +5,7 @@ export {};
  */
 declare global {
   interface IRequestUser {
-    id: string;
+    id: number;
     email: string;
     username: string;
   }
