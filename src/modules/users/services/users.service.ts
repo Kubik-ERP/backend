@@ -189,7 +189,7 @@ export class UsersService {
         totalData,
         total,
         page: filters.offset,
-        size: size,
+        size,
         pageCount: Math.ceil(totalData / (size ?? 10)),
       });
 
