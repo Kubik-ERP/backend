@@ -27,7 +27,7 @@ export class ListOptionDto {
   @Min(1)
   @Max(100)
   @IsOptional()
-  public limit: number = 10;
+  public limit?: number = 10;
 
   @ApiPropertyOptional({
     minimum: 1,
@@ -37,7 +37,7 @@ export class ListOptionDto {
   @IsInt()
   @Min(1)
   @IsOptional()
-  public offset: number = 1;
+  public offset?: number = 1;
 
   @ApiPropertyOptional()
   @IsOptional()
