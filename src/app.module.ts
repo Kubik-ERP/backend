@@ -9,11 +9,15 @@ import { UsersModule } from './modules/users/users.module';
 // NestJS Libraries
 import { Module } from '@nestjs/common';
 
+// Providers
+import { PostgresDatabaseProviderModule } from './database/postgres/postgres-provider.module';
+
 @Module({
   imports: [
     // Configuration Modules
     AppConfigurationModule,
     DatabasePostgresConfigModule,
+    PostgresDatabaseProviderModule,
 
     // Core Feature Modules
     AuthenticationModule,
