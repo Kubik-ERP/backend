@@ -2,11 +2,17 @@
 import { ApiBaseResponse } from '../../../common/decorators/api-base-response.decorator';
 
 // DTOs
+import { GenerateOtpDto } from '../dtos/generate-otp.dto';
 import { LoginUsernameDto, LoginWithAccessToken } from '../dtos/login.dto';
 import { RegisterEmailDto } from '../dtos/register.dto';
+import { VerifyOtpDto } from '../dtos/verify-otp.dto';
 
 // Entities
 import { UsersEntity } from '../../users/entities/users.entity';
+import {
+  GenerateOtpEntity,
+  VerifyOtpEntity,
+} from '../../authentication/entities/authentication.entity';
 
 // Guards
 import { AuthenticationJWTGuard } from '../../../common/guards/authentication-jwt.guard';
@@ -77,6 +83,35 @@ export class AuthenticationController {
 
     return {
       message: 'Authenticated user profile has been retrieved successfully',
+      result,
+    };
+  }
+
+  @Post('otp/generate')
+  @ApiOperation({
+    summary: 'Generate OTP',
+  })
+  @ApiBaseResponse(GenerateOtpEntity)
+  public async generateOtp(@Body() body: GenerateOtpDto) {
+    const result = await this._authenticationService.generateOtp(body.email);
+
+    return {
+      result,
+    };
+  }
+
+  @Post('otp/verify')
+  @ApiOperation({
+    summary: 'Verify OTP',
+  })
+  @ApiBaseResponse(VerifyOtpEntity)
+  public async verifyOtp(@Body() body: VerifyOtpDto) {
+    const result = await this._authenticationService.verifyOtp(
+      body.email,
+      body.otp,
+    );
+
+    return {
       result,
     };
   }
