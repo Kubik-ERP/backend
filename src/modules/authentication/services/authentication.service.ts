@@ -12,7 +12,7 @@ import { SALT_OR_ROUND } from '../../../common/constants/common.constant';
 import { RegisterEmailDto } from '../dtos/register.dto';
 
 // Entities
-import { UserModel } from '@prisma/client';
+import { users as UserModel } from '@prisma/client';
 
 // Interfaces
 import { ILogin } from '../interfaces/authentication.interface';
