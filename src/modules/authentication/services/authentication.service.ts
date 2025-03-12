@@ -18,7 +18,13 @@ import { UserModel } from '@prisma/client';
 import { ILogin } from '../interfaces/authentication.interface';
 
 // NestJS Libraries
-import { BadRequestException, Injectable, Inject } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Inject,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 // Services
@@ -116,61 +122,75 @@ export class AuthenticationService {
    * @description Generate TOTP OTP
    */
   public async generateOtp(email: string): Promise<object> {
-    const newSecret = speakeasy.generateSecret({ length: 20 }).base32;
+    try {
+      const newSecret = speakeasy.generateSecret({ length: 20 }).base32;
 
-    // Save OTP Secret
-    await this.cacheManager.set(`otp_secret:${email}`, newSecret, 300_000);
+      // Save OTP Secret
+      await this.cacheManager.set(`otp_secret:${email}`, newSecret, 300_000);
 
-    // Generate OTP
-    const otp = speakeasy.totp({
-      secret: newSecret,
-      encoding: 'base32',
-      step: 300,
-      digits: 6,
-    });
+      // Generate OTP
+      const otp = speakeasy.totp({
+        secret: newSecret,
+        encoding: 'base32',
+        step: 300,
+        digits: 6,
+      });
 
-    // Kirim OTP ke email
-    await this._mailService.sendOtpEmail(email, otp);
+      // Kirim OTP ke email
+      await this._mailService.sendOtpEmail(email, otp);
 
-    const result = {
-      otp: otp,
-    };
+      const result = {
+        otp: otp,
+      };
 
-    return result;
+      return result;
+    } catch (error) {
+      throw new HttpException(
+        'Failed to generate OTP',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   /**
    * @description Verify OTP
    */
   public async verifyOtp(email: string, token: string): Promise<object> {
-    let result;
+    try {
+      let result;
 
-    // Find secret in cache
-    const secret = await this.cacheManager.get<string>(`otp_secret:${email}`);
-    if (!secret) {
+      // Find secret in cache
+      const secret = await this.cacheManager.get<string>(`otp_secret:${email}`);
+      if (!secret) {
+        result = {
+          status: false,
+        };
+
+        return result;
+      }
+
+      const isValid = speakeasy.totp.verify({
+        secret,
+        encoding: 'base32',
+        token,
+        step: 300,
+        window: 1,
+      });
+
+      if (isValid) {
+        await this.cacheManager.del(`otp_secret:${email}`);
+      }
+
       result = {
-        status: false,
+        status: isValid,
       };
 
       return result;
+    } catch (error) {
+      throw new HttpException(
+        'Failed to generate OTP',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
-
-    const isValid = speakeasy.totp.verify({
-      secret,
-      encoding: 'base32',
-      token,
-      step: 300,
-      window: 1,
-    });
-
-    if (isValid) {
-      await this.cacheManager.del(`otp_secret:${email}`);
-    }
-
-    result = {
-      status: isValid,
-    };
-
-    return result;
   }
 }
