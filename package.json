@@ -12,7 +12,7 @@
     "generate:module": "node generate-module.mjs",
     "seed:run": "ts-node ./node_modules/typeorm-extension/bin/cli.cjs seed:run -d ./src/database/postgres/postgres-data-source.ts",
     "start": "nest start",
-    "start:dev": "node lint-check.mjs && nest start --watch",
+    "dev": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix && node lint-check.mjs && nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint:check": "node lint-check.mjs",

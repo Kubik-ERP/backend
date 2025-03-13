@@ -24,6 +24,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  HttpException,
   Post,
   Req,
   UseGuards,
@@ -67,11 +68,10 @@ export class AuthenticationController {
   })
   @ApiBaseResponse(UsersEntity)
   public async create(@Body() requestBody: RegisterEmailDto) {
-    const result = this._authenticationService.register(requestBody);
+    const result = await this._authenticationService.register(requestBody);
 
     return {
-      message: 'User registered successfully',
-      result,
+      message: 'User registered successfully'
     };
   }
 

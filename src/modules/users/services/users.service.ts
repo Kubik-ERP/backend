@@ -29,6 +29,7 @@ export class UsersService {
         data: payload,
       });
     } catch (error) {
+      console.log(error);
       throw new BadRequestException('Failed to create user', {
         cause: new Error(),
         description: error.message,

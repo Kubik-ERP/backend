@@ -51,35 +51,35 @@ export class AuthenticationService {
    * @description Handle business logic for validating a user
    */
   public async validateUser(
-    username: string,
+    email: string,
     pass: string,
   ): Promise<UserModel | null> {
-    try {
-      const user = await this._usersService.findOneByUsername(username);
-      const isMatch = await bcrypt.compare(`${pass}`, user!.password);
-
-      if (!isMatch) {
-        throw new BadRequestException('Bad Request', {
-          cause: new Error(),
-          description: 'Invalid password',
-        });
-      }
-
-      return user;
-    } catch (error) {
-      throw new BadRequestException('Bad Request', {
-        cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
-      });
+    const user = await this._usersService.findOneByEmail(email);
+    if (!user) {
+      throw new BadRequestException('Username / password is incorrect');
     }
+
+    const isMatch = await bcrypt.compare(`${pass}`, user!.password);
+
+    if (!isMatch) {
+      throw new BadRequestException('Username / password is incorrect');
+    }
+
+    return user;
   }
 
   /**
    * @description Handle business logic for logging in a user
    */
   public async login(user: IRequestUser): Promise<ILogin> {
-    const payload = { username: user.username, sub: user.id };
-
+    const payload = {
+      username: user.username,
+      sub: user.id,
+      email: user.email,
+      phone: user.phone,
+      ext: user.ext,
+      role: user.role,
+    };
     return {
       accessToken: this._jwtService.sign(payload),
     };
@@ -89,33 +89,24 @@ export class AuthenticationService {
    * @description Handle business logic for registering a user
    */
   public async register(payload: RegisterEmailDto): Promise<UserModel> {
-    try {
-      const { email, username, password } = payload;
-      const emailExists = await this._usersService.findOneByEmail(email);
+    const { email, phoneNumber, phoneCountryCode, password } = payload;
 
-      if (emailExists) {
-        throw new BadRequestException(`Bad Request`, {
-          cause: new Error(),
-          description: 'Users with email ${email} already exists',
-        });
-      }
-
-      /**
-       * Hash Password
-       */
-      const passwordHashed = await bcrypt.hash(password, SALT_OR_ROUND);
-
-      return await this._usersService.create({
-        email,
-        username,
-        password: passwordHashed,
-      });
-    } catch (error) {
-      throw new BadRequestException(error.response.message, {
-        cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
-      });
+    const emailExists = await this._usersService.findOneByEmail(email);
+    if (emailExists) {
+      throw new BadRequestException(`User already exists`);
     }
+
+    /**
+     * Hash Password
+     */
+    const passwordHashed = await bcrypt.hash(password, SALT_OR_ROUND);
+
+    return await this._usersService.create({
+      email: email,
+      phone: parseInt(phoneNumber.toString()).toString(),
+      ext: parseInt(phoneCountryCode.toString()),
+      password: passwordHashed,
+    });
   }
 
   /**
