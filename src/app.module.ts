@@ -8,6 +8,7 @@ import { UsersModule } from './modules/users/users.module';
 
 // NestJS Libraries
 import { Module } from '@nestjs/common';
+import { CategoriesModule } from './modules/categories/categories.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { Module } from '@nestjs/common';
     // Core Feature Modules
     AuthenticationModule,
     UsersModule,
+    CategoriesModule,
   ],
 })
 export class AppModule {}
