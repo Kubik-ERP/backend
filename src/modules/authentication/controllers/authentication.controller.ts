@@ -71,7 +71,7 @@ export class AuthenticationController {
     const result = await this._authenticationService.register(requestBody);
 
     return {
-      message: 'User registered successfully'
+      message: 'User registered successfully',
     };
   }
 
