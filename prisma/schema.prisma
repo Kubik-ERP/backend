@@ -85,8 +85,8 @@ model cash_registers {
 }
 
 model categories {
-  id                      String                    @id @db.Uuid
-  name                    String?                   @db.VarChar(45)
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String?                   @unique @db.VarChar(45)
   notes                   String?                   @db.VarChar(45)
   categories_has_products categories_has_products[]
 }
@@ -301,7 +301,7 @@ model product_commissions {
 }
 
 model products {
-  id                      String                    @id @db.Uuid
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                    String?                   @db.VarChar(45)
   price                   Float?
   discount_price          Float?

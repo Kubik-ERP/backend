@@ -32,8 +32,8 @@ export class CategoriesController {
     } catch (error) {
       return {
         statusCode: 500,
-        message: 'Failed to create category',
-        error: error.message || 'Internal Server Error',
+        message: error.message,
+        result: null,
       };
     }
   }
