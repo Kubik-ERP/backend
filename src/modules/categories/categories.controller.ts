@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   Controller,
   Get,
@@ -6,6 +7,8 @@ import {
   Patch,
   Param,
   Delete,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -17,31 +20,120 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
-  create(@Body() createCategoryDto: CreateCategoryDto) {
-    return this.categoriesService.create(createCategoryDto);
+  async create(@Body() createCategoryDto: CreateCategoryDto) {
+    try {
+      const newCategory =
+        await this.categoriesService.create(createCategoryDto);
+      return {
+        statusCode: 201,
+        message: 'Category created successfully',
+        result: newCategory,
+      };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        message: 'Failed to create category',
+        error: error.message || 'Internal Server Error',
+      };
+    }
   }
 
   @Get()
   async findAll() {
-    const categories = await this.categoriesService.findAll();
-    return { statusCode: 200, message: 'sukses', result: categories };
+    try {
+      const categories = await this.categoriesService.findAll();
+      return { statusCode: 200, message: 'Success', result: categories };
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch categories',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.categoriesService.findOne(+id);
+  @Get(':idOrName')
+  async findOne(@Param('idOrName') idOrName: string) {
+    try {
+      const category = await this.categoriesService.findOne(idOrName);
+      if (!category) {
+        throw new HttpException(
+          { statusCode: HttpStatus.NOT_FOUND, message: 'Category not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      return { statusCode: 200, message: 'Success', result: category };
+    } catch (error) {
+      console.error('Error finding category:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch category',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Patch(':id')
-  update(
+  async update(
     @Param('id') id: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
   ) {
-    return this.categoriesService.update(+id, updateCategoryDto);
-  }
+    try {
+      const updatedCategory = await this.categoriesService.update(
+        id,
+        updateCategoryDto,
+      );
 
+      if (!updatedCategory) {
+        throw new HttpException(
+          { statusCode: HttpStatus.NOT_FOUND, message: 'Category not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      return {
+        statusCode: 200,
+        message: 'Category updated successfully',
+        result: updatedCategory,
+      };
+    } catch (error) {
+      console.error('Error updating category:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: error.message || 'Failed to update category',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.categoriesService.remove(+id);
+  async remove(@Param('id') id: string) {
+    try {
+      const deletedCategory = await this.categoriesService.remove(id);
+
+      if (!deletedCategory) {
+        throw new HttpException(
+          { statusCode: HttpStatus.NOT_FOUND, message: 'Category not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      return { statusCode: 200, message: 'Category deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to delete category',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }
