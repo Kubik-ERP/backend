@@ -26,7 +26,11 @@ export class UsersService {
   public async create(payload: CreateUserDto): Promise<UserModel> {
     try {
       return await this.prisma.users.create({
-        data: payload,
+        data: {
+          username: payload.username,
+          email: payload.email,
+          password: payload.password,
+        },
       });
     } catch (error) {
       console.log(error);
@@ -152,9 +156,10 @@ export class UsersService {
    */
   public async delete(id: number): Promise<UserModel> {
     try {
+      const nowUnix = Math.floor(Date.now() / 1000);
       return await this.prisma.users.update({
         where: { id },
-        data: {},
+        data: { deleted_at: nowUnix },
       });
     } catch (error) {
       throw new BadRequestException('Failed to delete user', {
@@ -171,7 +176,7 @@ export class UsersService {
     try {
       return await this.prisma.users.update({
         where: { id },
-        data: {},
+        data: { deleted_at: 0 },
       });
     } catch (error) {
       throw new BadRequestException('Failed to restore user', {

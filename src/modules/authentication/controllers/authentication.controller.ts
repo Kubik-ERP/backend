@@ -111,6 +111,7 @@ export class AuthenticationController {
     const result = await this._authenticationService.verifyOtp(
       body.email,
       body.otp,
+      body.type,
     );
 
     return {

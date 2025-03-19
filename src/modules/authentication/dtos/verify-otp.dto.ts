@@ -16,4 +16,9 @@ export class VerifyOtpDto {
   @IsString()
   @IsEmail()
   public email: string;
+
+  @ApiProperty({ description: 'Verify Type', required: true })
+  @IsNotEmpty()
+  @IsString()
+  public type: string;
 }

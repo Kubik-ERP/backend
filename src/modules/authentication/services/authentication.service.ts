@@ -12,7 +12,10 @@ import { SALT_OR_ROUND } from '../../../common/constants/common.constant';
 import { RegisterEmailDto } from '../dtos/register.dto';
 
 // Entities
-import { users as UserModel } from '@prisma/client';
+import { users } from '@prisma/client';
+
+// Enum
+import { OTPStatus } from '../../../enum/login-enum';
 
 // Interfaces
 import { ILogin } from '../interfaces/authentication.interface';
@@ -31,8 +34,8 @@ import {
 import { JwtService } from '@nestjs/jwt';
 
 // Services
-import { UsersService } from '../../users/services/users.service';
 import { MailService } from 'src/modules/mail/services/mail.service';
+import { UsersService } from '../../users/services/users.service';
 
 // Speaksy
 import * as speakeasy from 'speakeasy';
@@ -56,7 +59,7 @@ export class AuthenticationService {
   public async validateUser(
     email: string,
     pass: string,
-  ): Promise<UserModel | null> {
+  ): Promise<users | null> {
     const user = await this._usersService.findOneByEmail(email);
     if (!user) {
       throw new BadRequestException('Username / password is incorrect');
@@ -91,7 +94,7 @@ export class AuthenticationService {
   /**
    * @description Handle business logic for registering a user
    */
-  public async register(payload: RegisterEmailDto): Promise<UserModel> {
+  public async register(payload: RegisterEmailDto): Promise<users> {
     const { email, phoneNumber, phoneCountryCode, password } = payload;
 
     const emailExists = await this._usersService.findOneByEmail(email);
@@ -149,7 +152,11 @@ export class AuthenticationService {
   /**
    * @description Verify OTP
    */
-  public async verifyOtp(email: string, token: string): Promise<object> {
+  public async verifyOtp(
+    email: string,
+    token: string,
+    type: string,
+  ): Promise<object> {
     try {
       let result;
 
@@ -175,6 +182,20 @@ export class AuthenticationService {
         await this.cacheManager.del(`otp_secret:${email}`);
       }
 
+      // update user to verified
+      const otpType = type as OTPStatus;
+      if (otpType === OTPStatus.Register) {
+        const userInfo = await this._usersService.findOneByEmail(email);
+
+        if (!userInfo) {
+          throw new BadRequestException('User not found');
+        }
+
+        await this._usersService.update(userInfo.id, {
+          verified_at: Math.floor(Date.now() / 1000),
+        });
+      }
+
       result = {
         status: isValid,
       };
@@ -182,7 +203,7 @@ export class AuthenticationService {
       return result;
     } catch (error) {
       throw new HttpException(
-        'Failed to generate OTP',
+        'Failed to verify OTP',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
