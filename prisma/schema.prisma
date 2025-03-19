@@ -17,6 +17,7 @@ model users {
   created_at  BigInt?
   updated_at  BigInt?
   verified_at BigInt?
+  deleted_at  BigInt?
 }
 
 model business_owner {
@@ -474,6 +475,16 @@ model voucher_has_products {
   @@id([voucher_id, products_id])
   @@index([products_id], map: "fk_voucher_has_products_products1_idx")
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
+}
+
+model users_token {
+  id         Int     @id(map: "users_token_pk") @default(autoincrement())
+  token      String  @unique(map: "users_token_unique")
+  expired_at BigInt
+  user_id    Int
+  type       String? @db.VarChar
+  created_at BigInt?
+  updated_at BigInt?
 }
 
 enum cashdrawertype {

@@ -38,6 +38,7 @@
     "@nestjs/swagger": "latest",
     "@prisma/client": "^6.5.0",
     "@types/uuid": "^10.0.0",
+    "@types/fs-extra": "^11.0.4",
     "bcrypt": "latest",
     "cache-manager": "^6.4.1",
     "chalk": "latest",
@@ -45,6 +46,8 @@
     "class-validator": "latest",
     "compression": "latest",
     "dotenv": "^16.4.7",
+    "fs-extra": "^11.3.0",
+    "handlebars": "^4.7.8",
     "nodemailer": "^6.10.0",
     "passport": "latest",
     "passport-jwt": "latest",
@@ -55,7 +58,8 @@
     "rxjs": "latest",
     "speakeasy": "^2.0.0",
     "typeorm-extension": "latest",
-    "typeorm-naming-strategies": "latest"
+    "typeorm-naming-strategies": "latest",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@commitlint/cli": "latest",

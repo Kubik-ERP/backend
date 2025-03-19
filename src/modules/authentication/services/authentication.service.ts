@@ -17,6 +17,9 @@ import { users as UserModel } from '@prisma/client';
 // Interfaces
 import { ILogin } from '../interfaces/authentication.interface';
 
+//UUID
+import { v4 as uuidv4 } from 'uuid';
+
 // NestJS Libraries
 import {
   BadRequestException,
@@ -183,5 +186,28 @@ export class AuthenticationService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  public async forgotPassword(email: string): Promise<void> {
+    //validate user email
+    const user = this._usersService.findOneByEmail(email);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    //generate token
+    const token = uuidv4();
+    const ttl = 900;
+
+    //set token to cache with 15 minutes expiration
+    await this.cacheManager.set(`forgot_token:${email}`, token, ttl);
+
+    // send email
+    this._mailService.sendMailWithTemplate(
+      'forgot-password',
+      'Forgot Password',
+      { token: token, name: 'Kontol' },
+      email,
+    );
   }
 }
