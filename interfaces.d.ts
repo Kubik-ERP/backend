@@ -5,13 +5,13 @@ export {};
  */
 declare global {
   interface IRequestUser {
-    id: string;
+    id: number;
     email: string;
     username: string;
   }
 
   interface IResultFilter {
-    data: Record<string, unknown>;
+    data: Record<string, unknown> | unknown;
     total: number;
     totalData: number;
   }
@@ -24,7 +24,7 @@ declare global {
 
   interface IConstructPageMeta {
     page: number;
-    pageCount: number;
+    pageCount?: number;
     size: number;
     total: number;
     totalData: number;

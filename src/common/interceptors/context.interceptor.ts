@@ -17,6 +17,9 @@ import { Observable } from 'rxjs';
 export class ContextInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
+    if (!request.body) {
+      request.body = {};
+    }
 
     request.body.context = {
       params: request.params,
