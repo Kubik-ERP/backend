@@ -24,6 +24,8 @@ import {
   Controller,
   Get,
   HttpCode,
+  HttpException,
+  HttpStatus,
   Post,
   Req,
   UseGuards,
@@ -33,6 +35,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 // Services
 import { AuthenticationService } from '../services/authentication.service';
 import { UsersService } from '../../users/services/users.service';
+import { ForgotPasswordDto } from '../dtos/forgot-password.dto';
 
 @Controller('authentication')
 @ApiTags('Authentication')
@@ -67,11 +70,10 @@ export class AuthenticationController {
   })
   @ApiBaseResponse(UsersEntity)
   public async create(@Body() requestBody: RegisterEmailDto) {
-    const result = this._authenticationService.register(requestBody);
+    const result = await this._authenticationService.register(requestBody);
 
     return {
       message: 'User registered successfully',
-      result,
     };
   }
 
@@ -114,5 +116,26 @@ export class AuthenticationController {
     return {
       result,
     };
+  }
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Send Forgot Password Token',
+  })
+  public async forgotPassword(@Body() body: ForgotPasswordDto) {
+    try {
+      await this._authenticationService.forgotPassword(body.email);
+
+      return {
+        message:
+          'Email sent successfully, Please check your inbox / spam folder',
+      };
+    } catch (error) {
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

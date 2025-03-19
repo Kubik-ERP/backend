@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,12 +7,517 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model UserModel {
-  id        Int       @id @default(autoincrement())
-  username  String    @unique
-  email     String    @unique
-  password  String
-  deletedAt DateTime?
+model users {
+  id          Int     @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
+  username    String? @db.VarChar
+  email       String  @unique(map: "users_unique") @db.VarChar
+  password    String  @db.VarChar
+  phone       String  @default(dbgenerated("0")) @db.VarChar
+  ext         Int     @default(62)
+  created_at  BigInt?
+  updated_at  BigInt?
+  verified_at BigInt?
+  deleted_at  BigInt?
+}
 
-  @@map("user") // table name
+model business_owner {
+  id                        String                      @id @db.Uuid
+  name                      String?                     @db.VarChar(45)
+  email                     String?                     @unique(map: "email_unique") @db.VarChar(45)
+  password                  String?                     @db.VarChar(45)
+  address                   String?                     @db.VarChar(45)
+  business_owner_has_stores business_owner_has_stores[]
+  payments                  payments[]
+}
+
+model business_owner_has_stores {
+  business_owner_id String         @db.Uuid
+  stores_id         String         @db.Uuid
+  business_owner    business_owner @relation(fields: [business_owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_business_owner_has_stores_business_owner1")
+  stores            stores         @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_business_owner_has_stores_stores1")
+
+  @@id([business_owner_id, stores_id])
+  @@index([business_owner_id], map: "fk_business_owner_has_stores_business_owner1_idx")
+  @@index([stores_id], map: "fk_business_owner_has_stores_stores1_idx")
+}
+
+model cash_drawers {
+  id               String          @db.Uuid
+  expected_balance Float?
+  actual_balance   Float?
+  status           cashdrawertype?
+  employees_id     String          @db.Uuid
+  date             DateTime?       @db.Date
+  notes            String?         @db.VarChar(45)
+  employees        employees       @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_drawers_employees1")
+
+  @@id([id, employees_id])
+  @@index([employees_id], map: "fk_cash_drawers_employees1_idx")
+}
+
+model cash_register_date {
+  id                               String                             @id @db.Uuid
+  date                             DateTime?                          @db.Date
+  cash_register_date_has_employees cash_register_date_has_employees[]
+  cash_registers                   cash_registers[]
+}
+
+model cash_register_date_has_employees {
+  cash_register_date_id String             @db.Uuid
+  employees_id          String             @db.Uuid
+  cash_register_date    cash_register_date @relation(fields: [cash_register_date_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_register_date_has_employees_cash_register_date1")
+  employees             employees          @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_register_date_has_employees_employees1")
+
+  @@id([cash_register_date_id, employees_id])
+  @@index([cash_register_date_id], map: "fk_cash_register_date_has_employees_cash_register_date1_idx")
+  @@index([employees_id], map: "fk_cash_register_date_has_employees_employees1_idx")
+}
+
+model cash_registers {
+  id                    String             @db.Uuid
+  type                  transaction_type?
+  notes                 String?            @db.VarChar(45)
+  amount                String?            @db.VarChar(45)
+  cash_register_date_id String             @db.Uuid
+  cash_register_date    cash_register_date @relation(fields: [cash_register_date_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_registers_cash_register_date1")
+
+  @@id([id, cash_register_date_id])
+  @@index([cash_register_date_id], map: "fk_cash_registers_cash_register_date1_idx")
+}
+
+model categories {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String?                   @unique @db.VarChar(45)
+  notes                   String?                   @db.VarChar(45)
+  categories_has_products categories_has_products[]
+}
+
+model categories_has_products {
+  categories_id String     @db.Uuid
+  products_id   String     @db.Uuid
+  categories    categories @relation(fields: [categories_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_categories_has_products_categories1")
+  products      products   @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_categories_has_products_products1")
+
+  @@id([categories_id, products_id])
+  @@index([categories_id], map: "fk_categories_has_products_categories1_idx")
+  @@index([products_id], map: "fk_categories_has_products_products1_idx")
+}
+
+model customer {
+  id                  String                @id @db.Uuid
+  name                String?               @db.VarChar(45)
+  phone_number        String?               @db.VarChar(45)
+  customer_has_stores customer_has_stores[]
+  invoice             invoice[]
+}
+
+model customer_has_stores {
+  customer_id String   @db.Uuid
+  stores_id   String   @db.Uuid
+  customer    customer @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer_has_stores_customer1")
+  stores      stores   @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer_has_stores_stores1")
+
+  @@id([customer_id, stores_id])
+  @@index([customer_id], map: "fk_customer_has_stores_customer1_idx")
+  @@index([stores_id], map: "fk_customer_has_stores_stores1_idx")
+}
+
+model employees {
+  id                               String                             @id @db.Uuid
+  name                             String?                            @db.VarChar(45)
+  email                            String?                            @unique @db.VarChar(45)
+  phone_number                     String?                            @db.VarChar(45)
+  profile_url                      String?                            @db.VarChar(45)
+  start_date                       DateTime?                          @db.Date
+  end_date                         DateTime?                          @db.Date
+  gender                           gender?
+  cash_drawers                     cash_drawers[]
+  cash_register_date_has_employees cash_register_date_has_employees[]
+  employees_has_roles              employees_has_roles[]
+  employees_shift                  employees_shift[]
+  platforms_has_employees          platforms_has_employees[]
+  product_commissions              product_commissions[]
+  stores_has_employees             stores_has_employees[]
+  voucher_commissions              voucher_commissions[]
+}
+
+model employees_has_roles {
+  staffs_id String    @db.Uuid
+  roles_id  String    @db.Uuid
+  roles     roles     @relation(fields: [roles_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_staffs_has_roles_roles1")
+  employees employees @relation(fields: [staffs_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_staffs_has_roles_staffs")
+
+  @@id([staffs_id, roles_id])
+  @@index([roles_id], map: "fk_staffs_has_roles_roles1_idx")
+  @@index([staffs_id], map: "fk_staffs_has_roles_staffs_idx")
+}
+
+model employees_shift {
+  id           String    @db.Uuid
+  start_time   DateTime? @db.Time(6)
+  end_time     DateTime? @db.Time(6)
+  days         Int?
+  employees_id String    @db.Uuid
+  employees    employees @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_employees_shift_employees1")
+
+  @@id([id, employees_id])
+  @@index([employees_id], map: "fk_employees_shift_employees1_idx")
+}
+
+model floor {
+  id           String   @id @db.Uuid
+  floor_number String?  @db.VarChar(45)
+  tables       tables[]
+}
+
+model invoice {
+  id                 String               @id @db.Uuid
+  payment_methods_id String               @db.Uuid
+  customer_id        String               @db.Uuid
+  discount_amount    Float?
+  table_code         String?              @db.VarChar(45)
+  payment_status     invoicetype?
+  created_at         DateTime?            @db.Timestamp(6)
+  update_at          DateTime?            @db.Timestamp(6)
+  delete_at          DateTime?            @db.Timestamp(6)
+  customer           customer             @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
+  payment_methods    payment_methods      @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
+  invoice_details    invoice_details[]
+  invoice_has_stores invoice_has_stores[]
+
+  @@index([customer_id], map: "fk_invoice_customer1_idx")
+  @@index([payment_methods_id], map: "fk_invoice_payment_methods1_idx")
+}
+
+model invoice_details {
+  id             String     @db.Uuid
+  product_name   String?    @db.VarChar(45)
+  product_price  String?    @db.VarChar(45)
+  product_varian String?    @db.VarChar(45)
+  notes          String?    @db.VarChar(45)
+  order_type     ordertype?
+  qty            Int?
+  invoice_id     String     @db.Uuid
+  invoice        invoice    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+
+  @@id([id, invoice_id])
+  @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
+}
+
+model invoice_has_stores {
+  invoice_id String  @db.Uuid
+  stores_id  String  @db.Uuid
+  invoice    invoice @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_has_stores_invoice1")
+  stores     stores  @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_has_stores_stores1")
+
+  @@id([invoice_id, stores_id])
+  @@index([invoice_id], map: "fk_invoice_has_stores_invoice1_idx")
+  @@index([stores_id], map: "fk_invoice_has_stores_stores1_idx")
+}
+
+model material {
+  id                String              @id @db.Uuid
+  name              String?             @db.VarChar(45)
+  material_has_unit material_has_unit[]
+  recipe_details    recipe_details[]
+}
+
+model material_has_unit {
+  material_id String   @db.Uuid
+  unit_id     String   @db.Uuid
+  multiply    Float?
+  material    material @relation(fields: [material_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_material_has_unit_material1")
+  unit        unit     @relation(fields: [unit_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_material_has_unit_unit1")
+
+  @@id([material_id, unit_id])
+  @@index([material_id], map: "fk_material_has_unit_material1_idx")
+  @@index([unit_id], map: "fk_material_has_unit_unit1_idx")
+}
+
+model operational_hours {
+  id         Int
+  days       Int?
+  open_time  DateTime? @db.Time(6)
+  close_time DateTime? @db.Time(6)
+  stores_id  String    @db.Uuid
+  stores     stores    @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_operational_hours_stores1")
+
+  @@id([id, stores_id])
+  @@index([stores_id], map: "fk_operational_hours_stores1_idx")
+}
+
+model payment_methods {
+  id      String    @id @db.Uuid
+  name    String?   @db.VarChar(45)
+  invoice invoice[]
+}
+
+model payments {
+  id                String         @db.Uuid
+  amount            Float?
+  due_date          DateTime?      @db.Date
+  status            paymenttype?
+  business_owner_id String         @db.Uuid
+  business_owner    business_owner @relation(fields: [business_owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payments_business_owner1")
+
+  @@id([id, business_owner_id])
+  @@index([business_owner_id], map: "fk_payments_business_owner1_idx")
+}
+
+model permissions {
+  id               String             @id @db.Uuid
+  name             String?            @db.VarChar(45)
+  role_permissions role_permissions[]
+}
+
+model platforms {
+  id                      String                    @id @db.Uuid
+  name                    String?                   @db.VarChar(45)
+  platforms_has_employees platforms_has_employees[]
+}
+
+model platforms_has_employees {
+  platforms_id String    @db.Uuid
+  employees_id String    @db.Uuid
+  username     String?   @db.VarChar(45)
+  employees    employees @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_platforms_has_employees_employees1")
+  platforms    platforms @relation(fields: [platforms_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_platforms_has_employees_platforms1")
+
+  @@id([platforms_id, employees_id])
+  @@index([employees_id], map: "fk_platforms_has_employees_employees1_idx")
+  @@index([platforms_id], map: "fk_platforms_has_employees_platforms1_idx")
+}
+
+model product_commissions {
+  employees_id String    @db.Uuid
+  products_id  String    @db.Uuid
+  is_percent   Boolean?
+  amount       Float?
+  employees    employees @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_employees_has_items_employees1")
+  products     products  @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_employees_has_items_items1")
+
+  @@id([employees_id, products_id])
+  @@index([employees_id], map: "fk_employees_has_items_employees1_idx")
+  @@index([products_id], map: "fk_employees_has_items_items1_idx")
+}
+
+model products {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String?                   @db.VarChar(45)
+  price                   Float?
+  discount_price          Float?
+  picture_url             String?                   @db.VarChar(45)
+  categories_has_products categories_has_products[]
+  product_commissions     product_commissions[]
+  recipe                  recipe[]
+  stores_has_products     stores_has_products[]
+  variant_has_products    variant_has_products[]
+  voucher_has_products    voucher_has_products[]
+}
+
+model recipe {
+  id             String           @unique(map: "id_unique") @db.Uuid
+  recipe_code    String?          @unique(map: "recipe_code_unique") @db.VarChar(45)
+  instructions   String?
+  products_id    String           @db.Uuid
+  products       products         @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_products1")
+  recipe_details recipe_details[]
+
+  @@id([id, products_id])
+  @@index([products_id], map: "fk_recipe_products1_idx")
+}
+
+model recipe_details {
+  id          String   @db.Uuid
+  quantity    Float?
+  recipe_id   String   @db.Uuid
+  material_id String   @db.Uuid
+  material    material @relation(fields: [material_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_details_material1")
+  recipe      recipe   @relation(fields: [recipe_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_details_recipe1")
+
+  @@id([id, recipe_id, material_id])
+  @@index([material_id], map: "fk_recipe_details_material1_idx")
+  @@index([recipe_id], map: "fk_recipe_details_recipe1_idx")
+}
+
+model role_permissions {
+  roles_id       String      @db.Uuid
+  permissions_id String      @db.Uuid
+  permissions    permissions @relation(fields: [permissions_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_roles_has_permissions_permissions1")
+  roles          roles       @relation(fields: [roles_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_roles_has_permissions_roles1")
+
+  @@id([roles_id, permissions_id])
+  @@index([permissions_id], map: "fk_roles_has_permissions_permissions1_idx")
+  @@index([roles_id], map: "fk_roles_has_permissions_roles1_idx")
+}
+
+model roles {
+  id                  String                @id @db.Uuid
+  name                String?               @db.VarChar(45)
+  employees_has_roles employees_has_roles[]
+  role_permissions    role_permissions[]
+}
+
+model stores {
+  id                        String                      @id @db.Uuid
+  name                      String?                     @db.VarChar(45)
+  address                   String?                     @db.VarChar(45)
+  phone_number              String?                     @db.VarChar(45)
+  photo                     String?                     @db.VarChar(45)
+  city                      String?                     @db.VarChar(45)
+  postal_code               String?                     @db.VarChar(45)
+  building                  String?                     @db.VarChar(45)
+  business_owner_has_stores business_owner_has_stores[]
+  customer_has_stores       customer_has_stores[]
+  invoice_has_stores        invoice_has_stores[]
+  operational_hours         operational_hours[]
+  stores_has_employees      stores_has_employees[]
+  stores_has_products       stores_has_products[]
+}
+
+model stores_has_employees {
+  stores_id    String    @db.Uuid
+  employees_id String    @db.Uuid
+  employees    employees @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stores_has_employees_employees1")
+  stores       stores    @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stores_has_employees_stores1")
+
+  @@id([stores_id, employees_id])
+  @@index([employees_id], map: "fk_stores_has_employees_employees1_idx")
+  @@index([stores_id], map: "fk_stores_has_employees_stores1_idx")
+}
+
+model stores_has_products {
+  stores_id   String   @db.Uuid
+  products_id String   @db.Uuid
+  products    products @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stores_has_products_products1")
+  stores      stores   @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stores_has_products_stores1")
+
+  @@id([stores_id, products_id])
+  @@index([products_id], map: "fk_stores_has_products_products1_idx")
+  @@index([stores_id], map: "fk_stores_has_products_stores1_idx")
+}
+
+model tables {
+  id         Int
+  table_code String? @db.VarChar(45)
+  capacity   Int?
+  floor_id   String  @db.Uuid
+  floor      floor   @relation(fields: [floor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tables_floor1")
+
+  @@id([id, floor_id])
+  @@index([floor_id], map: "fk_tables_floor1_idx")
+}
+
+model unit {
+  id                String              @id @db.Uuid
+  name              String?             @db.VarChar(45)
+  material_has_unit material_has_unit[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user_has_stores {
+  id       BigInt @id(map: "user_has_stores_pk") @default(autoincrement())
+  user_id  Int
+  store_id Int
+}
+
+model variant {
+  id                   String                 @id @db.Uuid
+  name                 String?                @db.VarChar(45)
+  variant_has_products variant_has_products[]
+}
+
+model variant_has_products {
+  variant_id       String   @db.Uuid
+  products_id      String   @db.Uuid
+  additional_price Float?
+  products         products @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_products1")
+  variant          variant  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_variant1")
+
+  @@id([variant_id, products_id])
+  @@index([products_id], map: "fk_variant_has_products_products1_idx")
+  @@index([variant_id], map: "fk_variant_has_products_variant1_idx")
+}
+
+model voucher {
+  id                   String                 @id @db.Uuid
+  name                 String?                @db.VarChar(45)
+  amount               Float?
+  min_price            Float?
+  promo_code           String?                @db.VarChar(45)
+  start_period         DateTime?              @db.Date
+  end_period           DateTime?              @db.Date
+  quota                Int?
+  is_percent           Boolean?
+  voucher_commissions  voucher_commissions[]
+  voucher_has_products voucher_has_products[]
+}
+
+model voucher_commissions {
+  voucher_id   String    @db.Uuid
+  employees_id String    @db.Uuid
+  amount       Float?
+  is_percent   Boolean?
+  employees    employees @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_voucher_has_employees_employees1")
+  voucher      voucher   @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_voucher_has_employees_voucher1")
+
+  @@id([voucher_id, employees_id])
+  @@index([employees_id], map: "fk_voucher_has_employees_employees1_idx")
+  @@index([voucher_id], map: "fk_voucher_has_employees_voucher1_idx")
+}
+
+model voucher_has_products {
+  voucher_id  String   @db.Uuid
+  products_id String   @db.Uuid
+  products    products @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_voucher_has_products_products1")
+  voucher     voucher  @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_voucher_has_products_voucher1")
+
+  @@id([voucher_id, products_id])
+  @@index([products_id], map: "fk_voucher_has_products_products1_idx")
+  @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
+}
+
+model users_token {
+  id         Int     @id(map: "users_token_pk") @default(autoincrement())
+  token      String  @unique(map: "users_token_unique")
+  expired_at BigInt
+  user_id    Int
+  type       String? @db.VarChar
+  created_at BigInt?
+  updated_at BigInt?
+}
+
+enum cashdrawertype {
+  open
+  close
+}
+
+enum gender {
+  male
+  female
+}
+
+enum invoicetype {
+  paid
+  unpaid
+  refund
+}
+
+enum ordertype {
+  Take_Away @map("Take Away")
+  Dine_In   @map("Dine In")
+}
+
+enum paymenttype {
+  pending
+  paid
+  overdue
+}
+
+enum transaction_type {
+  sale
+  cash_out        @map("cash out")
+  cash_in         @map("cash in")
+  opening_balance @map("opening balance")
+  cash_refund     @map("cash refund")
 }

@@ -14,7 +14,7 @@ import {
 
 // Prisma
 import { PrismaService } from '../../../prisma/prisma.service';
-import { UserModel } from '@prisma/client';
+import { users as UserModel } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -25,10 +25,11 @@ export class UsersService {
    */
   public async create(payload: CreateUserDto): Promise<UserModel> {
     try {
-      return await this.prisma.userModel.create({
+      return await this.prisma.users.create({
         data: payload,
       });
     } catch (error) {
+      console.log(error);
       throw new BadRequestException('Failed to create user', {
         cause: new Error(),
         description: error.message,
@@ -72,14 +73,14 @@ export class UsersService {
             )
           : undefined;
 
-      const users = await this.prisma.userModel.findMany({
+      const users = await this.prisma.users.findMany({
         where,
         skip: filters.skip,
         take: filters.limit,
         orderBy,
       });
 
-      const totalData = await this.prisma.userModel.count({ where });
+      const totalData = await this.prisma.users.count({ where });
 
       const meta = new PageMetaDto({
         totalData,
@@ -102,7 +103,7 @@ export class UsersService {
    * @description Find user by ID
    */
   public async findOneById(id: number): Promise<UserModel> {
-    const user = await this.prisma.userModel.findUnique({ where: { id } });
+    const user = await this.prisma.users.findUnique({ where: { id } });
 
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found.`);
@@ -115,7 +116,7 @@ export class UsersService {
    * @description Find user by username
    */
   public async findOneByUsername(username: string): Promise<UserModel | null> {
-    return this.prisma.userModel.findUnique({
+    return this.prisma.users.findFirst({
       where: { username },
     });
   }
@@ -124,7 +125,7 @@ export class UsersService {
    * @description Find user by email
    */
   public async findOneByEmail(email: string): Promise<UserModel | null> {
-    return this.prisma.userModel.findUnique({
+    return this.prisma.users.findUnique({
       where: { email },
     });
   }
@@ -134,7 +135,7 @@ export class UsersService {
    */
   public async update(id: number, payload: UpdateUserDto): Promise<UserModel> {
     try {
-      return await this.prisma.userModel.update({
+      return await this.prisma.users.update({
         where: { id },
         data: payload,
       });
@@ -151,9 +152,9 @@ export class UsersService {
    */
   public async delete(id: number): Promise<UserModel> {
     try {
-      return await this.prisma.userModel.update({
+      return await this.prisma.users.update({
         where: { id },
-        data: { deletedAt: new Date() },
+        data: {},
       });
     } catch (error) {
       throw new BadRequestException('Failed to delete user', {
@@ -168,9 +169,9 @@ export class UsersService {
    */
   public async restore(id: number): Promise<UserModel> {
     try {
-      return await this.prisma.userModel.update({
+      return await this.prisma.users.update({
         where: { id },
-        data: { deletedAt: null },
+        data: {},
       });
     } catch (error) {
       throw new BadRequestException('Failed to restore user', {
