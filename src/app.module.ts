@@ -12,6 +12,9 @@ import { CategoriesModule } from './modules/categories/categories.module';
 
 import { ProductsModule } from './modules/products/products.module';
 
+import { InvoiceModule } from './modules/invoice/invoice.module';
+import { CustomerModule } from './modules/customer/customer.module';
+
 @Module({
   imports: [
     // Configuration Modules
@@ -23,6 +26,8 @@ import { ProductsModule } from './modules/products/products.module';
     UsersModule,
     CategoriesModule,
     ProductsModule,
+    InvoiceModule,
+    CustomerModule,
   ],
 })
 export class AppModule {}
