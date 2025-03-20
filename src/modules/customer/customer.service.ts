@@ -1,4 +1,10 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -9,8 +15,7 @@ import { customer as CustomerModel } from '@prisma/client';
 
 @Injectable()
 export class CustomerService {
-  constructor(private prisma: PrismaService) {
-  }
+  constructor(private prisma: PrismaService) {}
 
   async create(createCustomerDto: CreateCustomerDto) {
     try {
@@ -100,7 +105,8 @@ export class CustomerService {
         where: { id },
         data: {
           name: updateCustomerDto.name || updateCustomerDto.name,
-          phone_number: updateCustomerDto.phone_number || updateCustomerDto.phone_number,
+          phone_number:
+            updateCustomerDto.phone_number || updateCustomerDto.phone_number,
         },
       });
 

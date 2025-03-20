@@ -16,8 +16,7 @@ import { CustomerService } from './customer.service';
 
 @Controller('customers')
 export class CustomersController {
-  constructor(private readonly customersService: CustomerService) {
-  }
+  constructor(private readonly customersService: CustomerService) {}
 
   @Post()
   async create(@Body() createCustomerDto: CreateCustomerDto) {
@@ -78,9 +77,15 @@ export class CustomersController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateCustomerDto: UpdateCustomerDto,
+  ) {
     try {
-      const updatedCustomer = await this.customersService.update(id, updateCustomerDto);
+      const updatedCustomer = await this.customersService.update(
+        id,
+        updateCustomerDto,
+      );
       if (!updatedCustomer) {
         throw new HttpException(
           { statusCode: HttpStatus.NOT_FOUND, message: 'Customer not found' },
