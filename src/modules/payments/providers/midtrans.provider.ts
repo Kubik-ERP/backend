@@ -1,12 +1,14 @@
+import * as dotenv from 'dotenv';
 import { Injectable } from '@nestjs/common';
 import { PaymentGateway } from '../interfaces/payments.interface';
 import axios from 'axios';
 
+dotenv.config();
+
 @Injectable()
 export class MidtransProvider implements PaymentGateway {
-  private readonly baseUrl =
-    'https://app.sandbox.midtrans.com/snap/v1/transactions';
-  private readonly apiKey = 'SB-Mid-server-7QlwQsUJn0_lkQdsXfc7AmMC';
+  private readonly baseUrl = `${process.env.MIDTRANS_BASE_URL}${process.env.MIDTRANS_TRANSACTION_URL}`;
+  private readonly apiKey = `${process.env.MIDTRANS_API_KEY}`;
 
   async initiatePayment(orderId: string, amount: number) {
     try {
