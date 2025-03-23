@@ -5,6 +5,7 @@ import { DatabasePostgresConfigModule } from './configurations/database/postgres
 // Modules
 import { AuthenticationModule } from './modules/authentication/authentication.module';
 import { UsersModule } from './modules/users/users.module';
+import { PaymentModule } from './modules/payments/payments.module';
 
 // NestJS Libraries
 import { Module } from '@nestjs/common';
@@ -23,6 +24,7 @@ import { ProductsModule } from './modules/products/products.module';
     UsersModule,
     CategoriesModule,
     ProductsModule,
+    PaymentModule,
   ],
 })
 export class AppModule {}
