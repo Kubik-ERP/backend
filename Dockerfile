@@ -4,7 +4,10 @@ FROM node:22
 # Set working directory dalam container
 WORKDIR /app
 
-# Install dependencies menggunakan npm
+# Salin package.json dan package-lock.json (kalau ada)
+COPY package.json ./
+
+# Install dependencies
 RUN npm install --no-fund --no-audit
 
 # Salin semua file proyek ke dalam container
@@ -17,4 +20,4 @@ RUN npm run build
 EXPOSE 8080
 
 # Jalankan aplikasi
-CMD ["npm", "run", "start:prod"]
+CMD ["npm", "start"]
