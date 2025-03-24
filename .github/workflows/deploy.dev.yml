@@ -33,4 +33,4 @@ jobs:
             docker build -t kubik-backend .
             docker stop kubik-backend || true
             docker rm kubik-backend || true
-            docker run -d --name kubik-backend -p 8080:8080 kubik-backend
+            docker run -d --name kubik-backend --restart always -p 8080:8080 kubik-backend
