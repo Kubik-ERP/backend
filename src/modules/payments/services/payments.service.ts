@@ -29,32 +29,41 @@ export class PaymentService {
     return response;
   }
 
-  async handleCallback(callbackData: any) {
+  async handlePaymentCallback(callbackData: any) {
     this.logger.log('Received Midtrans callback:', callbackData);
 
     const { order_id, status_code, transaction_status } = callbackData;
 
-    if (transaction_status === 'settlement') {
-      this.logger.log(`Payment for Order ${order_id} is SUCCESS`);
-      return { success: true, message: 'Payment successful', order_id };
-    } else if (transaction_status === 'pending') {
-      this.logger.log(`Payment for Order ${order_id} is PENDING`);
-      return { success: true, message: 'Payment pending', order_id };
-    } else if (
-      transaction_status === 'cancel' ||
-      transaction_status === 'expire'
-    ) {
-      this.logger.log(`Payment for Order ${order_id} is CANCELED/EXPIRED`);
-      return {
-        success: false,
-        message: 'Payment canceled or expired',
-        order_id,
-      };
-    } else {
-      this.logger.warn(
-        `Unknown payment status for Order ${order_id}: ${transaction_status}`,
-      );
-      return { success: false, message: 'Unknown payment status', order_id };
+    const paymentStatus = {
+      orderId: order_id,
+      statusCode: status_code,
+      transactionStatus: transaction_status,
+      message: this.getTransactionMessage(transaction_status),
+    };
+
+    // TODO: Implemetation store to database
+
+    return {
+      success: true,
+      message: `Payment status updated for order ${order_id}`,
+      data: paymentStatus,
+    };
+  }
+
+  private getTransactionMessage(status: string): string {
+    switch (status) {
+      case 'settlement':
+        return 'Payment completed successfully';
+      case 'pending':
+        return 'Payment is pending';
+      case 'deny':
+        return 'Payment was denied';
+      case 'expire':
+        return 'Payment expired';
+      case 'cancel':
+        return 'Payment was canceled';
+      default:
+        return 'Unknown payment status';
     }
   }
 }

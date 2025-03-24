@@ -1,6 +1,7 @@
 import { Controller, Post, Body, Query, Get } from '@nestjs/common';
 import { PaymentService } from '../services/payments.service';
 import { ProcessPaymentDto } from '../dtos/process-payment.dto';
+import { PaymentCallbackDto } from '../dtos/callback-payment.dto';
 
 @Controller('payment')
 export class PaymentController {
@@ -34,7 +35,7 @@ export class PaymentController {
   }
 
   @Get('callback')
-  async handleCallback(@Body() callbackData: any) {
-    return await this.paymentService.handleCallback(callbackData);
+  async handlePaymentCallback(@Query() callbackData: PaymentCallbackDto) {
+    return await this.paymentService.handlePaymentCallback(callbackData);
   }
 }
