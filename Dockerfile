@@ -4,8 +4,8 @@ FROM node:22
 # Set working directory dalam container
 WORKDIR /app
 
-# Salin package.json dan package-lock.json
-COPY package.json ./
+# Salin code ke dalam container
+COPY ./ ./
 
 # Install dependencies
 RUN npm install --no-fund --no-audit
