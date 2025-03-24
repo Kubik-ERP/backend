@@ -11,7 +11,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies menggunakan pnpm
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
 
 # Salin semua file proyek ke dalam container
 COPY . .
