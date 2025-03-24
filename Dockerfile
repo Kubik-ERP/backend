@@ -4,17 +4,20 @@ FROM node:22
 # Set working directory dalam container
 WORKDIR /app
 
-# Salin package.json dan package-lock.json (kalau ada)
+# Salin package.json dan package-lock.json
 COPY package.json ./
 
 # Install dependencies
 RUN npm install --no-fund --no-audit
 
-#prisma
-RUN npm run db:pull && npm run db:generate
-
-# Salin semua file proyek ke dalam container
+# Salin semua file proyek termasuk folder Prisma
 COPY . .
+
+# Pastikan folder prisma sudah ada
+RUN ls -la prisma
+
+# Jalankan perintah Prisma
+RUN npm run db:pull && npm run db:generate
 
 # Build aplikasi
 RUN npm run build
