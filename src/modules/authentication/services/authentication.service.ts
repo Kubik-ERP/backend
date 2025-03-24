@@ -254,11 +254,10 @@ export class AuthenticationService {
     if (!user) {
       throw new BadRequestException('User not found');
     }
-    
+
     await this._usersService.update(user.id, { password: passwordHashed });
 
     //delete token
     await this.cacheManager.del(`forgot_token:${email}`);
   }
-
 }

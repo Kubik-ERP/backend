@@ -37,7 +37,10 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 // Services
 import { AuthenticationService } from '../services/authentication.service';
 import { UsersService } from '../../users/services/users.service';
-import { ForgotPasswordDto, ForgotPasswordResetDto } from '../dtos/forgot-password.dto';
+import {
+  ForgotPasswordDto,
+  ForgotPasswordResetDto,
+} from '../dtos/forgot-password.dto';
 
 @Controller('authentication')
 @ApiTags('Authentication')
@@ -45,7 +48,7 @@ export class AuthenticationController {
   constructor(
     private readonly _authenticationService: AuthenticationService,
     private readonly _usersService: UsersService,
-  ) { }
+  ) {}
 
   @Post('login')
   @HttpCode(200)
@@ -138,7 +141,7 @@ export class AuthenticationController {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      
+
       throw new HttpException(
         'Internal Server Error',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -153,11 +156,14 @@ export class AuthenticationController {
   })
   public async changePasswordForgot(@Body() body: ForgotPasswordResetDto) {
     try {
-      await this._authenticationService.forgotPasswordReset(body.email, body.password, body.token);
+      await this._authenticationService.forgotPasswordReset(
+        body.email,
+        body.password,
+        body.token,
+      );
 
       return {
-        message:
-          'Password Change Successfully',
+        message: 'Password Change Successfully',
       };
     } catch (error) {
       if (error instanceof BadRequestException) {
