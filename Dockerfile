@@ -5,7 +5,7 @@ FROM node:22
 WORKDIR /app
 
 # Install dependencies menggunakan npm
-RUN npm ci
+RUN npm install --no-fund --no-audit
 
 # Salin semua file proyek ke dalam container
 COPY . .
