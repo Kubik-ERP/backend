@@ -10,6 +10,9 @@ COPY package.json ./
 # Install dependencies
 RUN npm install --no-fund --no-audit
 
+#prisma
+RUN npm run db:pull && npm run db:generate
+
 # Salin semua file proyek ke dalam container
 COPY . .
 
