@@ -24,7 +24,7 @@ import { StoresModule } from './modules/stores/stores.module';
     UsersModule,
     CategoriesModule,
     ProductsModule,
-    StoresModule
+    StoresModule,
   ],
 })
 export class AppModule {}

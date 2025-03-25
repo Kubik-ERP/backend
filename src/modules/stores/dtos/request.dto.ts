@@ -19,9 +19,20 @@ enum BusinessType {
 
 class BusinessHoursDto {
   @IsString()
-  @IsIn(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], {
-    message: 'day must be a valid weekday in English',
-  })
+  @IsIn(
+    [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ],
+    {
+      message: 'day must be a valid weekday in English',
+    },
+  )
   day: string;
 
   @IsOptional()
