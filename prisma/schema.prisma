@@ -8,16 +8,17 @@ datasource db {
 }
 
 model users {
-  id          Int     @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
-  username    String? @db.VarChar
-  email       String  @unique(map: "users_unique") @db.VarChar
-  password    String  @db.VarChar
-  phone       String  @default(dbgenerated("0")) @db.VarChar
-  ext         Int     @default(62)
-  created_at  BigInt?
-  updated_at  BigInt?
-  verified_at BigInt?
-  deleted_at  BigInt?
+  id              Int               @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
+  username        String?           @db.VarChar
+  email           String            @unique(map: "users_unique") @db.VarChar
+  password        String            @db.VarChar
+  phone           String            @default(dbgenerated("0")) @db.VarChar
+  ext             Int               @default(62)
+  created_at      BigInt?
+  updated_at      BigInt?
+  verified_at     BigInt?
+  deleted_at      BigInt?
+  user_has_stores user_has_stores[]
 }
 
 model business_owner {
@@ -377,6 +378,7 @@ model stores {
   operational_hours         operational_hours[]
   stores_has_employees      stores_has_employees[]
   stores_has_products       stores_has_products[]
+  user_has_stores           user_has_stores[]
 }
 
 model stores_has_employees {
@@ -423,6 +425,8 @@ model user_has_stores {
   id       BigInt @id(map: "user_has_stores_pk") @default(autoincrement())
   user_id  Int
   store_id String @db.Uuid
+  stores   stores @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_store")
+  users    users  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
 }
 
 model variant {
