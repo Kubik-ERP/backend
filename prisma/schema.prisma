@@ -8,16 +8,17 @@ datasource db {
 }
 
 model users {
-  id          Int     @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
-  username    String? @db.VarChar
-  email       String  @unique(map: "users_unique") @db.VarChar
-  password    String  @db.VarChar
-  phone       String  @default(dbgenerated("0")) @db.VarChar
-  ext         Int     @default(62)
-  created_at  BigInt?
-  updated_at  BigInt?
-  verified_at BigInt?
-  deleted_at  BigInt?
+  id              Int               @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
+  username        String?           @db.VarChar
+  email           String            @unique(map: "users_unique") @db.VarChar
+  password        String            @db.VarChar
+  phone           String            @default(dbgenerated("0")) @db.VarChar
+  ext             Int               @default(62)
+  created_at      BigInt?
+  updated_at      BigInt?
+  verified_at     BigInt?
+  deleted_at      BigInt?
+  user_has_stores user_has_stores[]
 }
 
 model business_owner {
@@ -104,7 +105,7 @@ model categories_has_products {
 }
 
 model customer {
-  id                  String                @id @db.Uuid
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                String?               @db.VarChar(45)
   phone_number        String?               @db.VarChar(45)
   customer_has_stores customer_has_stores[]
@@ -235,7 +236,7 @@ model material_has_unit {
 }
 
 model operational_hours {
-  id         Int
+  id         BigInt    @default(autoincrement())
   days       Int?
   open_time  DateTime? @db.Time(6)
   close_time DateTime? @db.Time(6)
@@ -247,9 +248,11 @@ model operational_hours {
 }
 
 model payment_methods {
-  id      String    @id @db.Uuid
-  name    String?   @db.VarChar(45)
-  invoice invoice[]
+  id        String    @id @db.Uuid
+  name      String?   @db.VarChar(45)
+  icon_name String?   @db.VarChar
+  sort_no   Int?      @unique
+  invoice   invoice[]
 }
 
 model payments {
@@ -367,12 +370,17 @@ model stores {
   city                      String?                     @db.VarChar(45)
   postal_code               String?                     @db.VarChar(45)
   building                  String?                     @db.VarChar(45)
+  email                     String                      @db.VarChar(255)
+  business_type             String                      @db.VarChar(50)
+  created_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                DateTime?                   @default(now()) @db.Timestamp(6)
   business_owner_has_stores business_owner_has_stores[]
   customer_has_stores       customer_has_stores[]
   invoice_has_stores        invoice_has_stores[]
   operational_hours         operational_hours[]
   stores_has_employees      stores_has_employees[]
   stores_has_products       stores_has_products[]
+  user_has_stores           user_has_stores[]
 }
 
 model stores_has_employees {
@@ -418,12 +426,15 @@ model unit {
 model user_has_stores {
   id       BigInt @id(map: "user_has_stores_pk") @default(autoincrement())
   user_id  Int
-  store_id Int
+  store_id String @db.Uuid
+  stores   stores @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_store")
+  users    users  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
 }
 
 model variant {
   id                   String                 @id @db.Uuid
   name                 String?                @db.VarChar(45)
+  price                Float?                 @default(0)
   variant_has_products variant_has_products[]
 }
 

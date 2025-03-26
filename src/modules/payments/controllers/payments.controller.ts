@@ -8,22 +8,20 @@ export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
   @Post('process')
-  async processPayment(@Body() body: ProcessPaymentDto) {
-    const { provider, orderId, amount } = body;
-
-    const result = await this.paymentService.processPayment(
-      provider,
-      orderId,
-      amount,
-    );
-
-    return {
-      result,
-    };
+  public async processPayment(@Body() body: ProcessPaymentDto) {
+    // const { provider, orderId, amount } = body;
+    // const result = await this.paymentService.processPayment(
+    //   provider,
+    //   orderId,
+    //   amount,
+    // );
+    // return {
+    //   result,
+    // };
   }
 
   @Post('verify')
-  async verifyPayment(
+  public async verifyPayment(
     @Query('provider') provider: string,
     @Query('paymentId') paymentId: string,
   ) {
@@ -35,7 +33,19 @@ export class PaymentController {
   }
 
   @Get('callback')
-  async handlePaymentCallback(@Query() callbackData: PaymentCallbackDto) {
+  public async handlePaymentCallback(
+    @Query() callbackData: PaymentCallbackDto,
+  ) {
     return await this.paymentService.handlePaymentCallback(callbackData);
+  }
+
+  @Get('method')
+  public async paymentMethodList() {
+    const result = await this.paymentService.findAllPaymentMethod();
+
+    return {
+      message: 'Dontol beban keluarga',
+      result,
+    };
   }
 }

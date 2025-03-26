@@ -1,13 +1,21 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PaymentFactory } from '../factories/payment.factory';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
 
-  constructor(private readonly paymentFactory: PaymentFactory) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentFactory: PaymentFactory,
+  ) {}
 
-  async processPayment(provider: string, orderId: string, amount: number) {
+  public async processPayment(
+    provider: string,
+    orderId: string,
+    amount: number,
+  ) {
     const paymentProvider = this.paymentFactory.getProvider(provider);
     if (!paymentProvider) {
       throw new NotFoundException(`Payment provider '${provider}' not found`);
@@ -18,7 +26,7 @@ export class PaymentService {
     return response;
   }
 
-  async verifyPayment(provider: string, paymentId: string) {
+  public async verifyPayment(provider: string, paymentId: string) {
     const paymentProvider = this.paymentFactory.getProvider(provider);
     if (!paymentProvider) {
       throw new NotFoundException(`Payment provider '${provider}' not found`);
@@ -29,7 +37,7 @@ export class PaymentService {
     return response;
   }
 
-  async handlePaymentCallback(callbackData: any) {
+  public async handlePaymentCallback(callbackData: any) {
     this.logger.log('Received Midtrans callback:', callbackData);
 
     const { order_id, status_code, transaction_status } = callbackData;
@@ -48,6 +56,12 @@ export class PaymentService {
       message: `Payment status updated for order ${order_id}`,
       data: paymentStatus,
     };
+  }
+
+  public async findAllPaymentMethod() {
+    return await this.prisma.payment_methods.findMany({
+      orderBy: { sort_no: 'asc' },
+    });
   }
 
   private getTransactionMessage(status: string): string {
