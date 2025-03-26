@@ -36,7 +36,13 @@ export class PaymentController {
   public async handlePaymentCallback(
     @Query() callbackData: PaymentCallbackDto,
   ) {
-    return await this.paymentService.handlePaymentCallback(callbackData);
+    const { order_id, status_code, transaction_status } = callbackData;
+
+    return await this.paymentService.handlePaymentCallback(
+      order_id,
+      status_code,
+      transaction_status,
+    );
   }
 
   @Get('method')

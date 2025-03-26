@@ -37,11 +37,11 @@ export class PaymentService {
     return response;
   }
 
-  public async handlePaymentCallback(callbackData: any) {
-    this.logger.log('Received Midtrans callback:', callbackData);
-
-    const { order_id, status_code, transaction_status } = callbackData;
-
+  public async handlePaymentCallback(
+    order_id: string,
+    status_code: string,
+    transaction_status: string,
+  ) {
     const paymentStatus = {
       orderId: order_id,
       statusCode: status_code,
