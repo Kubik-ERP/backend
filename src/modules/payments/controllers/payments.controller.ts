@@ -44,7 +44,6 @@ export class PaymentController {
     const result = await this.paymentService.findAllPaymentMethod();
 
     return {
-      message: 'Dontol beban keluarga',
       result,
     };
   }
