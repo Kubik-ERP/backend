@@ -1,23 +1,18 @@
 import { Controller, Post, Body, Query, Get } from '@nestjs/common';
-import { PaymentService } from '../services/payments.service';
+import { InvoiceService } from '../services/invoices.service';
 import { ProcessPaymentDto } from '../dtos/process-payment.dto';
 import { PaymentCallbackDto } from '../dtos/callback-payment.dto';
 
 @Controller('payment')
 export class PaymentController {
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(private readonly paymentService: InvoiceService) {}
 
   @Post('process')
   public async processPayment(@Body() body: ProcessPaymentDto) {
-    // const { provider, orderId, amount } = body;
-    // const result = await this.paymentService.processPayment(
-    //   provider,
-    //   orderId,
-    //   amount,
-    // );
-    // return {
-    //   result,
-    // };
+    const result = await this.paymentService.processPayment(body);
+    return {
+      result,
+    };
   }
 
   @Post('verify')

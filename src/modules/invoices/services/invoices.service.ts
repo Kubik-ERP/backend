@@ -1,27 +1,31 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PaymentFactory } from '../factories/payment.factory';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ProcessPaymentDto } from '../dtos/process-payment.dto';
 
 @Injectable()
-export class PaymentService {
-  private readonly logger = new Logger(PaymentService.name);
+export class InvoiceService {
+  private readonly logger = new Logger(InvoiceService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentFactory: PaymentFactory,
   ) {}
 
-  public async processPayment(
-    provider: string,
-    orderId: string,
-    amount: number,
-  ) {
-    const paymentProvider = this.paymentFactory.getProvider(provider);
+  public async processPayment(request: ProcessPaymentDto) {
+    const paymentProvider = this.paymentFactory.getProvider(request.provider);
     if (!paymentProvider) {
-      throw new NotFoundException(`Payment provider '${provider}' not found`);
+      throw new NotFoundException(
+        `Payment provider '${request.provider}' not found`,
+      );
     }
 
-    const response = await paymentProvider.initiatePayment(orderId, amount);
+    const amount = 0;
+
+    const response = await paymentProvider.initiatePayment(
+      request.orderId,
+      amount,
+    );
 
     return response;
   }
@@ -49,7 +53,9 @@ export class PaymentService {
       message: this.getTransactionMessage(transaction_status),
     };
 
-    // TODO: Implemetation store to database
+    // find invoice
+
+    // update status
 
     return {
       success: true,
