@@ -128,3 +128,11 @@ export class ProcessPaymentDto {
   @Type(() => ProductDto)
   public products: ProductDto[];
 }
+
+export class CalculationEstimationDto {
+  @ApiProperty({ type: [ProductDto], description: 'List of Products' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductDto)
+  public products: ProductDto[];
+}

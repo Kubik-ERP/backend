@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PaymentFactory } from '../factories/payment.factory';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { ProcessPaymentDto } from '../dtos/process-payment.dto';
+import {
+  ProcessPaymentDto,
+  CalculationEstimationDto,
+} from '../dtos/process-payment.dto';
 
 @Injectable()
 export class InvoiceService {
@@ -62,6 +65,59 @@ export class InvoiceService {
       message: `Payment status updated for order ${order_id}`,
       data: paymentStatus,
     };
+  }
+
+  public async calculateTotal(
+    request: CalculationEstimationDto,
+  ): Promise<object> {
+    let total = 0;
+
+    for (const item of request.products) {
+      const product = await this.prisma.products.findUnique({
+        where: { id: item.productId },
+        select: { price: true, discount_price: true },
+      });
+
+      if (!product) {
+        throw new Error(`Product with ID ${item.productId} not found`);
+      }
+
+      let finalPrice = product.discount_price ?? product.price ?? 0;
+
+      if (item.variantId) {
+        const variant = await this.prisma.variant.findUnique({
+          where: { id: item.variantId },
+          select: { price: true },
+        });
+
+        if (variant) {
+          finalPrice += variant.price ?? 0;
+        }
+
+        const variantProduct =
+          await this.prisma.variant_has_products.findUnique({
+            where: {
+              variant_id_products_id: {
+                variant_id: item.variantId,
+                products_id: item.productId,
+              },
+            },
+            select: { additional_price: true },
+          });
+
+        if (variantProduct) {
+          finalPrice += variantProduct.additional_price ?? 0;
+        }
+      }
+
+      total += finalPrice * item.quantity;
+    }
+
+    const payment = {
+      total: total,
+    };
+
+    return payment;
   }
 
   public async findAllPaymentMethod() {
