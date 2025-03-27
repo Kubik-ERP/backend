@@ -1,5 +1,5 @@
 // Decorators
-import { ApiBaseResponse } from '../../../common/decorators/api-base-response.decorator';
+//import { ApiBaseResponse } from '../../../common/decorators/api-base-response.decorator';
 
 // DTOs
 import { GenerateOtpDto } from '../dtos/generate-otp.dto';
@@ -55,7 +55,7 @@ export class AuthenticationController {
   @ApiOperation({
     summary: 'Login with username and password',
   })
-  @ApiBaseResponse(LoginWithAccessToken)
+  //@ApiBaseResponse(LoginWithAccessToken)
   @UseGuards(AuthenticationLocalGuard)
   public async login(
     @Body() _body: LoginUsernameDto,
@@ -73,7 +73,7 @@ export class AuthenticationController {
   @ApiOperation({
     summary: 'Register with email',
   })
-  @ApiBaseResponse(UsersEntity)
+  //@ApiBaseResponse(UsersEntity)
   public async create(@Body() requestBody: RegisterEmailDto) {
     const result = await this._authenticationService.register(requestBody);
 
@@ -88,9 +88,15 @@ export class AuthenticationController {
   public async getProfile(@Req() req: ICustomRequestHeaders) {
     const result = await this._usersService.findOneById(req.user.id);
 
+    const response = {
+      username: result.username,
+      email: result.email,
+      id: result.id,
+    };
     return {
+      success: true,
       message: 'Authenticated user profile has been retrieved successfully',
-      result,
+      result: response,
     };
   }
 
@@ -98,7 +104,7 @@ export class AuthenticationController {
   @ApiOperation({
     summary: 'Generate OTP',
   })
-  @ApiBaseResponse(GenerateOtpEntity)
+  //@ApiBaseResponse(GenerateOtpEntity)
   public async generateOtp(@Body() body: GenerateOtpDto) {
     const result = await this._authenticationService.generateOtp(body.email);
 
@@ -111,7 +117,7 @@ export class AuthenticationController {
   @ApiOperation({
     summary: 'Verify OTP',
   })
-  @ApiBaseResponse(VerifyOtpEntity)
+  //@ApiBaseResponse(VerifyOtpEntity)
   public async verifyOtp(@Body() body: VerifyOtpDto) {
     const result = await this._authenticationService.verifyOtp(
       body.email,
