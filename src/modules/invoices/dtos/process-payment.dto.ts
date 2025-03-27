@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsString,
   IsUUID,
   ValidateNested,
@@ -48,6 +49,14 @@ class ProductDto {
   public notes: string;
 }
 
+class ProductListDto {
+  @ApiProperty({ type: [ProductDto], description: 'List of Products' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductDto)
+  public products: ProductDto[];
+}
+
 // DTO Invoice Detail
 class InvoiceDetail {
   @ApiProperty({
@@ -68,7 +77,7 @@ class InvoiceDetail {
   public notes: string;
 }
 
-export class ProcessPaymentDto {
+export class ProcessPaymentDto extends ProductListDto {
   @ApiProperty({
     description: 'Provider of Payment Gateway',
     required: true,
@@ -76,14 +85,6 @@ export class ProcessPaymentDto {
   })
   @IsNotEmpty()
   public provider: string;
-
-  @ApiProperty({
-    description: 'Order ID',
-    required: true,
-    example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
-  })
-  @IsNotEmpty()
-  public orderId: string;
 
   @ApiProperty({ description: 'Order Type', enum: ordertype, required: true })
   @IsNotEmpty()
@@ -115,24 +116,8 @@ export class ProcessPaymentDto {
   public customerName: string;
 
   @ApiProperty({ description: 'Invoice Detail', required: false })
-  @IsString()
+  @IsObject()
   public InvoiceDetail: InvoiceDetail;
-
-  @ApiProperty({
-    description: 'Products included in the order',
-    type: [ProductDto],
-    required: true,
-  })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => ProductDto)
-  public products: ProductDto[];
 }
 
-export class CalculationEstimationDto {
-  @ApiProperty({ type: [ProductDto], description: 'List of Products' })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => ProductDto)
-  public products: ProductDto[];
-}
+export class CalculationEstimationDto extends ProductListDto {}

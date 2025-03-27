@@ -1,40 +1,66 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+// Entity
+import { InvoiceEntity } from '../entities/invoices.entity';
+
+// Factory
 import { PaymentFactory } from '../factories/payment.factory';
+
+// NestJS
+import {
+  Injectable,
+  NotFoundException,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
+import { invoice, invoice_details } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
+
+// Service
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   ProcessPaymentDto,
   CalculationEstimationDto,
 } from '../dtos/process-payment.dto';
+import { InvoiceDetailsEntity } from '../entities/invoice-details.dto';
 
 @Injectable()
 export class InvoiceService {
   private readonly logger = new Logger(InvoiceService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly paymentFactory: PaymentFactory,
+    private readonly _prisma: PrismaService,
+    private readonly _paymentFactory: PaymentFactory,
   ) {}
 
   public async processPayment(request: ProcessPaymentDto) {
-    const paymentProvider = this.paymentFactory.getProvider(request.provider);
+    const paymentProvider = this._paymentFactory.getProvider(request.provider);
     if (!paymentProvider) {
       throw new NotFoundException(
         `Payment provider '${request.provider}' not found`,
       );
     }
 
-    const amount = 0;
+    // create order ID
+    const orderId = uuidv4();
 
+    // create invoice with status
+    // const a = await this.create({
+    //   email: email,
+    //   phone: parseInt(phoneNumber.toString()).toString(),
+    //   ext: parseInt(phoneCountryCode.toString()),
+    //   password: passwordHashed,
+    // });
+
+    const calculation = await this.calculateTotal(request);
     const response = await paymentProvider.initiatePayment(
-      request.orderId,
-      amount,
+      orderId,
+      calculation.total,
     );
 
     return response;
   }
 
   public async verifyPayment(provider: string, paymentId: string) {
-    const paymentProvider = this.paymentFactory.getProvider(provider);
+    const paymentProvider = this._paymentFactory.getProvider(provider);
     if (!paymentProvider) {
       throw new NotFoundException(`Payment provider '${provider}' not found`);
     }
@@ -69,11 +95,11 @@ export class InvoiceService {
 
   public async calculateTotal(
     request: CalculationEstimationDto,
-  ): Promise<object> {
+  ): Promise<{ total: number }> {
     let total = 0;
 
     for (const item of request.products) {
-      const product = await this.prisma.products.findUnique({
+      const product = await this._prisma.products.findUnique({
         where: { id: item.productId },
         select: { price: true, discount_price: true },
       });
@@ -85,7 +111,7 @@ export class InvoiceService {
       let finalPrice = product.discount_price ?? product.price ?? 0;
 
       if (item.variantId) {
-        const variant = await this.prisma.variant.findUnique({
+        const variant = await this._prisma.variant.findUnique({
           where: { id: item.variantId },
           select: { price: true },
         });
@@ -95,7 +121,7 @@ export class InvoiceService {
         }
 
         const variantProduct =
-          await this.prisma.variant_has_products.findUnique({
+          await this._prisma.variant_has_products.findUnique({
             where: {
               variant_id_products_id: {
                 variant_id: item.variantId,
@@ -121,9 +147,61 @@ export class InvoiceService {
   }
 
   public async findAllPaymentMethod() {
-    return await this.prisma.payment_methods.findMany({
+    return await this._prisma.payment_methods.findMany({
       orderBy: { sort_no: 'asc' },
     });
+  }
+
+  /**
+   * @description Create an invoice
+   */
+  public async create(invoice: InvoiceEntity): Promise<invoice> {
+    try {
+      return await this._prisma.invoice.create({
+        data: {
+          id: invoice.id,
+          payment_methods_id: invoice.payment_methods_id,
+          customer_id: invoice.customer_id,
+          discount_amount: invoice.discount_amount,
+          table_code: invoice.table_code,
+          payment_status: invoice.payment_status,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+      throw new BadRequestException('Failed to create invoice', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Create an invoice details
+   */
+  public async createInvoiceDetail(
+    invoiceDetail: InvoiceDetailsEntity,
+  ): Promise<invoice_details> {
+    try {
+      return await this._prisma.invoice_details.create({
+        data: {
+          id: invoiceDetail.id,
+          invoice_id: invoiceDetail.invoice_id,
+          product_name: invoiceDetail.product_name,
+          product_price: invoiceDetail.product_price,
+          notes: invoiceDetail.notes,
+          order_type: invoiceDetail.order_type,
+          qty: invoiceDetail.qty,
+          product_variant: invoiceDetail.product_variant,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+      throw new BadRequestException('Failed to create invoice', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
   }
 
   private getTransactionMessage(status: string): string {

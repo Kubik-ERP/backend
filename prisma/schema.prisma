@@ -191,15 +191,15 @@ model invoice {
 }
 
 model invoice_details {
-  id             String     @db.Uuid
-  product_name   String?    @db.VarChar(45)
-  product_price  String?    @db.VarChar(45)
-  product_varian String?    @db.VarChar(45)
-  notes          String?    @db.VarChar(45)
-  order_type     ordertype?
-  qty            Int?
-  invoice_id     String     @db.Uuid
-  invoice        invoice    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  id              String     @db.Uuid
+  product_name    String?    @db.VarChar(45)
+  product_price   Float?
+  product_variant String?    @db.VarChar(45)
+  notes           String?    @db.VarChar(45)
+  order_type      ordertype?
+  qty             Int?
+  invoice_id      String     @db.Uuid
+  invoice         invoice    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
