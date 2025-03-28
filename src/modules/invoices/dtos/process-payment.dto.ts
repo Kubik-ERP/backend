@@ -14,7 +14,7 @@ import {
 import { ordertype } from '@prisma/client';
 
 // NestJS Libraries
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiOperation, ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 // DTO Product
@@ -97,7 +97,7 @@ export class ProcessPaymentDto extends ProductListDto {
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
   @IsUUID()
-  public paymentId: string;
+  public paymentMethodId: string;
 
   @ApiProperty({
     description: 'Selected Voucher ID',
@@ -108,12 +108,20 @@ export class ProcessPaymentDto extends ProductListDto {
   public vouchers: string[];
 
   @ApiProperty({
-    description: 'Customer Name',
+    description: 'Customer ID',
     required: false,
-    example: 'Christopher',
+    example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
   @IsString()
-  public customerName: string;
+  public customerId: string;
+
+  @ApiProperty({
+    description: 'Table Code',
+    required: false,
+    example: 'TBL01',
+  })
+  @IsString()
+  public tableCode: string;
 
   @ApiProperty({ description: 'Invoice Detail', required: false })
   @IsObject()

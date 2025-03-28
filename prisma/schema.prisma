@@ -181,6 +181,7 @@ model invoice {
   created_at         DateTime?            @db.Timestamp(6)
   update_at          DateTime?            @db.Timestamp(6)
   delete_at          DateTime?            @db.Timestamp(6)
+  subtotal           Float
   customer           customer             @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods    payment_methods      @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
   invoice_details    invoice_details[]

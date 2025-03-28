@@ -11,7 +11,12 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
-import { invoice, invoice_details } from '@prisma/client';
+import {
+  invoice,
+  invoice_details,
+  invoicetype,
+  paymenttype,
+} from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 // Service
@@ -39,20 +44,45 @@ export class InvoiceService {
       );
     }
 
-    // create order ID
-    const orderId = uuidv4();
-
-    // create invoice with status
-    // const a = await this.create({
-    //   email: email,
-    //   phone: parseInt(phoneNumber.toString()).toString(),
-    //   ext: parseInt(phoneCountryCode.toString()),
-    //   password: passwordHashed,
-    // });
-
+    // create invoice ID
+    const invoiceId = uuidv4();
     const calculation = await this.calculateTotal(request);
+    const invoiceData = {
+      id: invoiceId,
+      payment_methods_id: request.paymentMethodId,
+      customer_id: request.customerId,
+      table_code: request.tableCode,
+      payment_status: invoicetype.unpaid,
+      discount_amount: 0, // need to confirm
+      subtotal: calculation.total,
+      created_at: new Date(),
+      update_at: new Date(),
+      delete_at: null,
+    };
+
+    // create invoice with status unpaid
+    await this.create(invoiceData);
+
+    request.products.forEach(async (detail) => {
+      // create invoice detail ID
+      const invoiceDetailId = uuidv4();
+      const invoiceDetailData = {
+        id: invoiceDetailId,
+        invoice_id: invoiceId,
+        product_name: detail.productId,
+        product_price: 0,
+        notes: detail.notes,
+        order_type: request.orderType,
+        qty: detail.quantity,
+        product_variant: detail.variantId,
+      };
+
+      // create invoice with status unpaid
+      await this.createInvoiceDetail(invoiceDetailData);
+    });
+
     const response = await paymentProvider.initiatePayment(
-      orderId,
+      invoiceId,
       calculation.total,
     );
 
@@ -155,16 +185,20 @@ export class InvoiceService {
   /**
    * @description Create an invoice
    */
-  public async create(invoice: InvoiceEntity): Promise<invoice> {
+  public async create(invoice: invoice): Promise<invoice> {
     try {
       return await this._prisma.invoice.create({
         data: {
-          id: invoice.id,
+          id: invoice.id ?? uuidv4(),
           payment_methods_id: invoice.payment_methods_id,
           customer_id: invoice.customer_id,
-          discount_amount: invoice.discount_amount,
           table_code: invoice.table_code,
-          payment_status: invoice.payment_status,
+          payment_status: invoice.payment_status as invoicetype,
+          discount_amount: invoice.discount_amount,
+          subtotal: invoice.subtotal,
+          created_at: invoice.created_at ?? new Date(),
+          update_at: invoice.update_at ?? new Date(),
+          delete_at: invoice.delete_at ?? null,
         },
       });
     } catch (error) {
@@ -180,7 +214,7 @@ export class InvoiceService {
    * @description Create an invoice details
    */
   public async createInvoiceDetail(
-    invoiceDetail: InvoiceDetailsEntity,
+    invoiceDetail: invoice_details,
   ): Promise<invoice_details> {
     try {
       return await this._prisma.invoice_details.create({
