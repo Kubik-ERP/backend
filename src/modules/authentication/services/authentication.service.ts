@@ -130,7 +130,7 @@ export class AuthenticationService {
         secret: newSecret,
         encoding: 'base32',
         step: 300,
-        digits: 6,
+        digits: 4,
       });
 
       // Kirim OTP ke email
@@ -176,6 +176,7 @@ export class AuthenticationService {
         token,
         step: 300,
         window: 1,
+        digits: 4,
       });
 
       if (isValid) {
