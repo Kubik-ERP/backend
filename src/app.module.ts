@@ -12,6 +12,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 
 import { ProductsModule } from './modules/products/products.module';
 import { StoresModule } from './modules/stores/stores.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { StoresModule } from './modules/stores/stores.module';
     // Core Feature Modules
     AuthenticationModule,
     UsersModule,
+    DashboardModule,
     CategoriesModule,
     ProductsModule,
     StoresModule,

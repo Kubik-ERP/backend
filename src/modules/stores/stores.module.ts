@@ -15,7 +15,7 @@ import { AuthenticationModule } from '../authentication/authentication.module';
     JwtConfigModule,
     PrismaModule,
     PassportModule,
-    AuthenticationModule
+    AuthenticationModule,
   ],
   controllers: [StoresController],
   providers: [StoresService, JwtStrategy],
