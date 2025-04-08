@@ -88,8 +88,8 @@ model cash_registers {
 
 model categories {
   id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                    String?                   @unique @db.VarChar(45)
-  notes                   String?                   @db.VarChar(45)
+  category                String?                   @unique(map: "categories_name_key") @db.VarChar(45)
+  description             String?                   @db.VarChar(45)
   categories_has_products categories_has_products[]
 }
 

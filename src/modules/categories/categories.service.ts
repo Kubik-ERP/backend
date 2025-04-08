@@ -19,7 +19,7 @@ export class CategoriesService {
   async create(createCategoryDto: CreateCategoryDto) {
     try {
       const existingCategory = await this.prisma.categories.findFirst({
-        where: { name: createCategoryDto.name },
+        where: { category: createCategoryDto.category },
       });
 
       if (existingCategory) {
@@ -34,8 +34,8 @@ export class CategoriesService {
 
       const newCategory = await this.prisma.categories.create({
         data: {
-          name: createCategoryDto.name,
-          notes: createCategoryDto.notes,
+          category: createCategoryDto.category,
+          description: createCategoryDto.description,
         },
       });
 
@@ -58,7 +58,7 @@ export class CategoriesService {
     } else {
       return await this.prisma.categories.findFirst({
         where: {
-          name: { contains: idOrName, mode: 'insensitive' },
+          category: { contains: idOrName, mode: 'insensitive' },
         },
       });
     }
@@ -74,7 +74,7 @@ export class CategoriesService {
     } else {
       return await this.prisma.categories.findMany({
         where: {
-          name: { contains: idOrName, mode: 'insensitive' },
+          category: { contains: idOrName, mode: 'insensitive' },
         },
       });
     }
@@ -90,9 +90,9 @@ export class CategoriesService {
         throw new NotFoundException('Category not found');
       }
 
-      if (updateCategoryDto.name) {
+      if (updateCategoryDto.category) {
         const duplicateCategory = await this.prisma.categories.findFirst({
-          where: { name: updateCategoryDto.name, NOT: { id } },
+          where: { category: updateCategoryDto.category, NOT: { id } },
         });
 
         if (duplicateCategory) {
@@ -103,8 +103,9 @@ export class CategoriesService {
       const updatedCategory = await this.prisma.categories.update({
         where: { id },
         data: {
-          name: updateCategoryDto.name || existingCategory.name,
-          notes: updateCategoryDto.notes || existingCategory.notes,
+          category: updateCategoryDto.category || existingCategory.category,
+          description:
+            updateCategoryDto.description || existingCategory.description,
         },
       });
 
