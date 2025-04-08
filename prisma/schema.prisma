@@ -440,11 +440,10 @@ model variant {
 }
 
 model variant_has_products {
-  variant_id       String   @db.Uuid
-  products_id      String   @db.Uuid
-  additional_price Float?
-  products         products @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_products1")
-  variant          variant  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_variant1")
+  variant_id  String   @db.Uuid
+  products_id String   @db.Uuid
+  products    products @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_products1")
+  variant     variant  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_variant1")
 
   @@id([variant_id, products_id])
   @@index([products_id], map: "fk_variant_has_products_products1_idx")

@@ -1,6 +1,3 @@
-// Entity
-import { InvoiceEntity } from '../entities/invoices.entity';
-
 // Factory
 import { PaymentFactory } from '../factories/payment.factory';
 
@@ -26,6 +23,7 @@ import {
   CalculationEstimationDto,
 } from '../dtos/process-payment.dto';
 import { InvoiceDetailsEntity } from '../entities/invoice-details.dto';
+import { CalculationResult } from '../interfaces/calculation.interface';
 
 @Injectable()
 export class InvoiceService {
@@ -125,8 +123,9 @@ export class InvoiceService {
 
   public async calculateTotal(
     request: CalculationEstimationDto,
-  ): Promise<{ total: number }> {
+  ): Promise<CalculationResult> {
     let total = 0;
+    const items = [];
 
     for (const item of request.products) {
       const product = await this._prisma.products.findUnique({
@@ -138,7 +137,8 @@ export class InvoiceService {
         throw new Error(`Product with ID ${item.productId} not found`);
       }
 
-      let finalPrice = product.discount_price ?? product.price ?? 0;
+      const productPrice = product.discount_price ?? product.price ?? 0;
+      let variantPrice = 0;
 
       if (item.variantId) {
         const variant = await this._prisma.variant.findUnique({
@@ -147,7 +147,7 @@ export class InvoiceService {
         });
 
         if (variant) {
-          finalPrice += variant.price ?? 0;
+          variantPrice += variant.price ?? 0;
         }
 
         const variantProduct =
@@ -158,22 +158,33 @@ export class InvoiceService {
                 products_id: item.productId,
               },
             },
-            select: { additional_price: true },
+            select: { products_id: true, variant_id: true },
           });
 
-        if (variantProduct) {
-          finalPrice += variantProduct.additional_price ?? 0;
+        if (!variantProduct) {
+          throw new Error(
+            `Product ${item.productId} with Variant ${item.variantId} not found`,
+          );
         }
       }
 
-      total += finalPrice * item.quantity;
+      const subtotal = (productPrice + variantPrice) * item.quantity;
+      total += subtotal;
+
+      items.push({
+        productId: item.productId,
+        variantId: item.variantId,
+        productPrice,
+        variantPrice,
+        qty: item.quantity,
+        subtotal,
+      });
     }
 
-    const payment = {
-      total: total,
+    return {
+      total,
+      items,
     };
-
-    return payment;
   }
 
   public async findAllPaymentMethod() {
