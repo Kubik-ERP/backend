@@ -8,6 +8,9 @@ declare global {
     id: number;
     email: string;
     username: string;
+    phone: number;
+    ext: number;
+    role?: string;
   }
 
   interface IResultFilter {

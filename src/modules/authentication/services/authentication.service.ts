@@ -12,10 +12,16 @@ import { SALT_OR_ROUND } from '../../../common/constants/common.constant';
 import { RegisterEmailDto } from '../dtos/register.dto';
 
 // Entities
-import { UserModel } from '@prisma/client';
+import { users } from '@prisma/client';
+
+// Enum
+import { OTPStatus } from '../../../enum/login-enum';
 
 // Interfaces
 import { ILogin } from '../interfaces/authentication.interface';
+
+//UUID
+import { v4 as uuidv4 } from 'uuid';
 
 // NestJS Libraries
 import {
@@ -28,8 +34,8 @@ import {
 import { JwtService } from '@nestjs/jwt';
 
 // Services
-import { UsersService } from '../../users/services/users.service';
 import { MailService } from 'src/modules/mail/services/mail.service';
+import { UsersService } from '../../users/services/users.service';
 
 // Speaksy
 import * as speakeasy from 'speakeasy';
@@ -51,35 +57,35 @@ export class AuthenticationService {
    * @description Handle business logic for validating a user
    */
   public async validateUser(
-    username: string,
+    email: string,
     pass: string,
-  ): Promise<UserModel | null> {
-    try {
-      const user = await this._usersService.findOneByUsername(username);
-      const isMatch = await bcrypt.compare(`${pass}`, user!.password);
-
-      if (!isMatch) {
-        throw new BadRequestException('Bad Request', {
-          cause: new Error(),
-          description: 'Invalid password',
-        });
-      }
-
-      return user;
-    } catch (error) {
-      throw new BadRequestException('Bad Request', {
-        cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
-      });
+  ): Promise<users | null> {
+    const user = await this._usersService.findOneByEmail(email);
+    if (!user) {
+      throw new BadRequestException('Username / password is incorrect');
     }
+
+    const isMatch = await bcrypt.compare(`${pass}`, user!.password);
+
+    if (!isMatch) {
+      throw new BadRequestException('Username / password is incorrect');
+    }
+
+    return user;
   }
 
   /**
    * @description Handle business logic for logging in a user
    */
   public async login(user: IRequestUser): Promise<ILogin> {
-    const payload = { username: user.username, sub: user.id };
-
+    const payload = {
+      username: user.username,
+      sub: user.id,
+      email: user.email,
+      phone: user.phone,
+      ext: user.ext,
+      role: user.role,
+    };
     return {
       accessToken: this._jwtService.sign(payload),
     };
@@ -88,34 +94,25 @@ export class AuthenticationService {
   /**
    * @description Handle business logic for registering a user
    */
-  public async register(payload: RegisterEmailDto): Promise<UserModel> {
-    try {
-      const { email, username, password } = payload;
-      const emailExists = await this._usersService.findOneByEmail(email);
+  public async register(payload: RegisterEmailDto): Promise<users> {
+    const { email, phoneNumber, phoneCountryCode, password } = payload;
 
-      if (emailExists) {
-        throw new BadRequestException(`Bad Request`, {
-          cause: new Error(),
-          description: 'Users with email ${email} already exists',
-        });
-      }
-
-      /**
-       * Hash Password
-       */
-      const passwordHashed = await bcrypt.hash(password, SALT_OR_ROUND);
-
-      return await this._usersService.create({
-        email,
-        username,
-        password: passwordHashed,
-      });
-    } catch (error) {
-      throw new BadRequestException(error.response.message, {
-        cause: new Error(),
-        description: error.response ? error?.response?.error : error.message,
-      });
+    const emailExists = await this._usersService.findOneByEmail(email);
+    if (emailExists) {
+      throw new BadRequestException(`User already exists`);
     }
+
+    /**
+     * Hash Password
+     */
+    const passwordHashed = await bcrypt.hash(password, SALT_OR_ROUND);
+
+    return await this._usersService.create({
+      email: email,
+      phone: parseInt(phoneNumber.toString()).toString(),
+      ext: parseInt(phoneCountryCode.toString()),
+      password: passwordHashed,
+    });
   }
 
   /**
@@ -133,7 +130,7 @@ export class AuthenticationService {
         secret: newSecret,
         encoding: 'base32',
         step: 300,
-        digits: 6,
+        digits: 4,
       });
 
       // Kirim OTP ke email
@@ -155,7 +152,11 @@ export class AuthenticationService {
   /**
    * @description Verify OTP
    */
-  public async verifyOtp(email: string, token: string): Promise<object> {
+  public async verifyOtp(
+    email: string,
+    token: string,
+    type: string,
+  ): Promise<object> {
     try {
       let result;
 
@@ -175,10 +176,25 @@ export class AuthenticationService {
         token,
         step: 300,
         window: 1,
+        digits: 4,
       });
 
       if (isValid) {
         await this.cacheManager.del(`otp_secret:${email}`);
+      }
+
+      // update user to verified
+      const otpType = type as OTPStatus;
+      if (otpType === OTPStatus.Register) {
+        const userInfo = await this._usersService.findOneByEmail(email);
+
+        if (!userInfo) {
+          throw new BadRequestException('User not found');
+        }
+
+        await this._usersService.update(userInfo.id, {
+          verified_at: Math.floor(Date.now() / 1000),
+        });
       }
 
       result = {
@@ -188,9 +204,61 @@ export class AuthenticationService {
       return result;
     } catch (error) {
       throw new HttpException(
-        'Failed to generate OTP',
+        'Failed to verify OTP',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  public async forgotPassword(email: string): Promise<void> {
+    //validate user email
+    const user = this._usersService.findOneByEmail(email);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    //generate token
+    const token = uuidv4();
+    const ttl = 900;
+
+    //set token to cache with 15 minutes expiration
+    await this.cacheManager.set(`forgot_token:${email}`, token, ttl);
+
+    // send email
+    this._mailService.sendMailWithTemplate(
+      'forgot-password',
+      'Forgot Password',
+      { token: token, name: 'Kontol' },
+      email,
+    );
+  }
+
+  public async forgotPasswordReset(
+    email: string,
+    password: string,
+    token: string,
+  ): Promise<void> {
+    //validate token
+    const cacheToken = await this.cacheManager.get<string>(
+      `forgot_token:${email}`,
+    );
+
+    if (!cacheToken || cacheToken !== token) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    //hash password
+    const passwordHashed = await bcrypt.hash(password, SALT_OR_ROUND);
+
+    //update user password
+    const user = await this._usersService.findOneByEmail(email);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    await this._usersService.update(user.id, { password: passwordHashed });
+
+    //delete token
+    await this.cacheManager.del(`forgot_token:${email}`);
   }
 }

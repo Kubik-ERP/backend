@@ -8,7 +8,7 @@ export class VerifyOtpDto {
   @ApiProperty({ description: 'OTP code entered by user' })
   @IsNotEmpty()
   @IsString()
-  @Length(6, 6) // 6 digit OTP
+  @Length(4, 4) // 4 digit OTP
   public otp: string;
 
   @ApiProperty({ description: 'User email', required: true })
@@ -16,4 +16,9 @@ export class VerifyOtpDto {
   @IsString()
   @IsEmail()
   public email: string;
+
+  @ApiProperty({ description: 'Verify Type', required: true })
+  @IsNotEmpty()
+  @IsString()
+  public type: string;
 }
