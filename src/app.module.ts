@@ -5,6 +5,7 @@ import { DatabasePostgresConfigModule } from './configurations/database/postgres
 // Modules
 import { AuthenticationModule } from './modules/authentication/authentication.module';
 import { UsersModule } from './modules/users/users.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
 
 // NestJS Libraries
 import { Module } from '@nestjs/common';
@@ -23,6 +24,7 @@ import { StoresModule } from './modules/stores/stores.module';
     AuthenticationModule,
     UsersModule,
     CategoriesModule,
+    InvoicesModule,
     ProductsModule,
     StoresModule,
   ],
