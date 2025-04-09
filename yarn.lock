@@ -1606,6 +1606,11 @@
   dependencies:
     "@types/node" "*"
 
+"@types/luxon@^3.4.2":
+  version "3.6.2"
+  resolved "https://registry.npmjs.org/@types/luxon/-/luxon-3.6.2.tgz"
+  integrity sha512-R/BdP7OxEMc44l2Ex5lSXHoIXTB2JLNa3y2QISIbr58U/YcsffyQrYW//hZSdrfxrjRZj3GcUoxMPGdO8gSYuw==
+
 "@types/methods@^1.1.4":
   version "1.1.4"
   resolved "https://registry.npmjs.org/@types/methods/-/methods-1.1.4.tgz"
@@ -4771,6 +4776,11 @@ lru-cache@^5.1.1:
   integrity sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==
   dependencies:
     yallist "^3.0.2"
+
+luxon@^3.6.0:
+  version "3.6.1"
+  resolved "https://registry.npmjs.org/luxon/-/luxon-3.6.1.tgz"
+  integrity sha512-tJLxrKJhO2ukZ5z0gyjY1zPh3Rh88Ej9P7jNrZiHMUXHae1yvI2imgOZtL1TO8TW6biMMKfTtAOoEJANgtWBMQ==
 
 magic-string@0.30.17:
   version "0.30.17"
