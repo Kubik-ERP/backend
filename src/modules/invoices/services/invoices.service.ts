@@ -158,6 +158,7 @@ export class InvoiceService {
     request: CalculationEstimationDto,
   ): Promise<CalculationResult> {
     let total = 0;
+    let discountTotal = 0;
     const items = [];
 
     for (const item of request.products) {
@@ -170,7 +171,12 @@ export class InvoiceService {
         throw new Error(`Product with ID ${item.productId} not found`);
       }
 
-      const productPrice = product.discount_price ?? product.price ?? 0;
+      const originalPrice = product.price ?? 0;
+      const discountedPrice =
+        product.discount_price !== null && product.discount_price > 0
+          ? product.discount_price
+          : originalPrice;
+      const productPrice = discountedPrice;
       let variantPrice = 0;
 
       if (item.variantId) {
@@ -201,7 +207,9 @@ export class InvoiceService {
         }
       }
 
+      const discountAmount = (originalPrice - discountedPrice) * item.quantity;
       const subtotal = (productPrice + variantPrice) * item.quantity;
+      discountTotal += discountAmount;
       total += subtotal;
 
       items.push({
@@ -210,12 +218,14 @@ export class InvoiceService {
         productPrice,
         variantPrice,
         qty: item.quantity,
+        discountAmount: discountAmount,
         subtotal,
       });
     }
 
     return {
       total,
+      discountTotal,
       items,
     };
   }
