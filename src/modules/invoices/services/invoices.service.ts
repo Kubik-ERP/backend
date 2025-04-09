@@ -62,13 +62,25 @@ export class InvoiceService {
     await this.create(invoiceData);
 
     request.products.forEach(async (detail) => {
+      // find the price
+      let productPrice = 0,
+        variantPrice = 0;
+      const found = calculation.items.find(
+        (p) =>
+          p.productId === detail.productId && p.variantId === detail.variantId,
+      );
+      if (found) {
+        productPrice = found.productPrice;
+        variantPrice = found.variantPrice;
+      }
+
       // create invoice detail ID
       const invoiceDetailId = uuidv4();
       const invoiceDetailData = {
         id: invoiceDetailId,
         invoice_id: invoiceId,
         product_name: detail.productId,
-        product_price: 0,
+        product_price: productPrice + variantPrice,
         notes: detail.notes,
         order_type: request.orderType,
         qty: detail.quantity,
@@ -103,16 +115,37 @@ export class InvoiceService {
     status_code: string,
     transaction_status: string,
   ) {
+    let status: invoicetype;
+    switch (transaction_status) {
+      case 'settlement':
+        status = invoicetype.paid;
+        break;
+      case 'refund':
+        status = invoicetype.refund;
+        break;
+      default:
+        status = invoicetype.unpaid;
+        break;
+    }
+
+    // find invoice
+    const invoice = await this.findInvoiceId(order_id);
+    if (invoice === null) {
+      throw new NotFoundException(`Invoice '${order_id}' not found`);
+    }
+
+    // update status
+    const updateInvoice = await this.updateStatusById(order_id, status);
+    if (updateInvoice === null) {
+      throw new NotFoundException(`Invoice '${order_id}' not found`);
+    }
+
     const paymentStatus = {
       orderId: order_id,
       statusCode: status_code,
-      transactionStatus: transaction_status,
-      message: this.getTransactionMessage(transaction_status),
+      transactionStatus: status,
+      message: this.getTransactionMessage(status),
     };
-
-    // find invoice
-
-    // update status
 
     return {
       success: true,
@@ -187,10 +220,46 @@ export class InvoiceService {
     };
   }
 
+  /**
+   * @description Find all payment method
+   */
   public async findAllPaymentMethod() {
     return await this._prisma.payment_methods.findMany({
       orderBy: { sort_no: 'asc' },
     });
+  }
+
+  /**
+   * @description Find invoice by ID
+   */
+  public async findInvoiceId(id: string): Promise<invoice> {
+    const invoice = await this._prisma.invoice.findUnique({ where: { id } });
+
+    if (!invoice) {
+      throw new NotFoundException(`Invoice with ID ${id} not found.`);
+    }
+
+    return invoice;
+  }
+
+  /**
+   * @description Update a invoice status
+   */
+  public async updateStatusById(
+    id: string,
+    status: invoicetype,
+  ): Promise<invoice> {
+    try {
+      return await this._prisma.invoice.update({
+        where: { id },
+        data: { payment_status: status },
+      });
+    } catch (error) {
+      throw new BadRequestException('Failed to update invoice status', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
   }
 
   /**
