@@ -4,7 +4,6 @@ import {
   IsOptional,
   IsPhoneNumber,
   IsEnum,
-  IsObject,
   IsArray,
   ValidateNested,
   IsIn,
@@ -72,11 +71,6 @@ export class CreateStoreDto {
   businessType: BusinessType;
 
   @ApiProperty()
-  @IsOptional()
-  @IsString()
-  photo?: string;
-
-  @ApiProperty()
   @IsString()
   streetAddress: string;
 
@@ -99,4 +93,9 @@ export class CreateStoreDto {
   @ValidateNested({ each: true })
   @Type(() => BusinessHoursDto)
   businessHours: BusinessHoursDto[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  photo?: string;
 }
