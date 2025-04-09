@@ -130,7 +130,7 @@ export class AuthenticationService {
         secret: newSecret,
         encoding: 'base32',
         step: 300,
-        digits: 6,
+        digits: 4,
       });
 
       // Kirim OTP ke email
@@ -176,6 +176,7 @@ export class AuthenticationService {
         token,
         step: 300,
         window: 1,
+        digits: 4,
       });
 
       if (isValid) {
@@ -230,5 +231,34 @@ export class AuthenticationService {
       { token: token, name: 'Kontol' },
       email,
     );
+  }
+
+  public async forgotPasswordReset(
+    email: string,
+    password: string,
+    token: string,
+  ): Promise<void> {
+    //validate token
+    const cacheToken = await this.cacheManager.get<string>(
+      `forgot_token:${email}`,
+    );
+
+    if (!cacheToken || cacheToken !== token) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    //hash password
+    const passwordHashed = await bcrypt.hash(password, SALT_OR_ROUND);
+
+    //update user password
+    const user = await this._usersService.findOneByEmail(email);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    await this._usersService.update(user.id, { password: passwordHashed });
+
+    //delete token
+    await this.cacheManager.del(`forgot_token:${email}`);
   }
 }
