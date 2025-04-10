@@ -141,7 +141,7 @@ export class StoresController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-  } 
+  }
 
   @UseGuards(AuthenticationJWTGuard)
   @Put('/:id')

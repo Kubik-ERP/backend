@@ -88,8 +88,8 @@ model cash_registers {
 
 model categories {
   id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                    String?                   @unique @db.VarChar(45)
-  notes                   String?                   @db.VarChar(45)
+  category                String?                   @unique(map: "categories_name_key") @db.VarChar(45)
+  description             String?                   @db.VarChar(45)
   categories_has_products categories_has_products[]
 }
 
@@ -181,6 +181,7 @@ model invoice {
   created_at         DateTime?            @db.Timestamp(6)
   update_at          DateTime?            @db.Timestamp(6)
   delete_at          DateTime?            @db.Timestamp(6)
+  subtotal           Float
   customer           customer             @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods    payment_methods      @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
   invoice_details    invoice_details[]
@@ -191,15 +192,15 @@ model invoice {
 }
 
 model invoice_details {
-  id             String     @db.Uuid
-  product_name   String?    @db.VarChar(45)
-  product_price  String?    @db.VarChar(45)
-  product_varian String?    @db.VarChar(45)
-  notes          String?    @db.VarChar(45)
-  order_type     ordertype?
-  qty            Int?
-  invoice_id     String     @db.Uuid
-  invoice        invoice    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  id              String     @db.Uuid
+  product_name    String?    @db.VarChar(45)
+  product_price   Float?
+  product_variant String?    @db.VarChar(45)
+  notes           String?    @db.VarChar(45)
+  order_type      ordertype?
+  qty             Int?
+  invoice_id      String     @db.Uuid
+  invoice         invoice    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
@@ -248,9 +249,11 @@ model operational_hours {
 }
 
 model payment_methods {
-  id      String    @id @db.Uuid
-  name    String?   @db.VarChar(45)
-  invoice invoice[]
+  id        String    @id @db.Uuid
+  name      String?   @db.VarChar(45)
+  icon_name String?   @db.VarChar
+  sort_no   Int?      @unique
+  invoice   invoice[]
 }
 
 model payments {
@@ -432,15 +435,15 @@ model user_has_stores {
 model variant {
   id                   String                 @id @db.Uuid
   name                 String?                @db.VarChar(45)
+  price                Float?                 @default(0)
   variant_has_products variant_has_products[]
 }
 
 model variant_has_products {
-  variant_id       String   @db.Uuid
-  products_id      String   @db.Uuid
-  additional_price Float?
-  products         products @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_products1")
-  variant          variant  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_variant1")
+  variant_id  String   @db.Uuid
+  products_id String   @db.Uuid
+  products    products @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_products1")
+  variant     variant  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_variant1")
 
   @@id([variant_id, products_id])
   @@index([products_id], map: "fk_variant_has_products_products1_idx")
