@@ -95,7 +95,7 @@ export class AuthenticationService {
    * @description Handle business logic for registering a user
    */
   public async register(payload: RegisterEmailDto): Promise<users> {
-    const { email, phoneNumber, phoneCountryCode, password } = payload;
+    const { email, phoneNumber, phoneCountryCode, password, pin } = payload;
 
     const emailExists = await this._usersService.findOneByEmail(email);
     if (emailExists) {
@@ -106,12 +106,14 @@ export class AuthenticationService {
      * Hash Password
      */
     const passwordHashed = await bcrypt.hash(password, SALT_OR_ROUND);
+    const pinHashed = await bcrypt.hash(pin, SALT_OR_ROUND);
 
     return await this._usersService.create({
       email: email,
       phone: parseInt(phoneNumber.toString()).toString(),
       ext: parseInt(phoneCountryCode.toString()),
       password: passwordHashed,
+      pin: pinHashed,
     });
   }
 

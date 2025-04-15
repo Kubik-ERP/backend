@@ -30,6 +30,7 @@ export class UsersService {
           username: payload.username,
           email: payload.email,
           password: payload.password,
+          pin: payload.pin,
         },
       });
     } catch (error) {

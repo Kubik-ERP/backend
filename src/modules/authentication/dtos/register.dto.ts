@@ -10,6 +10,8 @@ import {
   ValidationArguments,
   MinLength,
   Matches,
+  IsNumber,
+  Length,
 } from 'class-validator';
 
 // NestJS Libraries
@@ -33,7 +35,7 @@ export class RegisterEmailDto {
   })
   public passwordConfirmation: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '62', description: 'Country code' })
   @IsNotEmpty()
   @IsString()
   @Matches(/^\d+$/, {
@@ -50,4 +52,21 @@ export class RegisterEmailDto {
   @MinLength(7)
   @MaxLength(14)
   public phoneNumber: string | number;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{4}$/, { message: 'PIN harus terdiri dari 4 digit angka' })
+  public pin: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{4}$/, {
+    message: 'Konfirmasi PIN harus terdiri dari 4 digit angka',
+  })
+  @Match('pin', {
+    message: 'Konfirmasi PIN tidak cocok dengan PIN',
+  })
+  public pin_confirmation: string;
 }

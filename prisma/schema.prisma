@@ -18,6 +18,7 @@ model users {
   updated_at      BigInt?
   verified_at     BigInt?
   deleted_at      BigInt?
+  pin             String            @db.VarChar
   user_has_stores user_has_stores[]
 }
 

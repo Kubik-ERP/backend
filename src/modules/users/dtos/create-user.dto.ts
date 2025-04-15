@@ -73,4 +73,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumber()
   public deleted_at?: number;
+
+  @IsNotEmpty()
+  @IsString()
+  public pin: string;
 }
