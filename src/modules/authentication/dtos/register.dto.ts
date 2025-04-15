@@ -56,14 +56,14 @@ export class RegisterEmailDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Matches(/^\d{4}$/, { message: 'PIN harus terdiri dari 4 digit angka' })
+  @Matches(/^\d{6}$/, { message: 'PIN harus terdiri dari 6 digit angka' })
   public pin: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Matches(/^\d{4}$/, {
-    message: 'Konfirmasi PIN harus terdiri dari 4 digit angka',
+  @Matches(/^\d{6}$/, {
+    message: 'Konfirmasi PIN harus terdiri dari 6 digit angka',
   })
   @Match('pin', {
     message: 'Konfirmasi PIN tidak cocok dengan PIN',
