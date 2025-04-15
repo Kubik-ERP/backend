@@ -365,7 +365,7 @@ model roles {
 model stores {
   id                        String                      @id @db.Uuid
   name                      String?                     @db.VarChar(45)
-  address                   String?                     @db.VarChar(45)
+  address                   String?                     @db.VarChar(255)
   phone_number              String?                     @db.VarChar(45)
   photo                     String?                     @db.VarChar(45)
   city                      String?                     @db.VarChar(45)
