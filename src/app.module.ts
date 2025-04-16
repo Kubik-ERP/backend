@@ -15,6 +15,8 @@ import { ProductsModule } from './modules/products/products.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
 import { CustomerModule } from './modules/customer/customer.module';
 
+import { VariantsModule } from './modules/variants/variants.module';
+
 @Module({
   imports: [
     // Configuration Modules
@@ -28,6 +30,7 @@ import { CustomerModule } from './modules/customer/customer.module';
     ProductsModule,
     InvoiceModule,
     CustomerModule,
+    VariantsModule,
   ],
 })
 export class AppModule {}

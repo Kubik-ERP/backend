@@ -3,14 +3,33 @@ import {
   IsOptional,
   IsString,
   IsNumber,
-  ArrayNotEmpty,
+  IsBoolean,
   IsArray,
+  ValidateNested,
+  ArrayNotEmpty,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { CreateCategoryDto } from '../../categories/dto/create-category.dto';
+import { CreateVariantDto } from '../../variants/dto/create-variant.dto';
+
+class VariantDto {
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  price: number;
+}
 
 export class CreateProductDto {
   @IsNotEmpty()
   @IsString()
   name: string;
+
+  @IsOptional()
+  @IsString()
+  picture_url?: string;
 
   @IsOptional()
   @IsNumber()
@@ -21,6 +40,25 @@ export class CreateProductDto {
   discount_price?: number;
 
   @IsOptional()
+  @IsBoolean()
+  isDiscount?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  discount_value?: number;
+
+  @IsOptional()
   @IsString()
-  picture_url?: string;
+  discount_unit?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCategoryDto)
+  categories: CreateCategoryDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateVariantDto)
+  variants: CreateVariantDto[];
 }

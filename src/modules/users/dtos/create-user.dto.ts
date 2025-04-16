@@ -8,5 +8,6 @@ export class CreateUserDto {
   password: string;
   phone: string;
   ext: number;
+  pin: string;
   // deletedAt: Date;
 }

@@ -109,6 +109,7 @@ export class AuthenticationService {
       phone: parseInt(phoneNumber.toString()).toString(),
       ext: parseInt(phoneCountryCode.toString()),
       password: passwordHashed,
+      pin: '',
     });
   }
 
