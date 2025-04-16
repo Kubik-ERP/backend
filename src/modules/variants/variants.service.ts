@@ -25,13 +25,19 @@ export class VariantsService {
         throw new BadRequestException('Variant name must be unique');
       }
 
-      return await this.prisma.variant.create({
+      const newVariant = await this.prisma.variant.create({
         data: {
           name: createVariantDto.name,
-          price: createVariantDto.price,
+          price: createVariantDto.price ?? null,
         },
       });
+
+      return newVariant;
     } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
       throw new HttpException(
         error.message || 'Failed to create variant',
         HttpStatus.INTERNAL_SERVER_ERROR,
