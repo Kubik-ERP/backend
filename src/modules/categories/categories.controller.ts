@@ -111,6 +111,7 @@ export class CategoriesController {
       );
     }
   }
+
   @Delete(':id')
   async remove(@Param('id') id: string) {
     try {

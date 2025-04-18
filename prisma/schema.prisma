@@ -167,7 +167,7 @@ model employees_shift {
 }
 
 model floor {
-  id           String   @id @db.Uuid
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   floor_number String?  @db.VarChar(45)
   tables       tables[]
 }
@@ -408,7 +408,7 @@ model stores_has_products {
 }
 
 model tables {
-  id         Int
+  id         String  @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   table_code String? @db.VarChar(45)
   capacity   Int?
   floor_id   String  @db.Uuid
@@ -434,7 +434,7 @@ model user_has_stores {
 }
 
 model variant {
-  id                   String                 @id @db.Uuid
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                 String?                @db.VarChar(45)
   price                Float?                 @default(0)
   variant_has_products variant_has_products[]

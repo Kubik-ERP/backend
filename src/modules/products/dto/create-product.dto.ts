@@ -12,15 +12,6 @@ import { Type } from 'class-transformer';
 import { CreateCategoryDto } from '../../categories/dto/create-category.dto';
 import { CreateVariantDto } from '../../variants/dto/create-variant.dto';
 
-class VariantDto {
-  @IsNotEmpty()
-  @IsString()
-  name: string;
-
-  @IsNotEmpty()
-  @IsNumber()
-  price: number;
-}
 
 export class CreateProductDto {
   @IsNotEmpty()
