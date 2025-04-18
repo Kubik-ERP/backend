@@ -74,10 +74,11 @@ export class FloorService {
         throw new NotFoundException('Floor not found');
       }
 
-      const updatedCategory = await this.prisma.categories.update({
+      const updatedCategory = await this.prisma.floor.update({
         where: { id },
         data: {
-          category: updateFloorDto.floor_number || updateFloorDto.floor_number,
+          floor_number:
+            updateFloorDto.floor_number || updateFloorDto.floor_number,
         },
       });
 

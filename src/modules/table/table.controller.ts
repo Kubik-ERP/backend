@@ -6,6 +6,8 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
+  NotFoundException,
 } from '@nestjs/common';
 import { TableService } from './table.service';
 import { CreateTableDto } from './dto/create-table.dto';
@@ -25,18 +27,27 @@ export class TableController {
     return this.tableService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.tableService.findOne(+id);
+  @Get('search/:idOrCode')
+  findByIdOrCode(@Param('idOrCode') idOrCode: string) {
+    return this.tableService.findOne(idOrCode);
+  }
+
+  @Get('many/:idOrCode')
+  findMany(@Param('idOrCode') idOrCode: string) {
+    return this.tableService.findMany(idOrCode);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateTableDto: UpdateTableDto) {
-    return this.tableService.update(+id, updateTableDto);
+    if (!updateTableDto.floor_id) {
+      throw new NotFoundException('floor_id is required to update table');
+    }
+
+    return this.tableService.update(id, updateTableDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.tableService.remove(+id);
+    return this.tableService.remove(id);
   }
 }
