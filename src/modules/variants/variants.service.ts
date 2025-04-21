@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { UpdateVariantDto } from './dto/update-variant.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { variant as VariantModel } from '.prisma/client';
 import { validate as isUUID } from 'uuid';
 
