@@ -19,6 +19,8 @@ import { AuthenticationService } from './services/authentication.service';
 // Strategies
 import { JwtStrategy } from '../../common/strategies/jwt.strategy';
 import { LocalStrategy } from '../../common/strategies/local.strategy';
+import { GoogleStrategy } from 'src/common/strategies/google.strategy';
+import { PrismaModule } from 'src/prisma/prisma.module';
 
 @Module({
   imports: [
@@ -30,6 +32,7 @@ import { LocalStrategy } from '../../common/strategies/local.strategy';
     MailModule,
     UsersModule,
     PassportModule,
+    PrismaModule,
     JwtModule.registerAsync({
       imports: [JwtConfigModule],
       useFactory: async (configService: JwtConfigService) => ({
@@ -43,6 +46,11 @@ import { LocalStrategy } from '../../common/strategies/local.strategy';
     }),
   ],
   controllers: [AuthenticationController],
-  providers: [AuthenticationService, LocalStrategy, JwtStrategy],
+  providers: [
+    AuthenticationService,
+    LocalStrategy,
+    JwtStrategy,
+    GoogleStrategy,
+  ],
 })
 export class AuthenticationModule {}
