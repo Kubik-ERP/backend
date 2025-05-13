@@ -16,3 +16,7 @@ export const formatDate = (date: Date): string => {
     .setZone('Asia/Jakarta')
     .toFormat('yyyy-MM-dd HH:mm:ss');
 };
+
+export const jakartaTime = (): DateTime => {
+  return DateTime.now().setZone('Asia/Jakarta');
+};

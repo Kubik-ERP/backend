@@ -30,6 +30,7 @@ import {
   Post,
   Put,
   Req,
+  RequestMapping,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -41,6 +42,7 @@ import {
   ForgotPasswordDto,
   ForgotPasswordResetDto,
 } from '../dtos/forgot-password.dto';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('authentication')
 @ApiTags('Authentication')
@@ -181,5 +183,22 @@ export class AuthenticationController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Login with Google (redirect to Google)' })
+  async googleAuth() {
+    // Passport akan redirect ke Google
+  }
+
+  @Get('google/redirect')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Google OAuth2 callback endpoint' })
+  googleAuthRedirect(@Req() req: ICustomRequestHeaders) {
+    return {
+      message: 'Login successful',
+      user: req.user,
+    };
   }
 }
