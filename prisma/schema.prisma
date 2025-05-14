@@ -109,8 +109,14 @@ model categories_has_products {
 model customer {
   id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                String?               @db.VarChar(45)
-  phone_number        String?               @db.VarChar(45)
+  code                String?               @db.VarChar(45)
+  number              String?               @db.VarChar
+  dob                 DateTime?             @db.Date
+  email               String?               @db.VarChar(45)
+  username            String?               @db.VarChar(45)
+  address             String?               @db.VarChar(45)
   customer_has_stores customer_has_stores[]
+  customers_has_tag   customers_has_tag[]   @ignore
   invoice             invoice[]
 }
 
@@ -498,6 +504,22 @@ model users_token {
   type       String? @db.VarChar
   created_at BigInt?
   updated_at BigInt?
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model customers_has_tag {
+  customer_id String?   @db.Uuid
+  tag_id      String?   @db.Uuid
+  customer    customer? @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_customer_id_fk")
+  tag         tag?      @relation(fields: [tag_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_tag_id_fk")
+
+  @@ignore
+}
+
+model tag {
+  id                String              @id(map: "tag_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String?             @db.VarChar(255)
+  customers_has_tag customers_has_tag[] @ignore
 }
 
 enum cashdrawertype {

@@ -16,6 +16,7 @@ import { InvoiceModule } from './modules/invoice/invoice.module';
 import { CustomerModule } from './modules/customer/customer.module';
 
 import { VariantsModule } from './modules/variants/variants.module';
+import { TagModule } from './modules/tag/tag.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { VariantsModule } from './modules/variants/variants.module';
     InvoiceModule,
     CustomerModule,
     VariantsModule,
+    TagModule,
   ],
 })
 export class AppModule {}
