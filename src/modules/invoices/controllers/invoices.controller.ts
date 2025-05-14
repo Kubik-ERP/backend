@@ -18,18 +18,6 @@ export class PaymentController {
     };
   }
 
-  @Post('verify')
-  public async verifyPayment(
-    @Query('provider') provider: string,
-    @Query('paymentId') paymentId: string,
-  ) {
-    const result = await this.invoiceService.verifyPayment(provider, paymentId);
-
-    return {
-      result,
-    };
-  }
-
   @Get('callback')
   public async handlePaymentCallback(
     @Query() callbackData: PaymentCallbackDto,

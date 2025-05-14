@@ -99,17 +99,6 @@ export class InvoiceService {
     return response;
   }
 
-  public async verifyPayment(provider: string, paymentId: string) {
-    const paymentProvider = this._paymentFactory.getProvider(provider);
-    if (!paymentProvider) {
-      throw new NotFoundException(`Payment provider '${provider}' not found`);
-    }
-
-    const response = await paymentProvider.verifyPayment(paymentId);
-
-    return response;
-  }
-
   public async handlePaymentCallback(
     order_id: string,
     status_code: string,
