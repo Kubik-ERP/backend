@@ -24,18 +24,39 @@ export class ProductsService {
       if (existingProduct) {
         throw new BadRequestException('Product name must be unique');
       }
-
-      return await this.prisma.products.create({
+      const createdProduct = await this.prisma.products.create({
         data: {
           name: createProductDto.name,
           price: createProductDto.price,
           discount_price: createProductDto.discount_price,
           picture_url: createProductDto.picture_url,
+          categories_has_products: {
+            create: createProductDto.categories.map((cat) => ({
+              categories_id: cat.id,
+            })),
+          },
         },
         include: {
           categories_has_products: true,
         },
       });
+
+      for (const variant of createProductDto.variants) {
+        const createdVariant = await this.prisma.variant.create({
+          data: {
+            name: variant.name,
+            price: variant.price,
+          },
+        });
+
+        await this.prisma.variant_has_products.create({
+          data: {
+            products_id: createdProduct.id,
+            variant_id: createdVariant.id,
+          },
+        });
+      }
+      return createdProduct;
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to create product',

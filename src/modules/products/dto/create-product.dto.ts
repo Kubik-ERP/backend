@@ -11,6 +11,7 @@ import {
 import { Type } from 'class-transformer';
 import { CreateCategoryDto } from '../../categories/dto/create-category.dto';
 import { CreateVariantDto } from '../../variants/dto/create-variant.dto';
+import { SimpleCategoryDto } from './simple-category.dto';
 
 class VariantDto {
   @IsNotEmpty()
@@ -53,8 +54,8 @@ export class CreateProductDto {
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => CreateCategoryDto)
-  categories: CreateCategoryDto[];
+  @Type(() => SimpleCategoryDto)
+  categories: SimpleCategoryDto[];
 
   @IsOptional()
   @IsArray()
