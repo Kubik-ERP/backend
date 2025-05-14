@@ -95,7 +95,8 @@ export class AuthenticationService {
    * @description Handle business logic for registering a user
    */
   public async register(payload: RegisterEmailDto): Promise<users> {
-    const { email, phoneNumber, phoneCountryCode, password, pin, fullName } = payload;
+    const { email, phoneNumber, phoneCountryCode, password, pin, fullName } =
+      payload;
 
     const emailExists = await this._usersService.findOneByEmail(email);
     if (emailExists) {
