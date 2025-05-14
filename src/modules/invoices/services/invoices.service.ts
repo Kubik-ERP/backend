@@ -22,8 +22,8 @@ import {
   ProcessPaymentDto,
   CalculationEstimationDto,
 } from '../dtos/process-payment.dto';
-import { InvoiceDetailsEntity } from '../entities/invoice-details.dto';
 import { CalculationResult } from '../interfaces/calculation.interface';
+import { PaymentGateway } from '../interfaces/payments.interface';
 
 @Injectable()
 export class InvoiceService {
@@ -91,12 +91,37 @@ export class InvoiceService {
       await this.createInvoiceDetail(invoiceDetailData);
     });
 
-    const response = await paymentProvider.initiatePayment(
+    const response = await this.initiatePaymentBasedOnMethod(
+      request.paymentMethodId,
+      paymentProvider,
       invoiceId,
       calculation.total,
     );
 
     return response;
+  }
+
+  private async initiatePaymentBasedOnMethod(
+    methodId: string,
+    provider: PaymentGateway,
+    orderId: string,
+    amount: number,
+  ): Promise<any> {
+    // find payment method
+    const paymentMethod = await this._prisma.payment_methods.findUnique({
+      where: { id: methodId },
+    });
+
+    switch (paymentMethod?.name) {
+      case 'Snap':
+        return await provider.initiatePaymentSnap(orderId, amount);
+      case 'Qris':
+        return await provider.initiatePaymentCoreQris(orderId, amount);
+      default:
+        throw new BadRequestException(
+          `Unsupported payment method: ${methodId}`,
+        );
+    }
   }
 
   public async handlePaymentCallback(
@@ -268,7 +293,7 @@ export class InvoiceService {
     try {
       return await this._prisma.invoice.create({
         data: {
-          id: invoice.id ?? uuidv4(),
+          id: invoice.id,
           payment_methods_id: invoice.payment_methods_id,
           customer_id: invoice.customer_id,
           table_code: invoice.table_code,
