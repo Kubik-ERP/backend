@@ -68,7 +68,11 @@ export class ProductsService {
   async findAll(): Promise<ProductModel[]> {
     return await this.prisma.products.findMany({
       include: {
-        categories_has_products: true,
+        categories_has_products: {
+          include: {
+            categories: true,
+          },
+        },
         variant_has_products: {
           include: {
             variant: true,
