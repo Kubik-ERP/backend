@@ -46,9 +46,10 @@ export class ProductsService {
 
   async findAll(): Promise<ProductModel[]> {
     return await this.prisma.products.findMany({
-      include: { categories_has_products: true },
+      include: { categories_has_products: true, variant_has_products: true },
     });
   }
+
   async findOne(
     idOrNames: string | string[],
   ): Promise<ProductModel | ProductModel[] | null> {

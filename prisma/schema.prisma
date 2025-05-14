@@ -19,6 +19,7 @@ model users {
   verified_at     BigInt?
   deleted_at      BigInt?
   pin             String            @db.VarChar
+  fullname        String?           @db.VarChar
   user_has_stores user_has_stores[]
 }
 
@@ -167,7 +168,7 @@ model employees_shift {
 }
 
 model floor {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id           String   @id @db.Uuid
   floor_number String?  @db.VarChar(45)
   tables       tables[]
 }
@@ -408,12 +409,13 @@ model stores_has_products {
 }
 
 model tables {
-  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id         Int
   table_code String? @db.VarChar(45)
   capacity   Int?
   floor_id   String  @db.Uuid
   floor      floor   @relation(fields: [floor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tables_floor1")
 
+  @@id([id, floor_id])
   @@index([floor_id], map: "fk_tables_floor1_idx")
 }
 
