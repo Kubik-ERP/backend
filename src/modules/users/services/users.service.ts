@@ -31,6 +31,8 @@ export class UsersService {
           email: payload.email,
           password: payload.password,
           pin: payload.pin,
+          fullname: payload.fullname,
+          
         },
       });
     } catch (error) {
