@@ -19,6 +19,12 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Match } from 'src/common/helpers/validators.helper';
 
 export class RegisterEmailDto {
+
+  @ApiProperty()
+  @IsNotEmpty()
+  public fullName: string;
+
+
   @ApiProperty()
   @IsNotEmpty()
   public fullName: string;
