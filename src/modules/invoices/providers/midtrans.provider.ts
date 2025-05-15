@@ -53,9 +53,6 @@ export class MidtransProvider implements PaymentGateway {
 
   async initiatePaymentCoreQris(orderId: string, amount: number): Promise<any> {
     try {
-      if (!this.qrisUrl) {
-        throw new Error('MIDTRANS_QRIS_URL is not set in environment variables');
-      }
       const response = await axios.post(
         this.qrisUrl,
         {
@@ -72,7 +69,7 @@ export class MidtransProvider implements PaymentGateway {
           headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',
-            Authorization: `Basic ${Buffer.from(this.apiKey+':').toString('base64')}`,
+            Authorization: `Basic ${Buffer.from(this.apiKey + ':').toString('base64')}`,
           },
         },
       );
