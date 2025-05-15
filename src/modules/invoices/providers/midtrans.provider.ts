@@ -7,13 +7,16 @@ dotenv.config();
 
 @Injectable()
 export class MidtransProvider implements PaymentGateway {
-  private readonly baseUrl = `${process.env.MIDTRANS_BASE_URL}${process.env.MIDTRANS_TRANSACTION_URL}`;
+  private baseSnapUrl = `${process.env.MIDTRANS_BASE_SNAP_URL}`;
+  private baseCoreUrl = `${process.env.MIDTRANS_BASE_CORE_URL}`;
+  private snapUrl = `${this.baseSnapUrl}${process.env.MIDTRANS_SNAP_URL}`;
+  private qrisUrl = `${this.baseCoreUrl}${process.env.MIDTRANS_QRIS_URL}`;
   private readonly apiKey = `${process.env.MIDTRANS_API_KEY}`;
 
   async initiatePaymentSnap(orderId: string, amount: number) {
     try {
       const response = await axios.post(
-        this.baseUrl,
+        this.snapUrl,
         {
           transaction_details: {
             order_id: orderId,
@@ -50,13 +53,17 @@ export class MidtransProvider implements PaymentGateway {
 
   async initiatePaymentCoreQris(orderId: string, amount: number): Promise<any> {
     try {
+      if (!this.qrisUrl) {
+        throw new Error('MIDTRANS_QRIS_URL is not set in environment variables');
+      }
       const response = await axios.post(
-        this.baseUrl,
+        this.qrisUrl,
         {
           transaction_details: {
             order_id: orderId,
             gross_amount: amount,
           },
+          payment_type: 'qris',
           qris: {
             acquirer: 'gopay', // Currently Midtrans only support QRIS of Gopay
           },
@@ -65,16 +72,15 @@ export class MidtransProvider implements PaymentGateway {
           headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',
-            Authorization: `Basic ${Buffer.from(this.apiKey).toString('base64')}`,
+            Authorization: `Basic ${Buffer.from(this.apiKey+':').toString('base64')}`,
           },
         },
       );
 
-      if (response.data && response.data.token && response.data.redirect_url) {
+      if (response.data) {
         return {
           success: true,
-          token: response.data.token,
-          redirectUrl: response.data.redirect_url,
+          data: response.data,
         };
       } else {
         throw new Error('Invalid response from Midtrans');
