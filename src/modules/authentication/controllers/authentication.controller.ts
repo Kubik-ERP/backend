@@ -29,8 +29,9 @@ import {
   HttpStatus,
   Post,
   Put,
+  Redirect,
   Req,
-  RequestMapping,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -50,7 +51,7 @@ export class AuthenticationController {
   constructor(
     private readonly _authenticationService: AuthenticationService,
     private readonly _usersService: UsersService,
-  ) {}
+  ) { }
 
   @Post('login')
   @HttpCode(200)
@@ -195,10 +196,12 @@ export class AuthenticationController {
   @Get('google/redirect')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Google OAuth2 callback endpoint' })
-  googleAuthRedirect(@Req() req: ICustomRequestHeaders) {
-    return {
-      message: 'Login successful',
-      user: req.user,
-    };
+  async googleAuthRedirect(
+    @Req() req: ICustomRequestHeaders
+  ) {
+    const result = await this._authenticationService.login(req.user);
+    const url = process.env.FRONTEND_URL || 'http://localhost:3000'
+    console.log(url + '/auth/login?access_token=' + result.accessToken)
+    return Redirect(url + '/auth/login?access_token=' + result.accessToken);
   }
 }

@@ -33,6 +33,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
 
     // Cari user di DB
     let user = await this.prisma.users.findUnique({ where: { email } });
+    console.log(user);
     // Kalau belum ada, buat baru
     if (!user) {
       user = await this.prisma.users.create({

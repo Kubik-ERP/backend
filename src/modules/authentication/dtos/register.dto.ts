@@ -25,10 +25,6 @@ export class RegisterEmailDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  public fullName: string;
-
-  @ApiProperty()
-  @IsNotEmpty()
   @IsEmail()
   public email: string;
 
