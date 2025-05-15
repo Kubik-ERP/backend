@@ -24,6 +24,7 @@ import {
 } from '../dtos/process-payment.dto';
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
+import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 
 @Injectable()
 export class InvoiceService {
@@ -164,6 +165,65 @@ export class InvoiceService {
     return {
       success: true,
       message: `Payment status updated for order ${order_id}`,
+      data: paymentStatus,
+    };
+  }
+
+  public async handlePaymentCoreCallback(
+    requestCallback: PaymentCallbackCoreDto,
+  ) {
+    // checking status code
+    if (requestCallback.status_code != '200') {
+      throw new BadRequestException(`Request is failed`);
+    }
+
+    // checking fraud status
+    if (requestCallback.fraud_status != 'accept') {
+      throw new BadRequestException(`Fraud transaction detected`);
+    }
+
+    let status: invoicetype;
+    switch (requestCallback.transaction_status) {
+      case 'settlement':
+        status = invoicetype.paid;
+        break;
+      case 'pending':
+        status = invoicetype.refund;
+        break;
+      default:
+        status = invoicetype.unpaid;
+        break;
+    }
+
+    // find invoice
+    const invoice = await this.findInvoiceId(requestCallback.order_id);
+    if (invoice === null) {
+      throw new NotFoundException(
+        `Invoice '${requestCallback.order_id}' not found`,
+      );
+    }
+
+    // update status
+    const updateInvoice = await this.updateStatusById(
+      requestCallback.order_id,
+      status,
+    );
+    if (updateInvoice === null) {
+      throw new NotFoundException(
+        `Invoice '${requestCallback.order_id}' not found`,
+      );
+    }
+
+    const paymentStatus = {
+      orderId: requestCallback.order_id,
+      statusCode: requestCallback.status_code,
+      transactionStatus: status,
+      message: this.getTransactionMessage(status),
+    };
+
+    return {
+      success: true,
+      message: `Payment status updated for order ${requestCallback.order_id}`,
       data: paymentStatus,
     };
   }

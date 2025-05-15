@@ -4,7 +4,10 @@ import {
   CalculationEstimationDto,
   ProcessPaymentDto,
 } from '../dtos/process-payment.dto';
-import { PaymentCallbackDto } from '../dtos/callback-payment.dto';
+import {
+  PaymentCallbackCoreDto,
+  PaymentCallbackDto,
+} from '../dtos/callback-payment.dto';
 
 @Controller('payment')
 export class PaymentController {
@@ -18,7 +21,7 @@ export class PaymentController {
     };
   }
 
-  @Get('callback')
+  @Get('callback/snap')
   public async handlePaymentCallback(
     @Query() callbackData: PaymentCallbackDto,
   ) {
@@ -29,6 +32,13 @@ export class PaymentController {
       status_code,
       transaction_status,
     );
+  }
+
+  @Post('callback/core/qris')
+  public async handlePaymentCallbackCore(
+    @Body() callbackData: PaymentCallbackCoreDto,
+  ) {
+    return await this.invoiceService.handlePaymentCoreCallback(callbackData);
   }
 
   @Post('calculate-estimation')
