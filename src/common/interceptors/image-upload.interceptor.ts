@@ -8,6 +8,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 
+//interceptors for upload images
 export function ImageUploadInterceptor(fieldName = 'file') {
   return FileInterceptor(fieldName, {
     storage: diskStorage({

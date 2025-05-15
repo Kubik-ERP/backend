@@ -13,6 +13,12 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
+  public fullname?: string;
+
+  @ApiProperty({ example: 'johndoe' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   public username?: string;
 
   @ApiProperty({ example: 'john.doe@example.com' })
@@ -73,4 +79,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumber()
   public deleted_at?: number;
+
+  @IsNotEmpty()
+  @IsString()
+  public pin: string;
 }

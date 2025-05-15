@@ -18,6 +18,8 @@ model users {
   updated_at      BigInt?
   verified_at     BigInt?
   deleted_at      BigInt?
+  pin             String            @db.VarChar
+  fullname        String?           @db.VarChar
   user_has_stores user_has_stores[]
 }
 
@@ -88,8 +90,8 @@ model cash_registers {
 
 model categories {
   id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                    String?                   @unique @db.VarChar(45)
-  notes                   String?                   @db.VarChar(45)
+  category                String?                   @unique(map: "categories_name_key") @db.VarChar(45)
+  description             String?                   @db.VarChar(45)
   categories_has_products categories_has_products[]
 }
 
@@ -365,7 +367,7 @@ model roles {
 model stores {
   id                        String                      @id @db.Uuid
   name                      String?                     @db.VarChar(45)
-  address                   String?                     @db.VarChar(45)
+  address                   String?                     @db.VarChar(255)
   phone_number              String?                     @db.VarChar(45)
   photo                     String?                     @db.VarChar(45)
   city                      String?                     @db.VarChar(45)

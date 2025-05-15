@@ -21,7 +21,7 @@ export class StoresService {
           email: data.email,
           phone_number: data.phoneNumber, // DTO pakai `phoneNumber`
           business_type: data.businessType, // DTO pakai `businessType`
-          photo: data.photo,
+          photo: data.photo ?? null,
           address: data.streetAddress, // DTO pakai `streetAddress`
           city: data.city,
           postal_code: data.postalCode, // DTO pakai `postalCode`

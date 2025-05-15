@@ -124,6 +124,7 @@ export class StoresController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
+      console.log('body', body);
       const relativePath = file ? `/public/images/${file.filename}` : undefined;
 
       await this._storeService.createStore(

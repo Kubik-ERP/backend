@@ -8,6 +8,8 @@ import {
   ValidateNested,
   IsIn,
   Matches,
+  Max,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -56,6 +58,7 @@ class BusinessHoursDto {
 export class CreateStoreDto {
   @ApiProperty()
   @IsString()
+  @MaxLength(45)
   storeName: string;
 
   @ApiProperty()
@@ -72,20 +75,24 @@ export class CreateStoreDto {
 
   @ApiProperty()
   @IsString()
+  @MaxLength(255)
   streetAddress: string;
 
   @ApiProperty()
   @IsString()
+  @MaxLength(45)
   city: string;
 
   @ApiProperty()
   @IsOptional()
   @IsString()
+  @MaxLength(10)
   postalCode?: string;
 
   @ApiProperty()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   building?: string;
 
   @ApiProperty({ type: BusinessHoursDto, isArray: true })
