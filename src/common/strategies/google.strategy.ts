@@ -3,6 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { Strategy, VerifyCallback } from 'passport-google-oauth20';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { jakartaTime } from '../helpers/common.helpers';
+import { SALT_OR_ROUND } from '../constants/common.constant';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
@@ -31,17 +33,19 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
 
     // Cari user di DB
     let user = await this.prisma.users.findUnique({ where: { email } });
-
     // Kalau belum ada, buat baru
     if (!user) {
       user = await this.prisma.users.create({
         data: {
-          email,
+          email: email,
           password: 'google-auth', // Password dummy, bisa diubah sesuai kebutuhan
           username: email.split('@')[0], // Ambil username dari email
-          pin: '000000',
-          created_at: jakartaTime().toSeconds(),
-          updated_at: jakartaTime().toSeconds(),
+          pin: await bcrypt.hash('000000', SALT_OR_ROUND),
+          fullname: fullName,
+          phone: '0',
+          verified_at: jakartaTime().toUnixInteger(),
+          created_at: jakartaTime().toUnixInteger(),
+          updated_at: jakartaTime().toUnixInteger(),
         },
       });
     }
