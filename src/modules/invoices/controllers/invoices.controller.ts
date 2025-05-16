@@ -4,9 +4,6 @@ import {
   Body,
   Query,
   Get,
-  HttpStatus,
-  HttpException,
-  BadRequestException,
   Put,
   Delete,
 } from '@nestjs/common';
