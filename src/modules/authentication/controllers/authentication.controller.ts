@@ -198,8 +198,9 @@ export class AuthenticationController {
   @ApiOperation({ summary: 'Google OAuth2 callback endpoint' })
   async googleAuthRedirect(@Req() req: ICustomRequestHeaders) {
     const result = await this._authenticationService.login(req.user);
-    const url = process.env.FRONTEND_URL || 'http://localhost:3000';
-    console.log(url + '/auth/login?access_token=' + result.accessToken);
-    return Redirect(url + '/auth/login?access_token=' + result.accessToken);
+    return {
+      message: 'User logged in successfully',
+      result,
+    };
   }
 }

@@ -56,21 +56,4 @@ export class RegisterEmailDto {
   @MinLength(7)
   @MaxLength(14)
   public phoneNumber: string | number;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  @Matches(/^\d{6}$/, { message: 'PIN harus terdiri dari 6 digit angka' })
-  public pin: string;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  @Matches(/^\d{6}$/, {
-    message: 'Konfirmasi PIN harus terdiri dari 6 digit angka',
-  })
-  @Match('pin', {
-    message: 'Konfirmasi PIN tidak cocok dengan PIN',
-  })
-  public pin_confirmation: string;
 }
