@@ -7,22 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model users {
-  id              Int               @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
-  username        String?           @db.VarChar
-  email           String            @unique(map: "users_unique") @db.VarChar
-  password        String            @db.VarChar
-  phone           String            @default(dbgenerated("0")) @db.VarChar
-  ext             Int               @default(62)
-  created_at      BigInt?
-  updated_at      BigInt?
-  verified_at     BigInt?
-  deleted_at      BigInt?
-  pin             String?           @db.VarChar
-  fullname        String?           @db.VarChar
-  user_has_stores user_has_stores[]
-}
-
 model business_owner {
   id                        String                      @id @db.Uuid
   name                      String?                     @db.VarChar(45)
@@ -116,7 +100,7 @@ model customer {
   username            String?               @db.VarChar(45)
   address             String?               @db.VarChar(45)
   customer_has_stores customer_has_stores[]
-  customers_has_tag   customers_has_tag[]   @ignore
+  customers_has_tag   customers_has_tag[]
   invoice             invoice[]
 }
 
@@ -129,6 +113,15 @@ model customer_has_stores {
   @@id([customer_id, stores_id])
   @@index([customer_id], map: "fk_customer_has_stores_customer1_idx")
   @@index([stores_id], map: "fk_customer_has_stores_stores1_idx")
+}
+
+model customers_has_tag {
+  customer_id String   @db.Uuid
+  tag_id      String   @db.Uuid
+  customer    customer @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_customer_id_fk")
+  tag         tag      @relation(fields: [tag_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_tag_id_fk")
+
+  @@id([customer_id, tag_id])
 }
 
 model employees {
@@ -425,19 +418,50 @@ model tables {
   @@index([floor_id], map: "fk_tables_floor1_idx")
 }
 
+model tag {
+  id                String              @id(map: "tag_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String?             @db.VarChar(255)
+  customers_has_tag customers_has_tag[]
+}
+
 model unit {
   id                String              @id @db.Uuid
   name              String?             @db.VarChar(45)
   material_has_unit material_has_unit[]
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model user_has_stores {
   id       BigInt @id(map: "user_has_stores_pk") @default(autoincrement())
   user_id  Int
   store_id String @db.Uuid
   stores   stores @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_store")
   users    users  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
+}
+
+model users {
+  id              Int               @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
+  username        String?           @db.VarChar
+  email           String            @unique(map: "users_unique") @db.VarChar
+  password        String            @db.VarChar
+  phone           String            @default(dbgenerated("0")) @db.VarChar
+  ext             Int               @default(62)
+  created_at      BigInt?
+  updated_at      BigInt?
+  verified_at     BigInt?
+  deleted_at      BigInt?
+  pin             String?           @db.VarChar
+  fullname        String?           @db.VarChar
+  user_has_stores user_has_stores[]
+}
+
+model users_token {
+  id         Int     @id(map: "users_token_pk") @default(autoincrement())
+  token      String  @unique(map: "users_token_unique")
+  expired_at BigInt
+  user_id    Int
+  type       String? @db.VarChar
+  created_at BigInt?
+  updated_at BigInt?
 }
 
 model variant {
@@ -494,32 +518,6 @@ model voucher_has_products {
   @@id([voucher_id, products_id])
   @@index([products_id], map: "fk_voucher_has_products_products1_idx")
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
-}
-
-model users_token {
-  id         Int     @id(map: "users_token_pk") @default(autoincrement())
-  token      String  @unique(map: "users_token_unique")
-  expired_at BigInt
-  user_id    Int
-  type       String? @db.VarChar
-  created_at BigInt?
-  updated_at BigInt?
-}
-
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model customers_has_tag {
-  customer_id String?   @db.Uuid
-  tag_id      String?   @db.Uuid
-  customer    customer? @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_customer_id_fk")
-  tag         tag?      @relation(fields: [tag_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_tag_id_fk")
-
-  @@ignore
-}
-
-model tag {
-  id                String              @id(map: "tag_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name              String?             @db.VarChar(255)
-  customers_has_tag customers_has_tag[] @ignore
 }
 
 enum cashdrawertype {
