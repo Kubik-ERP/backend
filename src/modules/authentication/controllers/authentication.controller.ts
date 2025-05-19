@@ -4,7 +4,7 @@
 // DTOs
 import { GenerateOtpDto } from '../dtos/generate-otp.dto';
 import { LoginUsernameDto, LoginWithAccessToken } from '../dtos/login.dto';
-import { RegisterEmailDto } from '../dtos/register.dto';
+import { RegisterEmailDto, SetPinDto } from '../dtos/register.dto';
 import { VerifyOtpDto } from '../dtos/verify-otp.dto';
 
 // Entities
@@ -27,6 +27,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Param,
   Post,
   Put,
   Redirect,
@@ -34,7 +35,12 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 
 // Services
 import { AuthenticationService } from '../services/authentication.service';
@@ -101,6 +107,55 @@ export class AuthenticationController {
       message: 'Authenticated user profile has been retrieved successfully',
       result: response,
     };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @Post('pin/:type')
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'type',
+    enum: ['set', 'unset'],
+    description: 'Action type, must be either "set" or "unset"',
+  })
+  public async handlePin(
+    @Param('type') type: string,
+    @Req() req: ICustomRequestHeaders,
+    @Body() body: SetPinDto,
+  ) {
+    try {
+      switch (type) {
+        case 'set':
+          if (!body.pin) {
+            throw new BadRequestException('PIN is required');
+          }
+          break;
+        case 'unset':
+          if (body.pin) {
+            throw new BadRequestException(
+              'PIN should not be set when unsetting',
+            );
+          }
+          break;
+        default:
+          throw new BadRequestException('Invalid type. Use "set" or "unset"');
+      }
+
+      await this._usersService.handlePin(req.user.id, body.pin);
+
+      return {
+        success: true,
+        message: 'Authenticated user pin has been updated successfully',
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Post('otp/generate')

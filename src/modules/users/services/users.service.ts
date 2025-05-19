@@ -186,4 +186,22 @@ export class UsersService {
       });
     }
   }
+
+  /**
+   * @description set or unset a pin
+   */
+  public async handlePin(id: number, pin?: string | null): Promise<boolean> {
+    try {
+      await this.prisma.users.update({
+        where: { id },
+        data: { pin },
+      });
+      return true;
+    } catch (error) {
+      throw new BadRequestException('Failed to set/unset pin', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
 }

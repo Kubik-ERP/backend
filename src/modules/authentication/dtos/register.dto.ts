@@ -12,6 +12,7 @@ import {
   Matches,
   IsNumber,
   Length,
+  IsOptional,
 } from 'class-validator';
 
 // NestJS Libraries
@@ -56,4 +57,11 @@ export class RegisterEmailDto {
   @MinLength(7)
   @MaxLength(14)
   public phoneNumber: string | number;
+}
+
+export class SetPinDto {
+  @ApiProperty({ description: 'User PIN (6 digit number)', required: false })
+  @IsOptional()
+  @Matches(/^\d{6}$/, { message: 'PIN must be a 6-digit number' })
+  public pin?: string;
 }
