@@ -31,6 +31,9 @@ jobs:
           script: |
             cp ~/.env ~/app
             cd ~/app
+            
+            docker compose up -d --build redis
+
             docker build -t kubik-backend .
             docker stop kubik-backend || true
             docker rm kubik-backend || true
