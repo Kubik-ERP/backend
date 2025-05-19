@@ -170,7 +170,7 @@ export class AuthenticationService {
         };
 
         return result;
-      }
+      } 
 
       const isValid = speakeasy.totp.verify({
         secret,
