@@ -214,7 +214,7 @@ export class AuthenticationService {
 
   public async forgotPassword(email: string): Promise<void> {
     //validate user email
-    const user = this._usersService.findOneByEmail(email);
+    const user = await this._usersService.findOneByEmail(email);
     if (!user) {
       throw new BadRequestException('User not found');
     }
@@ -230,7 +230,7 @@ export class AuthenticationService {
     this._mailService.sendMailWithTemplate(
       'forgot-password',
       'Forgot Password',
-      { token: token, name: 'Kontol' },
+      { token: token, name: user.fullname },
       email,
     );
   }
