@@ -30,7 +30,6 @@ export class UsersService {
           username: payload.username,
           email: payload.email,
           password: payload.password,
-          pin: payload.pin,
           fullname: payload.fullname,
         },
       });
@@ -182,6 +181,24 @@ export class UsersService {
       });
     } catch (error) {
       throw new BadRequestException('Failed to restore user', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description set or unset a pin
+   */
+  public async handlePin(id: number, pin?: string | null): Promise<boolean> {
+    try {
+      await this.prisma.users.update({
+        where: { id },
+        data: { pin },
+      });
+      return true;
+    } catch (error) {
+      throw new BadRequestException('Failed to set/unset pin', {
         cause: new Error(),
         description: error.message,
       });

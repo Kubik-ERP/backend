@@ -12,6 +12,7 @@ import {
   Matches,
   IsNumber,
   Length,
+  IsOptional,
 } from 'class-validator';
 
 // NestJS Libraries
@@ -56,21 +57,11 @@ export class RegisterEmailDto {
   @MinLength(7)
   @MaxLength(14)
   public phoneNumber: string | number;
+}
 
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  @Matches(/^\d{6}$/, { message: 'PIN harus terdiri dari 6 digit angka' })
-  public pin: string;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  @Matches(/^\d{6}$/, {
-    message: 'Konfirmasi PIN harus terdiri dari 6 digit angka',
-  })
-  @Match('pin', {
-    message: 'Konfirmasi PIN tidak cocok dengan PIN',
-  })
-  public pin_confirmation: string;
+export class SetPinDto {
+  @ApiProperty({ description: 'User PIN (6 digit number)', required: false })
+  @IsOptional()
+  @Matches(/^\d{6}$/, { message: 'PIN must be a 6-digit number' })
+  public pin?: string;
 }
