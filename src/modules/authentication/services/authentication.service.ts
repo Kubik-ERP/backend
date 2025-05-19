@@ -125,7 +125,11 @@ export class AuthenticationService {
       const newSecret = speakeasy.generateSecret({ length: 20 }).base32;
 
       // Save OTP Secret
-      const test = await this.cacheManager.set(`otp_secret:${email}`, newSecret, 300);
+      const test = await this.cacheManager.set(
+        `otp_secret:${email}`,
+        newSecret,
+        300,
+      );
       console.log(test);
 
       // Generate OTP
