@@ -221,7 +221,7 @@ export class AuthenticationService {
 
     //generate token
     const token = uuidv4();
-    const ttl = 900;
+    const ttl = 15 * 60 * 1000;
 
     //set token to cache with 15 minutes expiration
     await this.cacheManager.set(`forgot_token:${email}`, token, ttl);
@@ -244,9 +244,9 @@ export class AuthenticationService {
     const cacheToken = await this.cacheManager.get<string>(
       `forgot_token:${email}`,
     );
-
+    console.log('cacheToken', cacheToken);
     if (!cacheToken || cacheToken !== token) {
-      throw new BadRequestException('Invalid token');
+      throw new BadRequestException('Expired / Invalid token');
     }
 
     //hash password

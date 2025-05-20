@@ -10,7 +10,6 @@ import { UsersModule } from '../users/users.module';
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { CacheModule } from '@nestjs/cache-manager';
 
 // Services
 import { JwtConfigService } from '../../configurations/jwt/jwt-configuration.service';
@@ -24,10 +23,6 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 
 @Module({
   imports: [
-    CacheModule.register({
-      ttl: 300, // time to save the OTP
-      max: 1000, // maximum 1000 data
-    }),
     JwtConfigModule,
     MailModule,
     UsersModule,

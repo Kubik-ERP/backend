@@ -11,25 +11,30 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { Module } from '@nestjs/common';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { CacheModule } from '@nestjs/cache-manager';
-import * as redisStore from 'cache-manager-ioredis';
 
 import { ProductsModule } from './modules/products/products.module';
 import { StoresModule } from './modules/stores/stores.module';
+import KeyvRedis, { createKeyv } from '@keyv/redis';
+import Keyv from 'keyv';
 
 @Module({
   imports: [
-    // redis
-    CacheModule.registerAsync({
-      isGlobal: true,
-      useFactory: async () => ({
-        store: redisStore,
-        host: process.env.REDIS_HOST,
-        port: parseInt(process.env.REDIS_PORT ?? '6379'),
-        ttl: 300,
-      }),
-    }),
-
     // Configuration Modules
+    CacheModule.registerAsync({
+      useFactory: async () => {
+        return {
+          stores: [
+            new Keyv({
+              store: new KeyvRedis('redis://localhost:6379'),
+              namespace: undefined,
+              useKeyPrefix: false,
+            }),
+            createKeyv('redis://localhost:6379'),
+          ],
+        };
+      },
+      isGlobal: true,
+    }),
     AppConfigurationModule,
     DatabasePostgresConfigModule,
 
