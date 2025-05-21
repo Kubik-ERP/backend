@@ -22,14 +22,15 @@ import Keyv from 'keyv';
     // Configuration Modules
     CacheModule.registerAsync({
       useFactory: async () => {
+        console.log(process.env.REDIS_CONNECTION);
         return {
           stores: [
             new Keyv({
-              store: new KeyvRedis('redis://localhost:6379'),
+              store: new KeyvRedis(process.env.REDIS_CONNECTION),
               namespace: undefined,
               useKeyPrefix: false,
             }),
-            createKeyv('redis://localhost:6379'),
+            createKeyv(process.env.REDIS_CONNECTION),
           ],
         };
       },
