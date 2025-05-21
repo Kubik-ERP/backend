@@ -46,7 +46,15 @@ export class CategoriesService {
   }
 
   public async findAll(): Promise<CategoryModel[]> {
-    const categories = await this.prisma.categories.findMany();
+    const categories = await this.prisma.categories.findMany({
+      include: {
+        categories_has_products: {
+          include: {
+            products: true,
+          },
+        },
+      },
+    });
     return categories;
   }
 
@@ -54,11 +62,25 @@ export class CategoriesService {
     if (isUUID(idOrcategory)) {
       return await this.prisma.categories.findUnique({
         where: { id: idOrcategory },
+        include: {
+          categories_has_products: {
+            include: {
+              products: true,
+            },
+          },
+        },
       });
     } else {
       return await this.prisma.categories.findFirst({
         where: {
           category: { contains: idOrcategory, mode: 'insensitive' },
+        },
+        include: {
+          categories_has_products: {
+            include: {
+              products: true,
+            },
+          },
         },
       });
     }
