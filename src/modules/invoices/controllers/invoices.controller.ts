@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Query, Get } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Query,
+  Get,
+  Put,
+  Delete,
+} from '@nestjs/common';
 import { InvoiceService } from '../services/invoices.service';
 import {
   CalculationEstimationDto,
@@ -8,6 +16,9 @@ import {
   PaymentCallbackCoreDto,
   PaymentCallbackDto,
 } from '../dtos/callback-payment.dto';
+import { CreatePaymentMethodDto } from '../dtos/payment-method.dto';
+import { payment_methods } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
 
 @Controller('payment')
 export class PaymentController {
@@ -41,7 +52,7 @@ export class PaymentController {
     return await this.invoiceService.handlePaymentCoreCallback(callbackData);
   }
 
-  @Post('calculate-estimation')
+  @Post('calculate/estimation')
   public async calculateEstimation(
     @Body() requestData: CalculationEstimationDto,
   ) {
@@ -52,12 +63,52 @@ export class PaymentController {
     };
   }
 
+  @Post('method')
+  public async paymentMethodAdd(@Body() requestBody: CreatePaymentMethodDto) {
+    const paymentMethod: payment_methods = {
+      id: uuidv4(),
+      name: requestBody.name,
+      icon_name: requestBody.icon_name,
+      sort_no: requestBody.sort_no,
+    };
+    await this.invoiceService.createPaymentMethod(paymentMethod);
+    return {
+      message: 'Payment Method successfully created',
+    };
+  }
+
+  @Put('method')
+  public async paymentMethodUpdate(
+    @Query('id') id: string,
+    @Body() requestBody: CreatePaymentMethodDto,
+  ) {
+    const paymentMethod: payment_methods = {
+      id: id,
+      name: requestBody.name,
+      icon_name: requestBody.icon_name,
+      sort_no: requestBody.sort_no,
+    };
+    await this.invoiceService.updatePaymentMethodById(paymentMethod);
+    return {
+      message: 'Payment Method successfully updated',
+    };
+  }
+
   @Get('method')
   public async paymentMethodList() {
     const result = await this.invoiceService.findAllPaymentMethod();
 
     return {
       result,
+    };
+  }
+
+  @Delete('method')
+  public async paymentMethodRemove(@Query('id') id: string) {
+    await this.invoiceService.deletePaymentMethodById(id);
+
+    return {
+      message: 'Payment Method successfully deleted',
     };
   }
 }
