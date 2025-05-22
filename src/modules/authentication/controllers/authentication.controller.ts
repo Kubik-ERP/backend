@@ -196,6 +196,7 @@ export class AuthenticationController {
   @ApiOperation({
     summary: 'Send Forgot Password Token',
   })
+  @UseGuards(PinGuard)
   public async forgotPassword(@Body() body: ForgotPasswordDto) {
     try {
       await this._authenticationService.forgotPassword(body.email);
