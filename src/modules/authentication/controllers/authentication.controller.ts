@@ -50,6 +50,7 @@ import {
   ForgotPasswordResetDto,
 } from '../dtos/forgot-password.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { PinGuard } from 'src/common/guards/authentication-pin.guard';
 
 @Controller('authentication')
 @ApiTags('Authentication')
@@ -98,7 +99,8 @@ export class AuthenticationController {
     const result = await this._usersService.findOneById(req.user.id);
 
     const response = {
-      username: result.username,
+      fullname: result.fullname,
+      usingPin: result.pin ? true : false,
       email: result.email,
       id: result.id,
     };
@@ -117,6 +119,7 @@ export class AuthenticationController {
     enum: ['set', 'unset'],
     description: 'Action type, must be either "set" or "unset"',
   })
+  @UseGuards(PinGuard)
   public async handlePin(
     @Param('type') type: string,
     @Req() req: ICustomRequestHeaders,
