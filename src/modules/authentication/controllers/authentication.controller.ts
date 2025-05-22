@@ -51,6 +51,7 @@ import {
 } from '../dtos/forgot-password.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { PinGuard } from 'src/common/guards/authentication-pin.guard';
+import { AuthenticationProfileGuard } from 'src/common/guards/authentication-profile.guard';
 
 @Controller('authentication')
 @ApiTags('Authentication')
@@ -92,7 +93,7 @@ export class AuthenticationController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthenticationProfileGuard)
   @Get('profile')
   @ApiBearerAuth()
   public async getProfile(@Req() req: ICustomRequestHeaders) {
