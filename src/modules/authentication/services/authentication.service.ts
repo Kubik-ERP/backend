@@ -80,7 +80,7 @@ export class AuthenticationService {
   public async login(user: IRequestUser): Promise<ILogin> {
     const payload = {
       username: user.username,
-      sub: user.id,
+      sub: parseInt(user.id.toString()),
       email: user.email,
       phone: user.phone,
       ext: user.ext,
