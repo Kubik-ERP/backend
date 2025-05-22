@@ -44,6 +44,25 @@ export class CustomerService {
           address: createCustomerDto.address,
         },
       });
+      if (createCustomerDto.tag && createCustomerDto.tag.length > 0) {
+        for (const tagName of createCustomerDto.tag) {
+          let tag = await this.prisma.tag.findFirst({
+            where: { name: tagName },
+          });
+          if (!tag) {
+            tag = await this.prisma.tag.create({
+              data: { name: tagName },
+            });
+          }
+
+          await this.prisma.customers_has_tag.create({
+            data: {
+              customer: { connect: { id: newCustomer.id } },
+              tag: { connect: { id: tag.id } },
+            },
+          });
+        }
+      }
 
       return newCustomer;
     } catch (error) {

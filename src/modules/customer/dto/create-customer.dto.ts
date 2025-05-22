@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsDateString,
   IsEmail,
+  IsArray,
 } from 'class-validator';
 
 export class CreateCustomerDto {
@@ -34,4 +35,9 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tag?: string[];
 }

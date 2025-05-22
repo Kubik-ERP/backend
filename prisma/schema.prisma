@@ -18,7 +18,7 @@ model users {
   updated_at      BigInt?
   verified_at     BigInt?
   deleted_at      BigInt?
-  pin             String            @db.VarChar
+  pin             String?           @db.VarChar
   fullname        String?           @db.VarChar
   user_has_stores user_has_stores[]
 }
@@ -116,7 +116,7 @@ model customer {
   username            String?               @db.VarChar(45)
   address             String?               @db.VarChar(45)
   customer_has_stores customer_has_stores[]
-  customers_has_tag   customers_has_tag[]   @ignore
+  customers_has_tag   customers_has_tag[]
   invoice             invoice[]
 }
 
@@ -257,11 +257,12 @@ model operational_hours {
 }
 
 model payment_methods {
-  id        String    @id @db.Uuid
-  name      String?   @db.VarChar(45)
-  icon_name String?   @db.VarChar
-  sort_no   Int?      @unique
-  invoice   invoice[]
+  id           String    @id @db.Uuid
+  name         String?   @db.VarChar(45)
+  icon_name    String?   @db.VarChar
+  sort_no      Int?      @unique
+  is_available Boolean   @default(true)
+  invoice      invoice[]
 }
 
 model payments {
@@ -508,18 +509,18 @@ model users_token {
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model customers_has_tag {
-  customer_id String?   @db.Uuid
-  tag_id      String?   @db.Uuid
-  customer    customer? @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_customer_id_fk")
-  tag         tag?      @relation(fields: [tag_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_tag_id_fk")
+  customer_id String   @db.Uuid
+  tag_id      String   @db.Uuid
+  customer    customer @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_customer_id_fk")
+  tag         tag      @relation(fields: [tag_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_tag_id_fk")
 
-  @@ignore
+  @@id([customer_id, tag_id])
 }
 
 model tag {
   id                String              @id(map: "tag_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name              String?             @db.VarChar(255)
-  customers_has_tag customers_has_tag[] @ignore
+  customers_has_tag customers_has_tag[]
 }
 
 enum cashdrawertype {
