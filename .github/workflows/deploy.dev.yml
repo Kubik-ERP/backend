@@ -32,9 +32,10 @@ jobs:
             cp ~/.env ~/app
             cd ~/app
             
+            docker network inspect kubik-net >/dev/null 2>&1 || docker network create kubik-net
             docker compose up -d --build redis
 
             docker build -t kubik-backend .
             docker stop kubik-backend || true
             docker rm kubik-backend || true
-            docker run -d --name kubik-backend --restart always -p 8080:8080 kubik-backend
+            docker run -d --name kubik-backend  --network kubik-net --restart always -p 8080:8080 kubik-backend
