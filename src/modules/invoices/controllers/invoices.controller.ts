@@ -71,7 +71,7 @@ export class PaymentController {
       name: requestBody.name,
       icon_name: requestBody.iconName,
       sort_no: requestBody.sortNo,
-      is_available: true
+      is_available: true,
     };
     await this.invoiceService.createPaymentMethod(paymentMethod);
     return {
@@ -89,7 +89,7 @@ export class PaymentController {
       name: requestBody.name,
       icon_name: requestBody.iconName,
       sort_no: requestBody.sortNo,
-      is_available: requestBody.isAvailable
+      is_available: requestBody.isAvailable,
     };
     await this.invoiceService.updatePaymentMethodById(paymentMethod);
     return {
