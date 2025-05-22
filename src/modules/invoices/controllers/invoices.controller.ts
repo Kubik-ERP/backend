@@ -16,24 +16,40 @@ import {
   PaymentCallbackCoreDto,
   PaymentCallbackDto,
 } from '../dtos/callback-payment.dto';
-import { CreatePaymentMethodDto } from '../dtos/payment-method.dto';
-import { payment_methods } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
+import { ApiOperation } from '@nestjs/swagger';
 
-@Controller('payment')
-export class PaymentController {
+@Controller('invoice')
+export class InvoiceController {
   constructor(private readonly invoiceService: InvoiceService) {}
 
-  @Post('process')
-  public async processPayment(@Body() body: ProcessPaymentDto) {
+  @Post('process/instant')
+  @ApiOperation({
+    summary: 'Create invoice and pay it instantly',
+  })
+  public async processInstantPayment(@Body() body: ProcessPaymentDto) {
     const response = await this.invoiceService.processPayment(body);
     return {
       result: toCamelCase(response),
     };
   }
 
+  @Post('process/checkout')
+  @ApiOperation({
+    summary: 'Create invoice with unpaid status',
+  })
+  public async processCheckout() {}
+
+  @Post('process/payment')
+  @ApiOperation({
+    summary: 'Pay the unpaid invoice',
+  })
+  public async processPayment() {}
+
   @Get('callback/snap')
+  @ApiOperation({
+    summary: 'Listening the callback response from SNAP',
+  })
   public async handlePaymentCallback(
     @Query() callbackData: PaymentCallbackDto,
   ) {
@@ -47,6 +63,9 @@ export class PaymentController {
   }
 
   @Post('callback/core/qris')
+  @ApiOperation({
+    summary: 'Listening the callback response from API Core QRIS',
+  })
   public async handlePaymentCallbackCore(
     @Body() callbackData: PaymentCallbackCoreDto,
   ) {
@@ -54,6 +73,9 @@ export class PaymentController {
   }
 
   @Post('calculate/estimation')
+  @ApiOperation({
+    summary: 'Simulate the total estimation',
+  })
   public async calculateEstimation(
     @Body() requestData: CalculationEstimationDto,
   ) {
@@ -61,57 +83,6 @@ export class PaymentController {
 
     return {
       result,
-    };
-  }
-
-  @Post('method')
-  public async paymentMethodAdd(@Body() requestBody: CreatePaymentMethodDto) {
-    const paymentMethod: payment_methods = {
-      id: uuidv4(),
-      name: requestBody.name,
-      icon_name: requestBody.iconName,
-      sort_no: requestBody.sortNo,
-      is_available: true,
-    };
-    await this.invoiceService.createPaymentMethod(paymentMethod);
-    return {
-      message: 'Payment Method successfully created',
-    };
-  }
-
-  @Put('method')
-  public async paymentMethodUpdate(
-    @Query('id') id: string,
-    @Body() requestBody: CreatePaymentMethodDto,
-  ) {
-    const paymentMethod: payment_methods = {
-      id: id,
-      name: requestBody.name,
-      icon_name: requestBody.iconName,
-      sort_no: requestBody.sortNo,
-      is_available: requestBody.isAvailable,
-    };
-    await this.invoiceService.updatePaymentMethodById(paymentMethod);
-    return {
-      message: 'Payment Method successfully updated',
-    };
-  }
-
-  @Get('method')
-  public async paymentMethodList() {
-    const response = await this.invoiceService.findAllPaymentMethod();
-
-    return {
-      result: toCamelCase(response),
-    };
-  }
-
-  @Delete('method')
-  public async paymentMethodRemove(@Query('id') id: string) {
-    await this.invoiceService.deletePaymentMethodById(id);
-
-    return {
-      message: 'Payment Method successfully deleted',
     };
   }
 }
