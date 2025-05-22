@@ -84,6 +84,8 @@ export class AuthenticationService {
       email: user.email,
       phone: user.phone,
       ext: user.ext,
+      fullname: user.fullname,
+      verified_at: user.verified_at,
       role: user.role,
     };
     return {

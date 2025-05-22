@@ -10,6 +10,9 @@ declare global {
     username: string;
     phone: number;
     ext: number;
+    fullname?: string;
+    verified_at?: Date;
+    pin?: string;
     role?: string;
   }
 
@@ -39,6 +42,13 @@ declare global {
 
   interface IValidateJWTStrategy {
     sub: string;
-    name: string;
+    fullname: string;
+    verified_at: Date;
+    email: string;
+    phone: string;
+    ext: string;
+    role: string;
+    pin: string;
+
   }
 }
