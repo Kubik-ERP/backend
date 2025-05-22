@@ -250,11 +250,12 @@ model operational_hours {
 }
 
 model payment_methods {
-  id        String    @id @db.Uuid
-  name      String?   @db.VarChar(45)
-  icon_name String?   @db.VarChar
-  sort_no   Int?      @unique
-  invoice   invoice[]
+  id           String    @id @db.Uuid
+  name         String?   @db.VarChar(45)
+  icon_name    String?   @db.VarChar
+  sort_no      Int?      @unique
+  is_available Boolean   @default(true)
+  invoice      invoice[]
 }
 
 model payments {
