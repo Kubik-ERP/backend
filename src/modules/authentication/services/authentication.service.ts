@@ -233,7 +233,7 @@ export class AuthenticationService {
     this._mailService.sendMailWithTemplate(
       'forgot-password',
       'Forgot Password',
-      { token: token, name: user.fullname },
+      { token: token, name: user.fullname, base_url: process.env.FRONTEND_URL },
       email,
     );
   }
