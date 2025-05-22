@@ -19,6 +19,7 @@ import {
 import { CreatePaymentMethodDto } from '../dtos/payment-method.dto';
 import { payment_methods } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 
 @Controller('payment')
 export class PaymentController {
@@ -26,9 +27,9 @@ export class PaymentController {
 
   @Post('process')
   public async processPayment(@Body() body: ProcessPaymentDto) {
-    const result = await this.invoiceService.processPayment(body);
+    const response = await this.invoiceService.processPayment(body);
     return {
-      result,
+      result: toCamelCase(response),
     };
   }
 
@@ -68,8 +69,9 @@ export class PaymentController {
     const paymentMethod: payment_methods = {
       id: uuidv4(),
       name: requestBody.name,
-      icon_name: requestBody.icon_name,
-      sort_no: requestBody.sort_no,
+      icon_name: requestBody.iconName,
+      sort_no: requestBody.sortNo,
+      is_available: true,
     };
     await this.invoiceService.createPaymentMethod(paymentMethod);
     return {
@@ -85,8 +87,9 @@ export class PaymentController {
     const paymentMethod: payment_methods = {
       id: id,
       name: requestBody.name,
-      icon_name: requestBody.icon_name,
-      sort_no: requestBody.sort_no,
+      icon_name: requestBody.iconName,
+      sort_no: requestBody.sortNo,
+      is_available: requestBody.isAvailable,
     };
     await this.invoiceService.updatePaymentMethodById(paymentMethod);
     return {
@@ -96,10 +99,10 @@ export class PaymentController {
 
   @Get('method')
   public async paymentMethodList() {
-    const result = await this.invoiceService.findAllPaymentMethod();
+    const response = await this.invoiceService.findAllPaymentMethod();
 
     return {
-      result,
+      result: toCamelCase(response),
     };
   }
 
