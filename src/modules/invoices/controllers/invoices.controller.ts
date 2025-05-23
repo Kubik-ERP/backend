@@ -1,16 +1,10 @@
-import {
-  Controller,
-  Post,
-  Body,
-  Query,
-  Get,
-  Put,
-  Delete,
-} from '@nestjs/common';
+import { Controller, Post, Body, Query, Get } from '@nestjs/common';
 import { InvoiceService } from '../services/invoices.service';
 import {
   CalculationEstimationDto,
-  ProcessPaymentDto,
+  ProceedCheckoutInvoiceDto,
+  ProceedInstantPaymentDto,
+  ProceedPaymentDto,
 } from '../dtos/process-payment.dto';
 import {
   PaymentCallbackCoreDto,
@@ -27,8 +21,8 @@ export class InvoiceController {
   @ApiOperation({
     summary: 'Create invoice and pay it instantly',
   })
-  public async processInstantPayment(@Body() body: ProcessPaymentDto) {
-    const response = await this.invoiceService.processPayment(body);
+  public async processInstantPayment(@Body() body: ProceedInstantPaymentDto) {
+    const response = await this.invoiceService.proceedInstantPayment(body);
     return {
       result: toCamelCase(response),
     };
@@ -38,13 +32,23 @@ export class InvoiceController {
   @ApiOperation({
     summary: 'Create invoice with unpaid status',
   })
-  public async processCheckout() {}
+  public async processCheckout(@Body() body: ProceedCheckoutInvoiceDto) {
+    const response = await this.invoiceService.proceedCheckout(body);
+    return {
+      result: toCamelCase(response),
+    };
+  }
 
   @Post('process/payment')
   @ApiOperation({
     summary: 'Pay the unpaid invoice',
   })
-  public async processPayment() {}
+  public async processPayment(@Body() body: ProceedPaymentDto) {
+    const response = await this.invoiceService.proceedPayment(body);
+    return {
+      result: toCamelCase(response),
+    };
+  }
 
   @Get('callback/snap')
   @ApiOperation({

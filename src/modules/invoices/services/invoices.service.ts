@@ -20,8 +20,11 @@ import { v4 as uuidv4 } from 'uuid';
 // Service
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
-  ProcessPaymentDto,
   CalculationEstimationDto,
+  ProceedCheckoutInvoiceDto,
+  ProceedInstantPaymentDto,
+  ProceedPaymentDto,
+  ProductDto,
 } from '../dtos/process-payment.dto';
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
@@ -36,7 +39,7 @@ export class InvoiceService {
     private readonly _paymentFactory: PaymentFactory,
   ) {}
 
-  public async processPayment(request: ProcessPaymentDto) {
+  public async proceedInstantPayment(request: ProceedInstantPaymentDto) {
     const paymentProvider = this._paymentFactory.getProvider(request.provider);
     if (!paymentProvider) {
       throw new NotFoundException(
@@ -81,7 +84,7 @@ export class InvoiceService {
       const invoiceDetailData = {
         id: invoiceDetailId,
         invoice_id: invoiceId,
-        product_name: detail.productId,
+        product_name: detail.productId, // TODO: need to change DB
         product_price: productPrice + variantPrice,
         notes: detail.notes,
         order_type: request.orderType,
@@ -103,27 +106,108 @@ export class InvoiceService {
     return response;
   }
 
-  private async initiatePaymentBasedOnMethod(
-    methodId: string,
-    provider: PaymentGateway,
-    orderId: string,
-    amount: number,
-  ): Promise<any> {
-    // find payment method
-    const paymentMethod = await this._prisma.payment_methods.findUnique({
-      where: { id: methodId },
+  public async proceedCheckout(request: ProceedCheckoutInvoiceDto) {
+    // create invoice ID
+    const invoiceId = uuidv4();
+    const calculation = await this.calculateTotal(request);
+    const invoiceData = {
+      id: invoiceId,
+      payment_methods_id: null,
+      customer_id: request.customerId,
+      table_code: request.tableCode,
+      payment_status: invoicetype.unpaid,
+      discount_amount: 0, // need to confirm
+      subtotal: calculation.total,
+      created_at: new Date(),
+      update_at: new Date(),
+      delete_at: null,
+    };
+
+    // create invoice with status unpaid
+    await this.create(invoiceData);
+
+    request.products.forEach(async (detail) => {
+      // find the price
+      let productPrice = 0,
+        variantPrice = 0;
+      const found = calculation.items.find(
+        (p) =>
+          p.productId === detail.productId && p.variantId === detail.variantId,
+      );
+      if (found) {
+        productPrice = found.productPrice;
+        variantPrice = found.variantPrice;
+      }
+
+      // create invoice detail ID
+      const invoiceDetailId = uuidv4();
+      const invoiceDetailData = {
+        id: invoiceDetailId,
+        invoice_id: invoiceId,
+        product_name: detail.productId, // TODO: need to change DB
+        product_price: productPrice + variantPrice,
+        notes: detail.notes,
+        order_type: request.orderType,
+        qty: detail.quantity,
+        product_variant: detail.variantId,
+      };
+
+      // create invoice with status unpaid
+      await this.createInvoiceDetail(invoiceDetailData);
     });
 
-    switch (paymentMethod?.name) {
-      case 'Snap':
-        return await provider.initiatePaymentSnap(orderId, amount);
-      case 'Qris':
-        return await provider.initiatePaymentCoreQris(orderId, amount);
-      default:
-        throw new BadRequestException(
-          `Unsupported payment method: ${methodId}`,
-        );
+    const result = {
+      orderId: invoiceId,
+    };
+    return result;
+  }
+
+  public async proceedPayment(request: ProceedPaymentDto) {
+    // Check the invoice is unpaid
+    const invoice = await this.findInvoiceId(request.invoiceId);
+    if (invoice.payment_status !== invoicetype.unpaid) {
+      throw new BadRequestException(`Invoice status is not unpaid`);
     }
+
+    // define payment method and provider
+    const paymentProvider = this._paymentFactory.getProvider(request.provider);
+    if (!paymentProvider) {
+      throw new NotFoundException(
+        `Payment provider '${request.provider}' not found`,
+      );
+    }
+
+    // calculate the total
+    const invoiceDetails = await this.getInvoiceDetailForCalculationByInvoiceId(
+      request.invoiceId,
+    );
+
+    // check if invoice detail is empty
+    if (invoiceDetails.length < 1) {
+      throw new BadRequestException(`Invoice detail not found`);
+    }
+
+    // re-map the struct
+    const calculationEstimationDto = new CalculationEstimationDto();
+    calculationEstimationDto.products = [];
+    for (const item of invoiceDetails) {
+      const dto = new ProductDto();
+      dto.productId = item.product_name ?? '';
+      dto.variantId = item.product_variant ?? '';
+      dto.quantity = item.qty ?? 0;
+
+      calculationEstimationDto.products.push(dto);
+    }
+
+    const calculation = await this.calculateTotal(calculationEstimationDto);
+    const response = await this.initiatePaymentBasedOnMethod(
+      request.paymentMethodId,
+      paymentProvider,
+      request.invoiceId,
+      calculation.total,
+    );
+
+    return response;
   }
 
   public async handlePaymentCallback(
@@ -305,6 +389,49 @@ export class InvoiceService {
     };
   }
 
+  // Private function section
+  private async initiatePaymentBasedOnMethod(
+    methodId: string,
+    provider: PaymentGateway,
+    orderId: string,
+    amount: number,
+  ): Promise<any> {
+    // find payment method
+    const paymentMethod = await this._prisma.payment_methods.findUnique({
+      where: { id: methodId },
+    });
+
+    switch (paymentMethod?.name) {
+      case 'Snap':
+        return await provider.initiatePaymentSnap(orderId, amount);
+      case 'Qris':
+        return await provider.initiatePaymentCoreQris(orderId, amount);
+      default:
+        throw new BadRequestException(
+          `Unsupported payment method: ${methodId}`,
+        );
+    }
+  }
+
+  private getTransactionMessage(status: string): string {
+    switch (status) {
+      case 'settlement':
+        return 'Payment completed successfully';
+      case 'pending':
+        return 'Payment is pending';
+      case 'deny':
+        return 'Payment was denied';
+      case 'expire':
+        return 'Payment expired';
+      case 'cancel':
+        return 'Payment was canceled';
+      default:
+        return 'Unknown payment status';
+    }
+  }
+  // End of private function
+
+  // Query section
   /**
    * @description Find invoice by ID
    */
@@ -394,20 +521,21 @@ export class InvoiceService {
     }
   }
 
-  private getTransactionMessage(status: string): string {
-    switch (status) {
-      case 'settlement':
-        return 'Payment completed successfully';
-      case 'pending':
-        return 'Payment is pending';
-      case 'deny':
-        return 'Payment was denied';
-      case 'expire':
-        return 'Payment expired';
-      case 'cancel':
-        return 'Payment was canceled';
-      default:
-        return 'Unknown payment status';
+  /**
+   * @description Get invoice detail data
+   */
+  public async getInvoiceDetailForCalculationByInvoiceId(invoiceId: string) {
+    try {
+      return await this._prisma.invoice_details.findMany({
+        where: { invoice_id: invoiceId },
+      });
+    } catch (error) {
+      console.log(error);
+      throw new BadRequestException('Failed to fetch invoice detail', {
+        cause: new Error(),
+        description: error.message,
+      });
     }
   }
+  // End of query section
 }

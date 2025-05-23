@@ -18,7 +18,7 @@ import { ApiOperation, ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 // DTO Product
-class ProductDto {
+export class ProductDto {
   @ApiProperty({
     description: 'Product ID',
     required: true,
@@ -49,7 +49,7 @@ class ProductDto {
   public notes: string;
 }
 
-class ProductListDto {
+export class ProductListDto {
   @ApiProperty({ type: [ProductDto], description: 'List of Products' })
   @IsArray()
   @ValidateNested({ each: true })
@@ -77,7 +77,7 @@ class InvoiceDetail {
   public notes: string;
 }
 
-export class ProcessPaymentDto extends ProductListDto {
+export class ProceedInstantPaymentDto extends ProductListDto {
   @ApiProperty({
     description: 'Provider of Payment Gateway',
     required: true,
@@ -125,7 +125,68 @@ export class ProcessPaymentDto extends ProductListDto {
 
   @ApiProperty({ description: 'Invoice Detail', required: false })
   @IsObject()
-  public InvoiceDetail: InvoiceDetail;
+  public invoiceDetail: InvoiceDetail;
+}
+
+export class ProceedCheckoutInvoiceDto extends ProductListDto {
+  @ApiProperty({ description: 'Order Type', enum: ordertype, required: true })
+  @IsNotEmpty()
+  @IsEnum(ordertype)
+  public orderType: ordertype;
+
+  @ApiProperty({
+    description: 'Selected Voucher ID',
+    required: false,
+    example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
+  })
+  @IsString()
+  public vouchers: string[];
+
+  @ApiProperty({
+    description: 'Customer ID',
+    required: false,
+    example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
+  })
+  @IsString()
+  public customerId: string;
+
+  @ApiProperty({
+    description: 'Table Code',
+    required: false,
+    example: 'TBL01',
+  })
+  @IsString()
+  public tableCode: string;
+
+  @ApiProperty({ description: 'Invoice Detail', required: false })
+  @IsObject()
+  public invoiceDetail: InvoiceDetail;
+}
+
+export class ProceedPaymentDto {
+  @ApiProperty({
+    description: 'Provider of Payment Gateway',
+    required: true,
+    example: 'midtrans',
+  })
+  @IsNotEmpty()
+  public provider: string;
+
+  @ApiProperty({
+    description: 'Invoice ID',
+    required: true,
+    example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
+  })
+  @IsUUID()
+  public invoiceId: string;
+
+  @ApiProperty({
+    description: 'Payment Method ID',
+    required: true,
+    example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
+  })
+  @IsUUID()
+  public paymentMethodId: string;
 }
 
 export class CalculationEstimationDto extends ProductListDto {}
