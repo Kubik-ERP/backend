@@ -52,6 +52,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { PinGuard } from 'src/common/guards/authentication-pin.guard';
 import { AuthenticationProfileGuard } from 'src/common/guards/authentication-profile.guard';
+import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 
 @Controller('authentication')
 @ApiTags('Authentication')
@@ -103,12 +104,14 @@ export class AuthenticationController {
       fullname: result.fullname,
       usingPin: result.pin ? true : false,
       email: result.email,
+      phone: result.phone,
+      is_verified: result.verified_at ? true : false,
       id: result.id,
     };
     return {
       success: true,
       message: 'Authenticated user profile has been retrieved successfully',
-      result: response,
+      result: toCamelCase(response),
     };
   }
 
