@@ -85,7 +85,7 @@ export class AuthenticationService {
       phone: user.phone,
       ext: user.ext,
       fullname: user.fullname,
-      verified_at: user.verified_at,
+      verified_at: parseInt(user.verified_at?.toString() || '0'),
       role: user.role,
     };
     return {
