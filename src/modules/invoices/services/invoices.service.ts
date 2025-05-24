@@ -12,8 +12,10 @@ import {
   invoice,
   invoice_details,
   invoicetype,
+  ordertype,
   payment_methods,
   paymenttype,
+  Prisma,
 } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -29,6 +31,7 @@ import {
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
+import { GetListInvoiceDto } from '../dtos/invoice.dto';
 
 @Injectable()
 export class InvoiceService {
@@ -38,6 +41,57 @@ export class InvoiceService {
     private readonly _prisma: PrismaService,
     private readonly _paymentFactory: PaymentFactory,
   ) {}
+
+  public async getInvoices(request: GetListInvoiceDto) {
+    const {
+      page,
+      pageSize,
+      createdAtFrom,
+      createdAtTo,
+      // orderType,
+      paymentStatus,
+    } = request;
+
+    const filters: Prisma.invoiceWhereInput = {
+      created_at: {
+        gte: new Date(createdAtFrom),
+        lte: new Date(createdAtTo),
+      },
+      // order_type: { // TODO: Check again the order type should in invoice table
+      //   equals: orderType,
+      // },
+      payment_status: {
+        equals: paymentStatus,
+      },
+    };
+
+    const [data, total] = await Promise.all([
+      this._prisma.invoice.findMany({
+        where: filters,
+        include: {
+          customer: true,
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: {
+          created_at: 'desc',
+        },
+      }),
+      this._prisma.invoice.count({
+        where: filters,
+      }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
+  }
 
   public async proceedInstantPayment(request: ProceedInstantPaymentDto) {
     const paymentProvider = this._paymentFactory.getProvider(request.provider);

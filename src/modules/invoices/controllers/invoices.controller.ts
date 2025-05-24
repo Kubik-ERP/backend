@@ -12,10 +12,23 @@ import {
 } from '../dtos/callback-payment.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ApiOperation } from '@nestjs/swagger';
+import { GetListInvoiceDto } from '../dtos/invoice.dto';
+import { invoicetype, ordertype } from '@prisma/client';
 
 @Controller('invoice')
 export class InvoiceController {
   constructor(private readonly invoiceService: InvoiceService) {}
+
+  @Get('')
+  @ApiOperation({
+    summary: 'Get List of invoices',
+  })
+  public async invoiceList(@Query() query: GetListInvoiceDto) {
+    const response = await this.invoiceService.getInvoices(query);
+    return {
+      result: toCamelCase(response),
+    };
+  }
 
   @Post('process/instant')
   @ApiOperation({
