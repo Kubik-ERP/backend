@@ -193,15 +193,18 @@ model invoice {
 }
 
 model invoice_details {
-  id              String     @db.Uuid
-  product_name    String?    @db.VarChar(45)
-  product_price   Float?
-  product_variant String?    @db.VarChar(45)
-  notes           String?    @db.VarChar(45)
-  order_type      ordertype?
-  qty             Int?
-  invoice_id      String     @db.Uuid
-  invoice         invoice    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  id            String     @db.Uuid
+  product_id    String?    @db.Uuid
+  product_price Float?
+  variant_id    String?    @db.Uuid
+  notes         String?    @db.VarChar(45)
+  order_type    ordertype?
+  qty           Int?
+  invoice_id    String     @db.Uuid
+  variant_price Float?
+  invoice       invoice    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  products      products?  @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
+  variant       variant?   @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
@@ -314,6 +317,7 @@ model products {
   discount_price          Float?
   picture_url             String?                   @db.VarChar(45)
   categories_has_products categories_has_products[]
+  invoice_details         invoice_details[]
   product_commissions     product_commissions[]
   recipe                  recipe[]
   stores_has_products     stores_has_products[]
@@ -469,6 +473,7 @@ model variant {
   id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                 String?                @db.VarChar(45)
   price                Float?                 @default(0)
+  invoice_details      invoice_details[]
   variant_has_products variant_has_products[]
 }
 

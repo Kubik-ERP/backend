@@ -98,7 +98,12 @@ export class InvoiceService {
       where: { id: request.invoiceId },
       include: {
         customer: true,
-        invoice_details: true,
+        invoice_details: {
+          include: {
+            products: true,
+            variant: true,
+          },
+        },
         payment_methods: true,
       },
     });
@@ -157,12 +162,13 @@ export class InvoiceService {
       const invoiceDetailData = {
         id: invoiceDetailId,
         invoice_id: invoiceId,
-        product_name: detail.productId, // TODO: need to change DB
-        product_price: productPrice + variantPrice,
+        product_id: detail.productId, // TODO: need to change DB
+        product_price: productPrice,
         notes: detail.notes,
         order_type: request.orderType,
         qty: detail.quantity,
-        product_variant: detail.variantId,
+        variant_id: detail.variantId,
+        variant_price: variantPrice,
       };
 
       // create invoice with status unpaid
@@ -217,12 +223,13 @@ export class InvoiceService {
       const invoiceDetailData = {
         id: invoiceDetailId,
         invoice_id: invoiceId,
-        product_name: detail.productId, // TODO: need to change DB
-        product_price: productPrice + variantPrice,
+        product_id: detail.productId, // TODO: need to change DB
+        product_price: productPrice,
         notes: detail.notes,
         order_type: request.orderType,
         qty: detail.quantity,
-        product_variant: detail.variantId,
+        variant_id: detail.variantId,
+        variant_price: variantPrice,
       };
 
       // create invoice with status unpaid
@@ -265,8 +272,8 @@ export class InvoiceService {
     calculationEstimationDto.products = [];
     for (const item of invoiceDetails) {
       const dto = new ProductDto();
-      dto.productId = item.product_name ?? '';
-      dto.variantId = item.product_variant ?? '';
+      dto.productId = item.product_id ?? '';
+      dto.variantId = item.variant_id ?? '';
       dto.quantity = item.qty ?? 0;
 
       calculationEstimationDto.products.push(dto);
@@ -577,12 +584,12 @@ export class InvoiceService {
         data: {
           id: invoiceDetail.id,
           invoice_id: invoiceDetail.invoice_id,
-          product_name: invoiceDetail.product_name,
+          product_id: invoiceDetail.product_id,
           product_price: invoiceDetail.product_price,
           notes: invoiceDetail.notes,
           order_type: invoiceDetail.order_type,
           qty: invoiceDetail.qty,
-          product_variant: invoiceDetail.product_variant,
+          variant_id: invoiceDetail.variant_id,
         },
       });
     } catch (error) {
