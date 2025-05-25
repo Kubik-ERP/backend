@@ -12,8 +12,13 @@ import {
 } from '../dtos/callback-payment.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ApiOperation } from '@nestjs/swagger';
-import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
+import {
+  GetInvoiceDto,
+  GetListInvoiceDto,
+  InvoicePreviewDto,
+} from '../dtos/invoice.dto';
 import { invoicetype, ordertype } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
 
 @Controller('invoice')
 export class InvoiceController {
@@ -36,6 +41,10 @@ export class InvoiceController {
   })
   public async invoiceById(@Param() param: GetInvoiceDto) {
     const response = await this.invoiceService.getInvoicePreview(param);
+    // const formattedResponse = plainToInstance(InvoicePreviewDto, response, {
+    //   excludeExtraneousValues: true,
+    // });
+
     return {
       result: toCamelCase(response),
     };

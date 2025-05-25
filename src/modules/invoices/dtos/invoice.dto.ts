@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { invoicetype } from '@prisma/client';
-import { Transform } from 'class-transformer';
 import { IsDate, IsEnum, IsInt, IsString, Min } from 'class-validator';
+import { Expose, Type, Transform } from 'class-transformer';
 
 export class GetListInvoiceDto {
   @ApiProperty({
@@ -62,4 +62,169 @@ export class GetInvoiceDto {
   })
   @IsString()
   invoiceId: string;
+}
+
+// Response DTO
+export class ProductDto {
+  @Expose()
+  id: string;
+
+  @Expose()
+  name: string;
+
+  @Expose()
+  price: number;
+
+  @Expose()
+  discountPrice: number;
+
+  @Expose()
+  pictureUrl: string;
+}
+
+export class VariantDto {
+  @Expose()
+  id: string;
+
+  @Expose()
+  name: string;
+
+  @Expose()
+  price: number;
+}
+
+export class InvoiceDetailDto {
+  @Expose()
+  id: string;
+
+  @Expose()
+  productId: string;
+
+  @Expose()
+  variantId: string;
+
+  @Expose()
+  orderType: string;
+
+  @Expose()
+  qty: number;
+
+  @Expose()
+  notes: string;
+
+  @Expose()
+  invoiceId: string;
+
+  @Expose()
+  productPrice: number;
+
+  @Expose()
+  variantPrice: number;
+
+  @Expose()
+  @Type(() => ProductDto)
+  products: ProductDto;
+
+  @Expose()
+  @Type(() => VariantDto)
+  variant: VariantDto;
+}
+
+export class CustomerDto {
+  @Expose()
+  id: string;
+
+  @Expose()
+  name: string;
+
+  @Expose()
+  code: string;
+
+  @Expose()
+  number: string;
+
+  @Expose()
+  email: string;
+
+  @Expose()
+  username: string;
+
+  @Expose()
+  address: string;
+
+  @Expose()
+  @Transform(({ value }) =>
+    value instanceof Date ? value.toISOString() : null,
+  )
+  dob: string;
+}
+
+export class PaymentMethodDto {
+  @Expose()
+  id: string;
+
+  @Expose()
+  name: string;
+
+  @Expose()
+  iconName: string;
+
+  @Expose()
+  sortNo: number;
+
+  @Expose()
+  isAvailable: boolean;
+}
+
+export class InvoicePreviewDto {
+  @Expose()
+  id: string;
+
+  @Expose()
+  paymentMethodsId: string;
+
+  @Expose()
+  customerId: string;
+
+  @Expose()
+  discountAmount: number;
+
+  @Expose()
+  tableCode: string;
+
+  @Expose()
+  paymentStatus: string;
+
+  @Expose()
+  subtotal: number;
+
+  @Expose()
+  @Transform(({ value }) =>
+    value instanceof Date ? value.toISOString() : null,
+  )
+  createdAt: string;
+
+  @Expose()
+  @Transform(({ value }) =>
+    value instanceof Date ? value.toISOString() : null,
+  )
+  updatedAt: string;
+
+  @Expose()
+  @Transform(({ value }) =>
+    value instanceof Date ? value?.toISOString() : null,
+  )
+  deletedAt: string;
+
+  @Expose()
+  @Type(() => CustomerDto)
+  customer: CustomerDto;
+
+  @Expose()
+  @Type(() => InvoiceDetailDto)
+  invoiceDetails: InvoiceDetailDto[];
+
+  @Expose()
+  @Type(() => PaymentMethodDto)
+  paymentMethods: PaymentMethodDto;
 }
