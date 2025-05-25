@@ -31,7 +31,7 @@ import {
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
-import { GetListInvoiceDto } from '../dtos/invoice.dto';
+import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 
 @Injectable()
 export class InvoiceService {
@@ -91,6 +91,25 @@ export class InvoiceService {
         totalPages: Math.ceil(total / pageSize),
       },
     };
+  }
+
+  public async getInvoicePreview(request: GetInvoiceDto) {
+    const invoice = await this._prisma.invoice.findUnique({
+      where: { id: request.invoiceId },
+      include: {
+        customer: true,
+        invoice_details: true,
+        payment_methods: true,
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException(
+        `Invoice with ID ${request.invoiceId} not found.`,
+      );
+    }
+
+    return invoice;
   }
 
   public async proceedInstantPayment(request: ProceedInstantPaymentDto) {

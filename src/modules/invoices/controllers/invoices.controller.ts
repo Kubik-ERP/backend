@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Query, Get } from '@nestjs/common';
+import { Controller, Post, Body, Query, Get, Param } from '@nestjs/common';
 import { InvoiceService } from '../services/invoices.service';
 import {
   CalculationEstimationDto,
@@ -12,7 +12,7 @@ import {
 } from '../dtos/callback-payment.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ApiOperation } from '@nestjs/swagger';
-import { GetListInvoiceDto } from '../dtos/invoice.dto';
+import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { invoicetype, ordertype } from '@prisma/client';
 
 @Controller('invoice')
@@ -25,6 +25,17 @@ export class InvoiceController {
   })
   public async invoiceList(@Query() query: GetListInvoiceDto) {
     const response = await this.invoiceService.getInvoices(query);
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  @Get(':invoiceId')
+  @ApiOperation({
+    summary: 'Get List of invoices',
+  })
+  public async invoiceById(@Param() param: GetInvoiceDto) {
+    const response = await this.invoiceService.getInvoicePreview(param);
     return {
       result: toCamelCase(response),
     };

@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { invoicetype, ordertype, paymenttype } from '@prisma/client';
+import { invoicetype } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsDate, IsEnum, IsInt, Min } from 'class-validator';
+import { IsDate, IsEnum, IsInt, IsString, Min } from 'class-validator';
 
 export class GetListInvoiceDto {
   @ApiProperty({
@@ -52,4 +52,14 @@ export class GetListInvoiceDto {
   @Transform(({ value }) => new Date(value.replace(' ', 'T')))
   @IsDate()
   createdAtTo: Date;
+}
+
+export class GetInvoiceDto {
+  @ApiProperty({
+    description: 'ID of invoice',
+    required: true,
+    example: '01970571-bd68-7dfd-ba41-00aa890cc3db',
+  })
+  @IsString()
+  invoiceId: string;
 }
