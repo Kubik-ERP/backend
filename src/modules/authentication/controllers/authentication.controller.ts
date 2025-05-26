@@ -102,7 +102,7 @@ export class AuthenticationController {
       message: 'User registered successfully',
       result: {
         accessToken: login.accessToken,
-      }
+      },
     };
   }
 
