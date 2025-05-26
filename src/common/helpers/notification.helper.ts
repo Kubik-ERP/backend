@@ -26,7 +26,17 @@ export class NotificationHelper
   }
 
   // function for trigger notification to client
-  public notifyPayment(invoiceId: string, status: string) {
-    this.server.emit(`Payment - ${status}, for order number - ${invoiceId}`);
+  notifyPaymentSuccess(orderId: string) {
+    this.server.emit('payment-success', {
+      orderId,
+      message: 'Payment has been successfully processed',
+    });
+  }
+
+  notifyPaymentFailed(orderId: string) {
+    this.server.emit('payment-failed', {
+      orderId,
+      message: 'Payment failed or was cancelled',
+    });
   }
 }
