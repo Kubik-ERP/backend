@@ -63,7 +63,7 @@ export class AuthenticationController {
   constructor(
     private readonly _authenticationService: AuthenticationService,
     private readonly _usersService: UsersService,
-  ) { }
+  ) {}
 
   @Post('login')
   @HttpCode(200)
