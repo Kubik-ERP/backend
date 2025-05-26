@@ -118,3 +118,31 @@ export class PaymentCallbackCoreDto {
   @IsString()
   transaction_type: string;
 }
+
+export class MidtransCoreQrisResponseActionDto {
+  name: string;
+  method: string;
+  url: string;
+}
+
+export class MidtransCoreQrisResponseItemDto {
+  statusCode: string;
+  statusMessage: string;
+  transactionId: string;
+  orderId: string;
+  merchantId: string;
+  grossAmount: string;
+  currency: string;
+  paymentType: string;
+  transactionTime: string;
+  transactionStatus: string;
+  fraudStatus: string;
+  actions: MidtransCoreQrisResponseActionDto[];
+  acquirer: string;
+  qrString: string;
+  expiryTime: string;
+}
+
+export class MidtransCoreQrisResponseDto {
+  data: MidtransCoreQrisResponseItemDto;
+}
