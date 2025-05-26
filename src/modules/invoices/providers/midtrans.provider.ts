@@ -2,6 +2,8 @@ import * as dotenv from 'dotenv';
 import { Injectable } from '@nestjs/common';
 import { PaymentGateway } from '../interfaces/payments.interface';
 import axios from 'axios';
+import { MidtransCoreQrisResponseItemDto } from '../dtos/callback-payment.dto';
+import { plainToInstance } from 'class-transformer';
 
 dotenv.config();
 
@@ -51,7 +53,10 @@ export class MidtransProvider implements PaymentGateway {
     }
   }
 
-  async initiatePaymentCoreQris(orderId: string, amount: number): Promise<any> {
+  async initiatePaymentCoreQris(
+    orderId: string,
+    amount: number,
+  ): Promise<MidtransCoreQrisResponseItemDto> {
     try {
       const response = await axios.post(
         this.qrisUrl,
@@ -75,10 +80,12 @@ export class MidtransProvider implements PaymentGateway {
       );
 
       if (response.data) {
-        return {
-          success: true,
-          data: response.data,
-        };
+        // deserialize response
+        const result = plainToInstance(
+          MidtransCoreQrisResponseItemDto,
+          response.data,
+        );
+        return result;
       } else {
         throw new Error('Invalid response from Midtrans');
       }

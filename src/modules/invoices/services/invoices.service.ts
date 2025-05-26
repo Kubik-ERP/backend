@@ -24,6 +24,8 @@ import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
+import { NotificationHelper } from 'src/common/helpers/notification.helper';
+import { request } from 'http';
 
 @Injectable()
 export class InvoiceService {
@@ -32,6 +34,7 @@ export class InvoiceService {
   constructor(
     private readonly _prisma: PrismaService,
     private readonly _paymentFactory: PaymentFactory,
+    private readonly _notificationHelper: NotificationHelper,
   ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
@@ -333,11 +336,19 @@ export class InvoiceService {
   ) {
     // checking status code
     if (requestCallback.status_code != '200') {
+      this._notificationHelper.notifyPayment(
+        requestCallback.order_id,
+        requestCallback.status_message,
+      );
       throw new BadRequestException(`Request is failed`);
     }
 
     // checking fraud status
     if (requestCallback.fraud_status != 'accept') {
+      this._notificationHelper.notifyPayment(
+        requestCallback.order_id,
+        requestCallback.status_message,
+      );
       throw new BadRequestException(`Fraud transaction detected`);
     }
 
@@ -379,6 +390,12 @@ export class InvoiceService {
       transactionStatus: status,
       message: this.getTransactionMessage(status),
     };
+
+    // notify the FE
+    this._notificationHelper.notifyPayment(
+      requestCallback.order_id,
+      requestCallback.status_message,
+    );
 
     return {
       success: true,
