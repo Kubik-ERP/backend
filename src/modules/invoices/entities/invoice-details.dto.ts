@@ -3,7 +3,7 @@ import { AppBaseEntity } from '../../../common/entities/base.entity';
 
 // NestJS Libraries
 import { ApiProperty } from '@nestjs/swagger';
-import { invoicetype, ordertype } from '@prisma/client';
+import { order_type } from '@prisma/client';
 
 export class InvoiceDetailsEntity extends AppBaseEntity {
   @ApiProperty()
@@ -22,7 +22,7 @@ export class InvoiceDetailsEntity extends AppBaseEntity {
   notes: string;
 
   @ApiProperty()
-  order_type: ordertype;
+  order_type: order_type;
 
   @ApiProperty()
   qty: number;
