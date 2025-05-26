@@ -100,7 +100,9 @@ export class AuthenticationController {
 
     return {
       message: 'User registered successfully',
-      accessToken: login.accessToken,
+      result: {
+        accessToken: login.accessToken,
+      }
     };
   }
 
