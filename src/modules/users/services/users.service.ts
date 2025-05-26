@@ -4,6 +4,8 @@ import { ListOptionDto } from '../../../common/dtos/list-options.dto';
 import { PaginateDto } from '../../../common/dtos/paginate.dto';
 import { PageMetaDto } from '../../../common/dtos/page-meta.dto';
 import { UpdateUserDto } from '../dtos/update-user.dto';
+import * as bcrypt from 'bcrypt';
+
 
 // NestJS Libraries
 import {
@@ -18,7 +20,7 @@ import { users as UserModel } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * @description Create a user
@@ -65,17 +67,17 @@ export class UsersService {
       const orderBy =
         Array.isArray(filters.sortBy) && filters.sortBy.length > 0
           ? filters.sortBy.reduce<Record<string, 'asc' | 'desc'>>(
-              (acc, sortStr) => {
-                const [field, order] = sortStr.split('|'); // Pisahkan "field|order"
-                const normalizedOrder =
-                  order?.toLowerCase() === 'desc' ? 'desc' : 'asc';
-                if (field) {
-                  acc[field] = normalizedOrder; // Simpan dalam objek Prisma
-                }
-                return acc;
-              },
-              {},
-            )
+            (acc, sortStr) => {
+              const [field, order] = sortStr.split('|'); // Pisahkan "field|order"
+              const normalizedOrder =
+                order?.toLowerCase() === 'desc' ? 'desc' : 'asc';
+              if (field) {
+                acc[field] = normalizedOrder; // Simpan dalam objek Prisma
+              }
+              return acc;
+            },
+            {},
+          )
           : undefined;
 
       const users = await this.prisma.users.findMany({
@@ -192,9 +194,12 @@ export class UsersService {
    */
   public async handlePin(id: number, pin?: string | null): Promise<boolean> {
     try {
+      const hashPin = pin ? await bcrypt.hash(pin, 10) : null;
       await this.prisma.users.update({
         where: { id },
-        data: { pin },
+        data: {
+          pin: hashPin
+        },
       });
       return true;
     } catch (error) {
