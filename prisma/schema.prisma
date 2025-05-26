@@ -29,14 +29,14 @@ model business_owner_has_stores {
 }
 
 model cash_drawers {
-  id               String          @db.Uuid
+  id               String            @db.Uuid
   expected_balance Float?
   actual_balance   Float?
-  status           cashdrawertype?
-  employees_id     String          @db.Uuid
-  date             DateTime?       @db.Date
-  notes            String?         @db.VarChar(45)
-  employees        employees       @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_drawers_employees1")
+  status           cash_drawer_type?
+  employees_id     String            @db.Uuid
+  date             DateTime?         @db.Date
+  notes            String?           @db.VarChar(45)
+  employees        employees         @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_drawers_employees1")
 
   @@id([id, employees_id])
   @@index([employees_id], map: "fk_cash_drawers_employees1_idx")
@@ -178,11 +178,12 @@ model invoice {
   customer_id        String               @db.Uuid
   discount_amount    Float?
   table_code         String?              @db.VarChar(45)
-  payment_status     invoicetype?
+  payment_status     invoice_type?
   created_at         DateTime?            @db.Timestamp(6)
   update_at          DateTime?            @db.Timestamp(6)
   delete_at          DateTime?            @db.Timestamp(6)
   subtotal           Float
+  order_type         order_type?
   customer           customer             @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods    payment_methods?     @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
   invoice_details    invoice_details[]
@@ -193,18 +194,17 @@ model invoice {
 }
 
 model invoice_details {
-  id            String     @db.Uuid
-  product_id    String?    @db.Uuid
+  id            String    @db.Uuid
+  product_id    String?   @db.Uuid
   product_price Float?
-  variant_id    String?    @db.Uuid
-  notes         String?    @db.VarChar(45)
-  order_type    ordertype?
+  variant_id    String?   @db.Uuid
+  notes         String?   @db.VarChar(45)
   qty           Int?
-  invoice_id    String     @db.Uuid
+  invoice_id    String    @db.Uuid
   variant_price Float?
-  invoice       invoice    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
-  products      products?  @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
-  variant       variant?   @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
+  invoice       invoice   @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  products      products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
+  variant       variant?  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
@@ -265,7 +265,7 @@ model payments {
   id                String         @db.Uuid
   amount            Float?
   due_date          DateTime?      @db.Date
-  status            paymenttype?
+  status            payment_type?
   business_owner_id String         @db.Uuid
   business_owner    business_owner @relation(fields: [business_owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payments_business_owner1")
 
@@ -526,7 +526,7 @@ model voucher_has_products {
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
 }
 
-enum cashdrawertype {
+enum cash_drawer_type {
   open
   close
 }
@@ -536,18 +536,19 @@ enum gender {
   female
 }
 
-enum invoicetype {
+enum invoice_type {
   paid
   unpaid
   refund
 }
 
-enum ordertype {
-  Take_Away @map("Take Away")
-  Dine_In   @map("Dine In")
+enum order_type {
+  take_away
+  dine_in
+  self_order
 }
 
-enum paymenttype {
+enum payment_type {
   pending
   paid
   overdue
@@ -555,8 +556,8 @@ enum paymenttype {
 
 enum transaction_type {
   sale
-  cash_out        @map("cash out")
-  cash_in         @map("cash in")
-  opening_balance @map("opening balance")
-  cash_refund     @map("cash refund")
+  cash_out
+  cash_in
+  opening_balance
+  cash_refund
 }

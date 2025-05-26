@@ -5,7 +5,7 @@ import { AppBaseEntity } from '../../../common/entities/base.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
 // Enum
-import { invoicetype } from '@prisma/client';
+import { invoice_type } from '@prisma/client';
 
 export class InvoiceEntity extends AppBaseEntity {
   @ApiProperty()
@@ -21,5 +21,5 @@ export class InvoiceEntity extends AppBaseEntity {
   table_code: string;
 
   @ApiProperty()
-  payment_status: invoicetype;
+  payment_status: invoice_type;
 }

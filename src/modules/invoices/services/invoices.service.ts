@@ -8,15 +8,7 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
-import {
-  invoice,
-  invoice_details,
-  invoicetype,
-  ordertype,
-  payment_methods,
-  paymenttype,
-  Prisma,
-} from '@prisma/client';
+import { invoice, invoice_details, invoice_type, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 // Service
@@ -133,8 +125,9 @@ export class InvoiceService {
       payment_methods_id: request.paymentMethodId,
       customer_id: request.customerId,
       table_code: request.tableCode,
-      payment_status: invoicetype.unpaid,
+      payment_status: invoice_type.unpaid,
       discount_amount: 0, // need to confirm
+      order_type: request.orderType,
       subtotal: calculation.total,
       created_at: new Date(),
       update_at: new Date(),
@@ -162,7 +155,7 @@ export class InvoiceService {
       const invoiceDetailData = {
         id: invoiceDetailId,
         invoice_id: invoiceId,
-        product_id: detail.productId, // TODO: need to change DB
+        product_id: detail.productId,
         product_price: productPrice,
         notes: detail.notes,
         order_type: request.orderType,
@@ -194,8 +187,9 @@ export class InvoiceService {
       payment_methods_id: null,
       customer_id: request.customerId,
       table_code: request.tableCode,
-      payment_status: invoicetype.unpaid,
+      payment_status: invoice_type.unpaid,
       discount_amount: 0, // need to confirm
+      order_type: request.orderType,
       subtotal: calculation.total,
       created_at: new Date(),
       update_at: new Date(),
@@ -223,7 +217,7 @@ export class InvoiceService {
       const invoiceDetailData = {
         id: invoiceDetailId,
         invoice_id: invoiceId,
-        product_id: detail.productId, // TODO: need to change DB
+        product_id: detail.productId,
         product_price: productPrice,
         notes: detail.notes,
         order_type: request.orderType,
@@ -245,7 +239,7 @@ export class InvoiceService {
   public async proceedPayment(request: ProceedPaymentDto) {
     // Check the invoice is unpaid
     const invoice = await this.findInvoiceId(request.invoiceId);
-    if (invoice.payment_status !== invoicetype.unpaid) {
+    if (invoice.payment_status !== invoice_type.unpaid) {
       throw new BadRequestException(`Invoice status is not unpaid`);
     }
 
@@ -295,16 +289,16 @@ export class InvoiceService {
     status_code: string,
     transaction_status: string,
   ) {
-    let status: invoicetype;
+    let status: invoice_type;
     switch (transaction_status) {
       case 'settlement':
-        status = invoicetype.paid;
+        status = invoice_type.paid;
         break;
       case 'refund':
-        status = invoicetype.refund;
+        status = invoice_type.refund;
         break;
       default:
-        status = invoicetype.unpaid;
+        status = invoice_type.unpaid;
         break;
     }
 
@@ -347,16 +341,16 @@ export class InvoiceService {
       throw new BadRequestException(`Fraud transaction detected`);
     }
 
-    let status: invoicetype;
+    let status: invoice_type;
     switch (requestCallback.transaction_status) {
       case 'settlement':
-        status = invoicetype.paid;
+        status = invoice_type.paid;
         break;
       case 'pending':
-        status = invoicetype.refund;
+        status = invoice_type.refund;
         break;
       default:
-        status = invoicetype.unpaid;
+        status = invoice_type.unpaid;
         break;
     }
 
@@ -530,7 +524,7 @@ export class InvoiceService {
    */
   public async updateStatusById(
     id: string,
-    status: invoicetype,
+    status: invoice_type,
   ): Promise<invoice> {
     try {
       return await this._prisma.invoice.update({
@@ -556,9 +550,10 @@ export class InvoiceService {
           payment_methods_id: invoice.payment_methods_id,
           customer_id: invoice.customer_id,
           table_code: invoice.table_code,
-          payment_status: invoice.payment_status as invoicetype,
+          payment_status: invoice.payment_status as invoice_type,
           discount_amount: invoice.discount_amount,
           subtotal: invoice.subtotal,
+          order_type: invoice.order_type,
           created_at: invoice.created_at ?? new Date(),
           update_at: invoice.update_at ?? new Date(),
           delete_at: invoice.delete_at ?? null,
@@ -587,7 +582,6 @@ export class InvoiceService {
           product_id: invoiceDetail.product_id,
           product_price: invoiceDetail.product_price,
           notes: invoiceDetail.notes,
-          order_type: invoiceDetail.order_type,
           qty: invoiceDetail.qty,
           variant_id: invoiceDetail.variant_id,
         },

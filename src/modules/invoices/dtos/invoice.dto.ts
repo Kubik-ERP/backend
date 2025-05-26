@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { invoicetype } from '@prisma/client';
+import { invoice_type } from '@prisma/client';
 import { IsDate, IsEnum, IsInt, IsString, Min } from 'class-validator';
 import { Expose, Type, Transform } from 'class-transformer';
 
@@ -32,8 +32,8 @@ export class GetListInvoiceDto {
     required: true,
     example: 'paid',
   })
-  @IsEnum(invoicetype)
-  paymentStatus: invoicetype;
+  @IsEnum(invoice_type)
+  paymentStatus: invoice_type;
 
   @ApiProperty({
     description: 'Start time of the invoice created time',

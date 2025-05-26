@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 
 // Enum
-import { ordertype } from '@prisma/client';
+import { order_type } from '@prisma/client';
 
 // NestJS Libraries
 import { ApiOperation, ApiProperty } from '@nestjs/swagger';
@@ -86,10 +86,10 @@ export class ProceedInstantPaymentDto extends ProductListDto {
   @IsNotEmpty()
   public provider: string;
 
-  @ApiProperty({ description: 'Order Type', enum: ordertype, required: true })
+  @ApiProperty({ description: 'Order Type', enum: order_type, required: true })
   @IsNotEmpty()
-  @IsEnum(ordertype)
-  public orderType: ordertype;
+  @IsEnum(order_type)
+  public orderType: order_type;
 
   @ApiProperty({
     description: 'Payment Method ID',
@@ -129,10 +129,10 @@ export class ProceedInstantPaymentDto extends ProductListDto {
 }
 
 export class ProceedCheckoutInvoiceDto extends ProductListDto {
-  @ApiProperty({ description: 'Order Type', enum: ordertype, required: true })
+  @ApiProperty({ description: 'Order Type', enum: order_type, required: true })
   @IsNotEmpty()
-  @IsEnum(ordertype)
-  public orderType: ordertype;
+  @IsEnum(order_type)
+  public orderType: order_type;
 
   @ApiProperty({
     description: 'Selected Voucher ID',

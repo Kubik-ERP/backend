@@ -9,7 +9,14 @@ export function toCamelCase(obj: any): any {
     return Object.keys(obj).reduce(
       (acc, key) => {
         const camelKey = snakeToCamel(key);
-        acc[camelKey] = toCamelCase(obj[key]);
+        const value = obj[key];
+
+        if (value instanceof Date) {
+          acc[camelKey] = value.toISOString();
+        } else {
+          acc[camelKey] = toCamelCase(value);
+        }
+
         return acc;
       },
       {} as Record<string, any>,
