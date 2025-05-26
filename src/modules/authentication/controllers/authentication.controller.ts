@@ -53,6 +53,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { PinGuard } from 'src/common/guards/authentication-pin.guard';
 import { AuthenticationProfileGuard } from 'src/common/guards/authentication-profile.guard';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
+import { access } from 'fs';
 
 @Controller('authentication')
 @ApiTags('Authentication')
@@ -88,9 +89,18 @@ export class AuthenticationController {
   //@ApiBaseResponse(UsersEntity)
   public async create(@Body() requestBody: RegisterEmailDto) {
     const result = await this._authenticationService.register(requestBody);
+    const login = await this._authenticationService.login({
+      email: result.email,
+      phone: parseInt(result.phone?.toString()),
+      fullname: result.fullname?.toString(),
+      id: result.id,
+      username: result.email,
+      ext: result.ext,
+    });
 
     return {
       message: 'User registered successfully',
+      accessToken: login.accessToken,
     };
   }
 
@@ -102,10 +112,13 @@ export class AuthenticationController {
 
     const response = {
       fullname: result.fullname,
-      usingPin: (result.pin !== "" && result.pin !== null) ? true : false,
+      usingPin: result.pin !== '' && result.pin !== null ? true : false,
       email: result.email,
       phone: result.phone,
-      is_verified: (result.verified_at !== null && result.verified_at !== BigInt(0) ) ? true : false,
+      is_verified:
+        result.verified_at !== null && result.verified_at !== BigInt(0)
+          ? true
+          : false,
       id: result.id,
     };
     return {
