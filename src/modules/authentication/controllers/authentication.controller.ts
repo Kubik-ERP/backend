@@ -37,6 +37,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiHeader,
   ApiOperation,
   ApiParam,
   ApiTags,
@@ -54,6 +55,7 @@ import { PinGuard } from 'src/common/guards/authentication-pin.guard';
 import { AuthenticationProfileGuard } from 'src/common/guards/authentication-profile.guard';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { access } from 'fs';
+import { NoAuthPinGuard } from 'src/common/guards/noauth-pin.guard';
 
 @Controller('authentication')
 @ApiTags('Authentication')
@@ -61,7 +63,7 @@ export class AuthenticationController {
   constructor(
     private readonly _authenticationService: AuthenticationService,
     private readonly _usersService: UsersService,
-  ) {}
+  ) { }
 
   @Post('login')
   @HttpCode(200)
@@ -215,7 +217,12 @@ export class AuthenticationController {
   @ApiOperation({
     summary: 'Send Forgot Password Token',
   })
-  @UseGuards(PinGuard)
+  @UseGuards(NoAuthPinGuard)
+  @ApiHeader({
+    name: 'pin',
+    description: 'PIN code for authentication',
+    required: false,
+  })
   public async forgotPassword(@Body() body: ForgotPasswordDto) {
     try {
       await this._authenticationService.forgotPassword(body.email);
