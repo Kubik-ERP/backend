@@ -102,10 +102,10 @@ export class AuthenticationController {
 
     const response = {
       fullname: result.fullname,
-      usingPin: result.pin ? true : false,
+      usingPin: (result.pin !== "" && result.pin !== null) ? true : false,
       email: result.email,
       phone: result.phone,
-      is_verified: result.verified_at ? true : false,
+      is_verified: (result.verified_at !== null && result.verified_at !== BigInt(0) ) ? true : false,
       id: result.id,
     };
     return {
