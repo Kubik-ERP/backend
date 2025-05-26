@@ -336,17 +336,13 @@ export class InvoiceService {
   ) {
     // checking status code
     if (requestCallback.status_code != '200') {
-      this._notificationHelper.notifyPaymentFailed(
-        requestCallback.order_id,
-      );
+      this._notificationHelper.notifyPaymentFailed(requestCallback.order_id);
       throw new BadRequestException(`Request is failed`);
     }
 
     // checking fraud status
     if (requestCallback.fraud_status != 'accept') {
-      this._notificationHelper.notifyPaymentFailed(
-        requestCallback.order_id,
-      );
+      this._notificationHelper.notifyPaymentFailed(requestCallback.order_id);
       throw new BadRequestException(`Fraud transaction detected`);
     }
 
@@ -390,9 +386,7 @@ export class InvoiceService {
     };
 
     // notify the FE
-    this._notificationHelper.notifyPaymentSuccess(
-      requestCallback.order_id,
-    );
+    this._notificationHelper.notifyPaymentSuccess(requestCallback.order_id);
 
     return {
       success: true,
