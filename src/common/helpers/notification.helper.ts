@@ -3,6 +3,9 @@ import {
   OnGatewayDisconnect,
   WebSocketGateway,
   WebSocketServer,
+  SubscribeMessage,
+  MessageBody,
+  ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 
@@ -17,16 +20,46 @@ export class NotificationHelper
   @WebSocketServer()
   server: Server;
 
-  public handleConnection(client: Socket) {
+  handleConnection(client: Socket) {
     console.log(`Client connected: ${client.id}`);
   }
 
-  public handleDisconnect(client: Socket) {
+  handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
   }
 
-  // function for trigger notification to client
-  public notifyPayment(invoiceId: string, status: string) {
-    this.server.emit(`Payment - ${status}, for order number - ${invoiceId}`);
+  // Client subscribe ke invoice tertentu
+  @SubscribeMessage('subscribe-invoice')
+  handleSubscribeInvoice(
+    @MessageBody() orderId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    client.join(orderId);
+    console.log(`Client ${client.id} subscribed to invoice ${orderId}`);
+  }
+
+  // (opsional) unsubscribe
+  @SubscribeMessage('unsubscribe-invoice')
+  handleUnsubscribeInvoice(
+    @MessageBody() orderId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    client.leave(orderId);
+    console.log(`Client ${client.id} unsubscribed from invoice ${orderId}`);
+  }
+
+  // Trigger ke specific invoice room
+  notifyPaymentSuccess(orderId: string) {
+    this.server.to(orderId).emit('payment-success', {
+      orderId,
+      message: 'Payment has been successfully processed',
+    });
+  }
+
+  notifyPaymentFailed(orderId: string) {
+    this.server.to(orderId).emit('payment-failed', {
+      orderId,
+      message: 'Payment failed or was cancelled',
+    });
   }
 }

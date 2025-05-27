@@ -74,7 +74,7 @@ export class InvoiceController {
     };
   }
 
-  @Get('callback/snap')
+  @Get('webhook/snap')
   @ApiOperation({
     summary: 'Listening the callback response from SNAP',
   })
@@ -90,7 +90,7 @@ export class InvoiceController {
     );
   }
 
-  @Post('callback/core/qris')
+  @Post('webhook/core/qris')
   @ApiOperation({
     summary: 'Listening the callback response from API Core QRIS',
   })
