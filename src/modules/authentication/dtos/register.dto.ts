@@ -1,15 +1,28 @@
 // Class Validator
-import { IsEmail, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import {
+  registerDecorator,
+  IsEmail,
+  IsInt,
+  IsNotEmpty,
+  IsString,
+  MaxLength,
+  ValidationOptions,
+  ValidationArguments,
+  MinLength,
+  Matches,
+  IsNumber,
+  Length,
+  IsOptional,
+} from 'class-validator';
 
 // NestJS Libraries
 import { ApiProperty } from '@nestjs/swagger';
+import { Match } from 'src/common/helpers/validators.helper';
 
 export class RegisterEmailDto {
   @ApiProperty()
   @IsNotEmpty()
-  @IsString()
-  @MaxLength(100)
-  public username: string;
+  public fullName: string;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -19,4 +32,36 @@ export class RegisterEmailDto {
   @ApiProperty()
   @IsNotEmpty()
   public password: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @Match('password', {
+    message: 'Password confirmation does not match password',
+  })
+  public passwordConfirmation: string;
+
+  @ApiProperty({ example: '62', description: 'Country code' })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d+$/, {
+    message: 'Phone country code must be a number (even as a string)',
+  })
+  public phoneCountryCode: string | number;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d+$/, {
+    message: 'Phone number must be a number (even as a string)',
+  })
+  @MinLength(7)
+  @MaxLength(14)
+  public phoneNumber: string | number;
+}
+
+export class SetPinDto {
+  @ApiProperty({ description: 'User PIN (6 digit number)', required: false })
+  @IsOptional()
+  @Matches(/^\d{6}$/, { message: 'PIN must be a 6-digit number' })
+  public pin?: string;
 }

@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { RegisterEmailDto } from '../dtos/register.dto';
 
 // Entities
-import { UsersEntity } from 'src/modules/users/entities/users.entity';
+import { users as UserModel } from '@prisma/client';
 
 // Modules
 import { JwtConfigModule } from '../../../configurations/jwt/jwt-configuration.module';
@@ -20,20 +20,13 @@ import { AuthenticationService } from './authentication.service';
 import { UsersService } from '../../users/services/users.service';
 
 const expectedValue = {
+  username: 'name #1',
+  created_at: 123123123,
   email: 'email #1',
-  username: 'name',
+  id: 1,
   password: 'password',
-  id: '1',
-  createdAt: 123213000,
-  createdBy: 'admin',
-  createdById: '1',
-  updatedAt: 123213000,
-  updatedBy: 'admin',
-  updatedById: '1',
-  deletedAt: null,
-  deletedBy: 'admin',
-  deletedById: '1',
-} as UsersEntity;
+  updated_at: 123123123,
+} as UserModel;
 
 describe('AuthenticationService', () => {
   let service: AuthenticationService;
@@ -140,8 +133,10 @@ describe('AuthenticationService', () => {
     it('should return a accessToken', async () => {
       const request = {
         user: {
-          id: '1',
+          id: 1,
           name: 'user name',
+          email: 'email@test.com',
+          username: 'username',
         },
       };
 

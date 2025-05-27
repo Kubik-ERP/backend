@@ -5,13 +5,19 @@ export {};
  */
 declare global {
   interface IRequestUser {
-    id: string;
+    id: number;
     email: string;
     username: string;
+    phone: number;
+    ext: number;
+    fullname?: string;
+    verified_at?: Date;
+    pin?: string;
+    role?: string;
   }
 
   interface IResultFilter {
-    data: Record<string, unknown>;
+    data: Record<string, unknown> | unknown;
     total: number;
     totalData: number;
   }
@@ -24,7 +30,7 @@ declare global {
 
   interface IConstructPageMeta {
     page: number;
-    pageCount: number;
+    pageCount?: number;
     size: number;
     total: number;
     totalData: number;
@@ -36,6 +42,13 @@ declare global {
 
   interface IValidateJWTStrategy {
     sub: string;
-    name: string;
+    fullname: string;
+    verified_at: Date;
+    email: string;
+    phone: string;
+    ext: string;
+    role: string;
+    pin: string;
+
   }
 }

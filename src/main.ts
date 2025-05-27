@@ -25,6 +25,10 @@ import { AppConfigurationsService } from './configurations/app/app-configuration
 // Setups
 import { swaggerSetup } from './configurations/swagger/swagger.setup';
 
+import * as express from 'express';
+
+import { join } from 'path';
+
 async function bootstrap() {
   const app: INestApplication = await NestFactory.create(AppModule);
 
@@ -71,6 +75,8 @@ async function bootstrap() {
    * Enable Cors
    */
   app.enableCors();
+
+  app.use('/public', express.static(join(__dirname, '..', 'public')));
 
   await app.listen(appConfigurations.appPort, appConfigurations.appHost, () => {
     console.log(

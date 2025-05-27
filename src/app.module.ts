@@ -5,23 +5,49 @@ import { DatabasePostgresConfigModule } from './configurations/database/postgres
 // Modules
 import { AuthenticationModule } from './modules/authentication/authentication.module';
 import { UsersModule } from './modules/users/users.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
+import { PaymentMethodModule } from './modules/payment-method/payment-method.module';
 
 // NestJS Libraries
 import { Module } from '@nestjs/common';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { CacheModule } from '@nestjs/cache-manager';
 
-// Providers
-import { PostgresDatabaseProviderModule } from './database/postgres/postgres-provider.module';
+import { ProductsModule } from './modules/products/products.module';
+import { StoresModule } from './modules/stores/stores.module';
+import KeyvRedis, { createKeyv } from '@keyv/redis';
+import Keyv from 'keyv';
 
 @Module({
   imports: [
     // Configuration Modules
+    CacheModule.registerAsync({
+      useFactory: async () => {
+        console.log(process.env.REDIS_CONNECTION);
+        return {
+          stores: [
+            new Keyv({
+              store: new KeyvRedis(process.env.REDIS_CONNECTION),
+              namespace: undefined,
+              useKeyPrefix: false,
+            }),
+            createKeyv(process.env.REDIS_CONNECTION),
+          ],
+        };
+      },
+      isGlobal: true,
+    }),
     AppConfigurationModule,
     DatabasePostgresConfigModule,
-    PostgresDatabaseProviderModule,
 
     // Core Feature Modules
     AuthenticationModule,
     UsersModule,
+    CategoriesModule,
+    InvoicesModule,
+    PaymentMethodModule,
+    ProductsModule,
+    StoresModule,
   ],
 })
 export class AppModule {}
