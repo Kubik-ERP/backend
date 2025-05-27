@@ -25,7 +25,7 @@ export class AuthenticationJWTGuard extends AuthGuard('jwt') {
 
     if (user.verified_at === null) {
       console.log(`[ERROR] AuthenticationJWTGuard: User not verified`);
-      return new HttpException('User not verified', HttpStatus.UNAUTHORIZED);
+      throw new HttpException('User not verified', HttpStatus.UNAUTHORIZED);
     }
 
     return user;

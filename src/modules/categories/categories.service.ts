@@ -19,7 +19,7 @@ export class CategoriesService {
   async create(createCategoryDto: CreateCategoryDto) {
     try {
       const existingCategory = await this.prisma.categories.findFirst({
-        where: { category: createCategoryDto.category },
+        where: { category: createCategoryDto.name },
       });
 
       if (existingCategory) {
@@ -34,8 +34,8 @@ export class CategoriesService {
 
       const newCategory = await this.prisma.categories.create({
         data: {
-          category: createCategoryDto.category,
-          description: createCategoryDto.description,
+          category: createCategoryDto.name,
+          description: createCategoryDto.notes,
         },
       });
 
@@ -90,9 +90,9 @@ export class CategoriesService {
         throw new NotFoundException('Category not found');
       }
 
-      if (updateCategoryDto.category) {
+      if (updateCategoryDto.name) {
         const duplicateCategory = await this.prisma.categories.findFirst({
-          where: { category: updateCategoryDto.category, NOT: { id } },
+          where: { category: updateCategoryDto.name, NOT: { id } },
         });
 
         if (duplicateCategory) {
@@ -103,9 +103,8 @@ export class CategoriesService {
       const updatedCategory = await this.prisma.categories.update({
         where: { id },
         data: {
-          category: updateCategoryDto.category || existingCategory.category,
-          description:
-            updateCategoryDto.description || existingCategory.description,
+          category: updateCategoryDto.name || existingCategory.category,
+          description: updateCategoryDto.notes || existingCategory.description,
         },
       });
 

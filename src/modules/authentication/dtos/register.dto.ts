@@ -10,33 +10,20 @@ import {
   ValidationArguments,
   MinLength,
   Matches,
+  IsNumber,
+  Length,
+  IsOptional,
 } from 'class-validator';
 
 // NestJS Libraries
 import { ApiProperty } from '@nestjs/swagger';
-
-function Match(property: string, validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
-    registerDecorator({
-      name: 'Match',
-      target: object.constructor,
-      propertyName: propertyName,
-      constraints: [property],
-      options: validationOptions,
-      validator: {
-        validate(value: any, args: ValidationArguments) {
-          const relatedValue = (args.object as any)[args.constraints[0]];
-          return value === relatedValue;
-        },
-        defaultMessage(args: ValidationArguments) {
-          return `${args.property} must match ${args.constraints[0]}`;
-        },
-      },
-    });
-  };
-}
+import { Match } from 'src/common/helpers/validators.helper';
 
 export class RegisterEmailDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  public fullName: string;
+
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
@@ -53,7 +40,7 @@ export class RegisterEmailDto {
   })
   public passwordConfirmation: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '62', description: 'Country code' })
   @IsNotEmpty()
   @IsString()
   @Matches(/^\d+$/, {
@@ -70,4 +57,11 @@ export class RegisterEmailDto {
   @MinLength(7)
   @MaxLength(14)
   public phoneNumber: string | number;
+}
+
+export class SetPinDto {
+  @ApiProperty({ description: 'User PIN (6 digit number)', required: false })
+  @IsOptional()
+  @Matches(/^\d{6}$/, { message: 'PIN must be a 6-digit number' })
+  public pin?: string;
 }

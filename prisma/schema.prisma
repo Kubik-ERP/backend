@@ -7,20 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model users {
-  id              Int               @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
-  username        String?           @db.VarChar
-  email           String            @unique(map: "users_unique") @db.VarChar
-  password        String            @db.VarChar
-  phone           String            @default(dbgenerated("0")) @db.VarChar
-  ext             Int               @default(62)
-  created_at      BigInt?
-  updated_at      BigInt?
-  verified_at     BigInt?
-  deleted_at      BigInt?
-  user_has_stores user_has_stores[]
-}
-
 model business_owner {
   id                        String                      @id @db.Uuid
   name                      String?                     @db.VarChar(45)
@@ -43,14 +29,14 @@ model business_owner_has_stores {
 }
 
 model cash_drawers {
-  id               String          @db.Uuid
+  id               String            @db.Uuid
   expected_balance Float?
   actual_balance   Float?
-  status           cashdrawertype?
-  employees_id     String          @db.Uuid
-  date             DateTime?       @db.Date
-  notes            String?         @db.VarChar(45)
-  employees        employees       @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_drawers_employees1")
+  status           cash_drawer_type?
+  employees_id     String            @db.Uuid
+  date             DateTime?         @db.Date
+  notes            String?           @db.VarChar(45)
+  employees        employees         @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_drawers_employees1")
 
   @@id([id, employees_id])
   @@index([employees_id], map: "fk_cash_drawers_employees1_idx")
@@ -107,8 +93,14 @@ model categories_has_products {
 model customer {
   id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                String?               @db.VarChar(45)
-  phone_number        String?               @db.VarChar(45)
+  code                String?               @db.VarChar(45)
+  number              String?               @db.VarChar
+  dob                 DateTime?             @db.Date
+  email               String?               @db.VarChar(45)
+  username            String?               @db.VarChar(45)
+  address             String?               @db.VarChar(45)
   customer_has_stores customer_has_stores[]
+  customers_has_tag   customers_has_tag[]
   invoice             invoice[]
 }
 
@@ -121,6 +113,15 @@ model customer_has_stores {
   @@id([customer_id, stores_id])
   @@index([customer_id], map: "fk_customer_has_stores_customer1_idx")
   @@index([stores_id], map: "fk_customer_has_stores_stores1_idx")
+}
+
+model customers_has_tag {
+  customer_id String   @db.Uuid
+  tag_id      String   @db.Uuid
+  customer    customer @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_customer_id_fk")
+  tag         tag      @relation(fields: [tag_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_tag_tag_id_fk")
+
+  @@id([customer_id, tag_id])
 }
 
 model employees {
@@ -173,17 +174,18 @@ model floor {
 
 model invoice {
   id                 String               @id @db.Uuid
-  payment_methods_id String               @db.Uuid
+  payment_methods_id String?              @db.Uuid
   customer_id        String               @db.Uuid
   discount_amount    Float?
   table_code         String?              @db.VarChar(45)
-  payment_status     invoicetype?
+  payment_status     invoice_type?
   created_at         DateTime?            @db.Timestamp(6)
   update_at          DateTime?            @db.Timestamp(6)
   delete_at          DateTime?            @db.Timestamp(6)
   subtotal           Float
+  order_type         order_type?
   customer           customer             @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
-  payment_methods    payment_methods      @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
+  payment_methods    payment_methods?     @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
   invoice_details    invoice_details[]
   invoice_has_stores invoice_has_stores[]
 
@@ -192,15 +194,17 @@ model invoice {
 }
 
 model invoice_details {
-  id              String     @db.Uuid
-  product_name    String?    @db.VarChar(45)
-  product_price   Float?
-  product_variant String?    @db.VarChar(45)
-  notes           String?    @db.VarChar(45)
-  order_type      ordertype?
-  qty             Int?
-  invoice_id      String     @db.Uuid
-  invoice         invoice    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  id            String    @db.Uuid
+  product_id    String?   @db.Uuid
+  product_price Float?
+  variant_id    String?   @db.Uuid
+  notes         String?   @db.VarChar(45)
+  qty           Int?
+  invoice_id    String    @db.Uuid
+  variant_price Float?
+  invoice       invoice   @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  products      products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
+  variant       variant?  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
@@ -249,18 +253,19 @@ model operational_hours {
 }
 
 model payment_methods {
-  id        String    @id @db.Uuid
-  name      String?   @db.VarChar(45)
-  icon_name String?   @db.VarChar
-  sort_no   Int?      @unique
-  invoice   invoice[]
+  id           String    @id @db.Uuid
+  name         String?   @db.VarChar(45)
+  icon_name    String?   @db.VarChar
+  sort_no      Int?      @unique
+  is_available Boolean   @default(true)
+  invoice      invoice[]
 }
 
 model payments {
   id                String         @db.Uuid
   amount            Float?
   due_date          DateTime?      @db.Date
-  status            paymenttype?
+  status            payment_type?
   business_owner_id String         @db.Uuid
   business_owner    business_owner @relation(fields: [business_owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payments_business_owner1")
 
@@ -312,6 +317,7 @@ model products {
   discount_price          Float?
   picture_url             String?                   @db.VarChar(45)
   categories_has_products categories_has_products[]
+  invoice_details         invoice_details[]
   product_commissions     product_commissions[]
   recipe                  recipe[]
   stores_has_products     stores_has_products[]
@@ -365,7 +371,7 @@ model roles {
 model stores {
   id                        String                      @id @db.Uuid
   name                      String?                     @db.VarChar(45)
-  address                   String?                     @db.VarChar(45)
+  address                   String?                     @db.VarChar(255)
   phone_number              String?                     @db.VarChar(45)
   photo                     String?                     @db.VarChar(45)
   city                      String?                     @db.VarChar(45)
@@ -417,13 +423,18 @@ model tables {
   @@index([floor_id], map: "fk_tables_floor1_idx")
 }
 
+model tag {
+  id                String              @id(map: "tag_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String?             @db.VarChar(255)
+  customers_has_tag customers_has_tag[]
+}
+
 model unit {
   id                String              @id @db.Uuid
   name              String?             @db.VarChar(45)
   material_has_unit material_has_unit[]
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model user_has_stores {
   id       BigInt @id(map: "user_has_stores_pk") @default(autoincrement())
   user_id  Int
@@ -432,10 +443,37 @@ model user_has_stores {
   users    users  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
 }
 
+model users {
+  id              Int               @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
+  username        String?           @db.VarChar
+  email           String            @unique(map: "users_unique") @db.VarChar
+  password        String            @db.VarChar
+  phone           String            @default(dbgenerated("0")) @db.VarChar
+  ext             Int               @default(62)
+  created_at      BigInt?
+  updated_at      BigInt?
+  verified_at     BigInt?
+  deleted_at      BigInt?
+  pin             String?           @db.VarChar
+  fullname        String?           @db.VarChar
+  user_has_stores user_has_stores[]
+}
+
+model users_token {
+  id         Int     @id(map: "users_token_pk") @default(autoincrement())
+  token      String  @unique(map: "users_token_unique")
+  expired_at BigInt
+  user_id    Int
+  type       String? @db.VarChar
+  created_at BigInt?
+  updated_at BigInt?
+}
+
 model variant {
-  id                   String                 @id @db.Uuid
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                 String?                @db.VarChar(45)
   price                Float?                 @default(0)
+  invoice_details      invoice_details[]
   variant_has_products variant_has_products[]
 }
 
@@ -488,17 +526,7 @@ model voucher_has_products {
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
 }
 
-model users_token {
-  id         Int     @id(map: "users_token_pk") @default(autoincrement())
-  token      String  @unique(map: "users_token_unique")
-  expired_at BigInt
-  user_id    Int
-  type       String? @db.VarChar
-  created_at BigInt?
-  updated_at BigInt?
-}
-
-enum cashdrawertype {
+enum cash_drawer_type {
   open
   close
 }
@@ -508,18 +536,19 @@ enum gender {
   female
 }
 
-enum invoicetype {
+enum invoice_type {
   paid
   unpaid
   refund
 }
 
-enum ordertype {
-  Take_Away @map("Take Away")
-  Dine_In   @map("Dine In")
+enum order_type {
+  take_away
+  dine_in
+  self_order
 }
 
-enum paymenttype {
+enum payment_type {
   pending
   paid
   overdue
@@ -527,8 +556,8 @@ enum paymenttype {
 
 enum transaction_type {
   sale
-  cash_out        @map("cash out")
-  cash_in         @map("cash in")
-  opening_balance @map("opening balance")
-  cash_refund     @map("cash refund")
+  cash_out
+  cash_in
+  opening_balance
+  cash_refund
 }

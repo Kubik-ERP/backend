@@ -4,6 +4,7 @@ import { ListOptionDto } from '../../../common/dtos/list-options.dto';
 import { PaginateDto } from '../../../common/dtos/paginate.dto';
 import { PageMetaDto } from '../../../common/dtos/page-meta.dto';
 import { UpdateUserDto } from '../dtos/update-user.dto';
+import * as bcrypt from 'bcrypt';
 
 // NestJS Libraries
 import {
@@ -26,7 +27,12 @@ export class UsersService {
   public async create(payload: CreateUserDto): Promise<UserModel> {
     try {
       return await this.prisma.users.create({
-        data: payload,
+        data: {
+          username: payload.username,
+          email: payload.email,
+          password: payload.password,
+          fullname: payload.fullname,
+        },
       });
     } catch (error) {
       console.log(error);
@@ -152,9 +158,10 @@ export class UsersService {
    */
   public async delete(id: number): Promise<UserModel> {
     try {
+      const nowUnix = Math.floor(Date.now() / 1000);
       return await this.prisma.users.update({
         where: { id },
-        data: {},
+        data: { deleted_at: nowUnix },
       });
     } catch (error) {
       throw new BadRequestException('Failed to delete user', {
@@ -171,10 +178,31 @@ export class UsersService {
     try {
       return await this.prisma.users.update({
         where: { id },
-        data: {},
+        data: { deleted_at: 0 },
       });
     } catch (error) {
       throw new BadRequestException('Failed to restore user', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description set or unset a pin
+   */
+  public async handlePin(id: number, pin?: string | null): Promise<boolean> {
+    try {
+      const hashPin = pin ? await bcrypt.hash(pin, 10) : null;
+      await this.prisma.users.update({
+        where: { id },
+        data: {
+          pin: hashPin,
+        },
+      });
+      return true;
+    } catch (error) {
+      throw new BadRequestException('Failed to set/unset pin', {
         cause: new Error(),
         description: error.message,
       });

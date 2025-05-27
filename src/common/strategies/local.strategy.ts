@@ -24,6 +24,10 @@ export class LocalStrategy extends PassportStrategy(Strategy, 'local-auth') {
       throw new UnauthorizedException();
     }
 
+    // if (!user.verified_at) {
+    //   throw new UnauthorizedException('Please verify your email address');
+    // }
+
     return user;
   }
 }

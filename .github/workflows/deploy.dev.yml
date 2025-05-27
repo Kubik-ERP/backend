@@ -1,0 +1,41 @@
+name: Build & Deploy to Server
+
+on:
+  push:
+    branches:
+      - development  # Jalankan saat ada push ke branch 'main'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy Project to Server
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "."
+          target: "~/app"
+
+      - name: SSH and Build Docker on Server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cp ~/.env ~/app
+            cd ~/app
+            
+            docker network inspect kubik-net >/dev/null 2>&1 || docker network create kubik-net
+            docker compose up -d --build redis
+
+            docker build -t kubik-backend .
+            docker stop kubik-backend || true
+            docker rm kubik-backend || true
+            docker run -d --name kubik-backend  --network kubik-net --restart always -p 8080:8080 kubik-backend
