@@ -87,11 +87,27 @@ export class ProductsService {
     idOrNames: string | string[],
   ): Promise<ProductModel | ProductModel[] | null> {
     if (typeof idOrNames === 'string') {
-      return isUUID(idOrNames)
-        ? await this.prisma.products.findUnique({ where: { id: idOrNames } })
-        : await this.prisma.products.findMany({
-            where: { name: { contains: idOrNames, mode: 'insensitive' } },
-          });
+      if (isUUID(idOrNames)) {
+        return await this.prisma.products.findUnique({
+          where: { id: idOrNames },
+          include: {
+            categories_has_products: {
+              include: {
+                categories: true,
+              },
+            },
+            variant_has_products: {
+              include: {
+                variant: true,
+              },
+            },
+          },
+        });
+      } else {
+        return await this.prisma.products.findMany({
+          where: { name: { contains: idOrNames, mode: 'insensitive' } },
+        });
+      }
     }
 
     return await this.prisma.products.findMany({
