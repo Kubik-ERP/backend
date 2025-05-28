@@ -36,33 +36,9 @@ export class CustomerService {
       const newCustomer = await this.prisma.customer.create({
         data: {
           name: createCustomerDto.name,
-          code: createCustomerDto.code,
-          number: createCustomerDto.number,
-          email: createCustomerDto.email,
-          username: createCustomerDto.id,
-          dob: createCustomerDto.dob,
-          address: createCustomerDto.address,
+          phone_number: createCustomerDto.phone_number,
         },
       });
-      if (createCustomerDto.tag && createCustomerDto.tag.length > 0) {
-        for (const tagName of createCustomerDto.tag) {
-          let tag = await this.prisma.tag.findFirst({
-            where: { name: tagName },
-          });
-          if (!tag) {
-            tag = await this.prisma.tag.create({
-              data: { name: tagName },
-            });
-          }
-
-          await this.prisma.customers_has_tag.create({
-            data: {
-              customer: { connect: { id: newCustomer.id } },
-              tag: { connect: { id: tag.id } },
-            },
-          });
-        }
-      }
 
       return newCustomer;
     } catch (error) {
@@ -128,13 +104,9 @@ export class CustomerService {
       const updatedCustomer = await this.prisma.customer.update({
         where: { id },
         data: {
-          name: updateCustomerDto.name,
-          number: updateCustomerDto.number,
-          code: updateCustomerDto.code,
-          dob: updateCustomerDto.dob,
-          email: updateCustomerDto.email,
-          username: updateCustomerDto.username,
-          address: updateCustomerDto.address,
+          name: updateCustomerDto.name || updateCustomerDto.name,
+          phone_number:
+            updateCustomerDto.phone_number || updateCustomerDto.phone_number,
         },
       });
 

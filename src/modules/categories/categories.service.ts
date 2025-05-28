@@ -19,14 +19,14 @@ export class CategoriesService {
   async create(createCategoryDto: CreateCategoryDto) {
     try {
       const existingCategory = await this.prisma.categories.findFirst({
-        where: { category: createCategoryDto.category },
+        where: { category: createCategoryDto.name },
       });
 
       if (existingCategory) {
         throw new HttpException(
           {
             statusCode: HttpStatus.BAD_REQUEST,
-            message: 'Category  must be unique',
+            message: 'Category name must be unique',
           },
           HttpStatus.BAD_REQUEST,
         );
@@ -34,8 +34,8 @@ export class CategoriesService {
 
       const newCategory = await this.prisma.categories.create({
         data: {
-          category: createCategoryDto.category,
-          description: createCategoryDto.description,
+          category: createCategoryDto.name,
+          description: createCategoryDto.notes,
         },
       });
 
@@ -46,57 +46,35 @@ export class CategoriesService {
   }
 
   public async findAll(): Promise<CategoryModel[]> {
-    const categories = await this.prisma.categories.findMany({
-      include: {
-        categories_has_products: {
-          include: {
-            products: true,
-          },
-        },
-      },
-    });
+    const categories = await this.prisma.categories.findMany();
     return categories;
   }
 
-  public async findOne(idOrcategory: string): Promise<CategoryModel | null> {
-    if (isUUID(idOrcategory)) {
+  public async findOne(idOrName: string): Promise<CategoryModel | null> {
+    if (isUUID(idOrName)) {
       return await this.prisma.categories.findUnique({
-        where: { id: idOrcategory },
-        include: {
-          categories_has_products: {
-            include: {
-              products: true,
-            },
-          },
-        },
+        where: { id: idOrName },
       });
     } else {
       return await this.prisma.categories.findFirst({
         where: {
-          category: { contains: idOrcategory, mode: 'insensitive' },
-        },
-        include: {
-          categories_has_products: {
-            include: {
-              products: true,
-            },
-          },
+          category: { contains: idOrName, mode: 'insensitive' },
         },
       });
     }
   }
 
   public async findMany(
-    idOrcategory: string,
+    idOrName: string,
   ): Promise<CategoryModel | CategoryModel[] | null> {
-    if (isUUID(idOrcategory)) {
+    if (isUUID(idOrName)) {
       return await this.prisma.categories.findUnique({
-        where: { id: idOrcategory },
+        where: { id: idOrName },
       });
     } else {
       return await this.prisma.categories.findMany({
         where: {
-          category: { contains: idOrcategory, mode: 'insensitive' },
+          category: { contains: idOrName, mode: 'insensitive' },
         },
       });
     }
@@ -112,22 +90,21 @@ export class CategoriesService {
         throw new NotFoundException('Category not found');
       }
 
-      if (updateCategoryDto.category) {
+      if (updateCategoryDto.name) {
         const duplicateCategory = await this.prisma.categories.findFirst({
-          where: { category: updateCategoryDto.category, NOT: { id } },
+          where: { category: updateCategoryDto.name, NOT: { id } },
         });
 
         if (duplicateCategory) {
-          throw new BadRequestException('Category category must be unique');
+          throw new BadRequestException('Category name must be unique');
         }
       }
 
       const updatedCategory = await this.prisma.categories.update({
         where: { id },
         data: {
-          category: updateCategoryDto.category || existingCategory.category,
-          description:
-            updateCategoryDto.description || existingCategory.description,
+          category: updateCategoryDto.name || existingCategory.category,
+          description: updateCategoryDto.notes || existingCategory.description,
         },
       });
 

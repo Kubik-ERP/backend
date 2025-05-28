@@ -12,7 +12,10 @@ import { SALT_OR_ROUND } from '../../../common/constants/common.constant';
 import { RegisterEmailDto } from '../dtos/register.dto';
 
 // Entities
-import { users as UserModel } from '@prisma/client';
+import { users } from '@prisma/client';
+
+// Enum
+import { OTPStatus } from '../../../enum/login-enum';
 
 // Interfaces
 import { ILogin } from '../interfaces/authentication.interface';
@@ -31,8 +34,8 @@ import {
 import { JwtService } from '@nestjs/jwt';
 
 // Services
-import { UsersService } from '../../users/services/users.service';
 import { MailService } from 'src/modules/mail/services/mail.service';
+import { UsersService } from '../../users/services/users.service';
 
 // Speaksy
 import * as speakeasy from 'speakeasy';
@@ -56,7 +59,7 @@ export class AuthenticationService {
   public async validateUser(
     email: string,
     pass: string,
-  ): Promise<UserModel | null> {
+  ): Promise<users | null> {
     const user = await this._usersService.findOneByEmail(email);
     if (!user) {
       throw new BadRequestException('Username / password is incorrect');
@@ -77,10 +80,12 @@ export class AuthenticationService {
   public async login(user: IRequestUser): Promise<ILogin> {
     const payload = {
       username: user.username,
-      sub: user.id,
+      sub: parseInt(user.id.toString()),
       email: user.email,
       phone: user.phone,
       ext: user.ext,
+      fullname: user.fullname,
+      verified_at: parseInt(user.verified_at?.toString() || '0'),
       role: user.role,
     };
     return {
@@ -91,8 +96,9 @@ export class AuthenticationService {
   /**
    * @description Handle business logic for registering a user
    */
-  public async register(payload: RegisterEmailDto): Promise<UserModel> {
-    const { email, phoneNumber, phoneCountryCode, password } = payload;
+  public async register(payload: RegisterEmailDto): Promise<users> {
+    const { email, phoneNumber, phoneCountryCode, password, fullName } =
+      payload;
 
     const emailExists = await this._usersService.findOneByEmail(email);
     if (emailExists) {
@@ -109,7 +115,7 @@ export class AuthenticationService {
       phone: parseInt(phoneNumber.toString()).toString(),
       ext: parseInt(phoneCountryCode.toString()),
       password: passwordHashed,
-      pin: '',
+      fullname: fullName,
     });
   }
 
@@ -120,15 +126,16 @@ export class AuthenticationService {
     try {
       const newSecret = speakeasy.generateSecret({ length: 20 }).base32;
 
-      // Save OTP Secret
-      await this.cacheManager.set(`otp_secret:${email}`, newSecret, 300_000);
+      // Save OTP Secret within 5 minutes
+      const ttl = 5 * 60 * 1000;
+      await this.cacheManager.set(`otp_secret:${email}`, newSecret, ttl);
 
       // Generate OTP
       const otp = speakeasy.totp({
         secret: newSecret,
         encoding: 'base32',
         step: 300,
-        digits: 6,
+        digits: 4,
       });
 
       // Kirim OTP ke email
@@ -150,7 +157,11 @@ export class AuthenticationService {
   /**
    * @description Verify OTP
    */
-  public async verifyOtp(email: string, token: string): Promise<object> {
+  public async verifyOtp(
+    email: string,
+    token: string,
+    type: string,
+  ): Promise<object> {
     try {
       let result;
 
@@ -170,10 +181,25 @@ export class AuthenticationService {
         token,
         step: 300,
         window: 1,
+        digits: 4,
       });
 
       if (isValid) {
         await this.cacheManager.del(`otp_secret:${email}`);
+      }
+
+      // update user to verified
+      const otpType = type as OTPStatus;
+      if (otpType === OTPStatus.Register) {
+        const userInfo = await this._usersService.findOneByEmail(email);
+
+        if (!userInfo) {
+          throw new BadRequestException('User not found');
+        }
+
+        await this._usersService.update(userInfo.id, {
+          verified_at: Math.floor(Date.now() / 1000),
+        });
       }
 
       result = {
@@ -183,7 +209,7 @@ export class AuthenticationService {
       return result;
     } catch (error) {
       throw new HttpException(
-        'Failed to generate OTP',
+        'Failed to verify OTP',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -191,14 +217,14 @@ export class AuthenticationService {
 
   public async forgotPassword(email: string): Promise<void> {
     //validate user email
-    const user = this._usersService.findOneByEmail(email);
+    const user = await this._usersService.findOneByEmail(email);
     if (!user) {
       throw new BadRequestException('User not found');
     }
 
     //generate token
     const token = uuidv4();
-    const ttl = 900;
+    const ttl = 15 * 60 * 1000;
 
     //set token to cache with 15 minutes expiration
     await this.cacheManager.set(`forgot_token:${email}`, token, ttl);
@@ -207,8 +233,37 @@ export class AuthenticationService {
     this._mailService.sendMailWithTemplate(
       'forgot-password',
       'Forgot Password',
-      { token: token, name: 'Kontol' },
+      { token: token, name: user.fullname, base_url: process.env.FRONTEND_URL },
       email,
     );
+  }
+
+  public async forgotPasswordReset(
+    email: string,
+    password: string,
+    token: string,
+  ): Promise<void> {
+    //validate token
+    const cacheToken = await this.cacheManager.get<string>(
+      `forgot_token:${email}`,
+    );
+    console.log('cacheToken', cacheToken);
+    if (!cacheToken || cacheToken !== token) {
+      throw new BadRequestException('Expired / Invalid token');
+    }
+
+    //hash password
+    const passwordHashed = await bcrypt.hash(password, SALT_OR_ROUND);
+
+    //update user password
+    const user = await this._usersService.findOneByEmail(email);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    await this._usersService.update(user.id, { password: passwordHashed });
+
+    //delete token
+    await this.cacheManager.del(`forgot_token:${email}`);
   }
 }
