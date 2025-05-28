@@ -25,7 +25,6 @@ import { PaymentGateway } from '../interfaces/payments.interface';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
-import { request } from 'http';
 
 @Injectable()
 export class InvoiceService {
