@@ -40,21 +40,22 @@ export class ProductsService {
           categories_has_products: true,
         },
       });
+      if (createProductDto.variants?.length) {
+        for (const variant of createProductDto.variants) {
+          const createdVariant = await this.prisma.variant.create({
+            data: {
+              name: variant.name,
+              price: variant.price,
+            },
+          });
 
-      for (const variant of createProductDto.variants) {
-        const createdVariant = await this.prisma.variant.create({
-          data: {
-            name: variant.name,
-            price: variant.price,
-          },
-        });
-
-        await this.prisma.variant_has_products.create({
-          data: {
-            products_id: createdProduct.id,
-            variant_id: createdVariant.id,
-          },
-        });
+          await this.prisma.variant_has_products.create({
+            data: {
+              products_id: createdProduct.id,
+              variant_id: createdVariant.id,
+            },
+          });
+        }
       }
       return createdProduct;
     } catch (error) {
