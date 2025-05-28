@@ -125,7 +125,7 @@ model customers_has_tag {
 }
 
 model employees {
-  id                               String                             @id @db.Uuid
+  id                               String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                             String?                            @db.VarChar(45)
   email                            String?                            @unique @db.VarChar(45)
   phone_number                     String?                            @db.VarChar(45)
@@ -362,7 +362,7 @@ model role_permissions {
 }
 
 model roles {
-  id                  String                @id @db.Uuid
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                String?               @db.VarChar(45)
   employees_has_roles employees_has_roles[]
   role_permissions    role_permissions[]
@@ -524,6 +524,17 @@ model voucher_has_products {
   @@id([voucher_id, products_id])
   @@index([products_id], map: "fk_voucher_has_products_products1_idx")
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
+}
+
+model payment_logs {
+  id            String    @id(map: "payment_logs_pk") @db.Uuid
+  service_name  String?   @db.VarChar
+  url           String?   @db.VarChar
+  method        String?   @db.VarChar
+  request_body  String?
+  response_body String?
+  status_code   Int?
+  created_at    DateTime? @db.Timestamp(6)
 }
 
 enum cash_drawer_type {
