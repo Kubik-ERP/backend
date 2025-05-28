@@ -104,7 +104,8 @@ export class CategoriesService {
         where: { id },
         data: {
           category: updateCategoryDto.category || existingCategory.category,
-          description: updateCategoryDto.description || existingCategory.description,
+          description:
+            updateCategoryDto.description || existingCategory.description,
         },
       });
 
