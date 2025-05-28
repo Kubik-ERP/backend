@@ -155,7 +155,7 @@ model employees_has_roles {
 }
 
 model employees_shift {
-  id           String    @db.Uuid
+  id           String    @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   start_time   DateTime? @db.Time(6)
   end_time     DateTime? @db.Time(6)
   days         Int?
