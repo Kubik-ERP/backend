@@ -36,7 +36,7 @@ export class CustomerService {
       const newCustomer = await this.prisma.customer.create({
         data: {
           name: createCustomerDto.name,
-          phone_number: createCustomerDto.phone_number,
+          code: createCustomerDto.phone_number,
         },
       });
 
@@ -105,7 +105,7 @@ export class CustomerService {
         where: { id },
         data: {
           name: updateCustomerDto.name || updateCustomerDto.name,
-          phone_number:
+          code:
             updateCustomerDto.phone_number || updateCustomerDto.phone_number,
         },
       });

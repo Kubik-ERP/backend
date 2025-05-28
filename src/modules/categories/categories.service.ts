@@ -19,14 +19,14 @@ export class CategoriesService {
   async create(createCategoryDto: CreateCategoryDto) {
     try {
       const existingCategory = await this.prisma.categories.findFirst({
-        where: { category: createCategoryDto.name },
+        where: { category: createCategoryDto.category },
       });
 
       if (existingCategory) {
         throw new HttpException(
           {
             statusCode: HttpStatus.BAD_REQUEST,
-            message: 'Category name must be unique',
+            message: 'Category category must be unique',
           },
           HttpStatus.BAD_REQUEST,
         );
@@ -34,8 +34,8 @@ export class CategoriesService {
 
       const newCategory = await this.prisma.categories.create({
         data: {
-          category: createCategoryDto.name,
-          description: createCategoryDto.notes,
+          category: createCategoryDto.category,
+          description: createCategoryDto.description,
         },
       });
 
@@ -50,31 +50,31 @@ export class CategoriesService {
     return categories;
   }
 
-  public async findOne(idOrName: string): Promise<CategoryModel | null> {
-    if (isUUID(idOrName)) {
+  public async findOne(idOrcategory: string): Promise<CategoryModel | null> {
+    if (isUUID(idOrcategory)) {
       return await this.prisma.categories.findUnique({
-        where: { id: idOrName },
+        where: { id: idOrcategory },
       });
     } else {
       return await this.prisma.categories.findFirst({
         where: {
-          category: { contains: idOrName, mode: 'insensitive' },
+          category: { contains: idOrcategory, mode: 'insensitive' },
         },
       });
     }
   }
 
   public async findMany(
-    idOrName: string,
+    idOrcategory: string,
   ): Promise<CategoryModel | CategoryModel[] | null> {
-    if (isUUID(idOrName)) {
+    if (isUUID(idOrcategory)) {
       return await this.prisma.categories.findUnique({
-        where: { id: idOrName },
+        where: { id: idOrcategory },
       });
     } else {
       return await this.prisma.categories.findMany({
         where: {
-          category: { contains: idOrName, mode: 'insensitive' },
+          category: { contains: idOrcategory, mode: 'insensitive' },
         },
       });
     }
@@ -90,21 +90,21 @@ export class CategoriesService {
         throw new NotFoundException('Category not found');
       }
 
-      if (updateCategoryDto.name) {
+      if (updateCategoryDto.category) {
         const duplicateCategory = await this.prisma.categories.findFirst({
-          where: { category: updateCategoryDto.name, NOT: { id } },
+          where: { category: updateCategoryDto.category, NOT: { id } },
         });
 
         if (duplicateCategory) {
-          throw new BadRequestException('Category name must be unique');
+          throw new BadRequestException('Category category must be unique');
         }
       }
 
       const updatedCategory = await this.prisma.categories.update({
         where: { id },
         data: {
-          category: updateCategoryDto.name || existingCategory.category,
-          description: updateCategoryDto.notes || existingCategory.description,
+          category: updateCategoryDto.category || existingCategory.category,
+          description: updateCategoryDto.description || existingCategory.description,
         },
       });
 
