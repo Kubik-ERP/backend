@@ -125,7 +125,7 @@ model customers_has_tag {
 }
 
 model employees {
-  id                               String                             @id @db.Uuid
+  id                               String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                             String?                            @db.VarChar(45)
   email                            String?                            @unique @db.VarChar(45)
   phone_number                     String?                            @db.VarChar(45)
@@ -155,7 +155,7 @@ model employees_has_roles {
 }
 
 model employees_shift {
-  id           String    @db.Uuid
+  id           String    @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   start_time   DateTime? @db.Time(6)
   end_time     DateTime? @db.Time(6)
   days         Int?
@@ -362,7 +362,7 @@ model role_permissions {
 }
 
 model roles {
-  id                  String                @id @db.Uuid
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                String?               @db.VarChar(45)
   employees_has_roles employees_has_roles[]
   role_permissions    role_permissions[]
