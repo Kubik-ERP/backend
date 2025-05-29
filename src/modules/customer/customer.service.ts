@@ -33,16 +33,39 @@ export class CustomerService {
         );
       }
 
+      const customerData: any = {
+        name: createCustomerDto.name,
+        code: createCustomerDto.code,
+        number: createCustomerDto.number,
+        email: createCustomerDto.email,
+        dob: createCustomerDto.dob,
+        address: createCustomerDto.address,
+      };
+
+      if (
+        createCustomerDto.customers_has_tag &&
+        createCustomerDto.customers_has_tag.length > 0
+      ) {
+        customerData.customers_has_tag = {
+          create: createCustomerDto.customers_has_tag.map((tag) => ({
+            tag_id: tag.id,
+          })),
+        };
+      }
+
       const newCustomer = await this.prisma.customer.create({
-        data: {
-          name: createCustomerDto.name,
-          phone_number: createCustomerDto.phone_number,
+        data: customerData,
+        include: {
+          customers_has_tag: true,
         },
       });
 
       return newCustomer;
     } catch (error) {
-      throw new Error(error.message || 'Failed to create customer');
+      throw new HttpException(
+        error.message || 'Failed to create customer',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -105,8 +128,11 @@ export class CustomerService {
         where: { id },
         data: {
           name: updateCustomerDto.name || updateCustomerDto.name,
-          phone_number:
-            updateCustomerDto.phone_number || updateCustomerDto.phone_number,
+          code: updateCustomerDto.code,
+          number: updateCustomerDto.number,
+          email: updateCustomerDto.email,
+          dob: updateCustomerDto.dob,
+          address: updateCustomerDto.address,
         },
       });
 

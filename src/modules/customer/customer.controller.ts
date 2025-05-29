@@ -13,6 +13,7 @@ import {
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerService } from './customer.service';
+import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 
 @Controller('customers')
 export class CustomersController {
@@ -25,7 +26,7 @@ export class CustomersController {
       return {
         statusCode: 201,
         message: 'Customer created successfully',
-        result: newCustomer,
+        result: toCamelCase(newCustomer),
       };
     } catch (error) {
       return {
@@ -40,7 +41,11 @@ export class CustomersController {
   async findAll() {
     try {
       const customers = await this.customersService.findAll();
-      return { statusCode: 200, message: 'Success', result: customers };
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(customers),
+      };
     } catch (error) {
       console.error('Error fetching customers:', error);
       throw new HttpException(
@@ -63,7 +68,11 @@ export class CustomersController {
           HttpStatus.NOT_FOUND,
         );
       }
-      return { statusCode: 200, message: 'Success', result: customer };
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(customer),
+      };
     } catch (error) {
       console.error('Error finding customer:', error);
       throw new HttpException(
@@ -95,7 +104,7 @@ export class CustomersController {
       return {
         statusCode: 200,
         message: 'Customer updated successfully',
-        result: updatedCustomer,
+        result: toCamelCase(updatedCustomer),
       };
     } catch (error) {
       console.error('Error updating customer:', error);

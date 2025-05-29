@@ -26,6 +26,7 @@ export class UsersService {
    */
   public async create(payload: CreateUserDto): Promise<UserModel> {
     try {
+      // @ts-ignore
       return await this.prisma.users.create({
         data: {
           username: payload.username,
