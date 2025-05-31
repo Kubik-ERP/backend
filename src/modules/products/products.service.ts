@@ -30,6 +30,7 @@ export class ProductsService {
           price: createProductDto.price,
           discount_price: createProductDto.discount_price,
           picture_url: createProductDto.picture_url,
+          is_percent: createProductDto.is_percent,
           categories_has_products: {
             create: createProductDto.categories.map((cat) => ({
               categories_id: cat.id,

@@ -77,12 +77,12 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   @ApiPropertyOptional({
-    name: 'discount_unit',
-    type: String,
-    example: '%',
-    description: 'Satuan diskon (% atau nominal)',
+    name: 'is_percent',
+    type: 'boolean',
+    example: 'true / false',
+    description: 'penggunakan nilai dari discount value',
   })
-  discount_unit?: string;
+  is_percent?: boolean;
 
   @IsArray()
   @ValidateNested({ each: true })
