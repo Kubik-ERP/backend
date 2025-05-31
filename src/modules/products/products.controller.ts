@@ -12,6 +12,9 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { Query } from '@nestjs/common';
+import { toCamelCase } from '../../common/helpers/object-transformer.helper';
+import { FindAllProductsQueryDto } from './dto/find-product.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -34,17 +37,26 @@ export class ProductsController {
       };
     }
   }
+
   @Get()
-  async findAll() {
+  async findAll(@Query() query: FindAllProductsQueryDto) {
     try {
-      const products = await this.productsService.findAll();
-      return { statusCode: 200, message: 'Success', result: products };
+      const result = await this.productsService.findAll({
+        page: Number(query.page),
+        limit: Number(query.limit),
+        search: query.search,
+      });
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(result),
+      };
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      console.error('Error fetching products:', error);
       throw new HttpException(
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to fetch categories',
+          message: 'Failed to fetch products',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );

@@ -17,6 +17,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { StoresModule } from './modules/stores/stores.module';
 import KeyvRedis, { createKeyv } from '@keyv/redis';
 import Keyv from 'keyv';
+import { CustomerModule } from './modules/customer/customer.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import Keyv from 'keyv';
     UsersModule,
     CategoriesModule,
     InvoicesModule,
+    CustomerModule,
     PaymentMethodModule,
     ProductsModule,
     StoresModule,

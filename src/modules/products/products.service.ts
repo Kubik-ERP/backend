@@ -66,8 +66,28 @@ export class ProductsService {
     }
   }
 
-  async findAll(): Promise<ProductModel[]> {
-    return await this.prisma.products.findMany({
+  async findAll({
+    page = 1,
+    limit = 10,
+    search,
+  }: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) {
+    const skip = (page - 1) * limit;
+
+    const query = this.prisma.products.findMany({
+      where: search
+        ? {
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }
+        : {},
+      skip,
+      take: limit,
       include: {
         categories_has_products: {
           include: {
@@ -81,6 +101,26 @@ export class ProductsService {
         },
       },
     });
+
+    const count = this.prisma.products.count({
+      where: search
+        ? {
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }
+        : {},
+    });
+
+    const [products, total] = await Promise.all([query, count]);
+
+    return {
+      data: products,
+      total,
+      page,
+      lastPage: Math.ceil(total / limit),
+    };
   }
 
   async findOne(
