@@ -202,9 +202,25 @@ export class ProductsService {
         throw new NotFoundException('Product not found');
       }
 
-      await this.prisma.products.delete({ where: { id } });
+      await this.prisma.categories_has_products.deleteMany({
+        where: {
+          products_id: id,
+        },
+      });
+
+      await this.prisma.variant_has_products.deleteMany({
+        where: {
+          products_id: id,
+        },
+      });
+
+      await this.prisma.products.delete({
+        where: { id },
+      });
+
       return true;
     } catch (error) {
+      console.error(error);
       throw new HttpException(
         'Failed to delete product',
         HttpStatus.INTERNAL_SERVER_ERROR,
