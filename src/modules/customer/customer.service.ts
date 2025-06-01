@@ -270,6 +270,10 @@ export class CustomerService {
         throw new NotFoundException('Customer not found');
       }
 
+      await this.prisma.customers_has_tag.deleteMany({
+        where: { customer_id: id },
+      });
+
       await this.prisma.customer.delete({
         where: { id },
       });
