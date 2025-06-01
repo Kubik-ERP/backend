@@ -75,7 +75,7 @@ export class CreateProductDto {
   discount_value?: number;
 
   @IsOptional()
-  @IsString()
+  @IsBoolean()
   @ApiPropertyOptional({
     name: 'is_percent',
     type: 'boolean',

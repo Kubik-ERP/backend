@@ -186,7 +186,7 @@ export class CustomerService {
     }
   }
 
-  async update(id: string, updateCustomerDto: CreateCustomerDto) {
+  async update(id: string, updateCustomerDto: UpdateCustomerDto) {
     try {
       const existingCustomer = await this.prisma.customer.findUnique({
         where: { id },
