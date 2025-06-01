@@ -48,7 +48,7 @@ export class CategoriesService {
   async findAll({
     page = 1,
     limit = 10,
-    search,
+    search = '',
   }: {
     page?: number;
     limit?: number;
