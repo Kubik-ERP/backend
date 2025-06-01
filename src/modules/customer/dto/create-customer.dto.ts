@@ -10,12 +10,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-
-export class TagDto {
-  @ApiPropertyOptional({ description: 'Tag ID' })
-  @IsUUID()
-  id: string;
-}
+import { CreateTagDto } from '../../tag/dto/create-tag.dto';
 
 export class CreateCustomerDto {
   @ApiProperty({ description: 'Customer name' })
@@ -33,7 +28,7 @@ export class CreateCustomerDto {
   @IsString()
   number: string;
 
-  @ApiPropertyOptional({ description: 'Date of birth in ISO format' })
+  @ApiPropertyOptional({ description: 'Date of birth' })
   @IsOptional()
   @IsDateString()
   dob?: string;
@@ -50,11 +45,11 @@ export class CreateCustomerDto {
 
   @ApiPropertyOptional({
     description: 'List of tags associated with customer',
-    type: [TagDto],
+    type: [CreateTagDto],
   })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => TagDto)
-  customers_has_tag?: TagDto[];
+  @Type(() => CreateTagDto)
+  tags?: CreateTagDto[];
 }

@@ -27,7 +27,7 @@ export class ProductsController {
       return {
         statusCode: 201,
         message: 'Products created successfully',
-        result: newProducts,
+        result: toCamelCase(newProducts),
       };
     } catch (error) {
       return {
@@ -73,7 +73,11 @@ export class ProductsController {
           HttpStatus.NOT_FOUND,
         );
       }
-      return { statusCode: 200, message: 'Success', result: products };
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(products),
+      };
     } catch (error) {
       console.error('Error finding products:', error);
       throw new HttpException(
@@ -96,7 +100,7 @@ export class ProductsController {
       return {
         statusCode: 200,
         message: 'Product updated successfully',
-        result,
+        result: toCamelCase(result),
       };
     } catch (error) {
       return {
@@ -113,7 +117,7 @@ export class ProductsController {
       return {
         statusCode: 200,
         message: 'Product deleted successfully',
-        result,
+        result: toCamelCase(result),
       };
     } catch (error) {
       return {
