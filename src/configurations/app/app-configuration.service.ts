@@ -34,7 +34,7 @@ export class AppConfigurationsService {
    * @description Define getter for get app port
    */
   get appPort(): string {
-    return this._configurationsService.get<string>('app.appPort') ?? '1337';
+    return this._configurationsService.get<string>('app.appPort') ?? '1339';
   }
 
   /**

@@ -32,8 +32,9 @@ export class CreateProductDto {
     example: 'https://example.com/image.jpg',
     description: 'URL gambar produk',
   })
-  picture_url?: string;
+  image?: string;
 
+  @Type(() => Number)
   @IsOptional()
   @IsNumber()
   @ApiPropertyOptional({
@@ -85,6 +86,7 @@ export class CreateProductDto {
   is_percent?: boolean;
 
   @IsArray()
+  @IsOptional()
   @ValidateNested({ each: true })
   @Type(() => SimpleCategoryDto)
   @ApiProperty({
@@ -92,7 +94,7 @@ export class CreateProductDto {
     type: [SimpleCategoryDto],
     description: 'Daftar kategori yang terkait',
   })
-  categories: SimpleCategoryDto[];
+  categories?: SimpleCategoryDto[];
 
   @IsOptional()
   @IsArray()
