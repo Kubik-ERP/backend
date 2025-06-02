@@ -25,7 +25,6 @@ import { PaymentGateway } from '../interfaces/payments.interface';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
-import { request } from 'http';
 
 @Injectable()
 export class InvoiceService {
@@ -104,6 +103,7 @@ export class InvoiceService {
     });
 
     if (!invoice) {
+      this.logger.error(`Invoice with ID ${request.invoiceId} not found.`);
       throw new NotFoundException(
         `Invoice with ID ${request.invoiceId} not found.`,
       );
@@ -115,6 +115,7 @@ export class InvoiceService {
   public async proceedInstantPayment(request: ProceedInstantPaymentDto) {
     const paymentProvider = this._paymentFactory.getProvider(request.provider);
     if (!paymentProvider) {
+      this.logger.error(`Payment provider '${request.provider}' not found`);
       throw new NotFoundException(
         `Payment provider '${request.provider}' not found`,
       );
@@ -243,12 +244,14 @@ export class InvoiceService {
     // Check the invoice is unpaid
     const invoice = await this.findInvoiceId(request.invoiceId);
     if (invoice.payment_status !== invoice_type.unpaid) {
+      this.logger.error(`Invoice status is not unpaid`);
       throw new BadRequestException(`Invoice status is not unpaid`);
     }
 
     // define payment method and provider
     const paymentProvider = this._paymentFactory.getProvider(request.provider);
     if (!paymentProvider) {
+      this.logger.error(`Payment provider '${request.provider}' not found`);
       throw new NotFoundException(
         `Payment provider '${request.provider}' not found`,
       );
@@ -261,6 +264,7 @@ export class InvoiceService {
 
     // check if invoice detail is empty
     if (invoiceDetails.length < 1) {
+      this.logger.error(`Invoice detail not found`);
       throw new BadRequestException(`Invoice detail not found`);
     }
 
@@ -308,12 +312,14 @@ export class InvoiceService {
     // find invoice
     const invoice = await this.findInvoiceId(order_id);
     if (invoice === null) {
+      this.logger.error(`Invoice '${order_id}' not found`);
       throw new NotFoundException(`Invoice '${order_id}' not found`);
     }
 
     // update status
     const updateInvoice = await this.updateStatusById(order_id, status);
     if (updateInvoice === null) {
+      this.logger.error(`Invoice '${order_id}' not found`);
       throw new NotFoundException(`Invoice '${order_id}' not found`);
     }
 
@@ -337,12 +343,14 @@ export class InvoiceService {
     // checking status code
     if (requestCallback.status_code != '200') {
       this._notificationHelper.notifyPaymentFailed(requestCallback.order_id);
+      this.logger.error(`Request is failed`);
       throw new BadRequestException(`Request is failed`);
     }
 
     // checking fraud status
     if (requestCallback.fraud_status != 'accept') {
       this._notificationHelper.notifyPaymentFailed(requestCallback.order_id);
+      this.logger.error(`Fraud transaction detected`);
       throw new BadRequestException(`Fraud transaction detected`);
     }
 
@@ -362,6 +370,7 @@ export class InvoiceService {
     // find invoice
     const invoice = await this.findInvoiceId(requestCallback.order_id);
     if (invoice === null) {
+      this.logger.error(`Invoice '${requestCallback.order_id}' not found`);
       throw new NotFoundException(
         `Invoice '${requestCallback.order_id}' not found`,
       );
@@ -373,6 +382,7 @@ export class InvoiceService {
       status,
     );
     if (updateInvoice === null) {
+      this.logger.error(`Invoice '${requestCallback.order_id}' not found`);
       throw new NotFoundException(
         `Invoice '${requestCallback.order_id}' not found`,
       );
@@ -386,6 +396,7 @@ export class InvoiceService {
     };
 
     // notify the FE
+    this.logger.error(`Invoice '${requestCallback.order_id}' success`);
     this._notificationHelper.notifyPaymentSuccess(requestCallback.order_id);
 
     return {
@@ -409,6 +420,7 @@ export class InvoiceService {
       });
 
       if (!product) {
+        this.logger.error(`Product with ID ${item.productId} not found`);
         throw new Error(`Product with ID ${item.productId} not found`);
       }
 
@@ -442,6 +454,9 @@ export class InvoiceService {
           });
 
         if (!variantProduct) {
+          this.logger.error(
+            `Product ${item.productId} with Variant ${item.variantId} not found`,
+          );
           throw new Error(
             `Product ${item.productId} with Variant ${item.variantId} not found`,
           );
@@ -489,6 +504,7 @@ export class InvoiceService {
       case 'Qris':
         return await provider.initiatePaymentCoreQris(orderId, amount);
       default:
+        this.logger.error(`Unsupported payment method: ${methodId}`);
         throw new BadRequestException(
           `Unsupported payment method: ${methodId}`,
         );
@@ -522,6 +538,7 @@ export class InvoiceService {
     const invoice = await this._prisma.invoice.findUnique({ where: { id } });
 
     if (!invoice) {
+      this.logger.error(`Invoice with ID ${id} not found.`);
       throw new NotFoundException(`Invoice with ID ${id} not found.`);
     }
 
@@ -541,6 +558,7 @@ export class InvoiceService {
         data: { payment_status: status },
       });
     } catch (error) {
+      this.logger.error('Failed to update invoice status');
       throw new BadRequestException('Failed to update invoice status', {
         cause: new Error(),
         description: error.message,
@@ -570,6 +588,7 @@ export class InvoiceService {
       });
     } catch (error) {
       console.log(error);
+      this.logger.error('Failed to create invoice');
       throw new BadRequestException('Failed to create invoice', {
         cause: new Error(),
         description: error.message,
@@ -597,7 +616,8 @@ export class InvoiceService {
       });
     } catch (error) {
       console.log(error);
-      throw new BadRequestException('Failed to create invoice', {
+      this.logger.error('Failed to create invoice detail');
+      throw new BadRequestException('Failed to create invoice detail', {
         cause: new Error(),
         description: error.message,
       });
@@ -614,6 +634,7 @@ export class InvoiceService {
       });
     } catch (error) {
       console.log(error);
+      this.logger.error('Failed to fetch invoice detail');
       throw new BadRequestException('Failed to fetch invoice detail', {
         cause: new Error(),
         description: error.message,

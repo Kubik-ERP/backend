@@ -6,10 +6,11 @@ import { DatabasePostgresConfigModule } from './configurations/database/postgres
 import { AuthenticationModule } from './modules/authentication/authentication.module';
 import { UsersModule } from './modules/users/users.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
-import { PaymentMethodModule } from './modules/payment-method/payment-method.module';
+import { PaymentMethodModule } from './modules/payment-methods/payment-method.module';
+import { CustomLogger } from './common/logger/custom.logger';
 
 // NestJS Libraries
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { CacheModule } from '@nestjs/cache-manager';
 
@@ -57,5 +58,13 @@ import { CustomerModule } from './modules/customer/customer.module';
     RolesModule,
     ShiftModule,
   ],
+  providers: [
+    {
+      provide: Logger,
+      useClass: CustomLogger,
+    },
+    CustomLogger,
+  ],
+  exports: [Logger, CustomLogger],
 })
 export class AppModule {}
