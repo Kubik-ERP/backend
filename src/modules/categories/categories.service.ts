@@ -70,7 +70,15 @@ export class CategoriesService {
         include: {
           categories_has_products: {
             include: {
-              products: true,
+              products: {
+                include: {
+                  variant_has_products: {
+                    include: {
+                      variant: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
