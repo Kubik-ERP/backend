@@ -45,9 +45,55 @@ export class CategoriesService {
     }
   }
 
-  public async findAll(): Promise<CategoryModel[]> {
-    const categories = await this.prisma.categories.findMany();
-    return categories;
+  async findAll({
+    page = 1,
+    limit = 10,
+    search = '',
+  }: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) {
+    const skip = (page - 1) * limit;
+
+    const [categories, total] = await Promise.all([
+      this.prisma.categories.findMany({
+        where: search
+          ? {
+              category: {
+                contains: search,
+                mode: 'insensitive',
+              },
+            }
+          : {},
+        skip,
+        include: {
+          categories_has_products: {
+            include: {
+              products: true,
+            },
+          },
+        },
+        take: limit,
+      }),
+      this.prisma.categories.count({
+        where: search
+          ? {
+              category: {
+                contains: search,
+                mode: 'insensitive',
+              },
+            }
+          : {},
+      }),
+    ]);
+
+    return {
+      categories,
+      total,
+      page,
+      lastPage: Math.ceil(total / limit),
+    };
   }
 
   public async findOne(idOrcategory: string): Promise<CategoryModel | null> {

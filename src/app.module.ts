@@ -16,11 +16,11 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ProductsModule } from './modules/products/products.module';
 import { StoresModule } from './modules/stores/stores.module';
 import KeyvRedis, { createKeyv } from '@keyv/redis';
-import { StaffModule } from './modules/staff/staff.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ShiftModule } from './modules/shift/shift.module';
 import Keyv from 'keyv';
+import { CustomerModule } from './modules/customer/customer.module';
 
 @Module({
   imports: [
@@ -49,10 +49,10 @@ import Keyv from 'keyv';
     UsersModule,
     CategoriesModule,
     InvoicesModule,
+    CustomerModule,
     PaymentMethodModule,
     ProductsModule,
     StoresModule,
-    StaffModule,
     EmployeesModule,
     RolesModule,
     ShiftModule,

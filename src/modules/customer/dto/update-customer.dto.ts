@@ -1,44 +1,54 @@
-import { PartialType } from '@nestjs/swagger';
-
-import { CreateCustomerDto } from './create-customer.dto';
 import {
-  IsOptional,
   IsString,
+  IsOptional,
   IsNotEmpty,
   IsDateString,
   IsEmail,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { CreateTagDto } from '../../tag/dto/create-tag.dto';
 
-export class UpdateCustomerDto extends PartialType(CreateCustomerDto) {
+export class UpdateCustomerDto {
+  @ApiPropertyOptional({ description: 'Customer name' })
   @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  name?: string;
 
+  @ApiPropertyOptional({ description: 'Customer code' })
   @IsOptional()
   @IsString()
   code?: string;
 
+  @ApiPropertyOptional({ description: 'Customer number' })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => value?.toString(), { toClassOnly: true })
   number?: string;
 
+  @ApiPropertyOptional({ description: 'Date of birth' })
   @IsOptional()
   @IsDateString()
   dob?: string;
 
+  @ApiPropertyOptional({ description: 'Email address' })
   @IsOptional()
   @IsEmail()
   email?: string;
 
+  @ApiPropertyOptional({ description: 'Customer address' })
   @IsOptional()
   @IsString()
-  username?: string;
-
-  @IsOptional()
-  @IsString()
-  phone_number?: string;
   address?: string;
+
+  @ApiPropertyOptional({
+    description: 'List of tags associated with customer',
+    type: [CreateTagDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateTagDto)
+  tags?: CreateTagDto[];
 }

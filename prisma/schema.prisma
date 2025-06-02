@@ -29,7 +29,7 @@ model business_owner_has_stores {
 }
 
 model cash_drawers {
-  id               String            @db.Uuid
+  id               String            @id(map: "cash_drawers_pk") @db.Uuid
   expected_balance Float?
   actual_balance   Float?
   status           cash_drawer_type?
@@ -38,7 +38,6 @@ model cash_drawers {
   notes            String?           @db.VarChar(45)
   employees        employees         @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_drawers_employees1")
 
-  @@id([id, employees_id])
   @@index([employees_id], map: "fk_cash_drawers_employees1_idx")
 }
 
@@ -82,8 +81,8 @@ model categories {
 model categories_has_products {
   categories_id String     @db.Uuid
   products_id   String     @db.Uuid
-  categories    categories @relation(fields: [categories_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_categories_has_products_categories1")
-  products      products   @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_categories_has_products_products1")
+  categories    categories @relation(fields: [categories_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_categories_has_products_categories1")
+  products      products   @relation(fields: [products_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_categories_has_products_products1")
 
   @@id([categories_id, products_id])
   @@index([categories_id], map: "fk_categories_has_products_categories1_idx")
@@ -316,6 +315,7 @@ model products {
   price                   Float?
   discount_price          Float?
   picture_url             String?                   @db.VarChar(45)
+  is_percent              Boolean?                  @default(false)
   categories_has_products categories_has_products[]
   invoice_details         invoice_details[]
   product_commissions     product_commissions[]
@@ -480,8 +480,8 @@ model variant {
 model variant_has_products {
   variant_id  String   @db.Uuid
   products_id String   @db.Uuid
-  products    products @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_products1")
-  variant     variant  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_variant_has_products_variant1")
+  products    products @relation(fields: [products_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_variant_has_products_products1")
+  variant     variant  @relation(fields: [variant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_variant_has_products_variant1")
 
   @@id([variant_id, products_id])
   @@index([products_id], map: "fk_variant_has_products_products1_idx")

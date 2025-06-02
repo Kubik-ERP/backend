@@ -8,11 +8,12 @@ import {
   Delete,
   HttpException,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-import { STATUS_CODES } from 'http';
+import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 
 @Controller('categories')
 export class CategoriesController {
@@ -26,22 +27,34 @@ export class CategoriesController {
       return {
         statusCode: 201,
         message: 'Category created successfully',
-        result: newCategory,
+        result: toCamelCase(newCategory),
       };
     } catch (error) {
       return {
         statusCode: 500,
-        message: error.message,
+        message: error.message || 'Failed to create category',
         result: null,
       };
     }
   }
 
   @Get()
-  async findAll() {
+  async findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+  ) {
     try {
-      const categories = await this.categoriesService.findAll();
-      return { statusCode: 200, message: 'Success', result: categories };
+      const result = await this.categoriesService.findAll({
+        page,
+        limit,
+        search,
+      });
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(result),
+      };
     } catch (error) {
       console.error('Error fetching categories:', error);
       throw new HttpException(
@@ -58,13 +71,19 @@ export class CategoriesController {
   async findOne(@Param('idOrName') idOrName: string) {
     try {
       const category = await this.categoriesService.findOne(idOrName);
+
       if (!category) {
         throw new HttpException(
           { statusCode: HttpStatus.NOT_FOUND, message: 'Category not found' },
           HttpStatus.NOT_FOUND,
         );
       }
-      return { statusCode: 200, message: 'Success', result: category };
+
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(category),
+      };
     } catch (error) {
       console.error('Error finding category:', error);
       throw new HttpException(
@@ -98,7 +117,7 @@ export class CategoriesController {
       return {
         statusCode: 200,
         message: 'Category updated successfully',
-        result: updatedCategory,
+        result: toCamelCase(updatedCategory),
       };
     } catch (error) {
       console.error('Error updating category:', error);
@@ -111,6 +130,7 @@ export class CategoriesController {
       );
     }
   }
+
   @Delete(':id')
   async remove(@Param('id') id: string) {
     try {
@@ -123,7 +143,10 @@ export class CategoriesController {
         );
       }
 
-      return { statusCode: 200, message: 'Category deleted successfully' };
+      return {
+        statusCode: 200,
+        message: 'Category deleted successfully',
+      };
     } catch (error) {
       console.error('Error deleting category:', error);
       throw new HttpException(
