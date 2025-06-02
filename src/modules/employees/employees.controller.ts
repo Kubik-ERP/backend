@@ -10,11 +10,11 @@ import {
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
-import { EmployeeService } from './employees.service';
+import { EmployeesService } from './employees.service';
 
 @Controller('employees')
 export class EmployeesController {
-  constructor(private readonly employeesService: EmployeeService) {}
+  constructor(private readonly employeesService: EmployeesService) {}
 
   @Post()
   async create(@Body() createEmployeeDto: CreateEmployeeDto) {

@@ -8,7 +8,7 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { gender, Prisma } from '@prisma/client';
 
 @Injectable()
-export class EmployeeService {
+export class EmployeesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateEmployeeDto) {
