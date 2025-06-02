@@ -67,6 +67,13 @@ export class CategoriesService {
             }
           : {},
         skip,
+        include: {
+          categories_has_products: {
+            include: {
+              products: true,
+            },
+          },
+        },
         take: limit,
       }),
       this.prisma.categories.count({
@@ -82,7 +89,7 @@ export class CategoriesService {
     ]);
 
     return {
-      data: categories,
+      categories,
       total,
       page,
       lastPage: Math.ceil(total / limit),
