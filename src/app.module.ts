@@ -7,9 +7,10 @@ import { AuthenticationModule } from './modules/authentication/authentication.mo
 import { UsersModule } from './modules/users/users.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentMethodModule } from './modules/payment-methods/payment-method.module';
+import { CustomLogger } from './common/logger/custom.logger';
 
 // NestJS Libraries
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { CacheModule } from '@nestjs/cache-manager';
 
@@ -49,5 +50,13 @@ import Keyv from 'keyv';
     ProductsModule,
     StoresModule,
   ],
+  providers: [
+    {
+      provide: Logger,
+      useClass: CustomLogger,
+    },
+    CustomLogger,
+  ],
+  exports: [Logger, CustomLogger],
 })
 export class AppModule {}
