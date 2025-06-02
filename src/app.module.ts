@@ -22,6 +22,7 @@ import { RolesModule } from './modules/roles/roles.module';
 import { ShiftModule } from './modules/shift/shift.module';
 import Keyv from 'keyv';
 import { CustomerModule } from './modules/customer/customer.module';
+import { ChargesModule } from './modules/charges/charges.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { CustomerModule } from './modules/customer/customer.module';
     AuthenticationModule,
     UsersModule,
     CategoriesModule,
+    ChargesModule,
     InvoicesModule,
     CustomerModule,
     PaymentMethodModule,
