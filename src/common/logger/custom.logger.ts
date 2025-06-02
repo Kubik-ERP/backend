@@ -9,7 +9,7 @@ export class CustomLogger extends ConsoleLogger {
     const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     const logsDir = path.join(__dirname, '../../logs');
 
-    // Buat folder jika belum ada
+    // create new file if there not exist
     if (!fs.existsSync(logsDir)) {
       fs.mkdirSync(logsDir, { recursive: true });
     }
