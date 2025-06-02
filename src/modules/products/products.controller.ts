@@ -12,6 +12,9 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { Query } from '@nestjs/common';
+import { toCamelCase } from '../../common/helpers/object-transformer.helper';
+import { FindAllProductsQueryDto } from './dto/find-product.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -24,7 +27,7 @@ export class ProductsController {
       return {
         statusCode: 201,
         message: 'Products created successfully',
-        result: newProducts,
+        result: toCamelCase(newProducts),
       };
     } catch (error) {
       return {
@@ -34,17 +37,26 @@ export class ProductsController {
       };
     }
   }
+
   @Get()
-  async findAll() {
+  async findAll(@Query() query: FindAllProductsQueryDto) {
     try {
-      const products = await this.productsService.findAll();
-      return { statusCode: 200, message: 'Success', result: products };
+      const result = await this.productsService.findAll({
+        page: Number(query.page),
+        limit: Number(query.limit),
+        search: query.search,
+      });
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(result),
+      };
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      console.error('Error fetching products:', error);
       throw new HttpException(
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to fetch categories',
+          message: 'Failed to fetch products',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -61,7 +73,11 @@ export class ProductsController {
           HttpStatus.NOT_FOUND,
         );
       }
-      return { statusCode: 200, message: 'Success', result: products };
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(products),
+      };
     } catch (error) {
       console.error('Error finding products:', error);
       throw new HttpException(
@@ -84,7 +100,7 @@ export class ProductsController {
       return {
         statusCode: 200,
         message: 'Product updated successfully',
-        result,
+        result: toCamelCase(result),
       };
     } catch (error) {
       return {
@@ -101,7 +117,7 @@ export class ProductsController {
       return {
         statusCode: 200,
         message: 'Product deleted successfully',
-        result,
+        result: toCamelCase(result),
       };
     } catch (error) {
       return {

@@ -527,6 +527,7 @@ export class InvoiceService {
         return 'Unknown payment status';
     }
   }
+
   // End of private function
 
   // Query section
@@ -640,5 +641,6 @@ export class InvoiceService {
       });
     }
   }
+
   // End of query section
 }

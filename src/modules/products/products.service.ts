@@ -24,18 +24,41 @@ export class ProductsService {
       if (existingProduct) {
         throw new BadRequestException('Product name must be unique');
       }
-
-      return await this.prisma.products.create({
+      const createdProduct = await this.prisma.products.create({
         data: {
           name: createProductDto.name,
           price: createProductDto.price,
           discount_price: createProductDto.discount_price,
           picture_url: createProductDto.picture_url,
+          is_percent: createProductDto.is_percent,
+          categories_has_products: {
+            create: createProductDto.categories.map((cat) => ({
+              categories_id: cat.id,
+            })),
+          },
         },
         include: {
           categories_has_products: true,
         },
       });
+      if (createProductDto.variants?.length) {
+        for (const variant of createProductDto.variants) {
+          const createdVariant = await this.prisma.variant.create({
+            data: {
+              name: variant.name,
+              price: variant.price,
+            },
+          });
+
+          await this.prisma.variant_has_products.create({
+            data: {
+              products_id: createdProduct.id,
+              variant_id: createdVariant.id,
+            },
+          });
+        }
+      }
+      return createdProduct;
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to create product',
@@ -44,20 +67,88 @@ export class ProductsService {
     }
   }
 
-  async findAll(): Promise<ProductModel[]> {
-    return await this.prisma.products.findMany({
-      include: { categories_has_products: true },
+  async findAll({
+    page = 1,
+    limit = 10,
+    search,
+  }: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) {
+    const skip = (page - 1) * limit;
+
+    const query = this.prisma.products.findMany({
+      where: search
+        ? {
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }
+        : {},
+      skip,
+      take: limit,
+      include: {
+        categories_has_products: {
+          include: {
+            categories: true,
+          },
+        },
+        variant_has_products: {
+          include: {
+            variant: true,
+          },
+        },
+      },
     });
+
+    const count = this.prisma.products.count({
+      where: search
+        ? {
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }
+        : {},
+    });
+
+    const [products, total] = await Promise.all([query, count]);
+
+    return {
+      data: products,
+      total,
+      page,
+      lastPage: Math.ceil(total / limit),
+    };
   }
+
   async findOne(
     idOrNames: string | string[],
   ): Promise<ProductModel | ProductModel[] | null> {
     if (typeof idOrNames === 'string') {
-      return isUUID(idOrNames)
-        ? await this.prisma.products.findUnique({ where: { id: idOrNames } })
-        : await this.prisma.products.findMany({
-            where: { name: { contains: idOrNames, mode: 'insensitive' } },
-          });
+      if (isUUID(idOrNames)) {
+        return await this.prisma.products.findUnique({
+          where: { id: idOrNames },
+          include: {
+            categories_has_products: {
+              include: {
+                categories: true,
+              },
+            },
+            variant_has_products: {
+              include: {
+                variant: true,
+              },
+            },
+          },
+        });
+      } else {
+        return await this.prisma.products.findMany({
+          where: { name: { contains: idOrNames, mode: 'insensitive' } },
+        });
+      }
     }
 
     return await this.prisma.products.findMany({
@@ -80,21 +171,74 @@ export class ProductsService {
         throw new NotFoundException('Product not found');
       }
 
+      // Cek duplikasi nama
       if (updateProductDto.name) {
         const duplicateProduct = await this.prisma.products.findFirst({
-          where: { name: updateProductDto.name, NOT: { id } },
+          where: {
+            name: updateProductDto.name,
+            NOT: { id },
+          },
         });
-
         if (duplicateProduct) {
           throw new BadRequestException('Product name must be unique');
         }
       }
 
-      return await this.prisma.products.update({
+      // Update produk utama
+      const updatedProduct = await this.prisma.products.update({
         where: { id },
-        data: { ...updateProductDto },
+        data: {
+          name: updateProductDto.name,
+          price: updateProductDto.price,
+          discount_price: updateProductDto.discount_price,
+          picture_url: updateProductDto.picture_url,
+          is_percent: updateProductDto.is_percent,
+        },
+        include: {
+          categories_has_products: true,
+        },
       });
+
+      // Update categories_has_products: hapus semua -> tambah ulang
+      if (updateProductDto.categories?.length) {
+        await this.prisma.categories_has_products.deleteMany({
+          where: { products_id: id },
+        });
+
+        await this.prisma.categories_has_products.createMany({
+          data: updateProductDto.categories.map((cat) => ({
+            products_id: id,
+            categories_id: cat.id,
+          })),
+        });
+      }
+
+      // Update variants: hapus semua -> buat ulang
+      if (updateProductDto.variants?.length) {
+        await this.prisma.variant_has_products.deleteMany({
+          where: { products_id: id },
+        });
+
+        for (const variant of updateProductDto.variants) {
+          const createdVariant = await this.prisma.variant.create({
+            data: {
+              name: variant.name,
+              price: variant.price ?? 0,
+            },
+          });
+
+          await this.prisma.variant_has_products.create({
+            data: {
+              products_id: id,
+              variant_id: createdVariant.id,
+            },
+          });
+        }
+      }
+
+      return updatedProduct;
     } catch (error) {
+      console.error('Update product error:', error);
       throw new HttpException(
         error.message || 'Failed to update product',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -112,9 +256,25 @@ export class ProductsService {
         throw new NotFoundException('Product not found');
       }
 
-      await this.prisma.products.delete({ where: { id } });
+      await this.prisma.categories_has_products.deleteMany({
+        where: {
+          products_id: id,
+        },
+      });
+
+      await this.prisma.variant_has_products.deleteMany({
+        where: {
+          products_id: id,
+        },
+      });
+
+      await this.prisma.products.delete({
+        where: { id },
+      });
+
       return true;
     } catch (error) {
+      console.error(error);
       throw new HttpException(
         'Failed to delete product',
         HttpStatus.INTERNAL_SERVER_ERROR,
