@@ -26,17 +26,10 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
-  // @ApiPropertyOptional({
-  //   name: 'image',
-  //   type: String,
-  //   example: 'https://example.com/image.jpg',
-  //   description: 'URL gambar produk',
-  // })
   image?: string;
 
   @Type(() => Number)
   @IsOptional()
-  @Type(() => Number)
   @IsNumber()
   @ApiPropertyOptional({
     name: 'price',
@@ -56,6 +49,7 @@ export class CreateProductDto {
     description: 'Harga setelah diskon',
   })
   discount_price?: number;
+
   @IsOptional()
   @IsNumber()
   @Type(() => Number)

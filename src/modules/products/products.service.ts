@@ -21,11 +21,6 @@ export class ProductsService {
       const existingProduct = await this.prisma.products.findFirst({
         where: { name: createProductDto.name },
       });
-
-      // if (existingProduct) {
-      //   throw new BadRequestException('Product name must be unique');
-      // }
-
       if (createProductDto.discount_price === 0) {
         discountValue = createProductDto.price;
       } else {
