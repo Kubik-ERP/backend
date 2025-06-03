@@ -11,6 +11,7 @@ import {
 import {
   charge_type,
   invoice,
+  invoice_charges,
   invoice_details,
   invoice_type,
   order_type,
@@ -298,12 +299,13 @@ export class InvoiceService {
       calculationEstimationDto.products.push(dto);
     }
 
+    // calculate estimation
     const calculation = await this.calculateTotal(calculationEstimationDto);
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
       paymentProvider,
       request.invoiceId,
-      calculation.total,
+      calculation.grandTotal,
     );
 
     return response;
@@ -495,6 +497,7 @@ export class InvoiceService {
     // bacause tax and service only set one term, this part
     // might be need to be change if the business change
     // get service
+    let grandTotal = total;
     const serviceCharge = await this._charge.getChargeByType(
       charge_type.service,
     );
@@ -513,6 +516,7 @@ export class InvoiceService {
         } else {
           // If service exclude, count service as an additional
           serviceAmount = total * percentage;
+          grandTotal += serviceAmount;
         }
 
         serviceType = serviceCharge.is_include;
@@ -540,6 +544,7 @@ export class InvoiceService {
         } else {
           // If tax exclude, tax counted as additional
           taxAmount = taxBase * percentage;
+          grandTotal += taxAmount;
         }
 
         taxType = tax.is_include;
@@ -553,6 +558,7 @@ export class InvoiceService {
       taxInclude: taxType,
       serviceCharge: serviceAmount,
       serviceChargeInclude: serviceType,
+      grandTotal,
       items,
     };
   }
@@ -625,6 +631,32 @@ export class InvoiceService {
     }
 
     return variantId ?? null;
+  }
+
+  private async upsertInvoiceCharge(request: invoice_charges) {
+    // update insert data of invoice charge
+    const invoiceCharge = await this.getInvoiceChargeById(
+      request.invoice_id,
+      request.charge_id,
+    );
+    if (invoiceCharge == null) {
+      // if tax or service not exist create
+      const invoiceChargeData = {
+        invoice_id: request.invoice_id,
+        charge_id: request.charge_id,
+        percentage: request.percentage,
+        amount: request.amount,
+      };
+
+      return await this.createInvoiceCharge(invoiceChargeData);
+    } else {
+      // if tax or service exist update
+      invoiceCharge.percentage = request.percentage;
+      invoiceCharge.amount = request.amount;
+
+      await this.updateInvoiceCharge(invoiceCharge);
+      return invoiceCharge;
+    }
   }
 
   // End of private function
@@ -726,6 +758,59 @@ export class InvoiceService {
   }
 
   /**
+   * @description Create an invoice charge
+   */
+  public async createInvoiceCharge(
+    invoiceCharge: invoice_charges,
+  ): Promise<invoice_charges> {
+    try {
+      return await this._prisma.invoice_charges.create({
+        data: {
+          invoice_id: invoiceCharge.invoice_id,
+          charge_id: invoiceCharge.charge_id,
+          percentage: invoiceCharge.percentage,
+          amount: invoiceCharge.amount,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Failed to create invoice charge');
+      throw new BadRequestException('Failed to create invoice charge', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Update a charge by type
+   */
+  public async updateInvoiceCharge(
+    invoiceCharge: invoice_charges,
+  ): Promise<number> {
+    try {
+      const result = await this._prisma.invoice_charges.updateMany({
+        where: {
+          invoice_id: invoiceCharge.charge_id,
+          charge_id: invoiceCharge.charge_id,
+        },
+        data: {
+          percentage: invoiceCharge.percentage,
+          amount: invoiceCharge.amount,
+        },
+      });
+      return result.count;
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Failed to update invoice charge');
+      throw new BadRequestException('Failed to update invoice charge', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
    * @description Get invoice detail data
    */
   public async getInvoiceDetailForCalculationByInvoiceId(invoiceId: string) {
@@ -737,6 +822,24 @@ export class InvoiceService {
       console.log(error);
       this.logger.error('Failed to fetch invoice detail');
       throw new BadRequestException('Failed to fetch invoice detail', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Get invoice charge data
+   */
+  public async getInvoiceChargeById(invoiceId: string, chargeId: string) {
+    try {
+      return await this._prisma.invoice_charges.findFirst({
+        where: { invoice_id: invoiceId, charge_id: chargeId },
+      });
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Failed to fetch invoice charge');
+      throw new BadRequestException('Failed to fetch invoice charge', {
         cause: new Error(),
         description: error.message,
       });

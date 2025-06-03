@@ -58,8 +58,8 @@ export class ChargesService {
       });
     } catch (error) {
       console.log(error);
-      this.logger.error('Failed to upsert charge');
-      throw new BadRequestException('Failed to upsert charge', {
+      this.logger.error('Failed to insert charge');
+      throw new BadRequestException('Failed to insert charge', {
         cause: new Error(),
         description: error.message,
       });
@@ -84,8 +84,8 @@ export class ChargesService {
       return result.count;
     } catch (error) {
       console.log(error);
-      this.logger.error('Failed to upsert charge');
-      throw new BadRequestException('Failed to upsert charge', {
+      this.logger.error('Failed to update charge');
+      throw new BadRequestException('Failed to update charge', {
         cause: new Error(),
         description: error.message,
       });

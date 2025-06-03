@@ -5,6 +5,7 @@ export interface CalculationResult {
   taxInclude: boolean;
   serviceCharge: number;
   serviceChargeInclude: boolean;
+  grandTotal: number;
   items: {
     productId: string;
     variantId?: string;
