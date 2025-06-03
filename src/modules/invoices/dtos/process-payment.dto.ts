@@ -32,7 +32,7 @@ export class ProductDto {
     required: true,
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
-  @IsNotEmpty()
+  @IsString()
   public variantId: string;
 
   @ApiProperty({ description: 'Quantity', required: true, example: 1 })

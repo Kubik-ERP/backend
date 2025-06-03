@@ -154,6 +154,12 @@ export class InvoiceService {
         variantPrice = found.variantPrice;
       }
 
+      // validate product has variant
+      const validVariantId = await this.validateProductVariant(
+        detail.productId,
+        detail.variantId,
+      );
+
       // create invoice detail ID
       const invoiceDetailId = uuidv4();
       const invoiceDetailData = {
@@ -164,7 +170,7 @@ export class InvoiceService {
         notes: detail.notes,
         order_type: request.orderType,
         qty: detail.quantity,
-        variant_id: detail.variantId,
+        variant_id: validVariantId,
         variant_price: variantPrice,
       };
 
@@ -424,6 +430,7 @@ export class InvoiceService {
         throw new Error(`Product with ID ${item.productId} not found`);
       }
 
+      // using the discounted price to proceed calculation
       const originalPrice = product.price ?? 0;
       const discountedPrice =
         product.discount_price !== null && product.discount_price > 0
@@ -432,33 +439,22 @@ export class InvoiceService {
       const productPrice = discountedPrice;
       let variantPrice = 0;
 
-      if (item.variantId) {
+      const validVariantId = await this.validateProductVariant(
+        item.productId,
+        item.variantId,
+      );
+
+      if (validVariantId) {
         const variant = await this._prisma.variant.findUnique({
-          where: { id: item.variantId },
+          where: { id: validVariantId },
           select: { price: true },
         });
 
         if (variant) {
-          variantPrice += variant.price ?? 0;
-        }
-
-        const variantProduct =
-          await this._prisma.variant_has_products.findUnique({
-            where: {
-              variant_id_products_id: {
-                variant_id: item.variantId,
-                products_id: item.productId,
-              },
-            },
-            select: { products_id: true, variant_id: true },
-          });
-
-        if (!variantProduct) {
-          this.logger.error(
-            `Product ${item.productId} with Variant ${item.variantId} not found`,
-          );
-          throw new Error(
-            `Product ${item.productId} with Variant ${item.variantId} not found`,
+          variantPrice = variant.price ?? 0;
+        } else {
+          this.logger.warn(
+            `Variant with ID ${validVariantId} not found, skipping variant price`,
           );
         }
       }
@@ -526,6 +522,32 @@ export class InvoiceService {
       default:
         return 'Unknown payment status';
     }
+  }
+
+  private async validateProductVariant(
+    productId: string,
+    variantId?: string,
+  ): Promise<string | null> {
+    const hasVariant = await this._prisma.variant_has_products.findFirst({
+      where: { products_id: productId },
+      select: { variant_id: true },
+    });
+
+    if (hasVariant && !variantId) {
+      this.logger.error(
+        `Product ${productId} requires a variant but none was provided`,
+      );
+      throw new Error(`Product ${productId} requires a variant`);
+    }
+
+    if (!hasVariant && variantId) {
+      this.logger.warn(
+        `Product ${productId} does not support variants, but variant ${variantId} was provided. Ignoring variant.`,
+      );
+      throw new BadRequestException(`Product ${productId} does not support variants, but variant ${variantId} was provided. Ignoring variant.`);
+    }
+
+    return variantId ?? null;
   }
 
   // End of private function
