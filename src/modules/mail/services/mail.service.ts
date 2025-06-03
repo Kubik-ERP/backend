@@ -36,6 +36,21 @@ export class MailService {
     });
   }
 
+  async sendEmailInvoiceById(
+    to: string,
+    invoice: object,
+    invoiceId: string,
+  ): Promise<void> {
+    await this._transporter.sendMail({
+      from: process.env.SMTP_FROM,
+      to,
+      subject: 'Email Invoice',
+      text: `Your invoice details are as follows: ${invoice}, with ID: ${invoiceId}`,
+      // Assuming invoice is an object, you might want to format it properly
+      html: `<p>Your invoice details are as follows:</p><pre>${JSON.stringify(invoice, null, 2)}</pre>`,
+    });
+  }
+
   async sendMailWithTemplate(
     template: string,
     subject: string,
