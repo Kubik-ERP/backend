@@ -544,7 +544,9 @@ export class InvoiceService {
       this.logger.warn(
         `Product ${productId} does not support variants, but variant ${variantId} was provided. Ignoring variant.`,
       );
-      throw new BadRequestException(`Product ${productId} does not support variants, but variant ${variantId} was provided. Ignoring variant.`);
+      throw new BadRequestException(
+        `Product ${productId} does not support variants, but variant ${variantId} was provided. Ignoring variant.`,
+      );
     }
 
     return variantId ?? null;
