@@ -6,6 +6,7 @@ import { PaymentFactory } from './factories/payment.factory';
 import { MidtransProvider } from './providers/midtrans.provider';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { PaymentLogsService } from '../payment-logs/services/payment-logs.service';
+import { ChargesService } from '../charges/services/charges.service';
 
 @Module({
   providers: [
@@ -15,6 +16,7 @@ import { PaymentLogsService } from '../payment-logs/services/payment-logs.servic
     MidtransProvider,
     NotificationHelper,
     PaymentLogsService,
+    ChargesService,
   ],
   controllers: [InvoiceController],
   exports: [
@@ -22,6 +24,7 @@ import { PaymentLogsService } from '../payment-logs/services/payment-logs.servic
     PrismaService,
     NotificationHelper,
     PaymentLogsService,
+    ChargesService,
   ],
 })
 export class InvoicesModule {}

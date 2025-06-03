@@ -544,8 +544,8 @@ model charges {
   type                charge_type
   percentage          Decimal           @db.Decimal(2, 2)
   is_include          Boolean           @default(false)
-  applied_to_takeaway Boolean?          @default(true)
-  is_enabled          Boolean?          @default(true)
+  applied_to_takeaway Boolean           @default(true)
+  is_enabled          Boolean           @default(true)
   invoice_charges     invoice_charges[]
 }
 

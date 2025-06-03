@@ -189,4 +189,12 @@ export class ProceedPaymentDto {
   public paymentMethodId: string;
 }
 
-export class CalculationEstimationDto extends ProductListDto {}
+export class CalculationEstimationDto extends ProductListDto {
+  @ApiProperty({
+    description: 'Type of the order',
+    required: true,
+    example: 'take_away',
+  })
+  @IsString()
+  public orderType: order_type;
+}

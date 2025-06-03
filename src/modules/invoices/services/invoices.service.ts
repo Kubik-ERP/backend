@@ -8,7 +8,14 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
-import { invoice, invoice_details, invoice_type, Prisma } from '@prisma/client';
+import {
+  charge_type,
+  invoice,
+  invoice_details,
+  invoice_type,
+  order_type,
+  Prisma,
+} from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 // Service
@@ -25,6 +32,7 @@ import { PaymentGateway } from '../interfaces/payments.interface';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
+import { ChargesService } from 'src/modules/charges/services/charges.service';
 
 @Injectable()
 export class InvoiceService {
@@ -32,6 +40,7 @@ export class InvoiceService {
 
   constructor(
     private readonly _prisma: PrismaService,
+    private readonly _charge: ChargesService,
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
   ) {}
@@ -417,6 +426,10 @@ export class InvoiceService {
   ): Promise<CalculationResult> {
     let total = 0;
     let discountTotal = 0;
+    let taxAmount = 0;
+    let taxType = false;
+    let serviceAmount = 0;
+    let serviceType = false;
     const items = [];
 
     for (const item of request.products) {
@@ -475,9 +488,68 @@ export class InvoiceService {
       });
     }
 
+    // applied tax and service
+    // bacause tax and service only set one term, this part
+    // might be need to be change if the business change
+    // get service
+    const serviceCharge = await this._charge.getChargeByType(
+      charge_type.service,
+    );
+    const isTakeaway = request.orderType === order_type.take_away;
+
+    if (serviceCharge?.is_enabled) {
+      const serviceApplicable = serviceCharge.applied_to_takeaway
+        ? true
+        : !isTakeaway;
+
+      if (serviceApplicable) {
+        const percentage = Number(serviceCharge.percentage);
+        if (serviceCharge.is_include) {
+          // If service include, means has include total
+          serviceAmount = total - total / (1 + percentage);
+        } else {
+          // If service exclude, count service as an additional
+          serviceAmount = total * percentage;
+        }
+
+        serviceType = serviceCharge.is_include;
+      }
+    }
+
+    // get tax
+    const tax = await this._charge.getChargeByType(charge_type.tax);
+    if (tax?.is_enabled) {
+      const taxApplicable = tax.applied_to_takeaway ? true : !isTakeaway;
+      const percentage = Number(tax.percentage);
+
+      if (taxApplicable) {
+        // Base tax counting
+        let taxBase = total;
+
+        // If service charge exclude, then tax counted as total + service
+        if (!serviceType) {
+          taxBase += serviceAmount;
+        }
+
+        if (tax.is_include) {
+          // If tax include, count tax portion has included in taxBase
+          taxAmount = taxBase - taxBase / (1 + percentage);
+        } else {
+          // If tax exclude, tax counted as additional
+          taxAmount = taxBase * percentage;
+        }
+
+        taxType = tax.is_include;
+      }
+    }
+
     return {
       total,
       discountTotal,
+      tax: taxAmount,
+      taxInclude: taxType,
+      serviceCharge: serviceAmount,
+      serviceChargeInclude: serviceType,
       items,
     };
   }
