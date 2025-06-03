@@ -5,6 +5,7 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateVariantDto {
   @IsNotEmpty()
@@ -12,5 +13,6 @@ export class CreateVariantDto {
 
   @IsOptional()
   @IsNumber()
+  @Type(() => Number)
   price?: number;
 }

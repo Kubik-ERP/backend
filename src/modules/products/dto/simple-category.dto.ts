@@ -1,8 +1,8 @@
 // src/categories/dto/simple-category.dto.ts
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IS_UUID, IsNotEmpty, IsString, IsUUID } from 'class-validator';
 
 export class SimpleCategoryDto {
   @IsNotEmpty()
-  @IsString()
+  @IsUUID()
   id: string;
 }
