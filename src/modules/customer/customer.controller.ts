@@ -68,6 +68,32 @@ export class CustomersController {
     }
   }
 
+  @Get('/details/:id')
+  async detail(@Param('id') id: string) {
+    try {
+      const customer = await this.customersService.details(id);
+      if (!customer) {
+        throw new HttpException(
+          { statusCode: HttpStatus.NOT_FOUND, message: 'Customer not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(customer),
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch detail Customers',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   @Get(':idOrName')
   async findOne(@Param('idOrName') idOrName: string) {
     try {
