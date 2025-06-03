@@ -33,12 +33,12 @@ model cash_drawers {
   expected_balance Float?
   actual_balance   Float?
   status           cash_drawer_type?
-  employees_id     String            @db.Uuid
   date             DateTime?         @db.Date
   notes            String?           @db.VarChar(45)
-  employees        employees         @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_drawers_employees1")
-
-  @@index([employees_id], map: "fk_cash_drawers_employees1_idx")
+  created_by       BigInt?
+  created_at       BigInt?
+  updated_by       BigInt?
+  updated_at       BigInt?
 }
 
 model cash_register_date {
@@ -132,7 +132,6 @@ model employees {
   start_date                       DateTime?                          @db.Date
   end_date                         DateTime?                          @db.Date
   gender                           gender?
-  cash_drawers                     cash_drawers[]
   cash_register_date_has_employees cash_register_date_has_employees[]
   employees_has_roles              employees_has_roles[]
   employees_shift                  employees_shift[]
@@ -183,6 +182,7 @@ model invoice {
   delete_at          DateTime?            @db.Timestamp(6)
   subtotal           Float
   order_type         order_type?
+  paid_at            DateTime?            @db.Timestamp(6)
   customer           customer             @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods    payment_methods?     @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
   invoice_charges    invoice_charges[]

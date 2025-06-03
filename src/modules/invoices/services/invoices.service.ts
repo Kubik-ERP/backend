@@ -33,6 +33,7 @@ import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { ChargesService } from 'src/modules/charges/services/charges.service';
+import { nodeModuleNameResolver } from 'typescript';
 
 @Injectable()
 export class InvoiceService {
@@ -145,6 +146,7 @@ export class InvoiceService {
       created_at: new Date(),
       update_at: new Date(),
       delete_at: null,
+      paid_at: null,
     };
 
     // create invoice with status unpaid
@@ -213,6 +215,7 @@ export class InvoiceService {
       created_at: new Date(),
       update_at: new Date(),
       delete_at: null,
+      paid_at: null,
     };
 
     // create invoice with status unpaid
@@ -680,6 +683,7 @@ export class InvoiceService {
           created_at: invoice.created_at ?? new Date(),
           update_at: invoice.update_at ?? new Date(),
           delete_at: invoice.delete_at ?? null,
+          paid_at: invoice.paid_at ?? null,
         },
       });
     } catch (error) {
@@ -707,7 +711,8 @@ export class InvoiceService {
           product_price: invoiceDetail.product_price,
           notes: invoiceDetail.notes,
           qty: invoiceDetail.qty,
-          variant_id: invoiceDetail.variant_id,
+          variant_id:
+            invoiceDetail.variant_id === '' ? null : invoiceDetail.variant_id,
         },
       });
     } catch (error) {
