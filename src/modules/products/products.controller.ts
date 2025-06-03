@@ -19,21 +19,21 @@ import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { FindAllProductsQueryDto } from './dto/find-product.dto';
 import { ApiConsumes } from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(ImageUploadInterceptor('file'))
+  @UseInterceptors(ImageUploadInterceptor('image'))
   @Post()
   async create(
     @Body() createProductDto: CreateProductDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
-      const relativePath = file ? `/public/images/${file.filename}` : undefined;
-
+      const relativePath = `/public/images/${file.filename}`;
       const newProducts = await this.productsService.create({
         ...createProductDto,
         image: relativePath,

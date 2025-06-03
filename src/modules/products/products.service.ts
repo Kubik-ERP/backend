@@ -22,9 +22,9 @@ export class ProductsService {
         where: { name: createProductDto.name },
       });
 
-      if (existingProduct) {
-        throw new BadRequestException('Product name must be unique');
-      }
+      // if (existingProduct) {
+      //   throw new BadRequestException('Product name must be unique');
+      // }
 
       if (createProductDto.discount_price === 0) {
         discountValue = createProductDto.price;
@@ -43,6 +43,7 @@ export class ProductsService {
       });
 
       if (createProductDto.categories?.length) {
+        console.log('masuk');
         for (const category of createProductDto.categories) {
           await this.prisma.categories_has_products.create({
             data: {

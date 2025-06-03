@@ -26,16 +26,17 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
-  @ApiPropertyOptional({
-    name: 'picture_url',
-    type: String,
-    example: 'https://example.com/image.jpg',
-    description: 'URL gambar produk',
-  })
+  // @ApiPropertyOptional({
+  //   name: 'image',
+  //   type: String,
+  //   example: 'https://example.com/image.jpg',
+  //   description: 'URL gambar produk',
+  // })
   image?: string;
 
   @Type(() => Number)
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @ApiPropertyOptional({
     name: 'price',
@@ -47,6 +48,7 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsNumber()
+  @Type(() => Number)
   @ApiPropertyOptional({
     name: 'discount_price',
     type: Number,
@@ -54,19 +56,9 @@ export class CreateProductDto {
     description: 'Harga setelah diskon',
   })
   discount_price?: number;
-
-  @IsOptional()
-  @IsBoolean()
-  @ApiPropertyOptional({
-    name: 'isDiscount',
-    type: Boolean,
-    example: true,
-    description: 'Apakah produk sedang diskon?',
-  })
-  isDiscount?: boolean;
-
   @IsOptional()
   @IsNumber()
+  @Type(() => Number)
   @ApiPropertyOptional({
     name: 'discount_value',
     type: Number,
@@ -74,7 +66,7 @@ export class CreateProductDto {
     description: 'Nilai diskon (misal 25)',
   })
   discount_value?: number;
-
+  @Type(() => Boolean)
   @IsOptional()
   @IsBoolean()
   @ApiPropertyOptional({
