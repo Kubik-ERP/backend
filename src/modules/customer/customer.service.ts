@@ -8,7 +8,6 @@ import {
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { PrismaService } from '../../prisma/prisma.service';
-
 import { validate as isUUID } from 'uuid';
 import { customer as CustomerModel } from '@prisma/client';
 
@@ -73,6 +72,11 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
+          customer_has_stores: {
+            include: {
+              stores: true,
+            },
+          },
         },
       });
 
@@ -114,6 +118,11 @@ export class CustomerService {
               tag: true,
             },
           },
+          customer_has_stores: {
+            include: {
+              stores: true,
+            },
+          },
         },
       }),
       this.prisma.customer.count({
@@ -144,6 +153,9 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
+          customer_has_stores: {
+            include: { stores: true },
+          },
         },
       });
     } else {
@@ -154,6 +166,9 @@ export class CustomerService {
         include: {
           customers_has_tag: {
             include: { tag: true },
+          },
+          customer_has_stores: {
+            include: { stores: true },
           },
         },
       });
@@ -170,6 +185,9 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
+          customer_has_stores: {
+            include: { stores: true },
+          },
         },
       });
     } else {
@@ -180,6 +198,9 @@ export class CustomerService {
         include: {
           customers_has_tag: {
             include: { tag: true },
+          },
+          customer_has_stores: {
+            include: { stores: true },
           },
         },
       });
@@ -243,6 +264,9 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
+          customer_has_stores: {
+            include: { stores: true },
+          },
         },
       });
 
@@ -262,6 +286,9 @@ export class CustomerService {
         include: {
           customers_has_tag: {
             include: { tag: true },
+          },
+          customer_has_stores: {
+            include: { stores: true },
           },
         },
       });
