@@ -654,7 +654,7 @@ export class InvoiceService {
     try {
       return await this._prisma.invoice.update({
         where: { id },
-        data: { payment_status: status },
+        data: { payment_status: status, paid_at: new Date() },
       });
     } catch (error) {
       this.logger.error('Failed to update invoice status');
