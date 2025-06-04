@@ -3,7 +3,7 @@ name: Build & Deploy to Server
 on:
   push:
     branches:
-      - development  # Jalankan saat ada push ke branch 'main'
+      - development
 
 jobs:
   deploy:
@@ -13,14 +13,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Copy Project to Server
+      - name: Set deployment environment variable
+        id: env
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "env=production" >> $GITHUB_OUTPUT
+          else
+            echo "env=development" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Copy project files to server
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "."
-          target: "~/app"
+          source: '.'
+          target: '~/deploy/${{ steps.env.outputs.env }}'
+          strip_components: 0
 
       - name: SSH and Build Docker on Server
         uses: appleboy/ssh-action@v1
@@ -29,13 +39,36 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cp ~/.env ~/app
-            cd ~/app
-            
-            docker network inspect kubik-net >/dev/null 2>&1 || docker network create kubik-net
-            docker compose up -d --build redis
+            DEPLOY_DIR=~/deploy/${{ steps.env.outputs.env }}
+            APP_NAME=kubik-backend
 
-            docker build -t kubik-backend .
-            docker stop kubik-backend || true
-            docker rm kubik-backend || true
-            docker run -d --name kubik-backend  --network kubik-net --restart always -p 8080:8080 kubik-backend
+            echo ">> Copying .env"
+            cp ~/.env $DEPLOY_DIR/.env
+
+            cd $DEPLOY_DIR
+
+            echo ">> Cleaning up Docker (prune unused)"
+            docker container prune -f
+            docker image prune -f
+            docker volume prune -f
+
+            echo ">> Creating Docker network if not exists"
+            docker network inspect kubik-net >/dev/null 2>&1 || docker network create kubik-net
+
+            echo ">> Starting redis with docker compose"
+            docker compose up -d --build --force-recreate redis
+
+            echo ">> Building backend Docker image"
+            docker build -t $APP_NAME:${GITHUB_SHA} .
+
+            echo ">> Stopping and removing old container"
+            docker stop $APP_NAME || true
+            docker rm $APP_NAME || true
+
+            echo ">> Running new container"
+            docker run -d \
+              --name $APP_NAME \
+              --network kubik-net \
+              --restart always \
+              -p 8080:8080 \
+              $APP_NAME:${GITHUB_SHA}
