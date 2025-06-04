@@ -40,15 +40,27 @@ export class MailService {
     to: string,
     invoice: object,
     invoiceId: string,
+    pdfBuffer?: Buffer,
   ): Promise<void> {
-    await this._transporter.sendMail({
+    const mailOptions: any = {
       from: process.env.SMTP_FROM,
       to,
       subject: 'Email Invoice',
-      text: `Your invoice details are as follows: ${invoice}, with ID: ${invoiceId}`,
-      // Assuming invoice is an object, you might want to format it properly
+      text: `Your invoice details are as follows:\n\n${JSON.stringify(invoice, null, 2)}\n\nInvoice ID: ${invoiceId}`,
       html: `<p>Your invoice details are as follows:</p><pre>${JSON.stringify(invoice, null, 2)}</pre>`,
-    });
+    };
+
+    if (pdfBuffer) {
+      mailOptions.attachments = [
+        {
+          filename: `invoice-${invoiceId}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        },
+      ];
+    }
+
+    await this._transporter.sendMail(mailOptions);
   }
 
   async sendMailWithTemplate(
