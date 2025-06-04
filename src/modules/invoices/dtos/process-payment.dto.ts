@@ -32,7 +32,7 @@ export class ProductDto {
     required: true,
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
-  @IsNotEmpty()
+  @IsString()
   public variantId: string;
 
   @ApiProperty({ description: 'Quantity', required: true, example: 1 })
@@ -189,4 +189,12 @@ export class ProceedPaymentDto {
   public paymentMethodId: string;
 }
 
-export class CalculationEstimationDto extends ProductListDto {}
+export class CalculationEstimationDto extends ProductListDto {
+  @ApiProperty({
+    description: 'Type of the order',
+    required: true,
+    example: 'take_away',
+  })
+  @IsString()
+  public orderType: order_type;
+}

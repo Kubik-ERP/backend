@@ -5,6 +5,7 @@ import { DatabasePostgresConfigModule } from './configurations/database/postgres
 // Modules
 import { AuthenticationModule } from './modules/authentication/authentication.module';
 import { UsersModule } from './modules/users/users.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentMethodModule } from './modules/payment-methods/payment-method.module';
 import { CustomLogger } from './common/logger/custom.logger';
 
@@ -21,8 +22,7 @@ import { RolesModule } from './modules/roles/roles.module';
 import { ShiftModule } from './modules/shift/shift.module';
 import Keyv from 'keyv';
 import { CustomerModule } from './modules/customer/customer.module';
-import { TagModule } from './modules/tag/tag.module';
-import { InvoicesModule } from './modules/invoices/invoices.module';
+import { ChargesModule } from './modules/charges/charges.module';
 
 @Module({
   imports: [
@@ -50,9 +50,9 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
     AuthenticationModule,
     UsersModule,
     CategoriesModule,
+    ChargesModule,
     InvoicesModule,
     CustomerModule,
-    TagModule,
     PaymentMethodModule,
     ProductsModule,
     StoresModule,
