@@ -35,6 +35,10 @@ export class CreateCustomerDto {
   @IsOptional()
   email?: string;
 
+  @ApiPropertyOptional({ description: 'Gender Male/female' })
+  @IsOptional()
+  gender?: string;
+
   @ApiPropertyOptional({ description: 'Customer address' })
   @IsOptional()
   @IsString()

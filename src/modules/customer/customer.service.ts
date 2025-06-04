@@ -21,6 +21,7 @@ export class CustomerService {
         name: createCustomerDto.name,
         code: createCustomerDto.code,
         number: createCustomerDto.number,
+        gender: createCustomerDto.gender,
         email: createCustomerDto.email,
         dob: createCustomerDto.dob
           ? new Date(createCustomerDto.dob)

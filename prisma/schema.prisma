@@ -98,6 +98,7 @@ model customer {
   email                  String?                  @db.VarChar(45)
   username               String?                  @db.VarChar(45)
   address                String?                  @db.VarChar(45)
+  gender                 String?                  @db.VarChar(45)
   customer_has_stores    customer_has_stores[]
   customers_has_invoices customers_has_invoices[]
   customers_has_tag      customers_has_tag[]
@@ -556,6 +557,7 @@ model invoice_charges {
   charge_id  String  @db.Uuid
   percentage Decimal @db.Decimal(2, 2)
   amount     Decimal @db.Decimal(12, 2)
+  is_include Boolean
   charges    charges @relation(fields: [charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_charges_fk")
   invoice    invoice @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_invoice_fk")
 
