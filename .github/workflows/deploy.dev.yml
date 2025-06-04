@@ -13,24 +13,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set deployment environment variable
-        id: env
-        run: |
-          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
-            echo "env=production" >> $GITHUB_OUTPUT
-          else
-            echo "env=development" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Copy project files to server
+      - name: Copy project to server via SCP
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           source: '.'
-          target: '~/deploy/${{ steps.env.outputs.env }}'
-          strip_components: 0
+          target: '~/app'
 
       - name: SSH and Build Docker on Server
         uses: appleboy/ssh-action@v1
@@ -39,36 +29,27 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            DEPLOY_DIR=~/deploy/${{ steps.env.outputs.env }}
-            APP_NAME=kubik-backend
+            echo ">> Copying .env if exists"
+            cp ~/.env ~/app/.env || true
 
-            echo ">> Copying .env"
-            cp ~/.env $DEPLOY_DIR/.env
-
-            cd $DEPLOY_DIR
-
-            echo ">> Cleaning up Docker (prune unused)"
-            docker container prune -f
-            docker image prune -f
-            docker volume prune -f
+            echo ">> Navigating to app directory"
+            cd ~/app
 
             echo ">> Creating Docker network if not exists"
             docker network inspect kubik-net >/dev/null 2>&1 || docker network create kubik-net
 
+            echo ">> Stopping and removing existing redis-server if exists"
+            docker rm -f redis-server || true
+
             echo ">> Starting redis with docker compose"
-            docker compose up -d --build --force-recreate redis
+            docker compose -f deploy/development/docker-compose.yml up -d redis
 
             echo ">> Building backend Docker image"
-            docker build -t $APP_NAME:${GITHUB_SHA} .
+            docker build -t kubik-backend .
 
             echo ">> Stopping and removing old container"
-            docker stop $APP_NAME || true
-            docker rm $APP_NAME || true
+            docker stop kubik-backend || true
+            docker rm kubik-backend || true
 
             echo ">> Running new container"
-            docker run -d \
-              --name $APP_NAME \
-              --network kubik-net \
-              --restart always \
-              -p 8080:8080 \
-              $APP_NAME:${GITHUB_SHA}
+            docker run -d --name kubik-backend --network kubik-net --restart always -p 8080:8080 kubik-backend
