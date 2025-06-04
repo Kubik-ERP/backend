@@ -134,7 +134,6 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
-    const calculation = await this.calculateTotal(request);
     const invoiceData = {
       id: invoiceId,
       payment_methods_id: request.paymentMethodId,
@@ -143,7 +142,7 @@ export class InvoiceService {
       payment_status: invoice_type.unpaid,
       discount_amount: 0, // need to confirm
       order_type: request.orderType,
-      subtotal: calculation.total,
+      subtotal: 0, // default value
       created_at: new Date(),
       update_at: new Date(),
       delete_at: null,
@@ -152,6 +151,11 @@ export class InvoiceService {
 
     // create invoice with status unpaid
     await this.create(invoiceData);
+
+    const calculation = await this.calculateTotal(request, invoiceId);
+
+    // update subtotal
+    await this.update(invoiceId, calculation.total);
 
     request.products.forEach(async (detail) => {
       // find the price
@@ -300,7 +304,10 @@ export class InvoiceService {
     }
 
     // calculate estimation
-    const calculation = await this.calculateTotal(calculationEstimationDto);
+    const calculation = await this.calculateTotal(
+      calculationEstimationDto,
+      invoice.id,
+    );
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
       paymentProvider,
@@ -428,6 +435,7 @@ export class InvoiceService {
 
   public async calculateTotal(
     request: CalculationEstimationDto,
+    invoiceId?: string,
   ): Promise<CalculationResult> {
     let total = 0;
     let discountTotal = 0;
@@ -520,6 +528,18 @@ export class InvoiceService {
         }
 
         serviceType = serviceCharge.is_include;
+
+        // upsert data service charge into invoice charge
+        if (invoiceId !== null && invoiceId !== undefined) {
+          const invoiceCharge = {
+            invoice_id: invoiceId!,
+            charge_id: serviceCharge.id,
+            percentage: serviceCharge.percentage,
+            amount: new Prisma.Decimal(serviceAmount),
+            is_include: serviceType,
+          };
+          await this.upsertInvoiceCharge(invoiceCharge);
+        }
       }
     }
 
@@ -548,6 +568,18 @@ export class InvoiceService {
         }
 
         taxType = tax.is_include;
+
+        // upsert data service charge into invoice charge
+        if (invoiceId !== null && invoiceId !== undefined) {
+          const invoiceCharge = {
+            invoice_id: invoiceId!,
+            charge_id: tax.id,
+            percentage: tax.percentage,
+            amount: new Prisma.Decimal(taxAmount),
+            is_include: taxType,
+          };
+          await this.upsertInvoiceCharge(invoiceCharge);
+        }
       }
     }
 
@@ -646,6 +678,7 @@ export class InvoiceService {
         charge_id: request.charge_id,
         percentage: request.percentage,
         amount: request.amount,
+        is_include: request.is_include,
       };
 
       return await this.createInvoiceCharge(invoiceChargeData);
@@ -728,6 +761,25 @@ export class InvoiceService {
     }
   }
 
+  public async update(invoiceId: string, total: number) {
+    try {
+      await this._prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          subtotal: total,
+          update_at: new Date(),
+        },
+      });
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Failed to update invoice');
+      throw new BadRequestException('Failed to update invoice', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
   /**
    * @description Create an invoice details
    */
@@ -770,6 +822,7 @@ export class InvoiceService {
           charge_id: invoiceCharge.charge_id,
           percentage: invoiceCharge.percentage,
           amount: invoiceCharge.amount,
+          is_include: invoiceCharge.is_include,
         },
       });
     } catch (error) {
