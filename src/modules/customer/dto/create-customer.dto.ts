@@ -26,7 +26,7 @@ export class CreateCustomerDto {
   @ApiProperty({ description: 'Customer number' })
   @IsNotEmpty()
   @IsString()
-  number: string;
+  number?: string;
 
   @ApiPropertyOptional({ description: 'Date of birth' })
   @IsOptional()
