@@ -21,16 +21,6 @@ export class CustomerService {
         where: { name: createCustomerDto.name },
       });
 
-      if (existingCustomer) {
-        throw new HttpException(
-          {
-            statusCode: HttpStatus.BAD_REQUEST,
-            message: 'Customer name already exists',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
       const customerData: any = {
         name: createCustomerDto.name,
         code: createCustomerDto.code,
