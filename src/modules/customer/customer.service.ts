@@ -17,10 +17,6 @@ export class CustomerService {
 
   async create(createCustomerDto: CreateCustomerDto) {
     try {
-      const existingCustomer = await this.prisma.customer.findFirst({
-        where: { name: createCustomerDto.name },
-      });
-
       const customerData: any = {
         name: createCustomerDto.name,
         code: createCustomerDto.code,
