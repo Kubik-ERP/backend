@@ -13,8 +13,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Copy project to server via SCP
-        uses: appleboy/scp-action@v0.1.4
+      - name: Copy project files to server
+        uses: appleboy/scp-action@v0.1.6
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
@@ -22,34 +22,36 @@ jobs:
           source: '.'
           target: '~/app'
 
-      - name: SSH and Build Docker on Server
+      - name: SSH and Deploy on Server
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            echo ">> Copying .env if exists"
-            cp ~/.env ~/app/.env || true
+            echo ">> Check folder deploy/development"
+            ls -lah ~/app/deploy/development || echo
 
-            echo ">> Navigating to app directory"
-            cd ~/app
+            echo ">> Check disk space"
+            df -h
 
-            echo ">> Creating Docker network if not exists"
+            echo ">> Stop and erase container redis-server if exist"
+            docker stop redis-server 2>/dev/null || true
+            docker rm redis-server 2>/dev/null || true
+
+            echo ">> Create docker network kubik-net if not exist"
             docker network inspect kubik-net >/dev/null 2>&1 || docker network create kubik-net
 
-            echo ">> Stopping and removing existing redis-server if exists"
-            docker rm -f redis-server || true
+            echo ">> Run Redis with docker compose"
+            docker compose -f ~/app/deploy/development/docker-compose.yml up -d redis
 
-            echo ">> Starting redis with docker compose"
-            docker compose -f deploy/development/docker-compose.yml up -d redis
-
-            echo ">> Building backend Docker image"
+            echo ">> Build Docker image kubik-backend"
+            cd ~/app
             docker build -t kubik-backend .
 
-            echo ">> Stopping and removing old container"
-            docker stop kubik-backend || true
-            docker rm kubik-backend || true
+            echo ">> Stop and erase container kubik-backend if exist"
+            docker stop kubik-backend 2>/dev/null || true
+            docker rm kubik-backend 2>/dev/null || true
 
-            echo ">> Running new container"
+            echo ">> Run container kubik-backend"
             docker run -d --name kubik-backend --network kubik-net --restart always -p 8080:8080 kubik-backend
