@@ -8,6 +8,8 @@ import {
   HttpException,
   HttpStatus,
   Delete,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -15,15 +17,28 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { Query } from '@nestjs/common';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { FindAllProductsQueryDto } from './dto/find-product.dto';
+import { ApiConsumes } from '@nestjs/swagger';
+import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
   @Post()
-  async create(@Body() createProductDto: CreateProductDto) {
+  async create(
+    @Body() createProductDto: CreateProductDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
     try {
-      const newProducts = await this.productsService.create(createProductDto);
+      const relativePath = `/public/images/${file.filename}`;
+      const newProducts = await this.productsService.create({
+        ...createProductDto,
+        image: relativePath,
+      });
+
       return {
         statusCode: 201,
         message: 'Products created successfully',
