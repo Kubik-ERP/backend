@@ -8,10 +8,17 @@ import {
   Put,
   Req,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { InvoiceService } from '../services/invoices.service';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
-import { ApiOperation, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import {
   GetInvoiceSettingDto,
   SettingInvoiceDto,
@@ -19,6 +26,7 @@ import {
 import { empty } from '@prisma/client/runtime/library';
 import { StoresService } from 'src/modules/stores/services/stores.service';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { ImageUploadInterceptor } from 'src/common/interceptors/image-upload.interceptor';
 
 @Controller('invoice')
 export class InvoiceSettingController {
@@ -32,7 +40,16 @@ export class InvoiceSettingController {
     summary: 'Set Invoice Setting',
   })
   @UseGuards(AuthenticationJWTGuard)
-  async set(@Body() body: SettingInvoiceDto, @Req() req: IRequestUser) {
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('companyLogo'))
+  async set(
+    @Body() body: SettingInvoiceDto,
+    @Req() req: IRequestUser,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const relativePath = file ? `/public/images/${file.filename}` : undefined;
+    body.companyLogo = relativePath;
     const validateStore = await this.storeService.validateStore(
       body.storeId,
       req.id,
@@ -54,6 +71,7 @@ export class InvoiceSettingController {
   @Get('setting')
   @ApiOperation({ summary: 'Get Invoice Setting' })
   @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   async getData(@Query() q: GetInvoiceSettingDto, @Req() req: IRequestUser) {
     const validateStore = await this.storeService.validateStore(
       q.storeId,

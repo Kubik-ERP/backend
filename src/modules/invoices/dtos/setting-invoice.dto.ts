@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
@@ -16,11 +17,16 @@ export class SettingInvoiceDto {
 
   @ApiPropertyOptional({
     type: 'string',
-    description: 'URL logo perusahaan (opsional)',
+    description: 'logo perusahaan (opsional)',
   })
   @IsOptional()
   @IsString()
-  companyLogoUrl?: string;
+  @ApiProperty({
+    type: 'string',
+    format: 'binary',
+    description: 'Image file to upload (photo/logo)',
+  })
+  companyLogo?: string;
 
   @ApiPropertyOptional({
     description: 'Teks footer yang ditampilkan di invoice',
@@ -31,51 +37,63 @@ export class SettingInvoiceDto {
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isAutomaticallyPrintReceipt: boolean;
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isAutomaticallyPrintKitchen: boolean;
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isAutomaticallyPrintTable: boolean;
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isShowCompanyLogo: boolean;
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isShowStoreLocation: boolean;
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isHideCashierName: boolean;
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isHideOrderType: boolean;
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isHideQueueNumber: boolean;
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isShowTableNumber: boolean;
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isHideItemPrices: boolean;
 
   @ApiProperty({ default: false })
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   isShowFooter: boolean;
 
   @ApiPropertyOptional({ description: 'Jumlah kenaikan nomor invoice' })
   @IsOptional()
   @IsInt()
+  @Transform(({ value }) => parseInt(value))
   incrementBy?: number;
 
   @ApiPropertyOptional({
@@ -88,6 +106,7 @@ export class SettingInvoiceDto {
   @ApiPropertyOptional({ description: 'Nomor awal invoice' })
   @IsOptional()
   @IsInt()
+  @Transform(({ value }) => parseInt(value))
   startingNumber?: number;
 }
 

@@ -928,7 +928,7 @@ export class InvoiceService {
       const response = await this._prisma.invoice_settings.upsert({
         where: { store_id: body.storeId },
         update: {
-          company_logo_url: body.companyLogoUrl,
+          company_logo_url: body.companyLogo,
           footer_text: body.footerText,
           is_automatically_print_receipt: body.isAutomaticallyPrintReceipt,
           is_automatically_print_kitchen: body.isAutomaticallyPrintKitchen,
@@ -947,7 +947,7 @@ export class InvoiceService {
         },
         create: {
           store_id: body.storeId,
-          company_logo_url: body.companyLogoUrl,
+          company_logo_url: body.companyLogo,
           footer_text: body.footerText,
           is_automatically_print_receipt: body.isAutomaticallyPrintReceipt,
           is_automatically_print_kitchen: body.isAutomaticallyPrintKitchen,
