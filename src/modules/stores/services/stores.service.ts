@@ -160,4 +160,14 @@ export class StoresService {
       },
     });
   }
+
+  public async validateStore(
+    storeId: string,
+    userId: number,
+  ): Promise<boolean> {
+    const store = await this.prisma.stores.findUnique({
+      where: { id: storeId, user_has_stores: { some: { user_id: userId } } },
+    });
+    return !!store;
+  }
 }

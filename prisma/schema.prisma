@@ -573,6 +573,29 @@ model customers_has_invoices {
   @@id([customers_id, invoices_id], map: "pk_customers_has_invoices")
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model invoice_settings {
+  id                             Int     @id(map: "invoice_settings_pk") @default(autoincrement())
+  store_id                       String  @unique(map: "invoice_settings_unique") @db.Uuid
+  uid                            Int?
+  company_logo_url               String?
+  footer_text                    String?
+  is_automatically_print_receipt Boolean @default(false)
+  is_automatically_print_kitchen Boolean @default(false)
+  is_automatically_print_table   Boolean @default(false)
+  is_show_company_logo           Boolean @default(false)
+  is_show_store_location         Boolean @default(false)
+  is_hide_cashier_name           Boolean @default(false)
+  is_hide_order_type             Boolean @default(false)
+  is_hide_queue_number           Boolean @default(false)
+  is_show_table_number           Boolean @default(false)
+  is_hide_item_prices            Boolean @default(false)
+  is_show_footer                 Boolean @default(false)
+  increment_by                   Int?
+  reset_sequence                 String?
+  starting_number                Int?
+}
+
 enum cash_drawer_type {
   open
   close
