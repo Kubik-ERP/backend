@@ -21,6 +21,9 @@ export class ProductsService {
       const existingProduct = await this.prisma.products.findFirst({
         where: { name: createProductDto.name },
       });
+      if (existingProduct) {
+        throw new Error('Product with this name already exists');
+      }
       if (createProductDto.discount_price === 0) {
         discountValue = createProductDto.price;
       } else {

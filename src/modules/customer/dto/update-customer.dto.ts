@@ -32,6 +32,10 @@ export class UpdateCustomerDto {
   @IsDateString()
   dob?: string;
 
+  @ApiPropertyOptional({ description: 'Gender Male/female' })
+  @IsOptional()
+  gender?: string;
+
   @ApiPropertyOptional({ description: 'Email address' })
   @IsOptional()
   @IsEmail()

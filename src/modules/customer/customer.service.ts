@@ -8,7 +8,6 @@ import {
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { PrismaService } from '../../prisma/prisma.service';
-
 import { validate as isUUID } from 'uuid';
 import { customer as CustomerModel } from '@prisma/client';
 
@@ -18,24 +17,11 @@ export class CustomerService {
 
   async create(createCustomerDto: CreateCustomerDto) {
     try {
-      const existingCustomer = await this.prisma.customer.findFirst({
-        where: { name: createCustomerDto.name },
-      });
-
-      if (existingCustomer) {
-        throw new HttpException(
-          {
-            statusCode: HttpStatus.BAD_REQUEST,
-            message: 'Customer name already exists',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
       const customerData: any = {
         name: createCustomerDto.name,
         code: createCustomerDto.code,
         number: createCustomerDto.number,
+        gender: createCustomerDto.gender,
         email: createCustomerDto.email,
         dob: createCustomerDto.dob
           ? new Date(createCustomerDto.dob)
@@ -72,6 +58,11 @@ export class CustomerService {
         include: {
           customers_has_tag: {
             include: { tag: true },
+          },
+          customer_has_stores: {
+            include: {
+              stores: true,
+            },
           },
         },
       });
@@ -114,6 +105,11 @@ export class CustomerService {
               tag: true,
             },
           },
+          customer_has_stores: {
+            include: {
+              stores: true,
+            },
+          },
         },
       }),
       this.prisma.customer.count({
@@ -136,6 +132,52 @@ export class CustomerService {
     };
   }
 
+  public async details(id: string): Promise<any> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      include: {
+        customers_has_tag: {
+          include: { tag: true },
+        },
+        customer_has_stores: {
+          include: { stores: true },
+        },
+        customers_has_invoices: {
+          include: {
+            invoice: true,
+          },
+        },
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    const paidTotal = customer.customers_has_invoices
+      .filter((chi) => chi.invoice?.payment_status === 'paid')
+      .reduce((sum, chi) => sum + (chi.invoice?.subtotal || 0), 0);
+
+    const unpaidTotal = customer.customers_has_invoices
+      .filter((chi) => chi.invoice?.payment_status === 'unpaid')
+      .reduce((sum, chi) => sum + (chi.invoice?.subtotal || 0), 0);
+
+    return {
+      id: customer.id,
+      name: customer.name,
+      code: customer.code,
+      number: customer.number,
+      email: customer.email,
+      dob: customer.dob,
+      address: customer.address,
+      paid: paidTotal,
+      unpaid: unpaidTotal,
+      tags: customer.customers_has_tag.map((cht) => cht.tag),
+      stores: customer.customer_has_stores.map((chs) => chs.stores),
+      invoices: customer.customers_has_invoices.map((chi) => chi.invoice),
+    };
+  }
+
   public async findOne(idOrName: string): Promise<CustomerModel | null> {
     if (isUUID(idOrName)) {
       return await this.prisma.customer.findUnique({
@@ -143,6 +185,9 @@ export class CustomerService {
         include: {
           customers_has_tag: {
             include: { tag: true },
+          },
+          customer_has_stores: {
+            include: { stores: true },
           },
         },
       });
@@ -154,6 +199,9 @@ export class CustomerService {
         include: {
           customers_has_tag: {
             include: { tag: true },
+          },
+          customer_has_stores: {
+            include: { stores: true },
           },
         },
       });
@@ -170,6 +218,9 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
+          customer_has_stores: {
+            include: { stores: true },
+          },
         },
       });
     } else {
@@ -180,6 +231,9 @@ export class CustomerService {
         include: {
           customers_has_tag: {
             include: { tag: true },
+          },
+          customer_has_stores: {
+            include: { stores: true },
           },
         },
       });
@@ -243,6 +297,9 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
+          customer_has_stores: {
+            include: { stores: true },
+          },
         },
       });
 
@@ -262,6 +319,9 @@ export class CustomerService {
         include: {
           customers_has_tag: {
             include: { tag: true },
+          },
+          customer_has_stores: {
+            include: { stores: true },
           },
         },
       });

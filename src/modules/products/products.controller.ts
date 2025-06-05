@@ -19,7 +19,6 @@ import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { FindAllProductsQueryDto } from './dto/find-product.dto';
 import { ApiConsumes } from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
-import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('products')
 export class ProductsController {
@@ -106,16 +105,27 @@ export class ProductsController {
   }
 
   @Patch(':id')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
   async update(
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     try {
-      const result = await this.productsService.update(id, updateProductDto);
+      if (file) {
+        updateProductDto.image = `/public/images/${file.filename}`;
+      }
+
+      const updatedProduct = await this.productsService.update(
+        id,
+        updateProductDto,
+      );
+
       return {
         statusCode: 200,
         message: 'Product updated successfully',
-        result: toCamelCase(result),
+        result: toCamelCase(updatedProduct),
       };
     } catch (error) {
       return {

@@ -6,7 +6,6 @@ import {
   IsEmail,
   IsArray,
   ValidateNested,
-  IsUUID,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -24,19 +23,21 @@ export class CreateCustomerDto {
   code?: string;
 
   @ApiProperty({ description: 'Customer number' })
-  @IsNotEmpty()
   @IsString()
-  number: string;
+  @IsOptional()
+  number?: string;
 
   @ApiPropertyOptional({ description: 'Date of birth' })
   @IsOptional()
-  @IsDateString()
   dob?: string;
 
   @ApiPropertyOptional({ description: 'Email address' })
   @IsOptional()
-  @IsEmail()
   email?: string;
+
+  @ApiPropertyOptional({ description: 'Gender Male/female' })
+  @IsOptional()
+  gender?: string;
 
   @ApiPropertyOptional({ description: 'Customer address' })
   @IsOptional()
