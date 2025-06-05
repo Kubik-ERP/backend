@@ -18,4 +18,8 @@ export class CreateCategoryDto {
     example: 'Description 1',
   })
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  image?: string;
 }

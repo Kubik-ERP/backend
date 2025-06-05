@@ -9,21 +9,35 @@ import {
   HttpException,
   HttpStatus,
   Query,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
+import { ApiConsumes } from '@nestjs/swagger';
+import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
   @Post()
-  async create(@Body() createCategoryDto: CreateCategoryDto) {
+  async create(
+    @Body() createCategoryDto: CreateCategoryDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const relativePath = `/public/images/${file.filename}`;
+
     try {
-      const newCategory =
-        await this.categoriesService.create(createCategoryDto);
+      const newCategory = await this.categoriesService.create({
+        ...createCategoryDto,
+        image: relativePath,
+      });
+
       return {
         statusCode: 201,
         message: 'Category created successfully',
@@ -31,8 +45,8 @@ export class CategoriesController {
       };
     } catch (error) {
       return {
-        statusCode: 500,
-        message: error.message || 'Failed to create category',
+        statusCode: error?.status || 500,
+        message: error?.message || 'Failed to create category',
         result: null,
       };
     }
