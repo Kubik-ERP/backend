@@ -13,6 +13,7 @@ import {
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ApiOperation } from '@nestjs/swagger';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
+import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
 
 @Controller('invoice')
 export class InvoiceController {
@@ -35,6 +36,19 @@ export class InvoiceController {
   })
   public async invoiceById(@Param() param: GetInvoiceDto) {
     const response = await this.invoiceService.getInvoicePreview(param);
+
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  @Post('sent-email/:invoiceId')
+  @ApiOperation({
+    summary: 'Sent email invoice to customer by invoice ID',
+  })
+  public async sentEmailInvoiceById(@Param() param: SentEmailInvoiceByIdDto) {
+    const { invoiceId } = param; // Mengambil invoiceId dari param
+    const response = await this.invoiceService.sentEmailInvoiceById(invoiceId);
 
     return {
       result: toCamelCase(response),

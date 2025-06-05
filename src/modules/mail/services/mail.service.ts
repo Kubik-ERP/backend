@@ -36,6 +36,50 @@ export class MailService {
     });
   }
 
+  async sendEmailInvoiceById(
+    to: string,
+    invoice: {
+      created_at: string | Date;
+      customer_name?: string;
+      [key: string]: any;
+    },
+    invoiceId: string,
+    pdfBuffer?: Buffer,
+  ): Promise<void> {
+    const createdAt = new Date(invoice.created_at);
+    const formattedDate = createdAt.toLocaleDateString('id-ID'); // Format DD/MM/YYYY
+    const formattedTime = createdAt.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const customer_name = invoice.customer.name || 'Valued Customer';
+
+    const mailOptions: any = {
+      from: process.env.SMTP_FROM,
+      to,
+      subject: 'Invoice Details',
+      text: `Dear Customer,\n\nYour invoice details are as follows:\n\nInvoice ID: ${invoiceId}\nDate: ${formattedDate} ${formattedTime}`,
+      html: `
+      <p>Dear Customer, ${customer_name}</p>
+      <p>Your invoice details are as follows:</p>
+      <p><strong>Invoice ID:</strong> ${invoiceId}</p>
+      <p><strong>Date:</strong> ${formattedDate} ${formattedTime}</p>
+    `,
+    };
+
+    if (pdfBuffer) {
+      mailOptions.attachments = [
+        {
+          filename: `invoice-${invoiceId}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        },
+      ];
+    }
+
+    await this._transporter.sendMail(mailOptions);
+  }
+
   async sendMailWithTemplate(
     template: string,
     subject: string,

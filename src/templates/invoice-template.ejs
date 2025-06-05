@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice</title>
+  <style>
+    html, body {
+      font-family: 'Courier', monospace;
+      font-size: 10px;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      margin: 0 auto;  /* Mengatur margin otomatis untuk terpusat */
+      padding: 0;
+      width: 100%;
+      max-width: 100%; /* Menghindari lebar lebih dari ukuran kertas */
+      box-sizing: border-box;  /* Pastikan padding dan border tidak menambah lebar */
+    }
+
+    .title {
+      text-align: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 9px;
+      margin-bottom: 10px;
+    }
+
+    .line {
+      text-align: center;
+      letter-spacing: 2px;
+    }
+
+    .info {
+      margin-top: 10px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .invoice-datetime-or-status {
+      position: relative;
+      width: 100%;
+      font-family: 'Inter', monospace;
+      font-size: 12px;
+    }
+
+    .invoice-datetime-or-status::before {
+      /* content: '===================================================='; */
+      display: block;
+      text-align: center;
+      color: #000;
+    }
+
+    .invoice-datetime-or-status::after {
+      /* content: '===================================================='; */
+      display: block;
+      text-align: center;
+      color: #000;
+    }
+
+    .invoice-datetime-or-status-content {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .date {
+      text-align: left;
+    }
+
+    .cashier {
+      text-align: right;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 10px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 4px 0;
+      font-size: 9px;
+    }
+
+    th {
+      text-align: left;
+    }
+
+    tfoot td {
+      font-weight: bold;
+    }
+
+    .footer {
+      text-align: center;
+      font-size: 9px;
+      margin-top: 20px;
+    }
+
+    /* Align Qty and Subtotal to the center, and Harga/Subtotal to the right */
+    .qty-center, .price-center {
+      text-align: center;
+    }
+
+    .price-right, .subtotal-right {
+      text-align: right;
+    }
+
+    @media (max-width: 1024px) {
+      .invoice-datetime-or-status::before {
+        /* content: '===================================================='; */
+        display: block;
+        width: 100%;  /* Make sure the line spans the full width */
+        text-align: center;  /* Keep text aligned to the center */
+      }
+
+      .invoice-datetime-or-status::after {
+        /* content: '===================================================='; */
+        display: block;
+        width: 100%;  /* Make sure the line spans the full width */
+        text-align: center;  /* Keep text aligned to the center */
+      }
+    }
+
+    @media print {
+      body {
+        width: 58mm; /* Ukuran kertas struk */
+        margin: 0;
+        padding: 0;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 100%; /* Pastikan lebar container menyesuaikan dengan ukuran kertas */
+        padding: 0;
+        margin: 0 auto;
+      }
+
+      .footer {
+        margin-top: 10px;
+      }
+    }
+
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Logo Section -->
+    <section id="logo" class="w-20 h-20 bg-grayscale-10">&nbsp;</section>
+
+    <div class="title">Lawson Kaliurang</div>
+    <div class="subtitle">
+      Lawson Kaliurang - Jl. Kaliurang KM 6, Blotan, Sukoharjo, Kec. Ngaglik, Kabupaten Sleman, Daerah Istimewa Yogyakarta
+    </div>
+    
+     <hr />
+    <!-- Date & Cashier Information -->
+    <div class="invoice-datetime-or-status">
+      <div class="invoice-datetime-or-status-content">
+        <!-- Tanggal (dalam format DD/MM/YYYY) -->
+        <span class="date" style="font-size: 10px;">
+          <%= new Date(invoice.created_at).toLocaleDateString('id-ID') %> <!-- Format DD/MM/YYYY -->
+          <br>
+          <%= new Date(invoice.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) %>
+        </span>
+        <span class="cashier" style="font-size: 10px;">KASIR <br> <%= invoice.id %></span>
+      </div>
+    </div>
+    <hr />
+
+    <!-- Cashier and Customer Information -->
+    <div class="info">
+      <div class="row">
+        <div>Cashier</div>
+        <div>Samantha</div>
+      </div>
+      <div class="row">
+        <div>Cust. Name</div>
+        <div><%= invoice.customer.name %></div>
+      </div>
+      <div class="row">
+        <div>Order Type</div>
+        <div><%= invoice.order_type.replace('_', ' ').toUpperCase() %></div>
+      </div>
+      <div class="row">
+        <div>Queue</div>
+        <div>38</div>
+      </div>
+    </div>
+
+    <hr />
+
+    <!-- Invoice Items Table -->
+    <table>
+      <thead>
+        <tr>
+          <th align="left">Deskripsi</th>
+          <th class="qty-center">Qty</th>
+          <th class="price-center">Harga</th>
+          <th class="subtotal-right">Sub Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% let total = 0; let totalQty = 0; %>
+        <% invoice.invoice_details.forEach(item => { 
+          const harga = item.product_price;
+          const variantPrice = item.variant ? item.variant.price : 0;
+          const subtotal = item.qty * (harga + variantPrice);
+          total += subtotal;
+          totalQty += item.qty;
+        %>
+          <tr>
+            <td><%= item.products.name %></td>
+            <td class="qty-center"><%= item.qty %></td>
+            <td class="price-center">Rp <%= harga.toLocaleString('id-ID') %></td>
+            <td class="subtotal-right">Rp <%= subtotal.toLocaleString('id-ID') %></td> <!-- Subtotal aligned to the right -->
+          </tr>
+          <% if (item.variant) { %>
+            <tr>
+              <td class="pl-4" align="left"><%= item.variant.name %></td>
+              <td class="qty-center"><%= item.qty %></td>
+              <td class="price-center">Rp <%= item.variant.price.toLocaleString('id-ID') %></td>
+              <td class="subtotal-right">Rp <%= (item.variant.price * item.qty).toLocaleString('id-ID') %></td> <!-- Variant Price Subtotal -->
+            </tr>
+          <% } %>
+        <% }) %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td>Sub Total</td>
+          <td class="qty-center"><%= totalQty %></td>
+          <td colspan="2" class="subtotal-right">Rp <%= total.toLocaleString('id-ID') %></td>
+        </tr>
+        <tr>
+          <td>Promo</td>
+          <td class="qty-center">2</td>
+          <td colspan="2" class="subtotal-right">- Rp <%= (invoice.discount_amount || 0).toLocaleString('id-ID') %></td>
+        </tr>
+        <tr>
+          <td>Debit</td>
+          <td colspan="3" class="subtotal-right">Rp <%= (total - (invoice.discount_amount || 0)).toLocaleString('id-ID') %></td>
+        </tr>
+        <tr>
+          <td>Kembali</td>
+          <td colspan="3" class="subtotal-right">0</td>
+        </tr>
+        <tr><td colspan="4"><hr /></td></tr>
+        <tr>
+          <td>PPN</td>
+          <td colspan="3" class="subtotal-right">Rp <%= Math.round((total - (invoice.discount_amount || 0)) * 0.1).toLocaleString('id-ID') %></td>
+        </tr>
+        <tr>
+          <td>Total</td>
+          <td colspan="3" class="subtotal-right">Rp <%= (total - (invoice.discount_amount || 0) + Math.round((total - (invoice.discount_amount || 0)) * 0.1)).toLocaleString('id-ID') %></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="footer">
+      <p>Social Media</p>
+      <p>Instagram : @lawsonkal</p>
+      <p>Terima kasih dan kami tunggu kehadiran Anda kembali</p>
+    </div>
+  </div>
+</body>
+</html>
