@@ -55,7 +55,7 @@ export class InvoiceService {
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
     private readonly _mailService: MailService,
-  ) {}
+  ) { }
 
   public async getInvoices(request: GetListInvoiceDto) {
     const {
@@ -199,6 +199,9 @@ export class InvoiceService {
     // update subtotal
     await this.update(invoiceId, calculation.total);
 
+    // insert the customer has invoice
+    await this.createCustomerInvoice(invoiceId, request.customerId);
+
     request.products.forEach(async (detail) => {
       // find the price
       let productPrice = 0,
@@ -298,6 +301,9 @@ export class InvoiceService {
       // create invoice with status unpaid
       await this.createInvoiceDetail(invoiceDetailData);
     });
+
+    // insert the customer has invoice
+    await this.createCustomerInvoice(invoiceId, request.customerId);
 
     const result = {
       orderId: invoiceId,
@@ -1005,7 +1011,25 @@ export class InvoiceService {
       return toCamelCase(response);
     } catch (error) {
       console.error(error);
-      throw new BadRequestException('Failed to update invoice settings', {
+      throw new BadRequestException('Failed to update invoice settings');
+    }
+  }
+  
+  /**
+   * @description Get invoice charge data
+   */
+  public async createCustomerInvoice(invoiceId: string, customerId: string) {
+    try {
+      return await this._prisma.customers_has_invoices.create({
+        data: {
+          invoices_id: invoiceId,
+          customers_id: customerId,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Failed to create customer has invoice');
+      throw new BadRequestException('Failed to create customer has invoice', {
         cause: new Error(),
         description: error.message,
       });
