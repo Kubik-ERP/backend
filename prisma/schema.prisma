@@ -89,17 +89,6 @@ model categories_has_products {
   @@index([products_id], map: "fk_categories_has_products_products1_idx")
 }
 
-model charges {
-  id                  String            @id(map: "charges_pk") @db.Uuid
-  name                String            @db.VarChar
-  type                charge_type
-  percentage          Decimal           @db.Decimal(2, 2)
-  is_include          Boolean           @default(false)
-  applied_to_takeaway Boolean           @default(true)
-  is_enabled          Boolean           @default(true)
-  invoice_charges     invoice_charges[]
-}
-
 model customer {
   id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                   String?                  @db.VarChar(45)
@@ -109,6 +98,7 @@ model customer {
   email                  String?                  @db.VarChar(45)
   username               String?                  @db.VarChar(45)
   address                String?                  @db.VarChar(45)
+  gender                 String?                  @db.VarChar(45)
   customer_has_stores    customer_has_stores[]
   customers_has_invoices customers_has_invoices[]
   customers_has_tag      customers_has_tag[]
@@ -124,15 +114,6 @@ model customer_has_stores {
   @@id([customer_id, stores_id])
   @@index([customer_id], map: "fk_customer_has_stores_customer1_idx")
   @@index([stores_id], map: "fk_customer_has_stores_stores1_idx")
-}
-
-model customers_has_invoices {
-  customers_id String   @db.Uuid
-  invoices_id  String   @db.Uuid
-  customer     customer @relation(fields: [customers_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customers_has_invoices_customer")
-  invoice      invoice  @relation(fields: [invoices_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customers_has_invoices_invoice")
-
-  @@id([customers_id, invoices_id], map: "pk_customers_has_invoices")
 }
 
 model customers_has_tag {
@@ -215,18 +196,6 @@ model invoice {
   @@index([payment_methods_id], map: "fk_invoice_payment_methods1_idx")
 }
 
-model invoice_charges {
-  invoice_id String  @db.Uuid
-  charge_id  String  @db.Uuid
-  percentage Decimal @db.Decimal(2, 2)
-  amount     Decimal @db.Decimal(12, 2)
-  is_include Boolean
-  charges    charges @relation(fields: [charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_charges_fk")
-  invoice    invoice @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_invoice_fk")
-
-  @@unique([invoice_id, charge_id], map: "invoice_charges_unique")
-}
-
 model invoice_details {
   id            String    @db.Uuid
   product_id    String?   @db.Uuid
@@ -284,17 +253,6 @@ model operational_hours {
 
   @@id([id, stores_id])
   @@index([stores_id], map: "fk_operational_hours_stores1_idx")
-}
-
-model payment_logs {
-  id            String    @id(map: "payment_logs_pk") @db.Uuid
-  service_name  String?   @db.VarChar
-  url           String?   @db.VarChar
-  method        String?   @db.VarChar
-  request_body  String?
-  response_body String?
-  status_code   Int?
-  created_at    DateTime? @db.Timestamp(6)
 }
 
 model payment_methods {
@@ -572,14 +530,52 @@ model voucher_has_products {
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
 }
 
+model payment_logs {
+  id            String    @id(map: "payment_logs_pk") @db.Uuid
+  service_name  String?   @db.VarChar
+  url           String?   @db.VarChar
+  method        String?   @db.VarChar
+  request_body  String?
+  response_body String?
+  status_code   Int?
+  created_at    DateTime? @db.Timestamp(6)
+}
+
+model charges {
+  id                  String            @id(map: "charges_pk") @db.Uuid
+  name                String            @db.VarChar
+  type                charge_type
+  percentage          Decimal           @db.Decimal(2, 2)
+  is_include          Boolean           @default(false)
+  applied_to_takeaway Boolean           @default(true)
+  is_enabled          Boolean           @default(true)
+  invoice_charges     invoice_charges[]
+}
+
+model invoice_charges {
+  invoice_id String  @db.Uuid
+  charge_id  String  @db.Uuid
+  percentage Decimal @db.Decimal(2, 2)
+  amount     Decimal @db.Decimal(12, 2)
+  is_include Boolean
+  charges    charges @relation(fields: [charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_charges_fk")
+  invoice    invoice @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_invoice_fk")
+
+  @@unique([invoice_id, charge_id], map: "invoice_charges_unique")
+}
+
+model customers_has_invoices {
+  customers_id String   @db.Uuid
+  invoices_id  String   @db.Uuid
+  customer     customer @relation(fields: [customers_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customers_has_invoices_customer")
+  invoice      invoice  @relation(fields: [invoices_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customers_has_invoices_invoice")
+
+  @@id([customers_id, invoices_id], map: "pk_customers_has_invoices")
+}
+
 enum cash_drawer_type {
   open
   close
-}
-
-enum charge_type {
-  tax
-  service
 }
 
 enum gender {
@@ -611,4 +607,9 @@ enum transaction_type {
   cash_in
   opening_balance
   cash_refund
+}
+
+enum charge_type {
+  tax
+  service
 }
