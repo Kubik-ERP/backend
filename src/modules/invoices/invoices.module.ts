@@ -19,7 +19,7 @@ import { StoresService } from '../stores/services/stores.service';
     NotificationHelper,
     PaymentLogsService,
     ChargesService,
-    StoresService
+    StoresService,
   ],
   controllers: [InvoiceSettingController, InvoiceController],
   exports: [

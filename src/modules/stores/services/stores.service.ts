@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class StoresService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   public async createStore(
     data: CreateStoreDto,
@@ -161,7 +161,10 @@ export class StoresService {
     });
   }
 
-  public async validateStore(storeId: string, userId: number): Promise<boolean> {
+  public async validateStore(
+    storeId: string,
+    userId: number,
+  ): Promise<boolean> {
     const store = await this.prisma.stores.findUnique({
       where: { id: storeId, user_has_stores: { some: { user_id: userId } } },
     });

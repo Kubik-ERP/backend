@@ -92,7 +92,10 @@ export class SettingInvoiceDto {
 }
 
 export class GetInvoiceSettingDto {
-  @ApiProperty({ description: 'Store ID', example: 'f3d8f7d2-0f1a-4db9-993b-d4a3c03741ff' })
+  @ApiProperty({
+    description: 'Store ID',
+    example: 'f3d8f7d2-0f1a-4db9-993b-d4a3c03741ff',
+  })
   @IsUUID()
   storeId: string;
 }
