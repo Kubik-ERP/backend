@@ -40,6 +40,16 @@ export class ChargesService {
     }
   }
 
+  public async chargeList() {
+    const charges = await this.getChargeList();
+    const formattedCharges = charges.map((charge) => ({
+      ...charge,
+      percentage: charge.percentage.toNumber(),
+    }));
+
+    return formattedCharges;
+  }
+
   /**
    * @description Create a charge
    */
@@ -104,6 +114,24 @@ export class ChargesService {
       console.log(error);
       this.logger.error('Failed to fetch charge by type');
       throw new BadRequestException('Failed to fetch charge by type', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Get list charge data
+   */
+  public async getChargeList(): Promise<charges[]> {
+    try {
+      return await this._prisma.charges.findMany({
+        where: { is_enabled: true },
+      });
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Failed to fetch charge list');
+      throw new BadRequestException('Failed to fetch charge list', {
         cause: new Error(),
         description: error.message,
       });
