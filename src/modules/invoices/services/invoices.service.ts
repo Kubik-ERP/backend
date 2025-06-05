@@ -131,10 +131,6 @@ export class InvoiceService {
     // Find the invoice by id
     const invoice = await this.getInvoicePreview({ invoiceId });
 
-    if (!invoice) {
-      throw new Error('Invoice not found');
-    }
-
     // Ambil email dari customer invoice
     const email = invoice.customer?.email;
 

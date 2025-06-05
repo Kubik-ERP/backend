@@ -47,8 +47,8 @@ export class MailService {
     pdfBuffer?: Buffer,
   ): Promise<void> {
     const createdAt = new Date(invoice.created_at);
-    const formattedDate = createdAt.toLocaleDateString('en-GB'); // Format DD/MM/YYYY
-    const formattedTime = createdAt.toLocaleTimeString('en-GB', {
+    const formattedDate = createdAt.toLocaleDateString('id-ID'); // Format DD/MM/YYYY
+    const formattedTime = createdAt.toLocaleTimeString('id-ID', {
       hour: '2-digit',
       minute: '2-digit',
     });

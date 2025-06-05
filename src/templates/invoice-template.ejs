@@ -166,22 +166,20 @@
       Lawson Kaliurang - Jl. Kaliurang KM 6, Blotan, Sukoharjo, Kec. Ngaglik, Kabupaten Sleman, Daerah Istimewa Yogyakarta
     </div>
     
-    <!-- <div class="line">================================================</div> -->
      <hr />
     <!-- Date & Cashier Information -->
     <div class="invoice-datetime-or-status">
       <div class="invoice-datetime-or-status-content">
         <!-- Tanggal (dalam format DD/MM/YYYY) -->
         <span class="date" style="font-size: 10px;">
-          <%= new Date(invoice.created_at).toLocaleDateString('en-GB') %> <!-- Format DD/MM/YYYY -->
+          <%= new Date(invoice.created_at).toLocaleDateString('id-ID') %> <!-- Format DD/MM/YYYY -->
           <br>
-          <%= new Date(invoice.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %>
+          <%= new Date(invoice.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) %>
         </span>
         <span class="cashier" style="font-size: 10px;">KASIR <br> <%= invoice.id %></span>
       </div>
     </div>
     <hr />
-    <!-- <div class="line">================================================</div> -->
 
     <!-- Cashier and Customer Information -->
     <div class="info">
