@@ -6,9 +6,11 @@ import { PaymentFactory } from './factories/payment.factory';
 import { MidtransProvider } from './providers/midtrans.provider';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { PaymentLogsService } from '../payment-logs/services/payment-logs.service';
+import { MailModule } from '../mail/mail.module';
 import { ChargesService } from '../charges/services/charges.service';
 
 @Module({
+  imports: [MailModule],
   providers: [
     InvoiceService,
     PaymentFactory,

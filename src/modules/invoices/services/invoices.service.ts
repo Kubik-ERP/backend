@@ -1,5 +1,6 @@
 // Factory
 import { PaymentFactory } from '../factories/payment.factory';
+import { generateInvoiceHtmlPdf } from '../../../common/helpers/invoice-html-pdf.helper';
 
 // NestJS
 import {
@@ -35,6 +36,8 @@ import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { ChargesService } from 'src/modules/charges/services/charges.service';
 import { nodeModuleNameResolver } from 'typescript';
+import { MailService } from 'src/modules/mail/services/mail.service';
+import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
 
 @Injectable()
 export class InvoiceService {
@@ -45,6 +48,7 @@ export class InvoiceService {
     private readonly _charge: ChargesService,
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
+    private readonly _mailService: MailService,
   ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
@@ -121,6 +125,38 @@ export class InvoiceService {
     }
 
     return invoice;
+  }
+
+  public async sentEmailInvoiceById(invoiceId: string): Promise<any> {
+    // Find the invoice by id
+    const invoice = await this.getInvoicePreview({ invoiceId });
+
+    // Ambil email dari customer invoice
+    const email = invoice.customer?.email;
+
+    if (!email) {
+      throw new Error('Customer email not found');
+    }
+
+    const pdfBuffer = await generateInvoiceHtmlPdf(invoice);
+
+    // Ensure created_at is not null and is a string or Date
+    const safeInvoice = {
+      ...invoice,
+      created_at: invoice.created_at ?? new Date(),
+      name: invoice.customer?.name ?? 'Unknown Customer',
+    };
+
+    await this._mailService.sendEmailInvoiceById(
+      email,
+      safeInvoice,
+      invoiceId,
+      pdfBuffer,
+    );
+    return {
+      success: true,
+      message: `Email sent successfully to ${email}`,
+    };
   }
 
   public async proceedInstantPayment(request: ProceedInstantPaymentDto) {
