@@ -55,7 +55,7 @@ export class InvoiceService {
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
     private readonly _mailService: MailService,
-  ) { }
+  ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
     const {
@@ -1014,7 +1014,7 @@ export class InvoiceService {
       throw new BadRequestException('Failed to update invoice settings');
     }
   }
-  
+
   /**
    * @description Get invoice charge data
    */
