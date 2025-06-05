@@ -1,5 +1,7 @@
 // Factory
 import { PaymentFactory } from '../factories/payment.factory';
+import { generateInvoicePdf } from '../../../common/helpers/invoice-pdf.helper';
+import { generateInvoiceHtmlPdf } from '../../../common/helpers/invoice-html-pdf.helper';
 
 // NestJS
 import {
@@ -35,6 +37,7 @@ import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { ChargesService } from 'src/modules/charges/services/charges.service';
 import { nodeModuleNameResolver } from 'typescript';
+import { MailService } from 'src/modules/mail/services/mail.service';
 
 @Injectable()
 export class InvoiceService {
@@ -45,6 +48,7 @@ export class InvoiceService {
     private readonly _charge: ChargesService,
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
+    private readonly _mailService: MailService,
   ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
@@ -121,6 +125,26 @@ export class InvoiceService {
     }
 
     return invoice;
+  }
+
+  public async sentEmailInvoiceById(
+    email: string,
+    invoiceId: string,
+  ): Promise<object> {
+    // Find the invoice by id
+    const invoice = await this.getInvoicePreview({ invoiceId });
+    const pdfBuffer = await generateInvoiceHtmlPdf(invoice);
+
+    await this._mailService.sendEmailInvoiceById(
+      email,
+      invoice,
+      invoiceId,
+      pdfBuffer,
+    );
+    return {
+      success: true,
+      message: `Email sent successfully to ${email}`,
+    };
   }
 
   public async proceedInstantPayment(request: ProceedInstantPaymentDto) {

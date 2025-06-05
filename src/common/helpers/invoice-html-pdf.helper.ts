@@ -30,9 +30,16 @@ export async function generateInvoiceHtmlPdf(invoice: any): Promise<Buffer> {
   await page.setContent(html, { waitUntil: 'networkidle0' });
 
   const pdfBuffer = await page.pdf({
-    format: 'A4',
+    format: 'A6',
+    width: '58mm',
+    height: 'auto',
     printBackground: true,
-    margin: { top: '40px', bottom: '40px', left: '40px', right: '40px' },
+    margin: {
+      top: '10mm',
+      bottom: '10mm',
+      left: '10mm',
+      right: '10mm',
+    },
   });
 
   await browser.close();

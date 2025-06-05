@@ -5,29 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Invoice</title>
   <style>
-    body {
+    html, body {
       font-family: 'Courier', monospace;
-      font-size: 12px;
+      font-size: 10px;
       margin: 0;
       padding: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .container {
-      padding: 40px;
+      margin: 0 auto;  /* Mengatur margin otomatis untuk terpusat */
+      padding: 0;
       width: 100%;
-      max-width: 480px;
-      margin: 0 auto;
+      max-width: 100%; /* Menghindari lebar lebih dari ukuran kertas */
+      box-sizing: border-box;  /* Pastikan padding dan border tidak menambah lebar */
     }
 
     .title {
       text-align: center;
       font-weight: bold;
-      font-size: 16px;
+      font-size: 14px;
     }
 
     .subtitle {
       text-align: center;
-      font-size: 10px;
+      font-size: 9px;
       margin-bottom: 10px;
     }
 
@@ -87,7 +92,7 @@
 
     th, td {
       padding: 4px 0;
-      font-size: 10px;
+      font-size: 9px;
     }
 
     th {
@@ -100,7 +105,8 @@
 
     .footer {
       text-align: center;
-      margin-top: 40px;
+      font-size: 9px;
+      margin-top: 20px;
     }
 
     /* Align Qty and Subtotal to the center, and Harga/Subtotal to the right */
@@ -127,6 +133,27 @@
         text-align: center;  /* Keep text aligned to the center */
       }
     }
+
+    @media print {
+      body {
+        width: 58mm; /* Ukuran kertas struk */
+        margin: 0;
+        padding: 0;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 100%; /* Pastikan lebar container menyesuaikan dengan ukuran kertas */
+        padding: 0;
+        margin: 0 auto;
+      }
+
+      .footer {
+        margin-top: 10px;
+      }
+    }
+
+
   </style>
 </head>
 <body>
@@ -144,8 +171,13 @@
     <!-- Date & Cashier Information -->
     <div class="invoice-datetime-or-status">
       <div class="invoice-datetime-or-status-content">
-        <span class="date"><%= new Date(invoice.created_at).toISOString().slice(0,16).replace('T', ' ') %></span>
-        <span class="cashier">KASIR <br> <%= invoice.id %></span>
+        <!-- Tanggal (dalam format DD/MM/YYYY) -->
+        <span class="date" style="font-size: 10px;">
+          <%= new Date(invoice.created_at).toLocaleDateString('en-GB') %> <!-- Format DD/MM/YYYY -->
+          <br>
+          <%= new Date(invoice.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %>
+        </span>
+        <span class="cashier" style="font-size: 10px;">KASIR <br> <%= invoice.id %></span>
       </div>
     </div>
     <hr />
@@ -180,30 +212,30 @@
           <th align="left">Deskripsi</th>
           <th class="qty-center">Qty</th>
           <th class="price-center">Harga</th>
-          <th class="subtotal-right">Sub Total</th> <!-- Align Sub Total to the right -->
+          <th class="subtotal-right">Sub Total</th>
         </tr>
       </thead>
       <tbody>
         <% let total = 0; let totalQty = 0; %>
         <% invoice.invoice_details.forEach(item => { 
           const harga = item.product_price;
-          const variantPrice = item.variant ? item.variant.price : 0;  // If there's a variant price
-          const subtotal = item.qty * (harga + variantPrice);  // Include variant price in subtotal
+          const variantPrice = item.variant ? item.variant.price : 0;
+          const subtotal = item.qty * (harga + variantPrice);
           total += subtotal;
           totalQty += item.qty;
         %>
           <tr>
             <td><%= item.products.name %></td>
             <td class="qty-center"><%= item.qty %></td>
-            <td class="price-center"><%= harga.toLocaleString('id-ID') %></td>
-            <td class="subtotal-right"><%= subtotal.toLocaleString('id-ID') %></td> <!-- Subtotal aligned to the right -->
+            <td class="price-center">Rp <%= harga.toLocaleString('id-ID') %></td>
+            <td class="subtotal-right">Rp <%= subtotal.toLocaleString('id-ID') %></td> <!-- Subtotal aligned to the right -->
           </tr>
           <% if (item.variant) { %>
             <tr>
               <td class="pl-4" align="left"><%= item.variant.name %></td>
               <td class="qty-center"><%= item.qty %></td>
-              <td class="price-center"><%= item.variant.price.toLocaleString('id-ID') %></td>
-              <td class="subtotal-right"><%= (item.variant.price * item.qty).toLocaleString('id-ID') %></td> <!-- Variant Price Subtotal -->
+              <td class="price-center">Rp <%= item.variant.price.toLocaleString('id-ID') %></td>
+              <td class="subtotal-right">Rp <%= (item.variant.price * item.qty).toLocaleString('id-ID') %></td> <!-- Variant Price Subtotal -->
             </tr>
           <% } %>
         <% }) %>
@@ -212,16 +244,16 @@
         <tr>
           <td>Sub Total</td>
           <td class="qty-center"><%= totalQty %></td>
-          <td colspan="2" class="subtotal-right"><%= total.toLocaleString('id-ID') %></td> <!-- Total Subtotal aligned to the right -->
+          <td colspan="2" class="subtotal-right">Rp <%= total.toLocaleString('id-ID') %></td>
         </tr>
         <tr>
           <td>Promo</td>
           <td class="qty-center">2</td>
-          <td colspan="2" class="subtotal-right"><%= -(invoice.discount_amount || 0).toLocaleString('id-ID') %></td>
+          <td colspan="2" class="subtotal-right">- Rp <%= (invoice.discount_amount || 0).toLocaleString('id-ID') %></td>
         </tr>
         <tr>
           <td>Debit</td>
-          <td colspan="3" class="subtotal-right"><%= (total - (invoice.discount_amount || 0)).toLocaleString('id-ID') %></td>
+          <td colspan="3" class="subtotal-right">Rp <%= (total - (invoice.discount_amount || 0)).toLocaleString('id-ID') %></td>
         </tr>
         <tr>
           <td>Kembali</td>
@@ -230,11 +262,11 @@
         <tr><td colspan="4"><hr /></td></tr>
         <tr>
           <td>PPN</td>
-          <td colspan="3" class="subtotal-right"><%= Math.round((total - (invoice.discount_amount || 0)) * 0.1).toLocaleString('id-ID') %></td>
+          <td colspan="3" class="subtotal-right">Rp <%= Math.round((total - (invoice.discount_amount || 0)) * 0.1).toLocaleString('id-ID') %></td>
         </tr>
         <tr>
           <td>Total</td>
-          <td colspan="3" class="subtotal-right"><%= (total - (invoice.discount_amount || 0) + Math.round((total - (invoice.discount_amount || 0)) * 0.1)).toLocaleString('id-ID') %></td>
+          <td colspan="3" class="subtotal-right">Rp <%= (total - (invoice.discount_amount || 0) + Math.round((total - (invoice.discount_amount || 0)) * 0.1)).toLocaleString('id-ID') %></td>
         </tr>
       </tfoot>
     </table>
