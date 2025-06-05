@@ -8,7 +8,15 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
-import { invoice, invoice_details, invoice_type, Prisma } from '@prisma/client';
+import {
+  charge_type,
+  invoice,
+  invoice_charges,
+  invoice_details,
+  invoice_type,
+  order_type,
+  Prisma,
+} from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 // Service
@@ -25,6 +33,8 @@ import { PaymentGateway } from '../interfaces/payments.interface';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
+import { ChargesService } from 'src/modules/charges/services/charges.service';
+import { nodeModuleNameResolver } from 'typescript';
 
 @Injectable()
 export class InvoiceService {
@@ -32,6 +42,7 @@ export class InvoiceService {
 
   constructor(
     private readonly _prisma: PrismaService,
+    private readonly _charge: ChargesService,
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
   ) {}
@@ -123,7 +134,6 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
-    const calculation = await this.calculateTotal(request);
     const invoiceData = {
       id: invoiceId,
       payment_methods_id: request.paymentMethodId,
@@ -132,14 +142,20 @@ export class InvoiceService {
       payment_status: invoice_type.unpaid,
       discount_amount: 0, // need to confirm
       order_type: request.orderType,
-      subtotal: calculation.total,
+      subtotal: 0, // default value
       created_at: new Date(),
       update_at: new Date(),
       delete_at: null,
+      paid_at: null,
     };
 
     // create invoice with status unpaid
     await this.create(invoiceData);
+
+    const calculation = await this.calculateTotal(request, invoiceId);
+
+    // update subtotal
+    await this.update(invoiceId, calculation.total);
 
     request.products.forEach(async (detail) => {
       // find the price
@@ -154,6 +170,12 @@ export class InvoiceService {
         variantPrice = found.variantPrice;
       }
 
+      // validate product has variant
+      const validVariantId = await this.validateProductVariant(
+        detail.productId,
+        detail.variantId,
+      );
+
       // create invoice detail ID
       const invoiceDetailId = uuidv4();
       const invoiceDetailData = {
@@ -164,7 +186,7 @@ export class InvoiceService {
         notes: detail.notes,
         order_type: request.orderType,
         qty: detail.quantity,
-        variant_id: detail.variantId,
+        variant_id: validVariantId,
         variant_price: variantPrice,
       };
 
@@ -198,6 +220,7 @@ export class InvoiceService {
       created_at: new Date(),
       update_at: new Date(),
       delete_at: null,
+      paid_at: null,
     };
 
     // create invoice with status unpaid
@@ -280,12 +303,16 @@ export class InvoiceService {
       calculationEstimationDto.products.push(dto);
     }
 
-    const calculation = await this.calculateTotal(calculationEstimationDto);
+    // calculate estimation
+    const calculation = await this.calculateTotal(
+      calculationEstimationDto,
+      invoice.id,
+    );
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
       paymentProvider,
       request.invoiceId,
-      calculation.total,
+      calculation.grandTotal,
     );
 
     return response;
@@ -408,9 +435,14 @@ export class InvoiceService {
 
   public async calculateTotal(
     request: CalculationEstimationDto,
+    invoiceId?: string,
   ): Promise<CalculationResult> {
     let total = 0;
     let discountTotal = 0;
+    let taxAmount = 0;
+    let taxType = false;
+    let serviceAmount = 0;
+    let serviceType = false;
     const items = [];
 
     for (const item of request.products) {
@@ -424,6 +456,7 @@ export class InvoiceService {
         throw new Error(`Product with ID ${item.productId} not found`);
       }
 
+      // using the discounted price to proceed calculation
       const originalPrice = product.price ?? 0;
       const discountedPrice =
         product.discount_price !== null && product.discount_price > 0
@@ -432,33 +465,22 @@ export class InvoiceService {
       const productPrice = discountedPrice;
       let variantPrice = 0;
 
-      if (item.variantId) {
+      const validVariantId = await this.validateProductVariant(
+        item.productId,
+        item.variantId,
+      );
+
+      if (validVariantId) {
         const variant = await this._prisma.variant.findUnique({
-          where: { id: item.variantId },
+          where: { id: validVariantId },
           select: { price: true },
         });
 
         if (variant) {
-          variantPrice += variant.price ?? 0;
-        }
-
-        const variantProduct =
-          await this._prisma.variant_has_products.findUnique({
-            where: {
-              variant_id_products_id: {
-                variant_id: item.variantId,
-                products_id: item.productId,
-              },
-            },
-            select: { products_id: true, variant_id: true },
-          });
-
-        if (!variantProduct) {
-          this.logger.error(
-            `Product ${item.productId} with Variant ${item.variantId} not found`,
-          );
-          throw new Error(
-            `Product ${item.productId} with Variant ${item.variantId} not found`,
+          variantPrice = variant.price ?? 0;
+        } else {
+          this.logger.warn(
+            `Variant with ID ${validVariantId} not found, skipping variant price`,
           );
         }
       }
@@ -479,9 +501,96 @@ export class InvoiceService {
       });
     }
 
+    // applied tax and service
+    // bacause tax and service only set one term, this part
+    // might be need to be change if the business change
+    // get service
+    let grandTotal = total;
+    const serviceCharge = await this._charge.getChargeByType(
+      charge_type.service,
+    );
+    const isTakeaway = request.orderType === order_type.take_away;
+
+    if (serviceCharge?.is_enabled) {
+      const serviceApplicable = serviceCharge.applied_to_takeaway
+        ? true
+        : !isTakeaway;
+
+      if (serviceApplicable) {
+        const percentage = Number(serviceCharge.percentage);
+        if (serviceCharge.is_include) {
+          // If service include, means has include total
+          serviceAmount = total - total / (1 + percentage);
+        } else {
+          // If service exclude, count service as an additional
+          serviceAmount = total * percentage;
+          grandTotal += serviceAmount;
+        }
+
+        serviceType = serviceCharge.is_include;
+
+        // upsert data service charge into invoice charge
+        if (invoiceId !== null && invoiceId !== undefined) {
+          const invoiceCharge = {
+            invoice_id: invoiceId!,
+            charge_id: serviceCharge.id,
+            percentage: serviceCharge.percentage,
+            amount: new Prisma.Decimal(serviceAmount),
+            is_include: serviceType,
+          };
+          await this.upsertInvoiceCharge(invoiceCharge);
+        }
+      }
+    }
+
+    // get tax
+    const tax = await this._charge.getChargeByType(charge_type.tax);
+    if (tax?.is_enabled) {
+      const taxApplicable = tax.applied_to_takeaway ? true : !isTakeaway;
+      const percentage = Number(tax.percentage);
+
+      if (taxApplicable) {
+        // Base tax counting
+        let taxBase = total;
+
+        // If service charge exclude, then tax counted as total + service
+        if (!serviceType) {
+          taxBase += serviceAmount;
+        }
+
+        if (tax.is_include) {
+          // If tax include, count tax portion has included in taxBase
+          taxAmount = taxBase - taxBase / (1 + percentage);
+        } else {
+          // If tax exclude, tax counted as additional
+          taxAmount = taxBase * percentage;
+          grandTotal += taxAmount;
+        }
+
+        taxType = tax.is_include;
+
+        // upsert data service charge into invoice charge
+        if (invoiceId !== null && invoiceId !== undefined) {
+          const invoiceCharge = {
+            invoice_id: invoiceId!,
+            charge_id: tax.id,
+            percentage: tax.percentage,
+            amount: new Prisma.Decimal(taxAmount),
+            is_include: taxType,
+          };
+          await this.upsertInvoiceCharge(invoiceCharge);
+        }
+      }
+    }
+
     return {
       total,
       discountTotal,
+      tax: taxAmount,
+      taxInclude: taxType,
+      serviceCharge: serviceAmount,
+      serviceChargeInclude: serviceType,
+      grandTotal,
       items,
     };
   }
@@ -528,6 +637,61 @@ export class InvoiceService {
     }
   }
 
+  private async validateProductVariant(
+    productId: string,
+    variantId?: string,
+  ): Promise<string | null> {
+    const hasVariant = await this._prisma.variant_has_products.findFirst({
+      where: { products_id: productId },
+      select: { variant_id: true },
+    });
+
+    if (hasVariant && !variantId) {
+      this.logger.error(
+        `Product ${productId} requires a variant but none was provided`,
+      );
+      throw new Error(`Product ${productId} requires a variant`);
+    }
+
+    if (!hasVariant && variantId) {
+      this.logger.warn(
+        `Product ${productId} does not support variants, but variant ${variantId} was provided. Ignoring variant.`,
+      );
+      throw new BadRequestException(
+        `Product ${productId} does not support variants, but variant ${variantId} was provided. Ignoring variant.`,
+      );
+    }
+
+    return variantId ?? null;
+  }
+
+  private async upsertInvoiceCharge(request: invoice_charges) {
+    // update insert data of invoice charge
+    const invoiceCharge = await this.getInvoiceChargeById(
+      request.invoice_id,
+      request.charge_id,
+    );
+    if (invoiceCharge == null) {
+      // if tax or service not exist create
+      const invoiceChargeData = {
+        invoice_id: request.invoice_id,
+        charge_id: request.charge_id,
+        percentage: request.percentage,
+        amount: request.amount,
+        is_include: request.is_include,
+      };
+
+      return await this.createInvoiceCharge(invoiceChargeData);
+    } else {
+      // if tax or service exist update
+      invoiceCharge.percentage = request.percentage;
+      invoiceCharge.amount = request.amount;
+
+      await this.updateInvoiceCharge(invoiceCharge);
+      return invoiceCharge;
+    }
+  }
+
   // End of private function
 
   // Query section
@@ -555,7 +719,7 @@ export class InvoiceService {
     try {
       return await this._prisma.invoice.update({
         where: { id },
-        data: { payment_status: status },
+        data: { payment_status: status, paid_at: new Date() },
       });
     } catch (error) {
       this.logger.error('Failed to update invoice status');
@@ -584,12 +748,32 @@ export class InvoiceService {
           created_at: invoice.created_at ?? new Date(),
           update_at: invoice.update_at ?? new Date(),
           delete_at: invoice.delete_at ?? null,
+          paid_at: invoice.paid_at ?? null,
         },
       });
     } catch (error) {
       console.log(error);
       this.logger.error('Failed to create invoice');
       throw new BadRequestException('Failed to create invoice', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  public async update(invoiceId: string, total: number) {
+    try {
+      await this._prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          subtotal: total,
+          update_at: new Date(),
+        },
+      });
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Failed to update invoice');
+      throw new BadRequestException('Failed to update invoice', {
         cause: new Error(),
         description: error.message,
       });
@@ -611,13 +795,68 @@ export class InvoiceService {
           product_price: invoiceDetail.product_price,
           notes: invoiceDetail.notes,
           qty: invoiceDetail.qty,
-          variant_id: invoiceDetail.variant_id,
+          variant_id:
+            invoiceDetail.variant_id === '' ? null : invoiceDetail.variant_id,
         },
       });
     } catch (error) {
       console.log(error);
       this.logger.error('Failed to create invoice detail');
       throw new BadRequestException('Failed to create invoice detail', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Create an invoice charge
+   */
+  public async createInvoiceCharge(
+    invoiceCharge: invoice_charges,
+  ): Promise<invoice_charges> {
+    try {
+      return await this._prisma.invoice_charges.create({
+        data: {
+          invoice_id: invoiceCharge.invoice_id,
+          charge_id: invoiceCharge.charge_id,
+          percentage: invoiceCharge.percentage,
+          amount: invoiceCharge.amount,
+          is_include: invoiceCharge.is_include,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Failed to create invoice charge');
+      throw new BadRequestException('Failed to create invoice charge', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Update a charge by type
+   */
+  public async updateInvoiceCharge(
+    invoiceCharge: invoice_charges,
+  ): Promise<number> {
+    try {
+      const result = await this._prisma.invoice_charges.updateMany({
+        where: {
+          invoice_id: invoiceCharge.charge_id,
+          charge_id: invoiceCharge.charge_id,
+        },
+        data: {
+          percentage: invoiceCharge.percentage,
+          amount: invoiceCharge.amount,
+        },
+      });
+      return result.count;
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Failed to update invoice charge');
+      throw new BadRequestException('Failed to update invoice charge', {
         cause: new Error(),
         description: error.message,
       });
@@ -636,6 +875,24 @@ export class InvoiceService {
       console.log(error);
       this.logger.error('Failed to fetch invoice detail');
       throw new BadRequestException('Failed to fetch invoice detail', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Get invoice charge data
+   */
+  public async getInvoiceChargeById(invoiceId: string, chargeId: string) {
+    try {
+      return await this._prisma.invoice_charges.findFirst({
+        where: { invoice_id: invoiceId, charge_id: chargeId },
+      });
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Failed to fetch invoice charge');
+      throw new BadRequestException('Failed to fetch invoice charge', {
         cause: new Error(),
         description: error.message,
       });

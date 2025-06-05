@@ -108,11 +108,41 @@ export class CategoriesService {
     if (isUUID(idOrcategory)) {
       return await this.prisma.categories.findUnique({
         where: { id: idOrcategory },
+        include: {
+          categories_has_products: {
+            include: {
+              products: {
+                include: {
+                  variant_has_products: {
+                    include: {
+                      variant: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       });
     } else {
       return await this.prisma.categories.findFirst({
         where: {
           category: { contains: idOrcategory, mode: 'insensitive' },
+        },
+        include: {
+          categories_has_products: {
+            include: {
+              products: {
+                include: {
+                  variant_has_products: {
+                    include: {
+                      variant: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       });
     }

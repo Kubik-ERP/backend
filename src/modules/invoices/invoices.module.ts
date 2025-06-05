@@ -7,6 +7,7 @@ import { MidtransProvider } from './providers/midtrans.provider';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { PaymentLogsService } from '../payment-logs/services/payment-logs.service';
 import { MailModule } from '../mail/mail.module';
+import { ChargesService } from '../charges/services/charges.service';
 
 @Module({
   imports: [MailModule],
@@ -17,6 +18,7 @@ import { MailModule } from '../mail/mail.module';
     MidtransProvider,
     NotificationHelper,
     PaymentLogsService,
+    ChargesService,
   ],
   controllers: [InvoiceController],
   exports: [
@@ -24,6 +26,7 @@ import { MailModule } from '../mail/mail.module';
     PrismaService,
     NotificationHelper,
     PaymentLogsService,
+    ChargesService,
   ],
 })
 export class InvoicesModule {}

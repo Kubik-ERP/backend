@@ -26,14 +26,9 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
-  @ApiPropertyOptional({
-    name: 'picture_url',
-    type: String,
-    example: 'https://example.com/image.jpg',
-    description: 'URL gambar produk',
-  })
-  picture_url?: string;
+  image?: string;
 
+  @Type(() => Number)
   @IsOptional()
   @IsNumber()
   @ApiPropertyOptional({
@@ -46,6 +41,7 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsNumber()
+  @Type(() => Number)
   @ApiPropertyOptional({
     name: 'discount_price',
     type: Number,
@@ -55,17 +51,8 @@ export class CreateProductDto {
   discount_price?: number;
 
   @IsOptional()
-  @IsBoolean()
-  @ApiPropertyOptional({
-    name: 'isDiscount',
-    type: Boolean,
-    example: true,
-    description: 'Apakah produk sedang diskon?',
-  })
-  isDiscount?: boolean;
-
-  @IsOptional()
   @IsNumber()
+  @Type(() => Number)
   @ApiPropertyOptional({
     name: 'discount_value',
     type: Number,
@@ -73,7 +60,7 @@ export class CreateProductDto {
     description: 'Nilai diskon (misal 25)',
   })
   discount_value?: number;
-
+  @Type(() => Boolean)
   @IsOptional()
   @IsBoolean()
   @ApiPropertyOptional({
@@ -85,6 +72,7 @@ export class CreateProductDto {
   is_percent?: boolean;
 
   @IsArray()
+  @IsOptional()
   @ValidateNested({ each: true })
   @Type(() => SimpleCategoryDto)
   @ApiProperty({
@@ -92,7 +80,7 @@ export class CreateProductDto {
     type: [SimpleCategoryDto],
     description: 'Daftar kategori yang terkait',
   })
-  categories: SimpleCategoryDto[];
+  categories?: SimpleCategoryDto[];
 
   @IsOptional()
   @IsArray()
