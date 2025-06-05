@@ -42,15 +42,13 @@ export class InvoiceController {
     };
   }
 
-  @Post('sent-email')
+  @Post('sent-email/:invoiceId')
   @ApiOperation({
     summary: 'Sent email invoice to customer by invoice ID',
   })
-  public async sentEmailInvoiceById(@Body() body: SentEmailInvoiceByIdDto) {
-    const response = await this.invoiceService.sentEmailInvoiceById(
-      body.email,
-      body.invoiceId,
-    );
+  public async sentEmailInvoiceById(@Param() param: SentEmailInvoiceByIdDto) {
+    const { invoiceId } = param; // Mengambil invoiceId dari param
+    const response = await this.invoiceService.sentEmailInvoiceById(invoiceId);
 
     return {
       result: toCamelCase(response),

@@ -37,6 +37,7 @@ import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { ChargesService } from 'src/modules/charges/services/charges.service';
 import { nodeModuleNameResolver } from 'typescript';
 import { MailService } from 'src/modules/mail/services/mail.service';
+import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
 
 @Injectable()
 export class InvoiceService {
@@ -126,12 +127,21 @@ export class InvoiceService {
     return invoice;
   }
 
-  public async sentEmailInvoiceById(
-    email: string,
-    invoiceId: string,
-  ): Promise<object> {
+  public async sentEmailInvoiceById(invoiceId: string): Promise<any> {
     // Find the invoice by id
     const invoice = await this.getInvoicePreview({ invoiceId });
+
+    if (!invoice) {
+      throw new Error('Invoice not found');
+    }
+
+    // Ambil email dari customer invoice
+    const email = invoice.customer?.email;
+
+    if (!email) {
+      throw new Error('Customer email not found');
+    }
+
     const pdfBuffer = await generateInvoiceHtmlPdf(invoice);
 
     // Ensure created_at is not null and is a string or Date
