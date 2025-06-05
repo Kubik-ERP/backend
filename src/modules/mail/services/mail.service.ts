@@ -38,16 +38,33 @@ export class MailService {
 
   async sendEmailInvoiceById(
     to: string,
-    invoice: object,
+    invoice: {
+      created_at: string | Date;
+      customer_name?: string;
+      [key: string]: any;
+    },
     invoiceId: string,
     pdfBuffer?: Buffer,
   ): Promise<void> {
+    const createdAt = new Date(invoice.created_at);
+    const formattedDate = createdAt.toLocaleDateString('en-GB'); // Format DD/MM/YYYY
+    const formattedTime = createdAt.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const customer_name = invoice.customer.name || 'Valued Customer';
+
     const mailOptions: any = {
       from: process.env.SMTP_FROM,
       to,
-      subject: 'Email Invoice',
-      text: `Your invoice details are as follows:\n\n${JSON.stringify(invoice, null, 2)}\n\nInvoice ID: ${invoiceId}`,
-      html: `<p>Your invoice details are as follows:</p><pre>${JSON.stringify(invoice, null, 2)}</pre>`,
+      subject: 'Invoice Details',
+      text: `Dear Customer,\n\nYour invoice details are as follows:\n\nInvoice ID: ${invoiceId}\nDate: ${formattedDate} ${formattedTime}`,
+      html: `
+      <p>Dear Customer, ${customer_name}</p>
+      <p>Your invoice details are as follows:</p>
+      <p><strong>Invoice ID:</strong> ${invoiceId}</p>
+      <p><strong>Date:</strong> ${formattedDate} ${formattedTime}</p>
+    `,
     };
 
     if (pdfBuffer) {

@@ -1,6 +1,5 @@
 // Factory
 import { PaymentFactory } from '../factories/payment.factory';
-import { generateInvoicePdf } from '../../../common/helpers/invoice-pdf.helper';
 import { generateInvoiceHtmlPdf } from '../../../common/helpers/invoice-html-pdf.helper';
 
 // NestJS
@@ -135,9 +134,16 @@ export class InvoiceService {
     const invoice = await this.getInvoicePreview({ invoiceId });
     const pdfBuffer = await generateInvoiceHtmlPdf(invoice);
 
+    // Ensure created_at is not null and is a string or Date
+    const safeInvoice = {
+      ...invoice,
+      created_at: invoice.created_at ?? new Date(),
+      name: invoice.customer?.name ?? 'Unknown Customer',
+    };
+
     await this._mailService.sendEmailInvoiceById(
       email,
-      invoice,
+      safeInvoice,
       invoiceId,
       pdfBuffer,
     );
