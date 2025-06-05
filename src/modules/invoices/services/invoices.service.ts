@@ -35,6 +35,12 @@ import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { ChargesService } from 'src/modules/charges/services/charges.service';
 import { nodeModuleNameResolver } from 'typescript';
+import {
+  GetInvoiceSettingDto,
+  SettingInvoiceDto,
+} from '../dtos/setting-invoice.dto';
+import { UUID } from 'crypto';
+import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 
 @Injectable()
 export class InvoiceService {
@@ -45,7 +51,7 @@ export class InvoiceService {
     private readonly _charge: ChargesService,
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
-  ) {}
+  ) { }
 
   public async getInvoices(request: GetListInvoiceDto) {
     const {
@@ -893,6 +899,77 @@ export class InvoiceService {
       console.log(error);
       this.logger.error('Failed to fetch invoice charge');
       throw new BadRequestException('Failed to fetch invoice charge', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  public async getInvoiceSetting(req: GetInvoiceSettingDto, userId: number) {
+    try {
+      const response = await this._prisma.invoice_settings.findMany({
+        where: {
+          store_id: req.storeId,
+          uid: userId,
+        },
+      });
+
+      return toCamelCase(response);
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch invoice settings', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  public async updateInvoiceSetting(body: SettingInvoiceDto) {
+    try {
+      const response = await this._prisma.invoice_settings.upsert({
+        where: { store_id: body.storeId },
+        update: {
+          company_logo_url: body.companyLogoUrl,
+          footer_text: body.footerText,
+          is_automatically_print_receipt: body.isAutomaticallyPrintReceipt,
+          is_automatically_print_kitchen: body.isAutomaticallyPrintKitchen,
+          is_automatically_print_table: body.isAutomaticallyPrintTable,
+          is_show_company_logo: body.isShowCompanyLogo,
+          is_show_store_location: body.isShowStoreLocation,
+          is_hide_cashier_name: body.isHideCashierName,
+          is_hide_order_type: body.isHideOrderType,
+          is_hide_queue_number: body.isHideQueueNumber,
+          is_show_table_number: body.isShowTableNumber,
+          is_hide_item_prices: body.isHideItemPrices,
+          is_show_footer: body.isShowFooter,
+          increment_by: body.incrementBy,
+          reset_sequence: body.resetSequence,
+          starting_number: body.startingNumber,
+        },
+        create: {
+          store_id: body.storeId,
+          company_logo_url: body.companyLogoUrl,
+          footer_text: body.footerText,
+          is_automatically_print_receipt: body.isAutomaticallyPrintReceipt,
+          is_automatically_print_kitchen: body.isAutomaticallyPrintKitchen,
+          is_automatically_print_table: body.isAutomaticallyPrintTable,
+          is_show_company_logo: body.isShowCompanyLogo,
+          is_show_store_location: body.isShowStoreLocation,
+          is_hide_cashier_name: body.isHideCashierName,
+          is_hide_order_type: body.isHideOrderType,
+          is_hide_queue_number: body.isHideQueueNumber,
+          is_show_table_number: body.isShowTableNumber,
+          is_hide_item_prices: body.isHideItemPrices,
+          is_show_footer: body.isShowFooter,
+          increment_by: body.incrementBy,
+          reset_sequence: body.resetSequence,
+          starting_number: body.startingNumber,
+        },
+      });
+
+      return toCamelCase(response);
+    } catch (error) {
+      console.error(error);
+      throw new BadRequestException('Failed to update invoice settings', {
         cause: new Error(),
         description: error.message,
       });
