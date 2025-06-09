@@ -5,9 +5,9 @@ import { Prisma } from '@prisma/client';
 import { PrismaModule } from 'src/prisma/prisma.module';
 
 @Module({
-    imports: [PrismaModule],
-    controllers: [CashDrawerController],
-    providers: [CashDrawerService],
-    exports: [],
+  imports: [PrismaModule],
+  controllers: [CashDrawerController],
+  providers: [CashDrawerService],
+  exports: [],
 })
-export class CashDrawerModule { }
+export class CashDrawerModule {}
