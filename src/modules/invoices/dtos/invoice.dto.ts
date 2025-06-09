@@ -1,6 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { invoice_type } from '@prisma/client';
-import { IsDate, IsEnum, IsInt, IsString, Min } from 'class-validator';
+import {
+  IsDate,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { Expose, Type, Transform } from 'class-transformer';
 
 export class GetListInvoiceDto {
@@ -29,27 +36,36 @@ export class GetListInvoiceDto {
 
   @ApiProperty({
     description: 'Payment status of the invoice',
-    required: true,
+    required: false,
     example: 'paid',
   })
+  @IsOptional()
   @IsEnum(invoice_type)
   paymentStatus: invoice_type;
 
   @ApiProperty({
     description: 'Start time of the invoice created time',
-    required: true,
+    required: false,
     example: '2025-05-15 03:28:31.430',
   })
-  @Transform(({ value }) => new Date(value.replace(' ', 'T')))
+  @Transform(({ value }) => {
+    if (!value) return undefined; // ignore null, undefined, or empty string
+    return new Date(value.replace(' ', 'T'));
+  })
+  @IsOptional()
   @IsDate()
   createdAtFrom: Date;
 
   @ApiProperty({
     description: 'End time of the invoice created time',
-    required: true,
+    required: false,
     example: '2025-05-15 03:28:31.430',
   })
-  @Transform(({ value }) => new Date(value.replace(' ', 'T')))
+  @Transform(({ value }) => {
+    if (!value) return undefined; // ignore null, undefined, or empty string
+    return new Date(value.replace(' ', 'T'));
+  })
+  @IsOptional()
   @IsDate()
   createdAtTo: Date;
 }

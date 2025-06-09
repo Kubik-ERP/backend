@@ -67,17 +67,20 @@ export class InvoiceService {
       paymentStatus,
     } = request;
 
+    const createdAtFilter: Record<string, Date> = {};
+    if (createdAtFrom) {
+      createdAtFilter.gte = new Date(createdAtFrom);
+    }
+    if (createdAtTo) {
+      createdAtFilter.lte = new Date(createdAtTo);
+    }
+
     const filters: Prisma.invoiceWhereInput = {
-      created_at: {
-        gte: new Date(createdAtFrom),
-        lte: new Date(createdAtTo),
-      },
-      // order_type: { // TODO: Check again the order type should in invoice table
-      //   equals: orderType,
-      // },
-      payment_status: {
-        equals: paymentStatus,
-      },
+      ...(Object.keys(createdAtFilter).length > 0 && {
+        created_at: createdAtFilter,
+      }),
+      ...(paymentStatus && { payment_status: { equals: paymentStatus } }),
+      // ...(orderType && { order_type: { equals: orderType } }),
     };
 
     const [data, total] = await Promise.all([
@@ -119,6 +122,7 @@ export class InvoiceService {
             variant: true,
           },
         },
+        invoice_charges: true,
         payment_methods: true,
       },
     });
