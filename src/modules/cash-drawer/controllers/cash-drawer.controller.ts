@@ -1,20 +1,47 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { OpenCashDrawerDto } from '../dtos/cash-drawer.dto';
+import { CashDrawerService } from '../services/cash-drawer.service';
+import { ApiParam } from '@nestjs/swagger';
 
 @Controller('cash-drawer')
 export class CashDrawerController {
   // Controller methods will be defined here in the future
   // For example, you might have methods for opening, closing, and checking the status of the cash drawer
 
+  constructor(private readonly service: CashDrawerService) { }
+
   @Get('status')
-  async getCashDrawerStatus() {
+  @ApiParam({
+    name: 'storeId'
+  })
+  async getCashDrawerStatus(@Param('storeId') storeId: string) {
     // Logic to get the status of the cash drawer
-    return { status: 'Cash drawer is open' }; // Example response
+    const status = await this.service.getCashDrawerStatus(storeId);
+    return {
+      message: 'Cash drawer status retrieved successfully',
+      result: {
+        open: status,
+      },
+    };
   }
 
-  @Get('open')
-  async openCashDrawer() {
+  @Post('open')
+  async openCashDrawer(@Body() openCashDrawerDto: OpenCashDrawerDto) {
     // Logic to open the cash drawer
+    await this.service.openCashDrawer(
+      openCashDrawerDto.userId,
+      openCashDrawerDto.balance,
+      openCashDrawerDto.notes,
+      openCashDrawerDto.storeId,
+    );
+
     return { message: 'Cash drawer opened successfully' };
+  }
+
+  @Post('transaction/add')
+  async addTransaction() {
+    // Logic to add a transaction to the cash drawer
+    return { message: 'Transaction added successfully' };
   }
 
   @Get('close')
