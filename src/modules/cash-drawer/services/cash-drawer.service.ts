@@ -7,7 +7,12 @@ import { v4 as uuidv4 } from 'uuid';
 export class CashDrawerService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async openCashDrawer(userId: number, balance: number, notes?: string, storeId?: string) {
+  async openCashDrawer(
+    userId: number,
+    balance: number,
+    notes?: string,
+    storeId?: string,
+  ) {
     // Logic to open the cash drawer
     const cashDrawer = await this.prisma.cash_drawers.create({
       data: {

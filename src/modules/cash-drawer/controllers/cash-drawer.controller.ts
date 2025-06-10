@@ -8,11 +8,11 @@ export class CashDrawerController {
   // Controller methods will be defined here in the future
   // For example, you might have methods for opening, closing, and checking the status of the cash drawer
 
-  constructor(private readonly service: CashDrawerService) { }
+  constructor(private readonly service: CashDrawerService) {}
 
   @Get('status')
   @ApiParam({
-    name: 'storeId'
+    name: 'storeId',
   })
   async getCashDrawerStatus(@Param('storeId') storeId: string) {
     // Logic to get the status of the cash drawer
