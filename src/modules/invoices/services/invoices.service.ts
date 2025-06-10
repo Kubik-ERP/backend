@@ -134,7 +134,17 @@ export class InvoiceService {
       );
     }
 
-    return invoice;
+    // formatting returned response
+    const formatted = {
+      ...invoice,
+      invoiceCharges: invoice.invoice_charges.map((c) => ({
+        ...c,
+        percentage: (c.percentage as Prisma.Decimal).toNumber(),
+        amount: (c.amount as Prisma.Decimal).toNumber(),
+      })),
+    };
+
+    return formatted;
   }
 
   public async sentEmailInvoiceById(invoiceId: string): Promise<any> {
@@ -193,6 +203,11 @@ export class InvoiceService {
       update_at: new Date(),
       delete_at: null,
       paid_at: null,
+      tax_id: null,
+      service_charge_id: null,
+      tax_amount: null,
+      service_charge_amount: null,
+      grand_total: null,
     };
 
     // create invoice with status unpaid
@@ -200,8 +215,16 @@ export class InvoiceService {
 
     const calculation = await this.calculateTotal(request, invoiceId);
 
-    // update subtotal
-    await this.update(invoiceId, calculation.total);
+    // update invoice
+    await this.update(
+      invoiceId,
+      calculation.total,
+      calculation.taxId,
+      calculation.serviceChargeId,
+      calculation.tax,
+      calculation.serviceCharge,
+      calculation.grandTotal,
+    );
 
     // insert the customer has invoice
     await this.createCustomerInvoice(invoiceId, request.customerId);
@@ -270,6 +293,11 @@ export class InvoiceService {
       update_at: new Date(),
       delete_at: null,
       paid_at: null,
+      tax_id: null,
+      service_charge_id: null,
+      tax_amount: null,
+      service_charge_amount: null,
+      grand_total: null,
     };
 
     // create invoice with status unpaid
@@ -360,6 +388,18 @@ export class InvoiceService {
       calculationEstimationDto,
       invoice.id,
     );
+
+    // update invoice
+    await this.update(
+      invoice.id,
+      calculation.total,
+      calculation.taxId,
+      calculation.serviceChargeId,
+      calculation.tax,
+      calculation.serviceCharge,
+      calculation.grandTotal,
+    );
+
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
       paymentProvider,
@@ -495,6 +535,8 @@ export class InvoiceService {
     let taxType = false;
     let serviceAmount = 0;
     let serviceType = false;
+    let taxId = '';
+    let serviceChargeId = '';
     const items = [];
 
     for (const item of request.products) {
@@ -580,6 +622,7 @@ export class InvoiceService {
         }
 
         serviceType = serviceCharge.is_include;
+        serviceChargeId = serviceCharge.id;
 
         // upsert data service charge into invoice charge
         if (invoiceId !== null && invoiceId !== undefined) {
@@ -620,6 +663,7 @@ export class InvoiceService {
         }
 
         taxType = tax.is_include;
+        taxId = tax.id;
 
         // upsert data service charge into invoice charge
         if (invoiceId !== null && invoiceId !== undefined) {
@@ -638,8 +682,10 @@ export class InvoiceService {
     return {
       total,
       discountTotal,
+      taxId: taxId,
       tax: taxAmount,
       taxInclude: taxType,
+      serviceChargeId: serviceChargeId,
       serviceCharge: serviceAmount,
       serviceChargeInclude: serviceType,
       grandTotal,
@@ -698,7 +744,8 @@ export class InvoiceService {
       select: { variant_id: true },
     });
 
-    if (hasVariant && !variantId) {
+    // check if product has a variant, but can be set as product only
+    if (hasVariant && variantId !== '') {
       this.logger.error(
         `Product ${productId} requires a variant but none was provided`,
       );
@@ -801,6 +848,11 @@ export class InvoiceService {
           update_at: invoice.update_at ?? new Date(),
           delete_at: invoice.delete_at ?? null,
           paid_at: invoice.paid_at ?? null,
+          tax_id: invoice.tax_id ?? null,
+          service_charge_id: invoice.service_charge_id ?? null,
+          tax_amount: invoice.tax_amount ?? null,
+          service_charge_amount: invoice.service_charge_amount ?? null,
+          grand_total: invoice.grand_total ?? null,
         },
       });
     } catch (error) {
@@ -813,12 +865,25 @@ export class InvoiceService {
     }
   }
 
-  public async update(invoiceId: string, total: number) {
+  public async update(
+    invoiceId: string,
+    subtotal: number,
+    taxId: string,
+    serviceChargeId: string,
+    taxAmount: number,
+    serviceChargeAmount: number,
+    grandTotal: number,
+  ) {
     try {
       await this._prisma.invoice.update({
         where: { id: invoiceId },
         data: {
-          subtotal: total,
+          subtotal: subtotal,
+          tax_id: taxId,
+          service_charge_id: serviceChargeId,
+          tax_amount: taxAmount,
+          service_charge_amount: serviceChargeAmount,
+          grand_total: grandTotal,
           update_at: new Date(),
         },
       });
