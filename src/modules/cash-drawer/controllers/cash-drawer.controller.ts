@@ -16,7 +16,12 @@ import {
   OpenCashDrawerDto,
 } from '../dtos/cash-drawer.dto';
 import { CashDrawerService } from '../services/cash-drawer.service';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { UsersService } from 'src/modules/users/services/users.service';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
@@ -203,7 +208,6 @@ export class CashDrawerController {
     @Body() body: CloseCashDrawerDto,
     @Req() req: ICustomRequestHeaders,
     @Param('cashDrawerId') cashDrawerId: string,
-
   ) {
     await this.service.closeCashDrawer(
       body.cashDrawerId,
