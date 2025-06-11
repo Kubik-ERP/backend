@@ -110,6 +110,11 @@ export class CustomerService {
               stores: true,
             },
           },
+          customers_has_invoices: {
+            include: {
+              invoice: true,
+            },
+          },
         },
       }),
       this.prisma.customer.count({
@@ -124,8 +129,28 @@ export class CustomerService {
       }),
     ]);
 
+    const customersWithLastVisit = customers.map((customer) => {
+      const lastVisit = customer.customers_has_invoices.reduce(
+        (latest: Date | null, current) => {
+          const currentDate = current.invoice?.created_at
+            ? new Date(current.invoice.created_at)
+            : null;
+
+          if (!currentDate) return latest;
+          if (!latest || currentDate > latest) return currentDate;
+          return latest;
+        },
+        null,
+      );
+
+      return {
+        ...customer,
+        lastVisit,
+      };
+    });
+
     return {
-      customers,
+      customers: customersWithLastVisit,
       total,
       page,
       lastPage: Math.ceil(total / limit),

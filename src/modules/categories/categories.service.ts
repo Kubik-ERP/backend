@@ -48,24 +48,39 @@ export class CategoriesService {
     page = 1,
     limit = 10,
     search = '',
+    categories = '',
   }: {
     page?: number;
     limit?: number;
     search?: string;
+    categories?: string;
   }) {
     const skip = (page - 1) * limit;
 
-    const [categories, total] = await Promise.all([
+    const categoryIds = categories
+      ? categories.split('#').filter((id) => id.trim() !== '')
+      : [];
+
+    let whereCondition: any = {};
+
+    if (categoryIds.length > 0) {
+      whereCondition = {
+        id: { in: categoryIds },
+      };
+    } else if (search) {
+      whereCondition = {
+        category: {
+          contains: search,
+          mode: 'insensitive',
+        },
+      };
+    }
+
+    const [categoriesResult, total] = await Promise.all([
       this.prisma.categories.findMany({
-        where: search
-          ? {
-              category: {
-                contains: search,
-                mode: 'insensitive',
-              },
-            }
-          : {},
+        where: whereCondition,
         skip,
+        take: limit,
         include: {
           categories_has_products: {
             include: {
@@ -81,22 +96,14 @@ export class CategoriesService {
             },
           },
         },
-        take: limit,
       }),
       this.prisma.categories.count({
-        where: search
-          ? {
-              category: {
-                contains: search,
-                mode: 'insensitive',
-              },
-            }
-          : {},
+        where: whereCondition,
       }),
     ]);
 
     return {
-      categories,
+      categories: categoriesResult,
       total,
       page,
       lastPage: Math.ceil(total / limit),
@@ -142,22 +149,6 @@ export class CategoriesService {
               },
             },
           },
-        },
-      });
-    }
-  }
-
-  public async findMany(
-    idOrcategory: string,
-  ): Promise<CategoryModel | CategoryModel[] | null> {
-    if (isUUID(idOrcategory)) {
-      return await this.prisma.categories.findUnique({
-        where: { id: idOrcategory },
-      });
-    } else {
-      return await this.prisma.categories.findMany({
-        where: {
-          category: { contains: idOrcategory, mode: 'insensitive' },
         },
       });
     }

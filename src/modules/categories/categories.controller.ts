@@ -18,6 +18,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { ApiConsumes } from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
+import { FindAllCategoriesDto } from './dto/find-all-categories.dto';
 
 @Controller('categories')
 export class CategoriesController {
@@ -53,28 +54,25 @@ export class CategoriesController {
   }
 
   @Get()
-  async findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('search') search?: string,
-  ) {
+  async findAll(@Query() query: FindAllCategoriesDto) {
     try {
       const result = await this.categoriesService.findAll({
-        page,
-        limit,
-        search,
+        page: Number(query.page),
+        limit: Number(query.limit),
+        search: query.search,
+        categories: query.categories,
       });
       return {
         statusCode: 200,
         message: 'Success',
-        result: toCamelCase(result),
+        result,
       };
     } catch (error) {
       console.error('Error fetching categories:', error);
       throw new HttpException(
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to fetch categories',
+          message: 'Failed to fetch categories: ' + error.message,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
