@@ -209,11 +209,7 @@ export class CashDrawerController {
     @Req() req: ICustomRequestHeaders,
     @Param('cashDrawerId') cashDrawerId: string,
   ) {
-    await this.service.closeCashDrawer(
-      cashDrawerId,
-      req.user.id,
-      body.balance,
-    );
+    await this.service.closeCashDrawer(cashDrawerId, req.user.id, body.balance);
     return { message: 'Cash drawer closed successfully' };
   }
 
