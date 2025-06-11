@@ -6,6 +6,7 @@ import {
   IsEmail,
   IsArray,
   ValidateNested,
+  IsNumber,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -31,6 +32,11 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsDateString()
   dob?: string;
+
+  @ApiPropertyOptional({ description: 'Customer point' })
+  @IsOptional()
+  @IsNumber()
+  point?: number;
 
   @ApiPropertyOptional({ description: 'Gender Male/female' })
   @IsOptional()

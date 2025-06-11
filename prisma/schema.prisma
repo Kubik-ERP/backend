@@ -96,6 +96,7 @@ model customer {
   username               String?                  @db.VarChar(45)
   address                String?                  @db.VarChar(45)
   gender                 String?                  @db.VarChar(45)
+  point                  Int?
   customer_has_stores    customer_has_stores[]
   customers_has_invoices customers_has_invoices[]
   customers_has_tag      customers_has_tag[]
