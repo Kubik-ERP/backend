@@ -121,7 +121,7 @@ export class CashDrawerController {
     name: 'storeId',
     description: 'ID of the store where the cash drawer is opened',
   })
-  @Post('open')
+  @Post('open/:storeId')
   async openCashDrawer(
     @Body() openCashDrawerDto: OpenCashDrawerDto,
     @Req() req: ICustomRequestHeaders,
@@ -200,7 +200,7 @@ export class CashDrawerController {
     description:
       'type: 0=> opening, 1 => cash in, 2 => sale, 3 => cash out, 4 => refund, 5 =>closing',
   })
-  @Post('close')
+  @Post('close/:cashDrawerId')
   @ApiParam({
     name: 'cashDrawerId',
   })
@@ -210,7 +210,7 @@ export class CashDrawerController {
     @Param('cashDrawerId') cashDrawerId: string,
   ) {
     await this.service.closeCashDrawer(
-      body.cashDrawerId,
+      cashDrawerId,
       req.user.id,
       body.balance,
     );
