@@ -1,8 +1,10 @@
 export interface CalculationResult {
   total: number;
   discountTotal: number;
+  taxId: string;
   tax: number;
   taxInclude: boolean;
+  serviceChargeId: string;
   serviceCharge: number;
   serviceChargeInclude: boolean;
   grandTotal: number;
