@@ -28,6 +28,15 @@ model business_owner_has_stores {
   @@index([stores_id], map: "fk_business_owner_has_stores_stores1_idx")
 }
 
+model cash_drawer_transactions {
+  id              String  @id(map: "cash_drawer_transactions_pk") @db.Uuid
+  cash_drawers_id String  @db.Uuid
+  amount          BigInt
+  type            String  @db.VarChar
+  created_by      BigInt?
+  created_at      BigInt?
+}
+
 model cash_drawers {
   id               String            @id(map: "cash_drawers_pk") @db.Uuid
   expected_balance Float?
@@ -40,37 +49,9 @@ model cash_drawers {
   updated_by       BigInt?
   updated_at       BigInt?
   store_id         String?           @db.Uuid
+  closed_at        BigInt?
+  closed_by        BigInt?
   stores           stores?           @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_stores_fk")
-}
-
-model cash_register_date {
-  id                               String                             @id @db.Uuid
-  date                             DateTime?                          @db.Date
-  cash_register_date_has_employees cash_register_date_has_employees[]
-  cash_registers                   cash_registers[]
-}
-
-model cash_register_date_has_employees {
-  cash_register_date_id String             @db.Uuid
-  employees_id          String             @db.Uuid
-  cash_register_date    cash_register_date @relation(fields: [cash_register_date_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_register_date_has_employees_cash_register_date1")
-  employees             employees          @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_register_date_has_employees_employees1")
-
-  @@id([cash_register_date_id, employees_id])
-  @@index([cash_register_date_id], map: "fk_cash_register_date_has_employees_cash_register_date1_idx")
-  @@index([employees_id], map: "fk_cash_register_date_has_employees_employees1_idx")
-}
-
-model cash_registers {
-  id                    String             @db.Uuid
-  type                  transaction_type?
-  notes                 String?            @db.VarChar(45)
-  amount                String?            @db.VarChar(45)
-  cash_register_date_id String             @db.Uuid
-  cash_register_date    cash_register_date @relation(fields: [cash_register_date_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_registers_cash_register_date1")
-
-  @@id([id, cash_register_date_id])
-  @@index([cash_register_date_id], map: "fk_cash_registers_cash_register_date1_idx")
 }
 
 model categories {
@@ -90,6 +71,19 @@ model categories_has_products {
   @@id([categories_id, products_id])
   @@index([categories_id], map: "fk_categories_has_products_categories1_idx")
   @@index([products_id], map: "fk_categories_has_products_products1_idx")
+}
+
+model charges {
+  id                                         String            @id(map: "charges_pk") @db.Uuid
+  name                                       String            @db.VarChar
+  type                                       charge_type
+  percentage                                 Decimal           @db.Decimal(2, 2)
+  is_include                                 Boolean           @default(false)
+  applied_to_takeaway                        Boolean           @default(true)
+  is_enabled                                 Boolean           @default(true)
+  invoice_invoice_tax_idTocharges            invoice[]         @relation("invoice_tax_idTocharges")
+  invoice_invoice_service_charge_idTocharges invoice[]         @relation("invoice_service_charge_idTocharges")
+  invoice_charges                            invoice_charges[]
 }
 
 model customer {
@@ -119,6 +113,15 @@ model customer_has_stores {
   @@index([stores_id], map: "fk_customer_has_stores_stores1_idx")
 }
 
+model customers_has_invoices {
+  customers_id String   @db.Uuid
+  invoices_id  String   @db.Uuid
+  customer     customer @relation(fields: [customers_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customers_has_invoices_customer")
+  invoice      invoice  @relation(fields: [invoices_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customers_has_invoices_invoice")
+
+  @@id([customers_id, invoices_id], map: "pk_customers_has_invoices")
+}
+
 model customers_has_tag {
   customer_id String   @db.Uuid
   tag_id      String   @db.Uuid
@@ -129,21 +132,20 @@ model customers_has_tag {
 }
 
 model employees {
-  id                               String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                             String?                            @db.VarChar(45)
-  email                            String?                            @unique @db.VarChar(45)
-  phone_number                     String?                            @db.VarChar(45)
-  profile_url                      String?                            @db.VarChar(45)
-  start_date                       DateTime?                          @db.Date
-  end_date                         DateTime?                          @db.Date
-  gender                           gender?
-  cash_register_date_has_employees cash_register_date_has_employees[]
-  employees_has_roles              employees_has_roles[]
-  employees_shift                  employees_shift[]
-  platforms_has_employees          platforms_has_employees[]
-  product_commissions              product_commissions[]
-  stores_has_employees             stores_has_employees[]
-  voucher_commissions              voucher_commissions[]
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String?                   @db.VarChar(45)
+  email                   String?                   @unique @db.VarChar(45)
+  phone_number            String?                   @db.VarChar(45)
+  profile_url             String?                   @db.VarChar(45)
+  start_date              DateTime?                 @db.Date
+  end_date                DateTime?                 @db.Date
+  gender                  gender?
+  employees_has_roles     employees_has_roles[]
+  employees_shift         employees_shift[]
+  platforms_has_employees platforms_has_employees[]
+  product_commissions     product_commissions[]
+  stores_has_employees    stores_has_employees[]
+  voucher_commissions     voucher_commissions[]
 }
 
 model employees_has_roles {
@@ -206,6 +208,18 @@ model invoice {
   @@index([payment_methods_id], map: "fk_invoice_payment_methods1_idx")
 }
 
+model invoice_charges {
+  invoice_id String  @db.Uuid
+  charge_id  String  @db.Uuid
+  percentage Decimal @db.Decimal(2, 2)
+  amount     Decimal @db.Decimal(12, 2)
+  is_include Boolean
+  charges    charges @relation(fields: [charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_charges_fk")
+  invoice    invoice @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_invoice_fk")
+
+  @@unique([invoice_id, charge_id], map: "invoice_charges_unique")
+}
+
 model invoice_details {
   id            String    @db.Uuid
   product_id    String?   @db.Uuid
@@ -234,6 +248,29 @@ model invoice_has_stores {
   @@index([stores_id], map: "fk_invoice_has_stores_stores1_idx")
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model invoice_settings {
+  id                             Int     @id(map: "invoice_settings_pk") @default(autoincrement())
+  store_id                       String  @unique(map: "invoice_settings_unique") @db.Uuid
+  uid                            Int?
+  company_logo_url               String?
+  footer_text                    String?
+  is_automatically_print_receipt Boolean @default(false)
+  is_automatically_print_kitchen Boolean @default(false)
+  is_automatically_print_table   Boolean @default(false)
+  is_show_company_logo           Boolean @default(false)
+  is_show_store_location         Boolean @default(false)
+  is_hide_cashier_name           Boolean @default(false)
+  is_hide_order_type             Boolean @default(false)
+  is_hide_queue_number           Boolean @default(false)
+  is_show_table_number           Boolean @default(false)
+  is_hide_item_prices            Boolean @default(false)
+  is_show_footer                 Boolean @default(false)
+  increment_by                   Int?
+  reset_sequence                 String?
+  starting_number                Int?
+}
+
 model material {
   id                String              @id @db.Uuid
   name              String?             @db.VarChar(45)
@@ -259,11 +296,22 @@ model operational_hours {
   open_time  String?
   close_time String?
   stores_id  String  @db.Uuid
-  stores     stores  @relation(fields: [stores_id], references: [id], onDelete: Cascade, map: "fk_operational_hours_stores1")
+  stores     stores  @relation(fields: [stores_id], references: [id], onDelete: Cascade, map: "operational_hours_stores_fk")
 
   @@id([id, stores_id])
   @@unique([days, stores_id], map: "operational_hours_unique")
   @@index([stores_id], map: "fk_operational_hours_stores1_idx")
+}
+
+model payment_logs {
+  id            String    @id(map: "payment_logs_pk") @db.Uuid
+  service_name  String?   @db.VarChar
+  url           String?   @db.VarChar
+  method        String?   @db.VarChar
+  request_body  String?
+  response_body String?
+  status_code   Int?
+  created_at    DateTime? @db.Timestamp(6)
 }
 
 model payment_methods {
@@ -381,6 +429,7 @@ model roles {
   name                String?               @db.VarChar(45)
   employees_has_roles employees_has_roles[]
   role_permissions    role_permissions[]
+  users               users[]
 }
 
 model stores {
@@ -472,7 +521,9 @@ model users {
   deleted_at      BigInt?
   pin             String?           @db.VarChar
   fullname        String?           @db.VarChar
+  role_id         String            @db.Uuid
   user_has_stores user_has_stores[]
+  roles           roles             @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
 }
 
 model users_token {
@@ -542,77 +593,14 @@ model voucher_has_products {
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
 }
 
-model payment_logs {
-  id            String    @id(map: "payment_logs_pk") @db.Uuid
-  service_name  String?   @db.VarChar
-  url           String?   @db.VarChar
-  method        String?   @db.VarChar
-  request_body  String?
-  response_body String?
-  status_code   Int?
-  created_at    DateTime? @db.Timestamp(6)
-}
-
-model charges {
-  id                                         String            @id(map: "charges_pk") @db.Uuid
-  name                                       String            @db.VarChar
-  type                                       charge_type
-  percentage                                 Decimal           @db.Decimal(2, 2)
-  is_include                                 Boolean           @default(false)
-  applied_to_takeaway                        Boolean           @default(true)
-  is_enabled                                 Boolean           @default(true)
-  invoice_invoice_tax_idTocharges            invoice[]         @relation("invoice_tax_idTocharges")
-  invoice_invoice_service_charge_idTocharges invoice[]         @relation("invoice_service_charge_idTocharges")
-  invoice_charges                            invoice_charges[]
-}
-
-model invoice_charges {
-  invoice_id String  @db.Uuid
-  charge_id  String  @db.Uuid
-  percentage Decimal @db.Decimal(2, 2)
-  amount     Decimal @db.Decimal(12, 2)
-  is_include Boolean
-  charges    charges @relation(fields: [charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_charges_fk")
-  invoice    invoice @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_invoice_fk")
-
-  @@unique([invoice_id, charge_id], map: "invoice_charges_unique")
-}
-
-model customers_has_invoices {
-  customers_id String   @db.Uuid
-  invoices_id  String   @db.Uuid
-  customer     customer @relation(fields: [customers_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customers_has_invoices_customer")
-  invoice      invoice  @relation(fields: [invoices_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customers_has_invoices_invoice")
-
-  @@id([customers_id, invoices_id], map: "pk_customers_has_invoices")
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model invoice_settings {
-  id                             Int     @id(map: "invoice_settings_pk") @default(autoincrement())
-  store_id                       String  @unique(map: "invoice_settings_unique") @db.Uuid
-  uid                            Int?
-  company_logo_url               String?
-  footer_text                    String?
-  is_automatically_print_receipt Boolean @default(false)
-  is_automatically_print_kitchen Boolean @default(false)
-  is_automatically_print_table   Boolean @default(false)
-  is_show_company_logo           Boolean @default(false)
-  is_show_store_location         Boolean @default(false)
-  is_hide_cashier_name           Boolean @default(false)
-  is_hide_order_type             Boolean @default(false)
-  is_hide_queue_number           Boolean @default(false)
-  is_show_table_number           Boolean @default(false)
-  is_hide_item_prices            Boolean @default(false)
-  is_show_footer                 Boolean @default(false)
-  increment_by                   Int?
-  reset_sequence                 String?
-  starting_number                Int?
-}
-
 enum cash_drawer_type {
   open
   close
+}
+
+enum charge_type {
+  tax
+  service
 }
 
 enum gender {
@@ -644,9 +632,4 @@ enum transaction_type {
   cash_in
   opening_balance
   cash_refund
-}
-
-enum charge_type {
-  tax
-  service
 }

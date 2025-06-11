@@ -1,4 +1,13 @@
-import { Controller, Post, Body, Query, Get, Param } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Query,
+  Get,
+  Param,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { InvoiceService } from '../services/invoices.service';
 import {
   CalculationEstimationDto,
@@ -11,19 +20,25 @@ import {
   PaymentCallbackDto,
 } from '../dtos/callback-payment.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
-import { ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 
 @Controller('invoice')
 export class InvoiceController {
   constructor(private readonly invoiceService: InvoiceService) {}
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Get('')
   @ApiOperation({
     summary: 'Get List of invoices',
   })
-  public async invoiceList(@Query() query: GetListInvoiceDto) {
+  public async invoiceList(
+    @Req() req: ICustomRequestHeaders,
+    @Query() query: GetListInvoiceDto,
+  ) {
     const response = await this.invoiceService.getInvoices(query);
     return {
       result: toCamelCase(response),
