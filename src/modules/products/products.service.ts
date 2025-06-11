@@ -10,6 +10,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { products as ProductModel } from '@prisma/client';
 import { validate as isUUID } from 'uuid';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
@@ -102,43 +103,35 @@ export class ProductsService {
   }) {
     const skip = (page - 1) * limit;
 
-    const query = this.prisma.products.findMany({
-      where: search
-        ? {
-            name: {
-              contains: search,
-              mode: 'insensitive',
+    const where: Prisma.productsWhereInput = search
+      ? {
+          name: {
+            contains: search,
+            mode: Prisma.QueryMode.insensitive,
+          },
+        }
+      : {};
+
+    const [products, total] = await Promise.all([
+      this.prisma.products.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          categories_has_products: {
+            include: {
+              categories: true,
             },
-          }
-        : {},
-      skip,
-      take: limit,
-      include: {
-        categories_has_products: {
-          include: {
-            categories: true,
+          },
+          variant_has_products: {
+            include: {
+              variant: true,
+            },
           },
         },
-        variant_has_products: {
-          include: {
-            variant: true,
-          },
-        },
-      },
-    });
-
-    const count = this.prisma.products.count({
-      where: search
-        ? {
-            name: {
-              contains: search,
-              mode: 'insensitive',
-            },
-          }
-        : {},
-    });
-
-    const [products, total] = await Promise.all([query, count]);
+      }),
+      this.prisma.products.count({ where }),
+    ]);
 
     return {
       products,
@@ -207,7 +200,6 @@ export class ProductsService {
         throw new NotFoundException('Product not found');
       }
 
-      // Cek duplikasi nama
       if (updateProductDto.name) {
         const duplicateProduct = await this.prisma.products.findFirst({
           where: {
@@ -247,7 +239,6 @@ export class ProductsService {
         });
       }
 
-      // Update variants: hapus semua -> buat ulang
       if (updateProductDto.variants?.length) {
         await this.prisma.variant_has_products.deleteMany({
           where: { products_id: id },

@@ -15,6 +15,7 @@ import { error } from 'console';
 @Injectable()
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
+
   async create(createCategoryDto: CreateCategoryDto & { image: string }) {
     const { category, description, image } = createCategoryDto;
 

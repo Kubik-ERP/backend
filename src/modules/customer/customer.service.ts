@@ -79,7 +79,7 @@ export class CustomerService {
   async findAll({
     page = 1,
     limit = 10,
-    search,
+    search = '',
   }: {
     page?: number;
     limit?: number;
@@ -125,7 +125,7 @@ export class CustomerService {
     ]);
 
     return {
-      data: customers,
+      customers,
       total,
       page,
       lastPage: Math.ceil(total / limit),

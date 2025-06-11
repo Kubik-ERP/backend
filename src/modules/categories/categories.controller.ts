@@ -111,11 +111,18 @@ export class CategoriesController {
   }
 
   @Patch(':id')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
+  @Patch(':id')
   async update(
     @Param('id') id: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     try {
+      if (file) {
+        updateCategoryDto.image = `/public/images/${file.filename}`;
+      }
       const updatedCategory = await this.categoriesService.update(
         id,
         updateCategoryDto,

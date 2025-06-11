@@ -56,8 +56,8 @@ export class ProductsController {
   async findAll(@Query() query: FindAllProductsQueryDto) {
     try {
       const result = await this.productsService.findAll({
-        page: Number(query.page),
-        limit: Number(query.limit),
+        page: Number(query.page) || 1,
+        limit: Number(query.limit) || 10,
         search: query.search,
       });
       return {
@@ -70,7 +70,7 @@ export class ProductsController {
       throw new HttpException(
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to fetch products',
+          message: `Failed to fetch products: ${error.message}`,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
