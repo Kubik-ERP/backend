@@ -34,6 +34,7 @@ export class UsersService {
           email: payload.email,
           password: payload.password,
           fullname: payload.fullname,
+          role_id: payload.role_id,
         },
       });
     } catch (error) {

@@ -1,7 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { jakartaTime } from 'src/common/helpers/common.helpers';
+import {
+  getEndOfDay,
+  getStartOfDay,
+  jakartaTime,
+} from 'src/common/helpers/common.helpers';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
+import { CashDrawerQueryDto } from '../dtos/cash-drawer.dto';
 
 @Injectable()
 export class CashDrawerService {
@@ -15,7 +20,7 @@ export class CashDrawerService {
   ) {
     // Validate input parameters
     const isOpen = await this.getCashDrawerStatus(storeId);
-    if (!isOpen) {
+    if (isOpen && isOpen.status === 'open') {
       throw new BadRequestException('Cash drawer is already open for today.');
     }
     // Logic to open the cash drawer
@@ -67,5 +72,52 @@ export class CashDrawerService {
       },
     });
     return cashDrawer;
+  }
+
+  async getCashDrawerLists(storeId: string, query: CashDrawerQueryDto) {
+    // Logic to get the status of the cash drawer
+    const startDate = query.startDate
+      ? getStartOfDay(query.startDate)
+      : undefined;
+
+    const endDate = query.endDate ? getEndOfDay(query.endDate) : undefined;
+
+    const limit = query.limit ? parseInt(query.limit.toString(), 10) : 10;
+    const page = query.page ? parseInt(query.page.toString(), 10) : 1;
+
+    const where: any = {
+      store_id: storeId,
+    };
+
+    if (startDate && endDate) {
+      where.created_at = {
+        gte: startDate,
+        lte: endDate,
+      };
+    }
+
+    const [cashDrawer, count] = await Promise.all([
+      this.prisma.cash_drawers.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        take: limit,
+        skip: (page - 1) * limit,
+      }),
+      this.prisma.cash_drawers.count({ where }),
+    ]);
+
+    return [cashDrawer, count];
+  }
+
+  async editCashDrawer(cashDrawerId: string, userId: number, balance: number) {
+    // Logic to edit the cash drawer details
+    return await this.prisma.cash_drawers.update({
+      where: { id: cashDrawerId },
+      data: {
+        expected_balance: balance,
+        updated_by: userId,
+        updated_at: jakartaTime().toUnixInteger(),
+      },
+    });
   }
 }

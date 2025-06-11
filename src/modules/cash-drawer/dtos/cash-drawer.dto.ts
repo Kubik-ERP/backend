@@ -1,10 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsDate,
+  IsDateString,
+  IsEmpty,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Min,
 } from 'class-validator';
 
@@ -69,4 +73,53 @@ export class CloseCashDrawerDto {
   @IsString()
   @IsOptional()
   notes?: string;
+}
+
+export class CashDrawerQueryDto {
+  @ApiProperty({
+    required: false,
+    description: 'Page number for pagination',
+    default: 1,
+  })
+  @IsOptional()
+  page?: number = 1;
+
+  @ApiProperty({
+    required: false,
+    description: 'Number of items per page',
+    default: 10,
+  })
+  @IsOptional()
+  limit?: number = 10;
+
+  @ApiProperty({
+    required: false,
+    enum: [0, 1, 2, 3, 4, 5],
+    description:
+      '0 => opening, 1 => cash in, 2 => sale, 3 => cash out, 4 => refund, 5 => closing. Empty string allowed.',
+    default: '',
+  })
+  @IsOptional()
+  @Matches(/^$|^[0-5]$/, { message: 'type must be 0-5 or empty string' })
+  type?: string = '';
+
+  @ApiProperty({
+    required: false,
+    description: 'Start date in DD-MM-YYYY format. Empty string allowed.',
+    default: '',
+  })
+  @IsOptional()
+  @Matches(/^$|^\d{2}-\d{2}-\d{4}$/, {
+    message: 'startDate must be empty or in DD-MM-YYYY format',
+  })
+  startDate?: string = '';
+
+  @ApiProperty({
+    required: false,
+  })
+  @IsOptional()
+  @Matches(/^$|^\d{2}-\d{2}-\d{4}$/, {
+    message: 'endDate must be empty or in DD-MM-YYYY format',
+  })
+  endDate?: string = '';
 }

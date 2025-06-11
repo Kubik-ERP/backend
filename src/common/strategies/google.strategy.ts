@@ -33,7 +33,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
 
     // Cari user di DB
     let user = await this.prisma.users.findUnique({ where: { email } });
-    console.log(user);
+    let role = await this.prisma.roles.findFirst({
+      where: {
+        name: 'Owner', // Ganti dengan role yang sesuai
+      },
+    });
     // Kalau belum ada, buat baru
     if (!user) {
       user = await this.prisma.users.create({
@@ -47,6 +51,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
           verified_at: jakartaTime().toUnixInteger(),
           created_at: jakartaTime().toUnixInteger(),
           updated_at: jakartaTime().toUnixInteger(),
+          role_id: role!.id,
         },
       });
     }
