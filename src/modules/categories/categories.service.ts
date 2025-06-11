@@ -147,7 +147,6 @@ export class CategoriesService {
     }
   }
 
-
   async update(id: string, updateCategoryDto: UpdateCategoryDto) {
     try {
       const existingCategory = await this.prisma.categories.findUnique({
@@ -174,6 +173,7 @@ export class CategoriesService {
           category: updateCategoryDto.category || existingCategory.category,
           description:
             updateCategoryDto.description || existingCategory.description,
+          picture_url: updateCategoryDto.image,
         },
       });
 
