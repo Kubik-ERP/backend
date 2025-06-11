@@ -40,37 +40,9 @@ model cash_drawers {
   updated_by       BigInt?
   updated_at       BigInt?
   store_id         String?           @db.Uuid
+  closed_at        BigInt?
+  closed_by        BigInt?
   stores           stores?           @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_stores_fk")
-}
-
-model cash_register_date {
-  id                               String                             @id @db.Uuid
-  date                             DateTime?                          @db.Date
-  cash_register_date_has_employees cash_register_date_has_employees[]
-  cash_registers                   cash_registers[]
-}
-
-model cash_register_date_has_employees {
-  cash_register_date_id String             @db.Uuid
-  employees_id          String             @db.Uuid
-  cash_register_date    cash_register_date @relation(fields: [cash_register_date_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_register_date_has_employees_cash_register_date1")
-  employees             employees          @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_register_date_has_employees_employees1")
-
-  @@id([cash_register_date_id, employees_id])
-  @@index([cash_register_date_id], map: "fk_cash_register_date_has_employees_cash_register_date1_idx")
-  @@index([employees_id], map: "fk_cash_register_date_has_employees_employees1_idx")
-}
-
-model cash_registers {
-  id                    String             @db.Uuid
-  type                  transaction_type?
-  notes                 String?            @db.VarChar(45)
-  amount                String?            @db.VarChar(45)
-  cash_register_date_id String             @db.Uuid
-  cash_register_date    cash_register_date @relation(fields: [cash_register_date_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cash_registers_cash_register_date1")
-
-  @@id([id, cash_register_date_id])
-  @@index([cash_register_date_id], map: "fk_cash_registers_cash_register_date1_idx")
 }
 
 model categories {
@@ -129,21 +101,20 @@ model customers_has_tag {
 }
 
 model employees {
-  id                               String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                             String?                            @db.VarChar(45)
-  email                            String?                            @unique @db.VarChar(45)
-  phone_number                     String?                            @db.VarChar(45)
-  profile_url                      String?                            @db.VarChar(45)
-  start_date                       DateTime?                          @db.Date
-  end_date                         DateTime?                          @db.Date
-  gender                           gender?
-  cash_register_date_has_employees cash_register_date_has_employees[]
-  employees_has_roles              employees_has_roles[]
-  employees_shift                  employees_shift[]
-  platforms_has_employees          platforms_has_employees[]
-  product_commissions              product_commissions[]
-  stores_has_employees             stores_has_employees[]
-  voucher_commissions              voucher_commissions[]
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String?                   @db.VarChar(45)
+  email                   String?                   @unique @db.VarChar(45)
+  phone_number            String?                   @db.VarChar(45)
+  profile_url             String?                   @db.VarChar(45)
+  start_date              DateTime?                 @db.Date
+  end_date                DateTime?                 @db.Date
+  gender                  gender?
+  employees_has_roles     employees_has_roles[]
+  employees_shift         employees_shift[]
+  platforms_has_employees platforms_has_employees[]
+  product_commissions     product_commissions[]
+  stores_has_employees    stores_has_employees[]
+  voucher_commissions     voucher_commissions[]
 }
 
 model employees_has_roles {
@@ -381,6 +352,7 @@ model roles {
   name                String?               @db.VarChar(45)
   employees_has_roles employees_has_roles[]
   role_permissions    role_permissions[]
+  users               users[]
 }
 
 model stores {
@@ -472,7 +444,9 @@ model users {
   deleted_at      BigInt?
   pin             String?           @db.VarChar
   fullname        String?           @db.VarChar
+  role_id         String            @db.Uuid
   user_has_stores user_has_stores[]
+  roles           roles             @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
 }
 
 model users_token {
@@ -608,6 +582,15 @@ model invoice_settings {
   increment_by                   Int?
   reset_sequence                 String?
   starting_number                Int?
+}
+
+model cash_drawer_transactions {
+  id              String  @id(map: "cash_drawer_transactions_pk") @db.Uuid
+  cash_drawers_id String  @db.Uuid
+  amount          BigInt
+  type            String  @db.VarChar
+  created_by      BigInt?
+  created_at      BigInt?
 }
 
 enum cash_drawer_type {

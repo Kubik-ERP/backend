@@ -16,6 +16,7 @@ import {
 // Prisma
 import { PrismaService } from '../../../prisma/prisma.service';
 import { users as UserModel } from '@prisma/client';
+import { UUID } from 'crypto';
 
 @Injectable()
 export class UsersService {
@@ -33,6 +34,7 @@ export class UsersService {
           email: payload.email,
           password: payload.password,
           fullname: payload.fullname,
+          role_id: payload.role_id,
         },
       });
     } catch (error) {
@@ -204,6 +206,39 @@ export class UsersService {
       return true;
     } catch (error) {
       throw new BadRequestException('Failed to set/unset pin', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  public async getUserRole(userId: number): Promise<string | null> {
+    try {
+      const user = await this.prisma.users.findUnique({
+        where: { id: userId },
+        include: {
+          roles: true,
+        },
+      });
+
+      return user?.roles?.name || null;
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch user role', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  public async getRoleIdByRoleName(name: string): Promise<string | null> {
+    try {
+      const ownerRole = await this.prisma.roles.findFirst({
+        where: { name: name },
+      });
+
+      return ownerRole?.id || null;
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch owner role ID', {
         cause: new Error(),
         description: error.message,
       });

@@ -13,6 +13,10 @@ export function toCamelCase(obj: any): any {
 
         if (value instanceof Date) {
           acc[camelKey] = value.toISOString();
+        } else if (typeof value === 'bigint') {
+          acc[camelKey] = parseFloat(value.toString());
+        } else if (value instanceof Number) {
+          acc[camelKey] = parseFloat(value.toString());
         } else {
           acc[camelKey] = toCamelCase(value);
         }
