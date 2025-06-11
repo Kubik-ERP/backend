@@ -20,10 +20,6 @@ export class OpenCashDrawerDto {
    */
 
   @ApiProperty()
-  @IsUUID()
-  public storeId: string;
-
-  @ApiProperty()
   @IsNumber()
   @Min(0)
   @IsNotEmpty()

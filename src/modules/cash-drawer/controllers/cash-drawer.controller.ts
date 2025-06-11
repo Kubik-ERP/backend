@@ -16,7 +16,7 @@ import {
   OpenCashDrawerDto,
 } from '../dtos/cash-drawer.dto';
 import { CashDrawerService } from '../services/cash-drawer.service';
-import { ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { UsersService } from 'src/modules/users/services/users.service';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
@@ -112,10 +112,15 @@ export class CashDrawerController {
     description:
       'Owner user id dari payload, cashier: user id dari login information',
   })
+  @ApiParam({
+    name: 'storeId',
+    description: 'ID of the store where the cash drawer is opened',
+  })
   @Post('open')
   async openCashDrawer(
     @Body() openCashDrawerDto: OpenCashDrawerDto,
     @Req() req: ICustomRequestHeaders,
+    @Param('storeId') storeId: string,
   ) {
     let userId = openCashDrawerDto.userId;
 
@@ -127,7 +132,7 @@ export class CashDrawerController {
     await this.service.openCashDrawer(
       userId,
       openCashDrawerDto.balance,
-      openCashDrawerDto.storeId,
+      storeId,
       openCashDrawerDto.notes,
     );
 
@@ -173,7 +178,10 @@ export class CashDrawerController {
     name: 'type',
     enum: ['in', 'out'],
   })
-  @Post('transaction/add/:type')
+  @ApiParam({
+    name: 'cashDrawerId',
+  })
+  @Post('transaction/add/:type/:cashDrawerId')
   async addTransaction(@Req() req: ICustomRequestHeaders) {
     // Logic to add a transaction to the cash drawer
     return { message: 'Transaction added successfully' };
@@ -183,14 +191,19 @@ export class CashDrawerController {
   @HttpCode(200)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Create store',
+    summary: 'Close cash drawer',
     description:
       'type: 0=> opening, 1 => cash in, 2 => sale, 3 => cash out, 4 => refund, 5 =>closing',
   })
   @Post('close')
+  @ApiParam({
+    name: 'cashDrawerId',
+  })
   async closeCashDrawer(
     @Body() body: CloseCashDrawerDto,
     @Req() req: ICustomRequestHeaders,
+    @Param('cashDrawerId') cashDrawerId: string,
+
   ) {
     await this.service.closeCashDrawer(
       body.cashDrawerId,
@@ -200,8 +213,11 @@ export class CashDrawerController {
     return { message: 'Cash drawer closed successfully' };
   }
 
-  @Get('transactions')
-  async getCashDrawerTransactions() {
+  @ApiParam({
+    name: 'cashDrawerId',
+  })
+  @Get('transactions/:cashDrawerId')
+  async getCashDrawerTransactions(@Param('cashDrawerId') cashDrawerId: string) {
     // Logic to get transactions related to the cash drawer
     const data = [
       {
@@ -248,11 +264,11 @@ export class CashDrawerController {
       }, //opening
     ];
 
-    let res = formatPaginatedResult(data, 6)
+    let res = formatPaginatedResult(data, 6);
 
     return {
       message: 'Cash drawer transactions retrieved successfully',
-      result: res
-    }
+      result: res,
+    };
   }
 }
