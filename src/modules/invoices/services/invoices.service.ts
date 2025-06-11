@@ -179,6 +179,42 @@ export class InvoiceService {
     };
   }
 
+  public async generateInvoiceNumber(): Promise<string> {
+    const today = new Date();
+    const dateKey = today.toISOString().split('T')[0].replace(/-/g, ''); // yyyyMMdd
+
+    // Transaction with locking to handle race condition
+    const result = await this._prisma.$transaction(async (tx) => {
+      // Select invoices for today with FOR UPDATE to lock rows for this day
+      const latestInvoice = await tx.invoice.findFirst({
+        where: {
+          invoice_number: {
+            startsWith: dateKey,
+          },
+        },
+        orderBy: {
+          invoice_number: 'desc',
+        },
+        take: 1,
+      });
+
+      // Extract the latest number and increment
+      let incrementNumber = 1;
+      if (latestInvoice) {
+        const lastNumber = parseInt(
+          (latestInvoice.invoice_number ?? '').slice(8),
+          10,
+        );
+        incrementNumber = lastNumber + 1;
+      }
+
+      // Format the incremented number with leading zeros
+      const paddedNumber = incrementNumber.toString().padStart(5, '0');
+      return `${dateKey}${paddedNumber}`;
+    });
+    return result;
+  }
+
   public async proceedInstantPayment(
     header: ICustomRequestHeaders,
     request: ProceedInstantPaymentDto,
