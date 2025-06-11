@@ -15,34 +15,32 @@ import { error } from 'console';
 @Injectable()
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
+  async create(createCategoryDto: CreateCategoryDto & { image: string }) {
+    const { category, description, image } = createCategoryDto;
 
-  async create(createCategoryDto: CreateCategoryDto) {
-    try {
-      const existingCategory = await this.prisma.categories.findFirst({
-        where: { category: createCategoryDto.category },
-      });
+    const existingCategory = await this.prisma.categories.findFirst({
+      where: { category },
+    });
 
-      if (existingCategory) {
-        throw new HttpException(
-          {
-            statusCode: HttpStatus.BAD_REQUEST,
-            message: 'Category category must be unique',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      const newCategory = await this.prisma.categories.create({
-        data: {
-          category: createCategoryDto.category,
-          description: createCategoryDto.description,
+    if (existingCategory) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'Category must be unique',
         },
-      });
-
-      return newCategory;
-    } catch (error) {
-      throw new Error(error.message || 'Failed to create category');
+        HttpStatus.BAD_REQUEST,
+      );
     }
+
+    const newCategory = await this.prisma.categories.create({
+      data: {
+        category,
+        description,
+        picture_url: image,
+      },
+    });
+
+    return newCategory;
   }
 
   async findAll({
