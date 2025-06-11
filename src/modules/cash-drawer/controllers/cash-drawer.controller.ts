@@ -1,52 +1,92 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { OpenCashDrawerDto } from '../dtos/cash-drawer.dto';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { CloseCashDrawerDto, OpenCashDrawerDto } from '../dtos/cash-drawer.dto';
 import { CashDrawerService } from '../services/cash-drawer.service';
-import { ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { UsersService } from 'src/modules/users/services/users.service';
 
 @Controller('cash-drawer')
 export class CashDrawerController {
   // Controller methods will be defined here in the future
   // For example, you might have methods for opening, closing, and checking the status of the cash drawer
 
-  constructor(private readonly service: CashDrawerService) {}
+  constructor(
+    private readonly service: CashDrawerService,
+    private readonly userService: UsersService,
+  ) {}
 
+  @UseGuards(AuthenticationJWTGuard)
+  @HttpCode(200)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create store' })
   @Get('status')
   @ApiParam({
     name: 'storeId',
   })
   async getCashDrawerStatus(@Param('storeId') storeId: string) {
     // Logic to get the status of the cash drawer
-    const status = await this.service.getCashDrawerStatus(storeId);
+    const result = await this.service.getCashDrawerStatus(storeId);
     return {
       message: 'Cash drawer status retrieved successfully',
-      result: {
-        open: status,
-      },
+      result: result,
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @HttpCode(200)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Create store',
+    description:
+      'Owner user id dari login information, cashier: user id kirim lewat payload',
+  })
   @Post('open')
-  async openCashDrawer(@Body() openCashDrawerDto: OpenCashDrawerDto) {
-    // Logic to open the cash drawer
+  async openCashDrawer(
+    @Body() openCashDrawerDto: OpenCashDrawerDto,
+    @Req() req: IRequestUser,
+  ) {
+    let userId = openCashDrawerDto.userId;
+    const role = await this.userService.getUserRole(openCashDrawerDto.userId);
+    if (role === 'Owner') {
+      userId = req.id;
+    }
+
     await this.service.openCashDrawer(
-      openCashDrawerDto.userId,
+      userId,
       openCashDrawerDto.balance,
-      openCashDrawerDto.notes,
       openCashDrawerDto.storeId,
+      openCashDrawerDto.notes,
     );
 
     return { message: 'Cash drawer opened successfully' };
   }
 
+  //TODO: Implement the addTransaction method to handle adding transactions to the cash drawer
   @Post('transaction/add')
   async addTransaction() {
     // Logic to add a transaction to the cash drawer
     return { message: 'Transaction added successfully' };
   }
 
-  @Get('close')
-  async closeCashDrawer() {
-    // Logic to close the cash drawer
+  @UseGuards(AuthenticationJWTGuard)
+  @HttpCode(200)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create store' })
+  @Post('close')
+  async closeCashDrawer(
+    @Body() body: CloseCashDrawerDto,
+    @Req() req: IRequestUser,
+  ) {
+    await this.service.closeCashDrawer(body.cashDrawerId, req.id, body.balance);
     return { message: 'Cash drawer closed successfully' };
   }
 

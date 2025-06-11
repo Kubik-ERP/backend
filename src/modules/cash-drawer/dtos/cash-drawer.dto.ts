@@ -43,3 +43,30 @@ export class OpenCashDrawerDto {
   @IsOptional()
   notes?: string;
 }
+
+export class CloseCashDrawerDto {
+  /**
+   * Saldo awal saat laci kas dibuka.
+   * Tidak boleh negatif.
+   * @example 500000
+   */
+
+  @ApiProperty()
+  @IsUUID()
+  public cashDrawerId: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  @IsNotEmpty()
+  balance: number;
+
+  /**
+   * Catatan opsional.
+   * @example "Modal awal shift pagi"
+   */
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}

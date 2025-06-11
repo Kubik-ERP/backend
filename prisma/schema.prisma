@@ -40,6 +40,8 @@ model cash_drawers {
   updated_by       BigInt?
   updated_at       BigInt?
   store_id         String?           @db.Uuid
+  closed_at        BigInt?
+  closed_by        BigInt?
   stores           stores?           @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_stores_fk")
 }
 
@@ -381,6 +383,7 @@ model roles {
   name                String?               @db.VarChar(45)
   employees_has_roles employees_has_roles[]
   role_permissions    role_permissions[]
+  users               users[]
 }
 
 model stores {
@@ -472,7 +475,9 @@ model users {
   deleted_at      BigInt?
   pin             String?           @db.VarChar
   fullname        String?           @db.VarChar
+  role_id         String?           @db.Uuid
   user_has_stores user_has_stores[]
+  roles           roles?            @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
 }
 
 model users_token {

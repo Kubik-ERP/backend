@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { jakartaTime } from 'src/common/helpers/common.helpers';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,9 +10,14 @@ export class CashDrawerService {
   async openCashDrawer(
     userId: number,
     balance: number,
+    storeId: string,
     notes?: string,
-    storeId?: string,
   ) {
+    // Validate input parameters
+    const isOpen = await this.getCashDrawerStatus(storeId);
+    if (!isOpen) {
+      throw new BadRequestException('Cash drawer is already open for today.');
+    }
     // Logic to open the cash drawer
     const cashDrawer = await this.prisma.cash_drawers.create({
       data: {
@@ -22,9 +27,10 @@ export class CashDrawerService {
         expected_balance: balance,
         created_by: userId,
         created_at: jakartaTime().toUnixInteger(),
-        store_id: storeId || null, // Optional store ID
+        store_id: storeId,
       },
     });
+
     return cashDrawer;
   }
 
@@ -56,7 +62,10 @@ export class CashDrawerService {
           lte: jakartaTime().endOf('day').toUnixInteger(), // Less than or equal to (Lebih kecil atau sama dengan)
         },
       },
+      orderBy: {
+        created_at: 'desc',
+      },
     });
-    return cashDrawer ? cashDrawer.status : false;
+    return cashDrawer;
   }
 }
