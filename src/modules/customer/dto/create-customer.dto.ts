@@ -50,13 +50,10 @@ export class CreateCustomerDto {
   @IsNumber()
   point?: number;
 
-  @ApiPropertyOptional({
-    description: 'List of tags associated with customer',
-    type: [CreateTagDto],
-  })
+  @ApiPropertyOptional({ description: 'Customer Tag' })
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateTagDto)
-  tags?: CreateTagDto[];
+  @IsString()
+  tag?: string;
+
+
 }

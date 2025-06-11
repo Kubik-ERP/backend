@@ -27,31 +27,8 @@ export class CustomerService {
           ? new Date(createCustomerDto.dob)
           : undefined,
         address: createCustomerDto.address,
+        tag: createCustomerDto.tag,
       };
-
-      if (createCustomerDto.tags && createCustomerDto.tags.length > 0) {
-        const tagsToConnectOrCreate = await Promise.all(
-          createCustomerDto.tags.map(async (tag) => {
-            if (!tag.id || tag.id === '') {
-              if (!tag.name || tag.name.trim() === '') {
-                throw new HttpException(
-                  'Tag name is required if tag id is not provided',
-                  HttpStatus.BAD_REQUEST,
-                );
-              }
-              const newTag = await this.prisma.tag.create({
-                data: { name: tag.name.trim() },
-              });
-              return { tag_id: newTag.id };
-            }
-            return { tag_id: tag.id };
-          }),
-        );
-
-        customerData.customers_has_tag = {
-          create: tagsToConnectOrCreate,
-        };
-      }
 
       const newCustomer = await this.prisma.customer.create({
         data: customerData,
@@ -290,30 +267,8 @@ export class CustomerService {
           ? new Date(updateCustomerDto.dob)
           : undefined,
         address: updateCustomerDto.address,
+        tag: updateCustomerDto.tag,
       };
-
-      if (updateCustomerDto.tags && updateCustomerDto.tags.length > 0) {
-        const tagsToConnectOrCreate = [];
-
-        for (const tag of updateCustomerDto.tags) {
-          if (!tag.id || tag.id === '') {
-            const newTag = await this.prisma.tag.create({
-              data: { name: tag.name },
-            });
-            tagsToConnectOrCreate.push({ tag_id: newTag.id });
-          } else {
-            tagsToConnectOrCreate.push({ tag_id: tag.id });
-          }
-        }
-
-        await this.prisma.customers_has_tag.deleteMany({
-          where: { customer_id: id },
-        });
-
-        customerData.customers_has_tag = {
-          create: tagsToConnectOrCreate,
-        };
-      }
 
       const updatedCustomer = await this.prisma.customer.update({
         where: { id },
