@@ -7,7 +7,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   Matches,
   Min,
 } from 'class-validator';
@@ -50,10 +49,6 @@ export class CloseCashDrawerDto {
    * Tidak boleh negatif.
    * @example 500000
    */
-
-  @ApiProperty()
-  @IsUUID()
-  public cashDrawerId: string;
 
   @ApiProperty()
   @IsNumber()
