@@ -229,6 +229,8 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
+    const invoiceNumber = await this.generateInvoiceNumber();
+
     const invoiceData = {
       id: invoiceId,
       payment_methods_id: request.paymentMethodId,
@@ -248,7 +250,7 @@ export class InvoiceService {
       service_charge_amount: null,
       grand_total: null,
       cashier_id: header.user.id,
-      invoice_number: '', // TODO: implement invoice number generator
+      invoice_number: invoiceNumber,
     };
 
     // create invoice with status unpaid
