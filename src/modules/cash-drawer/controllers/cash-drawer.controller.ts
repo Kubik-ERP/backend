@@ -203,7 +203,7 @@ export class CashDrawerController {
   @Get('transactions')
   async getCashDrawerTransactions() {
     // Logic to get transactions related to the cash drawer
-    return [
+    const data = [
       {
         id: 4,
         amount: 100,
@@ -246,6 +246,13 @@ export class CashDrawerController {
         date: '2023-10-02 12:59',
         finalAmount: 5000,
       }, //opening
-    ]; // Example response
+    ];
+
+    let res = formatPaginatedResult(data, 6)
+
+    return {
+      message: 'Cash drawer transactions retrieved successfully',
+      result: res
+    }
   }
 }
