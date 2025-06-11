@@ -4,7 +4,6 @@ import {
   IsEnum,
   IsNotEmpty,
   IsNumber,
-  IsObject,
   IsString,
   IsUUID,
   ValidateNested,
@@ -14,7 +13,7 @@ import {
 import { order_type } from '@prisma/client';
 
 // NestJS Libraries
-import { ApiOperation, ApiProperty } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 // DTO Product
@@ -55,26 +54,6 @@ export class ProductListDto {
   @ValidateNested({ each: true })
   @Type(() => ProductDto)
   public products: ProductDto[];
-}
-
-// DTO Invoice Detail
-class InvoiceDetail {
-  @ApiProperty({
-    description: 'Received By',
-    required: true,
-    example: 'Samantha',
-  })
-  @IsString()
-  @IsNotEmpty()
-  public receivedBy: string;
-
-  @ApiProperty({
-    description: 'Notes of Invoice',
-    required: false,
-    example: 'Please add cutlery',
-  })
-  @IsNotEmpty()
-  public notes: string;
 }
 
 export class ProceedInstantPaymentDto extends ProductListDto {
@@ -122,10 +101,6 @@ export class ProceedInstantPaymentDto extends ProductListDto {
   })
   @IsString()
   public tableCode: string;
-
-  @ApiProperty({ description: 'Invoice Detail', required: false })
-  @IsObject()
-  public invoiceDetail: InvoiceDetail;
 }
 
 export class ProceedCheckoutInvoiceDto extends ProductListDto {
@@ -157,10 +132,6 @@ export class ProceedCheckoutInvoiceDto extends ProductListDto {
   })
   @IsString()
   public tableCode: string;
-
-  @ApiProperty({ description: 'Invoice Detail', required: false })
-  @IsObject()
-  public invoiceDetail: InvoiceDetail;
 }
 
 export class ProceedPaymentDto {

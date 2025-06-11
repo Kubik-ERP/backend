@@ -35,15 +35,12 @@ import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { ChargesService } from 'src/modules/charges/services/charges.service';
-import { nodeModuleNameResolver } from 'typescript';
 import {
   GetInvoiceSettingDto,
   SettingInvoiceDto,
 } from '../dtos/setting-invoice.dto';
-import { UUID } from 'crypto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { MailService } from 'src/modules/mail/services/mail.service';
-import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
 
 @Injectable()
 export class InvoiceService {
@@ -83,7 +80,7 @@ export class InvoiceService {
       // ...(orderType && { order_type: { equals: orderType } }),
     };
 
-    const [data, total] = await Promise.all([
+    const [items, total] = await Promise.all([
       this._prisma.invoice.findMany({
         where: filters,
         include: {
@@ -101,7 +98,7 @@ export class InvoiceService {
     ]);
 
     return {
-      data,
+      items,
       meta: {
         page,
         pageSize,
@@ -121,6 +118,9 @@ export class InvoiceService {
             products: true,
             variant: true,
           },
+        },
+        users: {
+          select: { id: true, fullname: true },
         },
         invoice_charges: true,
         payment_methods: true,
@@ -179,7 +179,10 @@ export class InvoiceService {
     };
   }
 
-  public async proceedInstantPayment(request: ProceedInstantPaymentDto) {
+  public async proceedInstantPayment(
+    header: ICustomRequestHeaders,
+    request: ProceedInstantPaymentDto,
+  ) {
     const paymentProvider = this._paymentFactory.getProvider(request.provider);
     if (!paymentProvider) {
       this.logger.error(`Payment provider '${request.provider}' not found`);
@@ -208,6 +211,8 @@ export class InvoiceService {
       tax_amount: null,
       service_charge_amount: null,
       grand_total: null,
+      cashier_id: header.user.id,
+      invoice_number: '', // TODO: implement invoice number generator
     };
 
     // create invoice with status unpaid
@@ -276,7 +281,10 @@ export class InvoiceService {
     return response;
   }
 
-  public async proceedCheckout(request: ProceedCheckoutInvoiceDto) {
+  public async proceedCheckout(
+    header: ICustomRequestHeaders,
+    request: ProceedCheckoutInvoiceDto,
+  ) {
     // create invoice ID
     const invoiceId = uuidv4();
     const calculation = await this.calculateTotal(request);
@@ -298,6 +306,8 @@ export class InvoiceService {
       tax_amount: null,
       service_charge_amount: null,
       grand_total: null,
+      cashier_id: header.user.id,
+      invoice_number: '', // TODO: implement invoice number generator
     };
 
     // create invoice with status unpaid
@@ -745,7 +755,7 @@ export class InvoiceService {
     });
 
     // check if product has a variant, but can be set as product only
-    if (hasVariant && variantId !== '') {
+    if (hasVariant && variantId !== '' && variantId !== hasVariant.variant_id) {
       this.logger.error(
         `Product ${productId} requires a variant but none was provided`,
       );
@@ -853,6 +863,8 @@ export class InvoiceService {
           tax_amount: invoice.tax_amount ?? null,
           service_charge_amount: invoice.service_charge_amount ?? null,
           grand_total: invoice.grand_total ?? null,
+          cashier_id: invoice.cashier_id,
+          invoice_number: invoice.invoice_number,
         },
       });
     } catch (error) {

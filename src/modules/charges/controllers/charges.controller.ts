@@ -1,13 +1,16 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
-import { ApiOperation } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { UpsertChargeDto } from '../dtos/charges.dto';
 import { ChargesService } from '../services/charges.service';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 
 @Controller('charges')
 export class ChargesController {
   constructor(private readonly chargeService: ChargesService) {}
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Post('/upsert')
   @ApiOperation({
     summary: 'Update or insert charge',
@@ -19,6 +22,8 @@ export class ChargesController {
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Get('')
   @ApiOperation({
     summary: 'Fetch charge list',
