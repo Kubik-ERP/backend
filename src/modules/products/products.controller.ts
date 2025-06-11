@@ -59,6 +59,7 @@ export class ProductsController {
         page: Number(query.page) || 1,
         limit: Number(query.limit) || 10,
         search: query.search,
+        categories: query.categories,
       });
       return {
         statusCode: 200,

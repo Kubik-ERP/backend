@@ -96,27 +96,44 @@ export class ProductsService {
     page = 1,
     limit = 10,
     search = '',
+    categories = '',
   }: {
     page?: number;
     limit?: number;
     search?: string;
+    categories?: string;
   }) {
     const skip = (page - 1) * limit;
 
-    const where: Prisma.productsWhereInput = search
-      ? {
-          name: {
-            contains: search,
-            mode: Prisma.QueryMode.insensitive,
+    const categoryIds = categories
+      ? categories.split('#').filter((id) => !!id)
+      : [];
+
+    const whereClause: any = {};
+
+    if (search) {
+      whereClause.name = {
+        contains: search,
+        mode: 'insensitive',
+      };
+    }
+
+    if (categoryIds.length > 0) {
+      whereClause.categories_has_products = {
+        some: {
+          categories_id: {
+            in: categoryIds,
           },
-        }
-      : {};
+        },
+      };
+    }
 
     const [products, total] = await Promise.all([
       this.prisma.products.findMany({
-        where,
+        where: whereClause,
         skip,
         take: limit,
+        distinct: ['id'],
         include: {
           categories_has_products: {
             include: {
@@ -130,7 +147,9 @@ export class ProductsService {
           },
         },
       }),
-      this.prisma.products.count({ where }),
+      this.prisma.products.count({
+        where: whereClause,
+      }),
     ]);
 
     return {

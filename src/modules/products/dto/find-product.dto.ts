@@ -12,4 +12,8 @@ export class FindAllProductsQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsString()
+  categories?: string;
 }
