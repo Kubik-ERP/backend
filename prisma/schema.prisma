@@ -593,6 +593,15 @@ model voucher_has_products {
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
 }
 
+model cash_drawer_transactions {
+  id              String  @id(map: "cash_drawer_transactions_pk") @db.Uuid
+  cash_drawers_id String  @db.Uuid
+  amount          BigInt
+  type            String  @db.VarChar
+  created_by      BigInt?
+  created_at      BigInt?
+}
+
 enum cash_drawer_type {
   open
   close

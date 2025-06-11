@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 
@@ -79,4 +80,11 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumber()
   public deleted_at?: number;
+
+  @ApiProperty({
+    example: '62b1c2d3-4e5f-6789-abcd-ef0123456789',
+    description: 'Role ID, must be a valid UUID',
+  })
+  @IsUUID()
+  public role_id: string;
 }
