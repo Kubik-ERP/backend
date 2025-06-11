@@ -195,11 +195,14 @@ model invoice {
   tax_amount                                 Float?
   service_charge_amount                      Float?
   grand_total                                Float?
+  cashier_id                                 Int?
+  invoice_number                             String?                  @db.VarChar(100)
   customers_has_invoices                     customers_has_invoices[]
   customer                                   customer                 @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods                            payment_methods?         @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
   charges_invoice_tax_idTocharges            charges?                 @relation("invoice_tax_idTocharges", fields: [tax_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk")
   charges_invoice_service_charge_idTocharges charges?                 @relation("invoice_service_charge_idTocharges", fields: [service_charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk_1")
+  users                                      users?                   @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
   invoice_charges                            invoice_charges[]
   invoice_details                            invoice_details[]
   invoice_has_stores                         invoice_has_stores[]
@@ -522,6 +525,7 @@ model users {
   pin             String?           @db.VarChar
   fullname        String?           @db.VarChar
   role_id         String            @db.Uuid
+  invoice         invoice[]
   user_has_stores user_has_stores[]
   roles           roles             @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
 }
@@ -591,15 +595,6 @@ model voucher_has_products {
   @@id([voucher_id, products_id])
   @@index([products_id], map: "fk_voucher_has_products_products1_idx")
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
-}
-
-model cash_drawer_transactions {
-  id              String  @id(map: "cash_drawer_transactions_pk") @db.Uuid
-  cash_drawers_id String  @db.Uuid
-  amount          BigInt
-  type            String  @db.VarChar
-  created_by      BigInt?
-  created_at      BigInt?
 }
 
 enum cash_drawer_type {

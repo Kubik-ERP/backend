@@ -35,10 +35,7 @@ export class InvoiceController {
   @ApiOperation({
     summary: 'Get List of invoices',
   })
-  public async invoiceList(
-    @Req() req: ICustomRequestHeaders,
-    @Query() query: GetListInvoiceDto,
-  ) {
+  public async invoiceList(@Query() query: GetListInvoiceDto) {
     const response = await this.invoiceService.getInvoices(query);
     return {
       result: toCamelCase(response),
@@ -57,6 +54,8 @@ export class InvoiceController {
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Post('sent-email/:invoiceId')
   @ApiOperation({
     summary: 'Sent email invoice to customer by invoice ID',
@@ -70,28 +69,40 @@ export class InvoiceController {
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Post('process/instant')
   @ApiOperation({
     summary: 'Create invoice and pay it instantly',
   })
-  public async processInstantPayment(@Body() body: ProceedInstantPaymentDto) {
-    const response = await this.invoiceService.proceedInstantPayment(body);
+  public async processInstantPayment(
+    @Req() req: ICustomRequestHeaders,
+    @Body() body: ProceedInstantPaymentDto,
+  ) {
+    const response = await this.invoiceService.proceedInstantPayment(req, body);
     return {
       result: toCamelCase(response),
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Post('process/checkout')
   @ApiOperation({
     summary: 'Create invoice with unpaid status',
   })
-  public async processCheckout(@Body() body: ProceedCheckoutInvoiceDto) {
-    const response = await this.invoiceService.proceedCheckout(body);
+  public async processCheckout(
+    @Req() req: ICustomRequestHeaders,
+    @Body() body: ProceedCheckoutInvoiceDto,
+  ) {
+    const response = await this.invoiceService.proceedCheckout(req, body);
     return {
       result: toCamelCase(response),
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Post('process/payment')
   @ApiOperation({
     summary: 'Pay the unpaid invoice',
@@ -129,6 +140,8 @@ export class InvoiceController {
     return await this.invoiceService.handlePaymentCoreCallback(callbackData);
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Post('calculate/estimation')
   @ApiOperation({
     summary: 'Simulate the total estimation',

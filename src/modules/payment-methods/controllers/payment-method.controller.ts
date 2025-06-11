@@ -6,18 +6,22 @@ import {
   Post,
   Put,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { PaymentMethodService } from '../services/payment-method.service';
 import { CreatePaymentMethodDto } from '../dtos/payment-method.dto';
 import { payment_methods } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
-import { ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 
 @Controller('payment/method')
 export class PaymentMethodController {
   constructor(private readonly paymentMethodService: PaymentMethodService) {}
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Post('')
   @ApiOperation({
     summary: 'Create a new payment method',
@@ -36,6 +40,8 @@ export class PaymentMethodController {
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Put('')
   @ApiOperation({
     summary: 'Update the current payment method by ID',
@@ -57,6 +63,8 @@ export class PaymentMethodController {
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Get('')
   @ApiOperation({
     summary: 'Get list of the payment methods',
@@ -69,6 +77,8 @@ export class PaymentMethodController {
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Delete('')
   @ApiOperation({
     summary: 'Delete a payment method by ID',
