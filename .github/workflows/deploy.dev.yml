@@ -35,7 +35,7 @@ jobs:
             cp ~/.env .env
 
             # Stop & remove kubik-backend saja
-            docker compose stop kubik-backend || true
+            docker compose down kubik-backend || true
             docker compose rm -f kubik-backend || true
 
             # Rebuild dan jalankan hanya backend (Redis & MinIO tetap jalan)
