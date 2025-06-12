@@ -79,21 +79,28 @@ export class StoresService {
         throw new BadRequestException('Store not found');
       }
 
+      const updateData: any = {
+        name: data.storeName,
+        email: data.email,
+        phone_number: data.phoneNumber,
+        business_type: data.businessType,
+        photo: data.photo, // bisa undefined
+        address: data.streetAddress,
+        city: data.city,
+        postal_code: data.postalCode,
+        building: data.building,
+        updated_at: new Date(),
+      };
+
+      // Hapus key yang nilainya undefined
+      Object.keys(updateData).forEach(
+        (key) => updateData[key] === undefined && delete updateData[key],
+      );
+
       // Update store details
       await prisma.stores.update({
         where: { id: storeId },
-        data: {
-          name: data.storeName,
-          email: data.email,
-          phone_number: data.phoneNumber,
-          business_type: data.businessType,
-          photo: data.photo,
-          address: data.streetAddress,
-          city: data.city,
-          postal_code: data.postalCode,
-          building: data.building,
-          updated_at: new Date(),
-        },
+        data: updateData,
       });
 
       // Update Business Hours

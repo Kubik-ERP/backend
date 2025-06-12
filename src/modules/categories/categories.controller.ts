@@ -18,10 +18,11 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { ApiConsumes } from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
+import { StorageService } from '../storage-service/services/storage-service.service';
 
 @Controller('categories')
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
+  constructor(private readonly categoriesService: CategoriesService, private readonly storageService: StorageService) { }
 
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(ImageUploadInterceptor('image'))
@@ -30,7 +31,14 @@ export class CategoriesController {
     @Body() createCategoryDto: CreateCategoryDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    const relativePath = `/public/images/${file.filename}`;
+    let relativePath = "";
+    if (file) {
+      const result = await this.storageService.uploadImage(
+        file.buffer,
+        file.originalname,
+      );
+      relativePath = `/${result.bucket}/${result.filename}`;
+    }
 
     try {
       const newCategory = await this.categoriesService.create({

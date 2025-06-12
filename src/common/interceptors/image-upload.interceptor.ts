@@ -1,23 +1,11 @@
-import {
-  BadRequestException,
-  CallHandler,
-  ExecutionContext,
-  NestInterceptor,
-} from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
 
-//interceptors for upload images
+// Interceptor for image upload (to MinIO)
 export function ImageUploadInterceptor(fieldName = 'file') {
   return FileInterceptor(fieldName, {
-    storage: diskStorage({
-      destination: './public/images',
-      filename: (req, file, cb) => {
-        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, uniqueName + extname(file.originalname));
-      },
-    }),
+    storage: memoryStorage(),
     limits: {
       fileSize: 5 * 1024 * 1024, // 5MB
     },

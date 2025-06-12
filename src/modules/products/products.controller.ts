@@ -19,10 +19,11 @@ import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { FindAllProductsQueryDto } from './dto/find-product.dto';
 import { ApiConsumes } from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
+import { StorageService } from '../storage-service/services/storage-service.service';
 
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(private readonly productsService: ProductsService, private readonly storageService: StorageService) { }
 
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(ImageUploadInterceptor('image'))
@@ -32,7 +33,14 @@ export class ProductsController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
-      const relativePath = `/public/images/${file.filename}`;
+      let relativePath = "";
+      if (file) {
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+        relativePath = `/${result.bucket}/${result.filename}`;
+      }
       const newProducts = await this.productsService.create({
         ...createProductDto,
         image: relativePath,

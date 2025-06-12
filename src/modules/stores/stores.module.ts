@@ -9,6 +9,7 @@ import { LocalStrategy } from 'src/common/strategies/local.strategy';
 import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaModule } from 'src/prisma/prisma.module';
+import { StorageServiceModule } from '../storage-service/storage-service.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
       }),
       inject: [JwtConfigService],
     }),
+    StorageServiceModule,
   ],
   controllers: [StoresController],
   providers: [StoresService, JwtStrategy],
