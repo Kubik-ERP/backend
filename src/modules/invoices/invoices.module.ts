@@ -10,9 +10,10 @@ import { MailModule } from '../mail/mail.module';
 import { ChargesService } from '../charges/services/charges.service';
 import { InvoiceSettingController } from './controllers/invoices-setting.controller';
 import { StoresService } from '../stores/services/stores.service';
+import { StorageServiceModule } from '../storage-service/storage-service.module';
 
 @Module({
-  imports: [MailModule],
+  imports: [MailModule, StorageServiceModule],
   providers: [
     InvoiceService,
     PaymentFactory,

@@ -56,6 +56,7 @@
     "handlebars": "^4.7.8",
     "keyv": "^5.3.3",
     "luxon": "^3.6.0",
+    "minio": "^8.0.5",
     "nodemailer": "^6.10.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",

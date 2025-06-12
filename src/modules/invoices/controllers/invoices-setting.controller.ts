@@ -27,12 +27,14 @@ import { empty } from '@prisma/client/runtime/library';
 import { StoresService } from 'src/modules/stores/services/stores.service';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { ImageUploadInterceptor } from 'src/common/interceptors/image-upload.interceptor';
+import { StorageService } from 'src/modules/storage-service/services/storage-service.service';
 
 @Controller('invoice')
 export class InvoiceSettingController {
   constructor(
     private readonly invoiceService: InvoiceService,
     private readonly storeService: StoresService,
+    private readonly storageService: StorageService,
   ) {}
 
   @Put('setting')
@@ -48,8 +50,14 @@ export class InvoiceSettingController {
     @Req() req: IRequestUser,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    const relativePath = file ? `/public/images/${file.filename}` : undefined;
-    body.companyLogo = relativePath;
+    let relativePath = '';
+    if (file) {
+      const result = await this.storageService.uploadImage(
+        file.buffer,
+        file.originalname,
+      );
+      relativePath = `/${result.bucket}/${result.filename}`;
+    }
     const validateStore = await this.storeService.validateStore(
       body.storeId,
       req.id,

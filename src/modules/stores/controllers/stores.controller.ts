@@ -33,11 +33,15 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { extname } from 'path';
 import { diskStorage } from 'multer';
 import { ImageUploadInterceptor } from 'src/common/interceptors/image-upload.interceptor';
+import { StorageService } from 'src/modules/storage-service/services/storage-service.service';
 
 @Controller('store')
 @ApiTags('Stores')
 export class StoresController {
-  constructor(private readonly _storeService: StoresService) {}
+  constructor(
+    private readonly _storeService: StoresService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @UseGuards(AuthenticationJWTGuard)
   @Post('/')
@@ -124,8 +128,15 @@ export class StoresController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
-      console.log('body', body);
-      const relativePath = file ? `/public/images/${file.filename}` : undefined;
+      let relativePath = undefined;
+      if (file) {
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+        relativePath = `/${result.bucket}/${result.filename}`;
+      }
+      //const relativePath = file ? `/public/images/${file.filename}` : undefined;
 
       await this._storeService.createStore(
         { ...body, photo: relativePath },
@@ -208,7 +219,14 @@ export class StoresController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
-      const relativePath = file ? `/public/images/${file.filename}` : undefined;
+      let relativePath = undefined;
+      if (file) {
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+        relativePath = `/${result.bucket}/${result.filename}`;
+      }
 
       await this._storeService.updateStore(id, req.user.id, {
         ...body,
