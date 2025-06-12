@@ -23,7 +23,10 @@ import { StorageService } from '../storage-service/services/storage-service.serv
 
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService, private readonly storageService: StorageService) { }
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(ImageUploadInterceptor('image'))
@@ -33,7 +36,7 @@ export class ProductsController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
-      let relativePath = "";
+      let relativePath = '';
       if (file) {
         const result = await this.storageService.uploadImage(
           file.buffer,

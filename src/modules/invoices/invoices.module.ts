@@ -24,7 +24,7 @@ import { StorageService } from '../storage-service/services/storage-service.serv
     PaymentLogsService,
     ChargesService,
     StoresService,
-    StorageServiceModule
+    StorageServiceModule,
   ],
   controllers: [InvoiceSettingController, InvoiceController],
   exports: [

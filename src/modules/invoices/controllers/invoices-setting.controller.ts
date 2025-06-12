@@ -35,7 +35,7 @@ export class InvoiceSettingController {
     private readonly invoiceService: InvoiceService,
     private readonly storeService: StoresService,
     private readonly storageService: StorageService,
-  ) { }
+  ) {}
 
   @Put('setting')
   @ApiOperation({
@@ -50,7 +50,7 @@ export class InvoiceSettingController {
     @Req() req: IRequestUser,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    let relativePath = "";
+    let relativePath = '';
     if (file) {
       const result = await this.storageService.uploadImage(
         file.buffer,

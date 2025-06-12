@@ -22,7 +22,10 @@ import { StorageService } from '../storage-service/services/storage-service.serv
 
 @Controller('categories')
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService, private readonly storageService: StorageService) { }
+  constructor(
+    private readonly categoriesService: CategoriesService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(ImageUploadInterceptor('image'))
@@ -31,7 +34,7 @@ export class CategoriesController {
     @Body() createCategoryDto: CreateCategoryDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    let relativePath = "";
+    let relativePath = '';
     if (file) {
       const result = await this.storageService.uploadImage(
         file.buffer,
