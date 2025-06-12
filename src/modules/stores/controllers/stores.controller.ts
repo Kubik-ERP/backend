@@ -34,6 +34,7 @@ import { extname } from 'path';
 import { diskStorage } from 'multer';
 import { ImageUploadInterceptor } from 'src/common/interceptors/image-upload.interceptor';
 import { StorageService } from 'src/modules/storage-service/services/storage-service.service';
+import { PinGuard } from 'src/common/guards/authentication-pin.guard';
 
 @Controller('store')
 @ApiTags('Stores')
@@ -121,6 +122,7 @@ export class StoresController {
     },
   })
   @ApiConsumes('multipart/form-data')
+  @UseGuards(PinGuard)
   @UseInterceptors(ImageUploadInterceptor('file'))
   public async createStore(
     @Req() req: ICustomRequestHeaders,
@@ -160,6 +162,7 @@ export class StoresController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update store by ID' })
   @ApiConsumes('multipart/form-data')
+  @UseGuards(PinGuard)
   @ApiBody({
     description: 'Form data for creating a store (including file upload)',
     schema: {
@@ -315,6 +318,7 @@ export class StoresController {
   @UseGuards(AuthenticationJWTGuard)
   @Delete('/:id')
   @ApiBearerAuth()
+  @UseGuards(PinGuard)
   @ApiOperation({ summary: 'Delete store by ID' })
   public async deleteStore(
     @Req() req: ICustomRequestHeaders,
