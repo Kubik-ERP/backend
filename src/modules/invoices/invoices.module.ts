@@ -11,10 +11,9 @@ import { ChargesService } from '../charges/services/charges.service';
 import { InvoiceSettingController } from './controllers/invoices-setting.controller';
 import { StoresService } from '../stores/services/stores.service';
 import { StorageServiceModule } from '../storage-service/storage-service.module';
-import { StorageService } from '../storage-service/services/storage-service.service';
 
 @Module({
-  imports: [MailModule],
+  imports: [MailModule, StorageServiceModule],
   providers: [
     InvoiceService,
     PaymentFactory,
@@ -24,7 +23,6 @@ import { StorageService } from '../storage-service/services/storage-service.serv
     PaymentLogsService,
     ChargesService,
     StoresService,
-    StorageServiceModule,
   ],
   controllers: [InvoiceSettingController, InvoiceController],
   exports: [
