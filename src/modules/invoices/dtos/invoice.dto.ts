@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { invoice_type } from '@prisma/client';
+import { invoice_type, order_type } from '@prisma/client';
 import {
   IsDate,
   IsEnum,
@@ -243,4 +243,20 @@ export class InvoicePreviewDto {
   @Expose()
   @Type(() => PaymentMethodDto)
   paymentMethods: PaymentMethodDto;
+}
+
+// unexposed DTO to swagger
+export class InvoiceUpdateDto {
+  paymentMethodId?: string;
+  customerId?: string;
+  discountAmount?: number;
+  tableCode?: string;
+  paymentStatus?: invoice_type;
+  subtotal?: number;
+  orderType?: order_type;
+  taxId?: string;
+  serviceChargeId?: string;
+  taxAmount?: number;
+  serviceChargeAmount?: number;
+  grandTotal?: number;
 }

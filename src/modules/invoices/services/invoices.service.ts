@@ -8,6 +8,7 @@ import {
   NotFoundException,
   Logger,
   BadRequestException,
+  Param,
 } from '@nestjs/common';
 import {
   charge_type,
@@ -32,7 +33,11 @@ import {
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
-import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
+import {
+  GetInvoiceDto,
+  GetListInvoiceDto,
+  InvoiceUpdateDto,
+} from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { ChargesService } from 'src/modules/charges/services/charges.service';
 import {
@@ -221,15 +226,14 @@ export class InvoiceService {
     const calculation = await this.calculateTotal(request, invoiceId);
 
     // update invoice
-    await this.update(
-      invoiceId,
-      calculation.total,
-      calculation.taxId,
-      calculation.serviceChargeId,
-      calculation.tax,
-      calculation.serviceCharge,
-      calculation.grandTotal,
-    );
+    await this.update(invoiceId, {
+      subtotal: calculation.total,
+      taxId: calculation.taxId,
+      serviceChargeId: calculation.serviceChargeId,
+      taxAmount: calculation.tax,
+      serviceChargeAmount: calculation.serviceCharge,
+      grandTotal: calculation.grandTotal,
+    });
 
     // insert the customer has invoice
     await this.createCustomerInvoice(invoiceId, request.customerId);
@@ -400,15 +404,15 @@ export class InvoiceService {
     );
 
     // update invoice
-    await this.update(
-      invoice.id,
-      calculation.total,
-      calculation.taxId,
-      calculation.serviceChargeId,
-      calculation.tax,
-      calculation.serviceCharge,
-      calculation.grandTotal,
-    );
+    await this.update(invoice.id, {
+      subtotal: calculation.total,
+      taxId: calculation.taxId,
+      serviceChargeId: calculation.serviceChargeId,
+      taxAmount: calculation.tax,
+      serviceChargeAmount: calculation.serviceCharge,
+      grandTotal: calculation.grandTotal,
+      paymentMethodId: request.paymentMethodId,
+    });
 
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
@@ -877,25 +881,12 @@ export class InvoiceService {
     }
   }
 
-  public async update(
-    invoiceId: string,
-    subtotal: number,
-    taxId: string,
-    serviceChargeId: string,
-    taxAmount: number,
-    serviceChargeAmount: number,
-    grandTotal: number,
-  ) {
+  public async update(invoiceId: string, data: InvoiceUpdateDto) {
     try {
       await this._prisma.invoice.update({
         where: { id: invoiceId },
         data: {
-          subtotal: subtotal,
-          tax_id: taxId,
-          service_charge_id: serviceChargeId,
-          tax_amount: taxAmount,
-          service_charge_amount: serviceChargeAmount,
-          grand_total: grandTotal,
+          ...data,
           update_at: new Date(),
         },
       });
