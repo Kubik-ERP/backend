@@ -63,6 +63,7 @@ export class InvoiceService {
     const {
       page,
       pageSize,
+      invoiceNumber,
       createdAtFrom,
       createdAtTo,
       orderType,
@@ -89,6 +90,7 @@ export class InvoiceService {
       ...(orderType && {
         order_type: { in: Array.isArray(orderType) ? orderType : [orderType] },
       }),
+      ...(invoiceNumber && { invoice_number: { equals: invoiceNumber } }),
     };
 
     const [items, total] = await Promise.all([

@@ -32,6 +32,15 @@ export class GetListInvoiceDto {
   pageSize: number;
 
   @ApiProperty({
+    description: 'Invoice number to search',
+    required: true,
+    example: '20250630-00001',
+  })
+  @IsOptional()
+  @IsString()
+  invoiceNumber: string;
+
+  @ApiProperty({
     description: 'Ordet type of the invoice',
     required: false,
     example: 'take_away',
