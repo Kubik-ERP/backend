@@ -24,6 +24,7 @@ import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { GenerateInvoiceNumberResponseDto } from '../dtos/GenerateInvoiceNumberResponseDto.dto';
 
 @Controller('invoice')
 export class InvoiceController {
@@ -66,6 +67,19 @@ export class InvoiceController {
 
     return {
       result: toCamelCase(response),
+    };
+  }
+
+  @Post('generate-invoice-number')
+  @ApiOperation({
+    summary: 'Generate a new invoice number',
+  })
+  public async generateInvoiceNumber(body: GenerateInvoiceNumberResponseDto) {
+    const invoiceNumber = await this.invoiceService.generateInvoiceNumber();
+    return {
+      result: {
+        invoiceNumber,
+      },
     };
   }
 
