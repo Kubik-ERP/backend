@@ -31,17 +31,25 @@ export class GetListInvoiceDto {
   @Transform(({ value }) => parseInt(value, 10))
   pageSize: number;
 
-  //   @IsEnum(ordertype)
-  //   orderType: ordertype;
+  @ApiProperty({
+    description: 'Ordet type of the invoice',
+    required: false,
+    example: 'take_away',
+    isArray: true,
+  })
+  @IsOptional()
+  @IsEnum(order_type, { each: true })
+  orderType?: order_type[];
 
   @ApiProperty({
     description: 'Payment status of the invoice',
     required: false,
     example: 'paid',
+    isArray: true,
   })
   @IsOptional()
-  @IsEnum(invoice_type)
-  paymentStatus: invoice_type;
+  @IsEnum(invoice_type, { each: true })
+  paymentStatus?: invoice_type[];
 
   @ApiProperty({
     description: 'Start time of the invoice created time',

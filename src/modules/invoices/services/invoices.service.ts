@@ -65,7 +65,7 @@ export class InvoiceService {
       pageSize,
       createdAtFrom,
       createdAtTo,
-      // orderType,
+      orderType,
       paymentStatus,
     } = request;
 
@@ -81,8 +81,14 @@ export class InvoiceService {
       ...(Object.keys(createdAtFilter).length > 0 && {
         created_at: createdAtFilter,
       }),
-      ...(paymentStatus && { payment_status: { equals: paymentStatus } }),
-      // ...(orderType && { order_type: { equals: orderType } }),
+      ...(paymentStatus && {
+        payment_status: {
+          in: Array.isArray(paymentStatus) ? paymentStatus : [paymentStatus],
+        },
+      }),
+      ...(orderType && {
+        order_type: { in: Array.isArray(orderType) ? orderType : [orderType] },
+      }),
     };
 
     const [items, total] = await Promise.all([
