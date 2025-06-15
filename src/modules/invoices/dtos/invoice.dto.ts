@@ -6,6 +6,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
 import { Expose, Type, Transform } from 'class-transformer';
@@ -93,8 +94,16 @@ export class GetInvoiceDto {
     required: true,
     example: '01970571-bd68-7dfd-ba41-00aa890cc3db',
   })
+  @IsUUID()
+  invoiceId?: string;
+
+  @ApiProperty({
+    description: 'Number of invoice',
+    required: true,
+    example: '2025063000025',
+  })
   @IsString()
-  invoiceId: string;
+  invoiceNumber?: string;
 }
 
 // Response DTO
@@ -264,16 +273,16 @@ export class InvoicePreviewDto {
 
 // unexposed DTO to swagger
 export class InvoiceUpdateDto {
-  paymentMethodId?: string;
-  customerId?: string;
-  discountAmount?: number;
-  tableCode?: string;
-  paymentStatus?: invoice_type;
+  payment_method_id?: string;
+  customer_id?: string;
+  discount_amount?: number;
+  table_code?: string;
+  payment_status?: invoice_type;
   subtotal?: number;
-  orderType?: order_type;
-  taxId?: string;
-  serviceChargeId?: string;
-  taxAmount?: number;
-  serviceChargeAmount?: number;
-  grandTotal?: number;
+  order_type?: order_type;
+  tax_id?: string;
+  service_charge_id?: string;
+  tax_amount?: number;
+  service_charge_amount?: number;
+  grand_total?: number;
 }

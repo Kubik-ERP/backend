@@ -8,7 +8,6 @@ import {
   NotFoundException,
   Logger,
   BadRequestException,
-  Param,
 } from '@nestjs/common';
 import {
   charge_type,
@@ -122,8 +121,22 @@ export class InvoiceService {
   }
 
   public async getInvoicePreview(request: GetInvoiceDto) {
-    const invoice = await this._prisma.invoice.findUnique({
-      where: { id: request.invoiceId },
+    const { invoiceId, invoiceNumber } = request;
+
+    if (request.invoiceId && request.invoiceNumber) {
+      this.logger.error(
+        'Please provide only one of invoiceId or invoiceNumber',
+      );
+      throw new BadRequestException(
+        'Please provide only one of invoiceId or invoiceNumber',
+      );
+    }
+
+    const invoice = await this._prisma.invoice.findFirst({
+      where: {
+        ...(invoiceId && { id: invoiceId }),
+        ...(invoiceNumber && { invoice_number: invoiceNumber }),
+      },
       include: {
         customer: true,
         invoice_details: {
@@ -274,11 +287,11 @@ export class InvoiceService {
     // update invoice
     await this.update(invoiceId, {
       subtotal: calculation.total,
-      taxId: calculation.taxId,
-      serviceChargeId: calculation.serviceChargeId,
-      taxAmount: calculation.tax,
-      serviceChargeAmount: calculation.serviceCharge,
-      grandTotal: calculation.grandTotal,
+      tax_id: calculation.taxId,
+      service_charge_id: calculation.serviceChargeId,
+      tax_amount: calculation.tax,
+      service_charge_amount: calculation.serviceCharge,
+      grand_total: calculation.grandTotal,
     });
 
     // insert the customer has invoice
@@ -324,7 +337,7 @@ export class InvoiceService {
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
       paymentProvider,
-      invoiceId,
+      invoiceNumber,
       calculation.total,
     );
 
@@ -452,18 +465,26 @@ export class InvoiceService {
     // update invoice
     await this.update(invoice.id, {
       subtotal: calculation.total,
-      taxId: calculation.taxId,
-      serviceChargeId: calculation.serviceChargeId,
-      taxAmount: calculation.tax,
-      serviceChargeAmount: calculation.serviceCharge,
-      grandTotal: calculation.grandTotal,
-      paymentMethodId: request.paymentMethodId,
+      tax_id: calculation.taxId,
+      service_charge_id: calculation.serviceChargeId,
+      tax_amount: calculation.tax,
+      service_charge_amount: calculation.serviceCharge,
+      grand_total: calculation.grandTotal,
+      payment_method_id: request.paymentMethodId,
     });
+
+    let invoiceNumber = '';
+    if (invoice.invoice_number === null) {
+      this.logger.error(`Invoice number is null`);
+      throw new BadRequestException(`Invoice number is null`);
+    } else {
+      invoiceNumber = invoice.invoice_number;
+    }
 
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
       paymentProvider,
-      request.invoiceId,
+      invoiceNumber,
       calculation.grandTotal,
     );
 

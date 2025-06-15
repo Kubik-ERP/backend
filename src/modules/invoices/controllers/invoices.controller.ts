@@ -25,6 +25,7 @@ import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { GenerateInvoiceNumberResponseDto } from '../dtos/GenerateInvoiceNumberResponseDto.dto';
+import { validate as isUUID } from 'uuid';
 
 @Controller('invoice')
 export class InvoiceController {
@@ -43,12 +44,14 @@ export class InvoiceController {
     };
   }
 
-  @Get(':invoiceId')
+  @Get(':IdOrNumber')
   @ApiOperation({
-    summary: 'Get invoice by invoice ID',
+    summary: 'Get invoice by invoice ID or number',
   })
-  public async invoiceById(@Param() param: GetInvoiceDto) {
-    const response = await this.invoiceService.getInvoicePreview(param);
+  public async invoiceByKey(@Param('key') key: string) {
+    const response = await this.invoiceService.getInvoicePreview(
+      isUUID(key) ? { invoiceId: key } : { invoiceNumber: key },
+    );
 
     return {
       result: toCamelCase(response),
