@@ -99,6 +99,18 @@ export class MailService {
 
   private async loadTemplate(templateName: string, data: any): Promise<string> {
     try {
+      const partialsPath = path.resolve(
+        __dirname,
+        '../../../../src/common/htmls/partials',
+      );
+      const headerPath = path.join(partialsPath, 'header.html');
+      const footerPath = path.join(partialsPath, 'footer.html');
+
+      const header = await fs.readFile(headerPath, 'utf-8');
+      const footer = await fs.readFile(footerPath, 'utf-8');
+      handlebars.registerPartial('header', header);
+      handlebars.registerPartial('footer', footer);
+
       const filePath = path.resolve(
         __dirname,
         '../../../../src/common/htmls',
