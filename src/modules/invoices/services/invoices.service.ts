@@ -77,6 +77,10 @@ export class InvoiceService {
       createdAtFilter.lte = new Date(createdAtTo);
     }
 
+    // order by clause
+    const orderByField = request.orderBy ?? 'created_at';
+    const orderDirection = request.orderDirection ?? 'desc';
+
     const filters: Prisma.invoiceWhereInput = {
       ...(Object.keys(createdAtFilter).length > 0 && {
         created_at: createdAtFilter,
@@ -101,7 +105,7 @@ export class InvoiceService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: {
-          created_at: 'desc',
+          [orderByField]: orderDirection,
         },
       }),
       this._prisma.invoice.count({

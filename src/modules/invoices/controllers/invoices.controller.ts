@@ -48,9 +48,11 @@ export class InvoiceController {
   @ApiOperation({
     summary: 'Get invoice by invoice ID or number',
   })
-  public async invoiceByKey(@Param('key') key: string) {
+  public async invoiceByKey(@Param('IdOrNumber') IdOrNumber: string) {
     const response = await this.invoiceService.getInvoicePreview(
-      isUUID(key) ? { invoiceId: key } : { invoiceNumber: key },
+      isUUID(IdOrNumber)
+        ? { invoiceId: IdOrNumber }
+        : { invoiceNumber: IdOrNumber },
     );
 
     return {

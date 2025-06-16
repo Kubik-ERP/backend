@@ -3,6 +3,7 @@ import { invoice_type, order_type } from '@prisma/client';
 import {
   IsDate,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -34,8 +35,8 @@ export class GetListInvoiceDto {
 
   @ApiProperty({
     description: 'Invoice number to search',
-    required: true,
-    example: '20250630-00001',
+    required: false,
+    example: '2025063000001',
   })
   @IsOptional()
   @IsString()
@@ -86,6 +87,25 @@ export class GetListInvoiceDto {
   @IsOptional()
   @IsDate()
   createdAtTo: Date;
+
+  @ApiProperty({
+    description: 'Field to order by',
+    required: false,
+    example: 'created_at',
+  })
+  @IsIn(['created_at', 'invoice_number'])
+  @IsOptional()
+  @IsString()
+  orderBy?: string;
+
+  @ApiProperty({
+    description: 'Sort direction: asc or desc',
+    required: false,
+    example: 'desc',
+  })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  orderDirection?: 'asc' | 'desc';
 }
 
 export class GetInvoiceDto {
