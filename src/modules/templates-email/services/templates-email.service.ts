@@ -8,6 +8,16 @@ import { MailService } from '../../mail/services/mail.service';
 
 import { v4 as uuidv4 } from 'uuid';
 
+// Define or import EmailTemplateType
+export enum EmailTemplateType {
+  RESET_PASSWORD = 'forgot-password',
+  LOGIN_NOTIFICATION = 'login-notification',
+  VERIFICATION_EMAIL = 'verification-email',
+  REGISTER_SUMMARY = 'register-summary',
+  RECEIVED_PO = 'received-po',
+  RECEIPT = 'receipt',
+}
+
 @Injectable()
 export class TemplatesEmailService {
   constructor(
@@ -24,25 +34,31 @@ export class TemplatesEmailService {
     }
 
     let data = null;
-    let subjectEmail = '';
+    let subjectEmail: string;
 
-    if (body.template === 'forgot-password') {
+    const templateToSubjectMap = {
+      [EmailTemplateType.RESET_PASSWORD]: 'Reset Password',
+      [EmailTemplateType.LOGIN_NOTIFICATION]: 'Login Notification',
+      [EmailTemplateType.VERIFICATION_EMAIL]: 'Verification Email',
+      [EmailTemplateType.REGISTER_SUMMARY]: 'Register Summary',
+      [EmailTemplateType.RECEIVED_PO]: 'Received PO',
+      [EmailTemplateType.RECEIPT]: 'Receipt',
+    };
+
+    if (!Object.values(EmailTemplateType).includes(body.template)) {
+      throw new BadRequestException('Template not found');
+    }
+
+    if (body.template === EmailTemplateType.RESET_PASSWORD) {
       const token = uuidv4();
       data = {
         token: token,
         name: user.fullname,
         base_url: process.env.FRONTEND_URL,
       };
-      subjectEmail = 'Reset Password';
-    } else if (body.template === 'login-notification') {
-      subjectEmail = 'Login Notification';
-    } else if (body.template === 'verification-email') {
-      subjectEmail = 'Verification Email';
-    } else if (body.template === 'register-summary') {
-      subjectEmail = 'Register Summary';
-    } else {
-      throw new BadRequestException('Template not found');
     }
+
+    subjectEmail = templateToSubjectMap[body.template];
 
     // sent email
     this._mailService.sendMailWithTemplate(

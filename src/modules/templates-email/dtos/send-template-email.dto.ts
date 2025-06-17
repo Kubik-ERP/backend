@@ -6,6 +6,8 @@ export enum EmailTemplateType {
   LOGIN_NOTIFICATION = 'login-notification',
   VERIFICATION_EMAIL = 'verification-email',
   REGISTER_SUMMARY = 'register-summary',
+  RECEIVED_PO = 'received-po',
+  RECEIPT = 'receipt',
 }
 
 export class SendTemplateEmailDto {

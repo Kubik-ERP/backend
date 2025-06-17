@@ -9,7 +9,7 @@ export class TemplatesEmailController {
   constructor(private readonly templatesEmailService: TemplatesEmailService) {}
 
   @Post('send')
-  @ApiOperation({ summary: 'Kirim email berdasarkan template' })
+  @ApiOperation({ summary: 'Sent email based on template' })
   public async send(@Body() body: SendTemplateEmailDto) {
     await this.templatesEmailService.sendTemplateEmail(body);
     return {

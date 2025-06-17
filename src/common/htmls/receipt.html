@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KUBIK POS Purchase Receipt</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      font-family: Inter;
+      background-color: #f3f6f9;
+      color: #333;
+    "
+  >
+    <table
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="background-color: #f3f6f9; padding: 20px 0"
+    >
+      <tr>
+        <td align="center">
+          <table
+            width="600"
+            cellpadding="0"
+            cellspacing="0"
+            style="
+              background-color: #ffffff;
+              border-radius: 6px;
+              overflow: hidden;
+            "
+          >
+            <!-- Header -->
+            {{> header }}
+
+            <!-- Content -->
+            <tr>
+              <td style="padding: 30px; font-size: 15px; line-height: 1.6">
+                <p><strong>Hi [customerName],</strong></p>
+
+                <p>
+                  Thank you for your purchase at
+                  <strong>[storeName]</strong>!<br />Here are the details of
+                  your transaction:
+                </p>
+
+                <table
+                  width="100%"
+                  cellpadding="8"
+                  cellspacing="0"
+                  style="
+                    border: 1px solid #ccc;
+                    border-radius: 6px;
+                    margin-top: 20px;
+                  "
+                >
+                  <tr>
+                    <td><strong>[storeName]</strong></td>
+                  </tr>
+                  <tr>
+                    <td>[storeAddress]</td>
+                  </tr>
+                </table>
+
+                <p style="margin-top: 20px; font-weight: bold">
+                  Transaction Details:
+                </p>
+
+                <table
+                  width="100%"
+                  cellpadding="8"
+                  cellspacing="0"
+                  style="
+                    border: 1px solid #ccc;
+                    border-radius: 6px;
+                    margin-top: 20px;
+                  "
+                >
+                  <tr>
+                    <td><strong>PO Number</strong></td>
+                    <td>: [poNumber]</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Cashier</strong></td>
+                    <td>: [cashierName]</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Customer Name</strong></td>
+                    <td>: [customerName]</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Order Type</strong></td>
+                    <td>: [orderType]</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Queue</strong></td>
+                    <td>: [queueNumber]</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Table No.</strong></td>
+                    <td>: [tableNumbers]</td>
+                  </tr>
+                  <tr>
+                    <td colspan="2"><hr /></td>
+                  </tr>
+                </table>
+
+                <table
+                  width="100%"
+                  cellpadding="8"
+                  cellspacing="0"
+                  style="
+                    border: 1px solid #ccc;
+                    border-radius: 6px;
+                    margin-top: 20px;
+                  "
+                >
+                  <tr>
+                    <th>Item Name</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Sub Total</th>
+                  </tr>
+                  <tr>
+                    <td>Blueberry Pancake</td>
+                    <td>1</td>
+                    <td>Rp 100.000</td>
+                    <td>Rp 100.000</td>
+                  </tr>
+                  <tr>
+                    <td>Butter Oyster</td>
+                    <td>1</td>
+                    <td>Rp 100.000</td>
+                    <td>Rp 100.000</td>
+                  </tr>
+                  <tr>
+                    <td>Gyoza</td>
+                    <td>1</td>
+                    <td>Rp 100.000</td>
+                    <td>Rp 100.000</td>
+                  </tr>
+                  <tr>
+                    <td>Coffee Latte</td>
+                    <td>1</td>
+                    <td>Rp 100.000</td>
+                    <td>Rp 100.000</td>
+                  </tr>
+                  <tr>
+                    <td>Mocktail</td>
+                    <td>1</td>
+                    <td>Rp 100.000</td>
+                    <td>Rp 100.000</td>
+                  </tr>
+                  <tr>
+                    <td>Ice Lemonade</td>
+                    <td>1</td>
+                    <td>Rp 100.000</td>
+                    <td>Rp 100.000</td>
+                  </tr>
+                  <tr>
+                    <td
+                      colspan="3"
+                      style="text-align: right; font-weight: bold"
+                    >
+                      Sub Total
+                    </td>
+                    <td>Rp 600.000</td>
+                  </tr>
+                  <tr>
+                    <td
+                      colspan="3"
+                      style="text-align: right; font-weight: bold"
+                    >
+                      Promo
+                    </td>
+                    <td>-Rp 200.000</td>
+                  </tr>
+                  <tr>
+                    <td
+                      colspan="3"
+                      style="text-align: right; font-weight: bold"
+                    >
+                      PPN
+                    </td>
+                    <td>Rp 59.980</td>
+                  </tr>
+                  <tr>
+                    <td
+                      colspan="3"
+                      style="text-align: right; font-weight: bold"
+                    >
+                      Total
+                    </td>
+                    <td>Rp 659.780</td>
+                  </tr>
+                </table>
+
+                <p style="margin-top: 20px; font-weight: bold">Payment:</p>
+
+                <table
+                  width="100%"
+                  cellpadding="8"
+                  cellspacing="0"
+                  style="
+                    border: 1px solid #ccc;
+                    border-radius: 6px;
+                    margin-top: 20px;
+                  "
+                >
+                  <tr>
+                    <td><strong>Debit</strong></td>
+                    <td>: Rp 599.800</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Kembali</strong></td>
+                    <td>: Rp 0</td>
+                  </tr>
+                </table>
+
+                <p style="margin-top: 20px">Social Media</p>
+                <p>Instagram: @lawsongkal</p>
+
+                <p style="margin-top: 20px">
+                  If you have any questions about this invoice, feel free to
+                  contact us at
+                  <a href="[storeContactInfo]" style="color: #16658a"
+                    >[storeContactInfo]</a
+                  >
+                </p>
+
+                <p>Thank You,<br />[storeName]</p>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            {{> footer }}
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
