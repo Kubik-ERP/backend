@@ -99,17 +99,23 @@ export class MailService {
 
   private async loadTemplate(templateName: string, data: any): Promise<string> {
     try {
+      // Tentukan path untuk folder partials
       const partialsPath = path.resolve(
         __dirname,
         '../../../../src/common/htmls/partials',
       );
+
+      // Path untuk header dan footer
       const headerPath = path.join(partialsPath, 'header.html');
       const footerPath = path.join(partialsPath, 'footer.html');
 
+      // Membaca file header dan footer
       const header = await fs.readFile(headerPath, 'utf-8');
       const footer = await fs.readFile(footerPath, 'utf-8');
-      handlebars.registerPartial('header', header);
-      handlebars.registerPartial('footer', footer);
+
+      // Mendaftarkan partials
+      handlebars.registerPartial('header', header); // Register header partial
+      handlebars.registerPartial('footer', footer); // Register footer partial
 
       const filePath = path.resolve(
         __dirname,
