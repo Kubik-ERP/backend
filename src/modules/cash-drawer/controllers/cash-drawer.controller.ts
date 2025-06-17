@@ -195,12 +195,15 @@ export class CashDrawerController {
     @Body() body: AddTransactionBody,
     @Req() req: ICustomRequestHeaders,
   ) {
+    let type = 0;
     let amountIn = 0;
     let amountOut = 0;
 
     if (params.type === 'in') {
+      type = 1; // Assuming type 1 for cash in
       amountIn = body.amount; // Example amount for cash in
     } else if (params.type === 'out') {
+      type = 3; // Assuming type 3 for cash out
       amountOut = body.amount; // Example amount for cash out
     } else {
       throw new Error('Invalid transaction type');
@@ -210,7 +213,7 @@ export class CashDrawerController {
       params.cashDrawerId,
       amountIn,
       amountOut,
-      1, // Assuming type 1 for cash in/out transactions
+      type, // Assuming type 1 for cash in/out transactions
       body.notes,
       req.user.id,
     );
