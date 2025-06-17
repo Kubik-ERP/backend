@@ -3,10 +3,12 @@ import {
   IsDate,
   IsDateString,
   IsEmpty,
+  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Min,
 } from 'class-validator';
@@ -66,6 +68,44 @@ export class CloseCashDrawerDto {
   notes?: string;
 }
 
+export class CashDrawerListQueryDto {
+  @ApiProperty({
+    required: false,
+    description: 'Page number for pagination',
+    default: 1,
+  })
+  @IsOptional()
+  page?: number = 1;
+
+  @ApiProperty({
+    required: false,
+    description: 'Number of items per page',
+    default: 10,
+  })
+  @IsOptional()
+  limit?: number = 10;
+
+  @ApiProperty({
+    required: false,
+    description: 'Start date in DD-MM-YYYY format. Empty string allowed.',
+    default: '',
+  })
+  @IsOptional()
+  @Matches(/^$|^\d{2}-\d{2}-\d{4}$/, {
+    message: 'startDate must be empty or in DD-MM-YYYY format',
+  })
+  startDate?: string = '';
+
+  @ApiProperty({
+    required: false,
+  })
+  @IsOptional()
+  @Matches(/^$|^\d{2}-\d{2}-\d{4}$/, {
+    message: 'endDate must be empty or in DD-MM-YYYY format',
+  })
+  endDate?: string = '';
+}
+
 export class CashDrawerQueryDto {
   @ApiProperty({
     required: false,
@@ -113,4 +153,45 @@ export class CashDrawerQueryDto {
     message: 'endDate must be empty or in DD-MM-YYYY format',
   })
   endDate?: string = '';
+}
+
+export class AddTransactionParams {
+  @ApiProperty({
+    required: true,
+    description: 'type',
+    default: 'in',
+  })
+  @IsEnum(['in', 'out'])
+  @IsNotEmpty()
+  type?: string;
+
+  @ApiProperty({
+    required: true,
+    description: 'Cash Drawer ID',
+    default: 1000,
+  })
+  @IsUUID()
+  @IsNotEmpty()
+  cashDrawerId?: string;
+}
+
+export class AddTransactionBody {
+  @ApiProperty({
+    required: true,
+    description: 'Amount to be added or subtracted',
+    default: 1000,
+  })
+  @IsNumber()
+  @Min(0)
+  @IsNotEmpty()
+  amount: number;
+
+  @ApiProperty({
+    required: false,
+    description: 'Optional notes for the transaction',
+    default: '',
+  })
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }
