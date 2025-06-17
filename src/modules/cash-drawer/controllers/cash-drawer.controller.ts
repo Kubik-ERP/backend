@@ -206,7 +206,6 @@ export class CashDrawerController {
       throw new Error('Invalid transaction type');
     }
 
-
     await this.service.addCashDrawerTransaction(
       params.cashDrawerId,
       amountIn,
@@ -215,7 +214,7 @@ export class CashDrawerController {
       body.notes,
       req.user.id,
     );
-    
+
     // Logic to add a transaction to the cash drawer
     return { message: 'Transaction added successfully' };
   }
