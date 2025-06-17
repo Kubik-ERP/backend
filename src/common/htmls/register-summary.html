@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en" style="margin: 0; padding: 0; background-color: #f3f6f9">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reset Password</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #f3f6f9;
+      font-family: Arial, sans-serif;
+    "
+  >
+    <table
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="background-color: #f3f6f9; padding: 20px 0"
+    >
+      <tr>
+        <td align="center">
+          <table
+            width="600"
+            cellpadding="0"
+            cellspacing="0"
+            style="
+              background-color: #ffffff;
+              border-radius: 6px;
+              overflow: hidden;
+            "
+          >
+            <!-- Header -->
+            {{> header }}
+
+            <!-- Content -->
+            <tr>
+              <td style="padding: 30px">
+                <p>
+                  Here’s the register summary for the shift closed on
+                  <strong>[date]</strong> at <strong>[storeName]</strong>
+                </p>
+
+                <table
+                  width="100%"
+                  cellpadding="8"
+                  cellspacing="0"
+                  style="
+                    border: 1px solid #ccc;
+                    border-radius: 6px;
+                    margin-top: 20px;
+                  "
+                >
+                  <tr>
+                    <td
+                      colspan="2"
+                      style="text-align: center; font-weight: bold"
+                    >
+                      [storeName]
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="text-align: center">
+                      Register Summary<br />Printed on [date], [time]
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2">
+                      <hr />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Staff</td>
+                    <td>: [staffName]</td>
+                  </tr>
+                  <tr>
+                    <td>Open On</td>
+                    <td>: [openRegisterDate], [openRegisterTime]</td>
+                  </tr>
+                  <tr>
+                    <td>Closed On</td>
+                    <td>: [closeRegisterDate], [closeRegisterTime]</td>
+                  </tr>
+                  <tr>
+                    <td colspan="2">
+                      <hr />
+                    </td>
+                  </tr>
+
+                  <!-- Sales Info -->
+                  <tr>
+                    <td>Open Register Balance</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Cash In</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Cash Out</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Sub Total</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Item Discount</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Tax</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Rounding</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Total Sales</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Expected Cash in Drawer</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Counted Cash</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Cash Difference</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td colspan="2">
+                      <hr />
+                    </td>
+                  </tr>
+
+                  <!-- Payment Breakdown -->
+                  <tr>
+                    <td colspan="2" style="font-weight: bold">
+                      Payment Breakdown
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Cash</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Debit</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Credit</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>QRIS</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Voucher</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                  <tr>
+                    <td>Loyalty Point</td>
+                    <td align="right">0,00</td>
+                  </tr>
+                </table>
+
+                <p style="margin-top: 24px">
+                  You can download the full register report here:
+                </p>
+
+                <a
+                  href="#"
+                  target="_blank"
+                  style="
+                    display: inline-block;
+                    background-color: #16658a;
+                    color: #ffffff;
+                    text-decoration: none;
+                    padding: 10px 16px;
+                    border-radius: 6px;
+                  "
+                  >Download Report</a
+                >
+
+                <p style="margin-top: 24px">Thank you</p>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            {{> footer }}
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
