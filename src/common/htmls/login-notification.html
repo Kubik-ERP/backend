@@ -32,24 +32,24 @@
             <!-- Content -->
             <tr>
               <td style="padding: 30px; font-size: 15px; line-height: 1.6">
-                <p><strong>Hi [fullName],</strong></p>
+                <h2><strong>Hi {{ fullname }},</strong></h2>
 
                 <p>We noticed a new login to your KUBIK POS account.</p>
 
-                <p style="margin: 20px 0 10px">
+                <p style="margin: 20px 0 10px; font-weight: bolder">
                   <strong>Login Details</strong>
                 </p>
                 <p>
                   <strong>Date & Time:</strong><br />
-                  [loginDate], [loginTime]
+                  {{ loginDate }}, {{ loginTime }}
                 </p>
                 <p>
                   <strong>Device:</strong><br />
-                  [Device Type / Browser]
+                  {{ deviceType }} / {{ browser }}
                 </p>
                 <p>
                   <strong>Location:</strong><br />
-                  [City, Country]
+                  {{ city }}, {{ country }}
                 </p>
 
                 <p>If this was you, no further action is needed.</p>

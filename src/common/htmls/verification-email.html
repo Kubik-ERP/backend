@@ -34,34 +34,36 @@
             <tr>
               <td style="padding: 40px">
                 <h2 style="color: #000000; margin-bottom: 20px">
-                  Hi [fullname]
+                  Hi {{ name }},
                 </h2>
                 <p style="color: #333333; font-size: 16px; line-height: 1.6">
                   Welcome to KUBIK POS 👋
                 </p>
                 <p style="color: #333333; font-size: 16px; line-height: 1.6">
-                  To complete your registration, please verify your email
-                  address by clicking the button below:
+                  To complete your account verification, please enter the
+                  following One-Time Password (OTP):
                 </p>
 
-                <div style="text-align: left; margin: 30px 0">
-                  <a
-                    href="#"
-                    style="
-                      background-color: #16658a;
-                      color: #ffffff;
-                      padding: 12px 24px;
-                      border-radius: 6px;
-                      text-decoration: none;
-                      font-weight: bold;
-                    "
-                  >
-                    Verify Account
-                  </a>
-                </div>
+                <p
+                  style="
+                    font-size: 36px;
+                    letter-spacing: 10px;
+                    font-weight: bold;
+                    text-align: center;
+                    margin: 30px 0;
+                  "
+                >
+                  {{ otp }}
+                </p>
 
-                <p style="color: #555555; font-size: 14px; line-height: 1.6">
-                  If you didn’t sign up for KUBIK POS, please ignore this email.
+                <p>
+                  This code is valid for the next 10 minutes. Please do not
+                  share this code with anyone.
+                </p>
+
+                <p>
+                  If you didn’t request this, please ignore this email or
+                  contact our support team immediately.
                 </p>
               </td>
             </tr>

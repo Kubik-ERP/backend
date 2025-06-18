@@ -122,7 +122,7 @@ export class MailService {
         '../../../../src/common/htmls',
         `${templateName}.html`,
       );
-      console.log(data);
+      console.log('data in template email', data);
       const templateFile = await fs.readFile(filePath, 'utf-8');
       const compiledTemplate = handlebars.compile(templateFile);
       return compiledTemplate(data);
