@@ -32,7 +32,7 @@ export class CategoriesController {
   @Post()
   async create(
     @Body() createCategoryDto: CreateCategoryDto,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     let relativePath = '';
     if (file) {
@@ -46,7 +46,7 @@ export class CategoriesController {
     try {
       const newCategory = await this.categoriesService.create({
         ...createCategoryDto,
-        image: relativePath,
+        image: relativePath || '',
       });
 
       return {
