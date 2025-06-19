@@ -53,6 +53,7 @@ model cash_drawers {
   store_id         String?           @db.Uuid
   closed_at        BigInt?
   closed_by        BigInt?
+  staff_id         String?           @db.Uuid
   stores           stores?           @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_stores_fk")
 }
 

@@ -14,6 +14,7 @@ export class CashDrawerService {
 
   async openCashDrawer(
     userId: number,
+    staffId: string,
     balance: number,
     storeId: string,
     notes?: string,
@@ -31,6 +32,7 @@ export class CashDrawerService {
         notes: notes || '',
         expected_balance: balance,
         created_by: userId,
+        staff_id: staffId || null,
         created_at: jakartaTime().toUnixInteger(),
         store_id: storeId,
       },

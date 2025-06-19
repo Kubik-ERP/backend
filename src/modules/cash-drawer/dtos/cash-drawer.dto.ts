@@ -31,9 +31,10 @@ export class OpenCashDrawerDto {
    * @example 42
    */
   @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  userId: number;
+  @IsString()
+  @IsOptional()
+  @IsUUID()
+  staffId?: string;
 
   /**
    * Catatan opsional.

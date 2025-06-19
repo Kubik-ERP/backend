@@ -47,7 +47,7 @@ export class CashDrawerController {
   @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create store' })
+  @ApiOperation({ summary: 'Get Cash Drawer List' })
   @Get('list/:storeId')
   @ApiParam({
     name: 'storeId',
@@ -84,7 +84,7 @@ export class CashDrawerController {
   @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create store' })
+  @ApiOperation({ summary: 'Get Today Status' })
   @Get('status/:storeId')
   @ApiParam({
     name: 'storeId',
@@ -130,15 +130,18 @@ export class CashDrawerController {
     @Req() req: ICustomRequestHeaders,
     @Param('storeId') storeId: string,
   ) {
-    let userId = openCashDrawerDto.userId;
 
+    let staffId = "";
     const role = await this.userService.getUserRole(req.user.id);
     if (role !== 'Owner') {
-      userId = req.user.id;
+      staffId = openCashDrawerDto.staffId || "";
     }
 
+    //TODO: get staff id if role is not owner
+
     await this.service.openCashDrawer(
-      userId,
+      req.user.id,
+      staffId,
       openCashDrawerDto.balance,
       storeId,
       openCashDrawerDto.notes,
