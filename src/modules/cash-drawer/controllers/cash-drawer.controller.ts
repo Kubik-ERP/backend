@@ -130,11 +130,10 @@ export class CashDrawerController {
     @Req() req: ICustomRequestHeaders,
     @Param('storeId') storeId: string,
   ) {
-
-    let staffId = "";
+    let staffId = '';
     const role = await this.userService.getUserRole(req.user.id);
     if (role !== 'Owner') {
-      staffId = openCashDrawerDto.staffId || "";
+      staffId = openCashDrawerDto.userId || '';
     }
 
     //TODO: get staff id if role is not owner

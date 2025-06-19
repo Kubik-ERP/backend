@@ -34,7 +34,7 @@ export class OpenCashDrawerDto {
   @IsString()
   @IsOptional()
   @IsUUID()
-  staffId?: string;
+  userId?: string;
 
   /**
    * Catatan opsional.
