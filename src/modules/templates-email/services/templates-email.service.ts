@@ -63,6 +63,15 @@ export class TemplatesEmailService {
         token: token,
         name: user.fullname,
         base_url: process.env.FRONTEND_URL,
+        items: [
+          {
+            id: 1,
+            name: 'item 1',
+            description: 'Dummy description for item 1',
+            price: 100,
+            quantity: 10,
+          },
+        ],
       };
     } else if (body.template === EmailTemplateType.VERIFICATION_EMAIL) {
       //note: Verification Account Email
@@ -96,6 +105,8 @@ export class TemplatesEmailService {
         city: 'Jakarta',
         country: 'Indonesia',
       };
+    } else if (body.template === EmailTemplateType.RECEIPT) {
+      //
     }
     subjectEmail = templateToSubjectMap[body.template];
 
@@ -103,10 +114,9 @@ export class TemplatesEmailService {
     // console.log('Bugging', {
     //   template: body.template,
     //   subjectEmail: subjectEmail,
-    //   otp: data?.otp,
-    //   name: data?.name,
+    //   safeInvoice: safeInvoice,
     //   data: data,
-    //   email_to: body.email_to,
+    //   email_to: email ? email : body.email_to,
     // });
 
     // sent email
