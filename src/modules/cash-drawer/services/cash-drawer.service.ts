@@ -14,6 +14,7 @@ export class CashDrawerService {
 
   async openCashDrawer(
     userId: number,
+    staffId: string,
     balance: number,
     storeId: string,
     notes?: string,
@@ -31,6 +32,7 @@ export class CashDrawerService {
         notes: notes || '',
         expected_balance: balance,
         created_by: userId,
+        staff_id: staffId || null,
         created_at: jakartaTime().toUnixInteger(),
         store_id: storeId,
       },
@@ -119,5 +121,106 @@ export class CashDrawerService {
         updated_at: jakartaTime().toUnixInteger(),
       },
     });
+  }
+
+  async addCashDrawerTransaction(
+    cashDrawerId: string | undefined,
+    amountIn: number,
+    amountOut: number,
+    type: number,
+    notes: string | undefined = '',
+    userId: number = 0,
+  ) {
+    // Logic to add a cash drawer transaction
+    if (amountIn < 0 || amountOut < 0) {
+      throw new BadRequestException('Amount in and out must be non-negative.');
+    }
+
+    const cashDrawer = await this.prisma.cash_drawers.findUnique({
+      where: { id: cashDrawerId },
+    });
+
+    if (!cashDrawer) {
+      throw new BadRequestException('Cash drawer not found.');
+    }
+
+    if (cashDrawer.status !== 'open') {
+      throw new BadRequestException('Cash drawer is not open.');
+    }
+
+    if (type < 0 || type > 5) {
+      throw new BadRequestException('Invalid transaction type.');
+    }
+
+    if (amountIn <= 0 && amountOut <= 0) {
+      throw new BadRequestException(
+        'At least one of amount in or amount out must be greater than zero.',
+      );
+    }
+
+    const updatedBalance =
+      (cashDrawer.actual_balance || 0) + amountIn - amountOut;
+
+    await this.prisma.$transaction(async (prisma) => {
+      await prisma.cash_drawers.update({
+        where: { id: cashDrawer.id },
+        data: {
+          expected_balance: updatedBalance,
+          updated_by: userId,
+          updated_at: jakartaTime().toUnixInteger(),
+        },
+      });
+
+      await prisma.cash_drawer_transactions.create({
+        data: {
+          id: uuidv4(),
+          cash_drawers_id: cashDrawer.id,
+          type: type,
+          amount_in: amountIn,
+          amount_out: amountOut,
+          final_amount: updatedBalance,
+          created_by: userId,
+          created_at: jakartaTime().toUnixInteger(),
+        },
+      });
+    });
+  }
+
+  async getCashDrawerTransactions(
+    cashDrawerId: string,
+    query: CashDrawerQueryDto,
+  ) {
+    // Logic to get the transactions of the cash drawer
+    const startDate = query.startDate
+      ? getStartOfDay(query.startDate)
+      : undefined;
+
+    const endDate = query.endDate ? getEndOfDay(query.endDate) : undefined;
+
+    const limit = query.limit ? parseInt(query.limit.toString(), 10) : 10;
+    const page = query.page ? parseInt(query.page.toString(), 10) : 1;
+
+    const where: any = {
+      cash_drawers_id: cashDrawerId,
+    };
+
+    if (startDate && endDate) {
+      where.created_at = {
+        gte: startDate,
+        lte: endDate,
+      };
+    }
+
+    const [transactions, count] = await Promise.all([
+      this.prisma.cash_drawer_transactions.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        take: limit,
+        skip: (page - 1) * limit,
+      }),
+      this.prisma.cash_drawer_transactions.count({ where }),
+    ]);
+
+    return [transactions, count];
   }
 }

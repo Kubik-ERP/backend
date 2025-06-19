@@ -11,6 +11,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  AddTransactionBody,
+  AddTransactionParams,
+  CashDrawerListQueryDto,
   CashDrawerQueryDto,
   CloseCashDrawerDto,
   OpenCashDrawerDto,
@@ -44,14 +47,14 @@ export class CashDrawerController {
   @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create store' })
+  @ApiOperation({ summary: 'Get Cash Drawer List' })
   @Get('list/:storeId')
   @ApiParam({
     name: 'storeId',
   })
   async getList(
     @Param('storeId') storeId: string,
-    @Query() query: CashDrawerQueryDto,
+    @Query() query: CashDrawerListQueryDto,
   ) {
     // Logic to get the status of the cash drawer
     const [result, count] = await this.service.getCashDrawerLists(
@@ -81,7 +84,7 @@ export class CashDrawerController {
   @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create store' })
+  @ApiOperation({ summary: 'Get Today Status' })
   @Get('status/:storeId')
   @ApiParam({
     name: 'storeId',
@@ -127,15 +130,17 @@ export class CashDrawerController {
     @Req() req: ICustomRequestHeaders,
     @Param('storeId') storeId: string,
   ) {
-    let userId = openCashDrawerDto.userId;
-
+    let staffId = '';
     const role = await this.userService.getUserRole(req.user.id);
     if (role !== 'Owner') {
-      userId = req.user.id;
+      staffId = openCashDrawerDto.userId || '';
     }
 
+    //TODO: get staff id if role is not owner
+
     await this.service.openCashDrawer(
-      userId,
+      req.user.id,
+      staffId,
       openCashDrawerDto.balance,
       storeId,
       openCashDrawerDto.notes,
@@ -187,7 +192,34 @@ export class CashDrawerController {
     name: 'cashDrawerId',
   })
   @Post('transaction/add/:type/:cashDrawerId')
-  async addTransaction(@Req() req: ICustomRequestHeaders) {
+  async addTransaction(
+    @Param() params: AddTransactionParams,
+    @Body() body: AddTransactionBody,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    let type = 0;
+    let amountIn = 0;
+    let amountOut = 0;
+
+    if (params.type === 'in') {
+      type = 1; // Assuming type 1 for cash in
+      amountIn = body.amount; // Example amount for cash in
+    } else if (params.type === 'out') {
+      type = 3; // Assuming type 3 for cash out
+      amountOut = body.amount; // Example amount for cash out
+    } else {
+      throw new Error('Invalid transaction type');
+    }
+
+    await this.service.addCashDrawerTransaction(
+      params.cashDrawerId,
+      amountIn,
+      amountOut,
+      type, // Assuming type 1 for cash in/out transactions
+      body.notes,
+      req.user.id,
+    );
+
     // Logic to add a transaction to the cash drawer
     return { message: 'Transaction added successfully' };
   }
@@ -197,8 +229,7 @@ export class CashDrawerController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Close cash drawer',
-    description:
-      'type: 0=> opening, 1 => cash in, 2 => sale, 3 => cash out, 4 => refund, 5 =>closing',
+    description: 'Close Case Drawer',
   })
   @Post('close/:cashDrawerId')
   @ApiParam({
@@ -215,6 +246,8 @@ export class CashDrawerController {
 
   @ApiParam({
     name: 'cashDrawerId',
+    description:
+      'type: 0=> opening, 1 => cash in, 2 => sale, 3 => cash out, 4 => refund, 5 =>closing',
   })
   @Get('transactions/:cashDrawerId')
   async getCashDrawerTransactions(@Param('cashDrawerId') cashDrawerId: string) {
