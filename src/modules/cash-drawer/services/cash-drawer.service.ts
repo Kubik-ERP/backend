@@ -69,6 +69,14 @@ export class CashDrawerService {
           lte: jakartaTime().endOf('day').toUnixInteger(), // Less than or equal to (Lebih kecil atau sama dengan)
         },
       },
+      include: {
+        employees: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
       orderBy: {
         created_at: 'desc',
       },
@@ -101,6 +109,14 @@ export class CashDrawerService {
     const [cashDrawer, count] = await Promise.all([
       this.prisma.cash_drawers.findMany({
         where,
+        include: {
+          employees: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
         orderBy: { created_at: 'desc' },
         take: limit,
         skip: (page - 1) * limit,
