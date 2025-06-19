@@ -132,7 +132,8 @@ export class CashDrawerController {
   ) {
     let staffId = '';
     const role = await this.userService.getUserRole(req.user.id);
-    if (role !== 'Owner') {
+    console.log('role', role);
+    if (role == 'Owner') {
       staffId = openCashDrawerDto.userId || '';
     }
 
