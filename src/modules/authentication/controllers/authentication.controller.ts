@@ -119,6 +119,7 @@ export class AuthenticationController {
       usingPin: result.pin !== '' && result.pin !== null ? true : false,
       email: result.email,
       phone: result.phone,
+      roles: result.roles,
       is_verified:
         result.verified_at !== null && result.verified_at !== BigInt(0)
           ? true

@@ -111,7 +111,7 @@ export class UsersService {
   /**
    * @description Find user by ID
    */
-  public async findOneById(id: number): Promise<UserModel> {
+  public async findOneById(id: number) {
     const user = await this.prisma.users.findUnique({
       where: { id },
       include: {
