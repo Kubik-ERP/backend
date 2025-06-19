@@ -54,6 +54,7 @@ model cash_drawers {
   closed_at        BigInt?
   closed_by        BigInt?
   staff_id         String?           @db.Uuid
+  employees        employees?        @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_employees_fk")
   stores           stores?           @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_stores_fk")
 }
 
@@ -145,6 +146,7 @@ model employees {
   start_date              DateTime?                 @db.Date
   end_date                DateTime?                 @db.Date
   gender                  gender?
+  cash_drawers            cash_drawers[]
   employees_has_roles     employees_has_roles[]
   employees_shift         employees_shift[]
   platforms_has_employees platforms_has_employees[]
