@@ -27,12 +27,23 @@
                 <% if (payment_status=='unpaid' ) { %>
                   <!-- UNPAID -->
                   <p>Thank you for your order at <b>
-                      <%= payment_methods.name %>
+                      <!-- NOTE: Store Name -->
+                      <% if (invoice_has_stores) { %>
+                        <%= invoice_has_stores[0].stores.name %>
+                          <% } %>
                     </b>!</p>
                   <p>We’ve received your order, but payment has not been completed yet.</p>
                   <% } else { %>
                     <!-- PAID -->
-                    <p>Thank you for your purchase at <b>[storeName]!</b></p>
+                    <p>Thank you for your purchase at
+                      <b>
+                        <% if (invoice_has_stores) { %>
+                          <%= invoice_has_stores[0].stores.name %>
+                            <% } else { %>
+                              Store Name
+                              <% } %>!
+                      </b>
+                    </p>
                     <p>Here are the details of your transaction:</p>
                     <% } %>
                       <div
@@ -40,32 +51,55 @@
 
                         <h4
                           style="margin: 0 0 10px; font-weight: 600; color: #000; font-size: 14px; text-align: center;">
-                          <%= payment_methods.name %>
+                          <% if (invoice_has_stores) { %>
+                            <%= invoice_has_stores[0].stores.name %>
+                              <% } else { %>
+                                Store Name
+                                <% } %>
                         </h4>
 
                         <p style="margin: 0 0 10px; font-size: 14px; color: #000; text-align: center;">
-                          <%= customer.address %>
+                          <!-- NOTE: Store Address -->
+                          <% if (invoice_has_stores) { %>
+                            <%= invoice_has_stores[0].stores.address %>
+                              <% } else { %>
+                                Lawson Kaliurang - Jl. Kaliurang KM 6, Blotan, <br>
+                                Sukoharjo, Kec. Ngaglik, Kabupaten Sleman, Daerah <br>
+                                Istimewa Yogyakarta
+                                <% } %>
                         </p>
 
                         <div style="width: 100%; font-family: monospace; font-size: 12px; text-align: center;">
                           <div>=========================================================</div>
-                          <div style="display: flex; justify-content: space-between;">
-                            <!-- PAID -->
-                            <!-- <span style="text-align: left;">[Created Date]</span>
-                                        <span style="text-align: right;">KASIR [Invoice No]</span> -->
-
-                            <!-- UNPAID -->
-                            <span style="color: #E57171">
-                              <%= payment_status %>
-                            </span>
-                          </div>
+                          <table width="100%" style="border-collapse: collapse; font-size: 14px;">
+                            <tr>
+                              <% if (payment_status=='unpaid' ) { %>
+                                <!-- UNPAID -->
+                                <span style="color: #E57171">
+                                  <%= payment_status %>
+                                </span>
+                                <% } else { %>
+                                  <!-- PAID -->
+                                  <td style="text-align: left;">
+                                    <%= new Date(created_at).toLocaleDateString('id-ID') %>
+                                      <%= new Date(created_at).toLocaleTimeString('id-ID', { hour: '2-digit' ,
+                                        minute: '2-digit' }) %>
+                                  </td>
+                                  <td style=" text-align: right;">
+                                    KASIR <%= invoice_number ?? 'Invoice Number' %>
+                                  </td>
+                                  <% } %>
+                            </tr>
+                          </table>
                           <div>=========================================================</div>
                         </div>
 
                         <table width="100%" style="margin-top: 20px; border-collapse: collapse; font-size: 14px;">
                           <tr>
                             <td style="padding: 4px 0;">Cashier</td>
-                            <%= users?.fullname || 'Cashier Name' %>
+                            <td style="padding: 4px 0; text-align: right;">
+                              <%= users?.fullname || 'Cashier Name' %>
+                            </td>
                           </tr>
                           <tr>
                             <td style="padding: 4px 0;">Cust. Name</td>
@@ -127,7 +161,7 @@
                                         <td align="center">
                                           <%= item.qty %>
                                         </td>
-                                        <td align="center">Rp <%= item.variant.price.toLocaleString('id-ID') %>
+                                        <td align="right">Rp <%= item.variant.price.toLocaleString('id-ID') %>
                                         </td>
                                         <td align="right">Rp <%= (item.variant.price * item.qty).toLocaleString('id-ID')
                                             %>
@@ -145,8 +179,12 @@
                         <table width="100%" style="margin-top: 20px; font-size: 14px;">
                           <tr>
                             <td>Sub Total</td>
-                            <td align="">1</td>
-                            <td align="right">Rp <%= total.toLocaleString('id-ID') %>
+                            <td align="">
+                              <%= totalQty %>
+                            </td>
+                            <td align="right">
+                              Rp <%= total.toLocaleString('id-ID') %>
+                            </td>
                           </tr>
                           <tr>
                             <td>Promo</td>
@@ -202,17 +240,29 @@
                           <p style="font-size: 14px; color: #000000; margin: 0 0 16px">
                             Please complete your payment at cashier to process your order.
                             If you have already made the payment or need help, feel free to contact us at <a href="#"
-                              style="color: #16658a; text-decoration: none">[storeContactInfo]</a>
+                              style="color: #16658a; text-decoration: none">
+                              <% if (invoice_has_stores) { %>
+                                <%= invoice_has_stores[0].stores.email %>
+                                  <% } %>
+                            </a>
                           </p>
                           <p style="font-size: 14px; color: #000000; margin: 0 0 24px">
                             Thank You,<br />
-                            <strong>[storeContactInfo]</strong>
+                            <strong>
+                              <% if (invoice_has_stores) { %>
+                                <%= invoice_has_stores[0].stores.name %>
+                                  <% } %>
+                            </strong>
                           </p>
                           <% } else { %>
                             <!-- // NOTE: PAID -->
                             <p style="font-size: 14px; color: #000000; margin: 0 0 16px">
                               If you have any questions about this inovice, feel free to contact us at
-                              [storeContactInfo].
+                              <% if (invoice_has_stores) { %>
+                                <%= invoice_has_stores[0].stores.email %>
+                                  <% } else { %>
+                                    Email Name
+                                    <% } %>!.
                             </p>
                             <% } %>
                               <div style="width: 100%; display: flex; justify-content: center; align-items: center; ">

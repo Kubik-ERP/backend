@@ -124,6 +124,11 @@ export class InvoiceService {
         },
         invoice_charges: true,
         payment_methods: true,
+        invoice_has_stores: {
+          include: {
+            stores: true,
+          },
+        },
       },
     });
 

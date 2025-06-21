@@ -89,7 +89,6 @@ export class MailService {
     data: any,
     to: string,
   ): Promise<void> {
-    console.log(`bugging template ${template}`);
     const htmlTemplate = await this.loadTemplate(template, data);
     await this._transporter.sendMail({
       from: process.env.MAIL_FROM,
@@ -97,8 +96,6 @@ export class MailService {
       subject: subject,
       html: htmlTemplate,
     });
-
-    console.log(`mail send to ${to} with subject ${subject}`);
   }
 
   private async loadTemplate(templateName: string, data: any): Promise<string> {
