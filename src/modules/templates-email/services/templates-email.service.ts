@@ -5,6 +5,7 @@ import * as handlebars from 'handlebars';
 import { SendTemplateEmailDto } from '../dtos/send-template-email.dto';
 import { UsersService } from '../../users/services/users.service';
 import { MailService } from '../../mail/services/mail.service';
+import { InvoiceService } from '../../invoices/services/invoices.service';
 
 // Cache
 import { Cache } from 'cache-manager';
@@ -29,11 +30,18 @@ export class TemplatesEmailService {
   constructor(
     private readonly _usersService: UsersService,
     private readonly _mailService: MailService,
+    private readonly _invoiceService: InvoiceService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
     // this._secret = process.env.OTP_SECRET || speakeasy.generateSecret().base32;
+    handlebars.registerHelper('multiply', (a, b) => a * b);
+    handlebars.registerHelper('add', (a, b) => a + b);
+    handlebars.registerHelper(
+      'formatCurrency',
+      (value) => `Rp ${Number(value).toLocaleString('id-ID')}`,
+    );
   }
-  public async sendTemplateEmail(body: SendTemplateEmailDto): Promise<void> {
+  public async sendTemplateEmail(body: SendTemplateEmailDto): Promise<any> {
     //validate user email
     const user = await this._usersService.findOneByEmail(body.email_to);
     if (!user) {
@@ -42,6 +50,8 @@ export class TemplatesEmailService {
 
     let data = null;
     let subjectEmail: string;
+    let email = null;
+    let safeInvoice = null;
 
     const templateToSubjectMap = {
       [EmailTemplateType.RESET_PASSWORD]: 'Reset Password',
@@ -106,25 +116,47 @@ export class TemplatesEmailService {
         country: 'Indonesia',
       };
     } else if (body.template === EmailTemplateType.RECEIPT) {
-      //
+      // Find the invoice by id
+      const invoiceId = body.invoiceId;
+      const invoice = await this._invoiceService.getInvoicePreview({
+        invoiceId,
+      });
+
+      // Ambil email dari customer invoice
+      email = invoice.customer?.email;
+
+      if (!email) {
+        throw new Error('Customer email not found');
+      }
+
+      // Pastikan invoice_details berisi data yang valid
+      if (!invoice.invoice_details || invoice.invoice_details.length === 0) {
+        throw new Error('Invoice details not found');
+      }
+
+      // Ensure created_at is not null and is a string or Date
+      data = {
+        ...invoice,
+        created_at: invoice.created_at ?? new Date(),
+        name: invoice.customer?.name ?? 'Unknown Customer',
+      };
     }
     subjectEmail = templateToSubjectMap[body.template];
 
-    // * Open this one for bugging
-    // console.log('Bugging', {
-    //   template: body.template,
-    //   subjectEmail: subjectEmail,
-    //   safeInvoice: safeInvoice,
-    //   data: data,
-    //   email_to: email ? email : body.email_to,
-    // });
-
     // sent email
     this._mailService.sendMailWithTemplate(
-      body.template, //note: template
+      body.template + '.ejs', //note: template
       subjectEmail, //note: subject
       data, //note: data
       body.email_to, //note: email to
     );
+
+    // * Open this one for bugging
+    return {
+      template: body.template, //note: template
+      subjectEmail: subjectEmail, //note: subject
+      data: data, //note: data
+      email_to: body.email_to, //note: email to
+    };
   }
 }

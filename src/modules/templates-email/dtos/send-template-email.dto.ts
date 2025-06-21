@@ -30,7 +30,8 @@ export class SendTemplateEmailDto {
     example: '5c8bc8dd-6397-4f68-ab09-3329b1f5e163',
     description: 'Order ID',
   })
-  order_id: string;
+  @IsString()
+  invoiceId: string;
 
   //   @ApiProperty({
   //     example: 'Reset Your Password',

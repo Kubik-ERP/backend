@@ -176,6 +176,7 @@ export class InvoiceService {
     return {
       success: true,
       message: `Email sent successfully to ${email}`,
+      safeInvoice: safeInvoice,
     };
   }
 
