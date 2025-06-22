@@ -57,12 +57,16 @@ import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { access } from 'fs';
 import { NoAuthPinGuard } from 'src/common/guards/noauth-pin.guard';
 
+import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
+import { EmailTemplateType } from '../../templates-email/dtos/send-template-email.dto';
+
 @Controller('authentication')
 @ApiTags('Authentication')
 export class AuthenticationController {
   constructor(
     private readonly _authenticationService: AuthenticationService,
     private readonly _usersService: UsersService,
+    private readonly templatesEmailService: TemplatesEmailService,
   ) {}
 
   @Post('login')
@@ -77,10 +81,16 @@ export class AuthenticationController {
     @Req() req: ICustomRequestHeaders,
   ) {
     const result = await this._authenticationService.login(req.user);
+    const sentEmailLoginNotification =
+      await this.templatesEmailService.sendEmailLoginNotification(
+        EmailTemplateType.LOGIN_NOTIFICATION,
+        _body.username, //note: Email
+      );
 
     return {
       message: 'User logged in successfully',
       result,
+      sentEmailLoginNotification,
     };
   }
 

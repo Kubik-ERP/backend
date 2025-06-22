@@ -5,6 +5,7 @@ import { AuthenticationController } from './controllers/authentication.controlle
 import { JwtConfigModule } from '../../configurations/jwt/jwt-configuration.module';
 import { MailModule } from '../mail/mail.module';
 import { UsersModule } from '../users/users.module';
+import { TemplatesEmailModule } from '../templates-email/templates-email.module';
 
 // NestJS Libraries
 import { Module } from '@nestjs/common';
@@ -39,6 +40,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
       }),
       inject: [JwtConfigService],
     }),
+    TemplatesEmailModule,
   ],
   controllers: [AuthenticationController],
   providers: [

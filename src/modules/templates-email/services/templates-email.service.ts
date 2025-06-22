@@ -126,9 +126,9 @@ export class TemplatesEmailService {
         };
       } else if (body.template === EmailTemplateType.RECEIPT) {
         // Find the invoice by id
-        const invoiceId = body.invoiceId;
+        // const invoiceId = body.invoiceId;
         const invoice = await this._invoiceService.getInvoicePreview({
-          invoiceId,
+          invoiceId: body.invoiceId,
         });
 
         // Ambil email dari customer invoice
@@ -172,6 +172,14 @@ export class TemplatesEmailService {
       throw new Error(`Error sent email with error ${error}`);
     }
   }
+
+  /**
+   *
+   * @param template,
+   * @param invoiceId
+   * @returns
+   * @description Sent invoice to email in invoice detail
+   */
   public async sendEmailInvoice(
     template: EmailTemplateType,
     invoiceId: string,
@@ -228,5 +236,55 @@ export class TemplatesEmailService {
       console.log('error sent email', error);
       throw new Error(`Error sent email with error ${error}`);
     }
+  }
+
+  public async sendEmailLoginNotification(
+    template: EmailTemplateType,
+    email: string,
+  ) {
+    let data = null;
+    let subjectEmail: string;
+    //validate user email
+    const user = await this._usersService.findOneByEmail(email);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    if (!Object.values(EmailTemplateType).includes(template)) {
+      throw new BadRequestException('Template not found');
+    }
+    const now = new Date();
+    const loginDate = now.toLocaleDateString('id-ID');
+    const loginTime = now.toLocaleTimeString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+    });
+    // note: Login Notification
+    data = {
+      fullname: user.fullname,
+      loginDate: loginDate,
+      loginTime: loginTime,
+      deviceType: 'Desktop bugging',
+      browser: 'Chrome 114.0 bugging',
+      city: 'Jakarta bugging',
+      country: 'Indonesia bugging',
+    };
+
+    subjectEmail = this.templateToSubjectMap[template];
+
+    // sent email
+    this._mailService.sendMailWithTemplate(
+      template + '.ejs', //note: template
+      subjectEmail, //note: subject
+      data, //note: data
+      email, //note: email to
+    );
+
+    console.log(`Success sent email login notification to ${email}`);
+
+    return {
+      template: template, //note: template
+      subjectEmail: subjectEmail, //note: subject
+      data: data, //note: data
+      email_to: email, //note: email to
+    };
   }
 }
