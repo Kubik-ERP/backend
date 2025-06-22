@@ -25,10 +25,15 @@ import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
 import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { GenerateInvoiceNumberResponseDto } from '../dtos/GenerateInvoiceNumberResponseDto.dto';
+import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
+import { EmailTemplateType } from '../../templates-email/dtos/send-template-email.dto';
 
 @Controller('invoice')
 export class InvoiceController {
-  constructor(private readonly invoiceService: InvoiceService) {}
+  constructor(
+    private readonly invoiceService: InvoiceService,
+    private readonly templatesEmailService: TemplatesEmailService,
+  ) {}
 
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
@@ -62,8 +67,11 @@ export class InvoiceController {
     summary: 'Sent email invoice to customer by invoice ID',
   })
   public async sentEmailInvoiceById(@Param() param: SentEmailInvoiceByIdDto) {
-    const { invoiceId } = param; // Mengambil invoiceId dari param
-    const response = await this.invoiceService.sentEmailInvoiceById(invoiceId);
+    const { invoiceId } = param;
+    const response = await this.templatesEmailService.sendEmailInvoice(
+      EmailTemplateType.RECEIPT,
+      invoiceId,
+    );
 
     return {
       result: toCamelCase(response),

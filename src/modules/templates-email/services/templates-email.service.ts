@@ -27,6 +27,14 @@ export enum EmailTemplateType {
 
 @Injectable()
 export class TemplatesEmailService {
+  private readonly templateToSubjectMap = {
+    [EmailTemplateType.RESET_PASSWORD]: 'Reset Password',
+    [EmailTemplateType.LOGIN_NOTIFICATION]: 'Login Notification',
+    [EmailTemplateType.VERIFICATION_EMAIL]: 'Verification Email',
+    [EmailTemplateType.REGISTER_SUMMARY]: 'Register Summary',
+    [EmailTemplateType.RECEIVED_PO]: 'Received PO',
+    [EmailTemplateType.RECEIPT]: 'Receipt',
+  };
   constructor(
     private readonly _usersService: UsersService,
     private readonly _mailService: MailService,
@@ -158,6 +166,63 @@ export class TemplatesEmailService {
         subjectEmail: subjectEmail, //note: subject
         data: data, //note: data
         email_to: body.email_to, //note: email to
+      };
+    } catch (error) {
+      console.log('error sent email', error);
+      throw new Error(`Error sent email with error ${error}`);
+    }
+  }
+  public async sendEmailInvoice(
+    template: EmailTemplateType,
+    invoiceId: string,
+  ): Promise<any> {
+    try {
+      let data = null;
+      let subjectEmail: string;
+      let email = null;
+
+      if (!Object.values(EmailTemplateType).includes(template)) {
+        throw new BadRequestException('Template not found');
+      }
+
+      // Find the invoice by id
+      const invoice = await this._invoiceService.getInvoicePreview({
+        invoiceId,
+      });
+
+      // Ambil email dari customer invoice
+      email = invoice.customer?.email;
+
+      if (!email) {
+        throw new Error('Customer email not found');
+      }
+
+      // Pastikan invoice_details berisi data yang valid
+      if (!invoice.invoice_details || invoice.invoice_details.length === 0) {
+        throw new Error('Invoice details not found');
+      }
+
+      // Ensure created_at is not null and is a string or Date
+      data = {
+        ...invoice,
+        created_at: invoice.created_at ?? new Date(),
+        name: invoice.customer?.name ?? 'Unknown Customer',
+      };
+      subjectEmail = this.templateToSubjectMap[template];
+
+      // sent email
+      this._mailService.sendMailWithTemplate(
+        template + '.ejs', //note: template
+        subjectEmail, //note: subject
+        data, //note: data
+        email, //note: email to
+      );
+
+      return {
+        template: template, //note: template
+        subjectEmail: subjectEmail, //note: subject
+        data: data, //note: data
+        email_to: email, //note: email to
       };
     } catch (error) {
       console.log('error sent email', error);
