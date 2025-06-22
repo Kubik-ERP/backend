@@ -7,6 +7,7 @@ import {
   Param,
   Req,
   UseGuards,
+  Put,
 } from '@nestjs/common';
 import { InvoiceService } from '../services/invoices.service';
 import {
@@ -21,12 +22,16 @@ import {
 } from '../dtos/callback-payment.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
+import {
+  GetListInvoiceDto,
+  UpdateInvoiceOrderStatusDto,
+} from '../dtos/invoice.dto';
 import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { GenerateInvoiceNumberResponseDto } from '../dtos/GenerateInvoiceNumberResponseDto.dto';
 import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
 import { EmailTemplateType } from '../../templates-email/dtos/send-template-email.dto';
+import { validate as isUUID } from 'uuid';
 
 @Controller('invoice')
 export class InvoiceController {
@@ -48,12 +53,36 @@ export class InvoiceController {
     };
   }
 
-  @Get(':invoiceId')
+  @Get(':idOrNumber')
   @ApiOperation({
-    summary: 'Get invoice by invoice ID',
+    summary: 'Get invoice by invoice ID or number',
   })
-  public async invoiceById(@Param() param: GetInvoiceDto) {
-    const response = await this.invoiceService.getInvoicePreview(param);
+  public async invoiceByKey(@Param('idOrNumber') idOrNumber: string) {
+    const response = await this.invoiceService.getInvoicePreview(
+      isUUID(idOrNumber)
+        ? { invoiceId: idOrNumber }
+        : { invoiceNumber: idOrNumber },
+    );
+
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @Put('order/status/:invoiceId')
+  @ApiOperation({
+    summary: 'Update order status of the invoice',
+  })
+  public async UpdateInvoiceOrderStatus(
+    @Param('invoiceId') invoiceId: string,
+    @Body() body: UpdateInvoiceOrderStatusDto,
+  ) {
+    const response = await this.invoiceService.UpdateInvoiceOrderStatus(
+      invoiceId,
+      body,
+    );
 
     return {
       result: toCamelCase(response),

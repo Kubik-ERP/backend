@@ -1,11 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { invoice_type } from '@prisma/client';
+import { invoice_type, order_status, order_type } from '@prisma/client';
 import {
   IsDate,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
 import { Expose, Type, Transform } from 'class-transformer';
@@ -31,17 +33,34 @@ export class GetListInvoiceDto {
   @Transform(({ value }) => parseInt(value, 10))
   pageSize: number;
 
-  //   @IsEnum(ordertype)
-  //   orderType: ordertype;
+  @ApiProperty({
+    description: 'Invoice number to search',
+    required: false,
+    example: '2025063000001',
+  })
+  @IsOptional()
+  @IsString()
+  invoiceNumber: string;
+
+  @ApiProperty({
+    description: 'Ordet type of the invoice',
+    required: false,
+    example: 'take_away',
+    isArray: true,
+  })
+  @IsOptional()
+  @IsEnum(order_type, { each: true })
+  orderType?: order_type[];
 
   @ApiProperty({
     description: 'Payment status of the invoice',
     required: false,
     example: 'paid',
+    isArray: true,
   })
   @IsOptional()
-  @IsEnum(invoice_type)
-  paymentStatus: invoice_type;
+  @IsEnum(invoice_type, { each: true })
+  paymentStatus?: invoice_type[];
 
   @ApiProperty({
     description: 'Start time of the invoice created time',
@@ -68,6 +87,25 @@ export class GetListInvoiceDto {
   @IsOptional()
   @IsDate()
   createdAtTo: Date;
+
+  @ApiProperty({
+    description: 'Field to order by',
+    required: false,
+    example: 'created_at',
+  })
+  @IsIn(['created_at', 'invoice_number'])
+  @IsOptional()
+  @IsString()
+  orderBy?: string;
+
+  @ApiProperty({
+    description: 'Sort direction: asc or desc',
+    required: false,
+    example: 'desc',
+  })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  orderDirection?: 'asc' | 'desc';
 }
 
 export class GetInvoiceDto {
@@ -76,8 +114,26 @@ export class GetInvoiceDto {
     required: true,
     example: '01970571-bd68-7dfd-ba41-00aa890cc3db',
   })
+  @IsUUID()
+  invoiceId?: string;
+
+  @ApiProperty({
+    description: 'Number of invoice',
+    required: true,
+    example: '2025063000025',
+  })
   @IsString()
-  invoiceId: string;
+  invoiceNumber?: string;
+}
+
+export class UpdateInvoiceOrderStatusDto {
+  @ApiProperty({
+    description: 'Order status',
+    required: true,
+    example: 'in_progress',
+  })
+  @IsEnum(order_status)
+  orderStatus: order_status;
 }
 
 // Response DTO
@@ -243,4 +299,21 @@ export class InvoicePreviewDto {
   @Expose()
   @Type(() => PaymentMethodDto)
   paymentMethods: PaymentMethodDto;
+}
+
+// unexposed DTO to swagger
+export class InvoiceUpdateDto {
+  payment_method_id?: string;
+  customer_id?: string;
+  discount_amount?: number;
+  table_code?: string;
+  payment_status?: invoice_type;
+  subtotal?: number;
+  order_type?: order_type;
+  tax_id?: string;
+  service_charge_id?: string;
+  tax_amount?: number;
+  service_charge_amount?: number;
+  grand_total?: number;
+  order_status?: order_status;
 }

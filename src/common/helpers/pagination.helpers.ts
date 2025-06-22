@@ -19,7 +19,7 @@ export const formatPaginatedResult = <T>(
           newItem[key] = value;
         }
       } else if (typeof value === 'bigint') {
-        newItem[key] = Number(value); // konversi bigint ke float
+        newItem[key] = Number(value);
       } else {
         newItem[key] = value;
       }
@@ -29,7 +29,7 @@ export const formatPaginatedResult = <T>(
   });
 
   return {
-    data: transformedData,
+    items: transformedData,
     meta: {
       total: count,
       totalPages: Math.ceil(count / perPage),

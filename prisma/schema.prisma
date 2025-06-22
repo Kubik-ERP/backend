@@ -31,10 +31,12 @@ model business_owner_has_stores {
 model cash_drawer_transactions {
   id              String  @id(map: "cash_drawer_transactions_pk") @db.Uuid
   cash_drawers_id String  @db.Uuid
-  amount          BigInt
-  type            String  @db.VarChar
+  amount_out      BigInt
+  type            Int
   created_by      BigInt?
   created_at      BigInt?
+  amount_in       Int?
+  final_amount    Int?
 }
 
 model cash_drawers {
@@ -51,6 +53,8 @@ model cash_drawers {
   store_id         String?           @db.Uuid
   closed_at        BigInt?
   closed_by        BigInt?
+  staff_id         String?           @db.Uuid
+  employees        employees?        @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_employees_fk")
   stores           stores?           @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_stores_fk")
 }
 
@@ -142,6 +146,7 @@ model employees {
   start_date              DateTime?                 @db.Date
   end_date                DateTime?                 @db.Date
   gender                  gender?
+  cash_drawers            cash_drawers[]
   employees_has_roles     employees_has_roles[]
   employees_shift         employees_shift[]
   platforms_has_employees platforms_has_employees[]
@@ -199,6 +204,7 @@ model invoice {
   grand_total                                Float?
   cashier_id                                 Int?
   invoice_number                             String?                  @db.VarChar(100)
+  order_status                               order_status?
   customers_has_invoices                     customers_has_invoices[]
   customer                                   customer                 @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods                            payment_methods?         @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
@@ -638,4 +644,12 @@ enum transaction_type {
   cash_in
   opening_balance
   cash_refund
+}
+
+enum order_status {
+  ready
+  in_progress
+  served
+  completed
+  cancelled
 }

@@ -15,6 +15,7 @@ import {
   invoice_charges,
   invoice_details,
   invoice_type,
+  order_status,
   order_type,
   Prisma,
 } from '@prisma/client';
@@ -32,7 +33,12 @@ import {
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
-import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
+import {
+  GetInvoiceDto,
+  GetListInvoiceDto,
+  InvoiceUpdateDto,
+  UpdateInvoiceOrderStatusDto,
+} from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { ChargesService } from 'src/modules/charges/services/charges.service';
 import {
@@ -58,9 +64,10 @@ export class InvoiceService {
     const {
       page,
       pageSize,
+      invoiceNumber,
       createdAtFrom,
       createdAtTo,
-      // orderType,
+      orderType,
       paymentStatus,
     } = request;
 
@@ -72,12 +79,23 @@ export class InvoiceService {
       createdAtFilter.lte = new Date(createdAtTo);
     }
 
+    // order by clause
+    const orderByField = request.orderBy ?? 'created_at';
+    const orderDirection = request.orderDirection ?? 'desc';
+
     const filters: Prisma.invoiceWhereInput = {
       ...(Object.keys(createdAtFilter).length > 0 && {
         created_at: createdAtFilter,
       }),
-      ...(paymentStatus && { payment_status: { equals: paymentStatus } }),
-      // ...(orderType && { order_type: { equals: orderType } }),
+      ...(paymentStatus && {
+        payment_status: {
+          in: Array.isArray(paymentStatus) ? paymentStatus : [paymentStatus],
+        },
+      }),
+      ...(orderType && {
+        order_type: { in: Array.isArray(orderType) ? orderType : [orderType] },
+      }),
+      ...(invoiceNumber && { invoice_number: { equals: invoiceNumber } }),
     };
 
     const [items, total] = await Promise.all([
@@ -89,7 +107,7 @@ export class InvoiceService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: {
-          created_at: 'desc',
+          [orderByField]: orderDirection,
         },
       }),
       this._prisma.invoice.count({
@@ -109,8 +127,22 @@ export class InvoiceService {
   }
 
   public async getInvoicePreview(request: GetInvoiceDto) {
-    const invoice = await this._prisma.invoice.findUnique({
-      where: { id: request.invoiceId },
+    const { invoiceId, invoiceNumber } = request;
+
+    if (request.invoiceId && request.invoiceNumber) {
+      this.logger.error(
+        'Please provide only one of invoiceId or invoiceNumber',
+      );
+      throw new BadRequestException(
+        'Please provide only one of invoiceId or invoiceNumber',
+      );
+    }
+
+    const invoice = await this._prisma.invoice.findFirst({
+      where: {
+        ...(invoiceId && { id: invoiceId }),
+        ...(invoiceNumber && { invoice_number: invoiceNumber }),
+      },
       include: {
         customer: true,
         invoice_details: {
@@ -150,6 +182,24 @@ export class InvoiceService {
     };
 
     return formatted;
+  }
+
+  public async UpdateInvoiceOrderStatus(
+    invoiceId: string,
+    request: UpdateInvoiceOrderStatusDto,
+  ) {
+    // check invoice
+    const invoice = await this.findInvoiceId(invoiceId);
+
+    // update status
+    await this.update(invoiceId, {
+      order_status: request.orderStatus,
+    });
+
+    return {
+      success: true,
+      message: `Invoice number ${invoice.invoice_number} order status has been updated`,
+    };
   }
 
   public async sentEmailInvoiceById(invoiceId: string): Promise<any> {
@@ -257,6 +307,7 @@ export class InvoiceService {
       grand_total: null,
       cashier_id: header.user.id,
       invoice_number: invoiceNumber,
+      order_status: order_status.ready,
     };
 
     // create invoice with status unpaid
@@ -265,15 +316,14 @@ export class InvoiceService {
     const calculation = await this.calculateTotal(request, invoiceId);
 
     // update invoice
-    await this.update(
-      invoiceId,
-      calculation.total,
-      calculation.taxId,
-      calculation.serviceChargeId,
-      calculation.tax,
-      calculation.serviceCharge,
-      calculation.grandTotal,
-    );
+    await this.update(invoiceId, {
+      subtotal: calculation.total,
+      tax_id: calculation.taxId,
+      service_charge_id: calculation.serviceChargeId,
+      tax_amount: calculation.tax,
+      service_charge_amount: calculation.serviceCharge,
+      grand_total: calculation.grandTotal,
+    });
 
     // insert the customer has invoice
     await this.createCustomerInvoice(invoiceId, request.customerId);
@@ -318,7 +368,7 @@ export class InvoiceService {
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
       paymentProvider,
-      invoiceId,
+      invoiceNumber,
       calculation.total,
     );
 
@@ -331,6 +381,7 @@ export class InvoiceService {
   ) {
     // create invoice ID
     const invoiceId = uuidv4();
+    const invoiceNumber = await this.generateInvoiceNumber();
     const calculation = await this.calculateTotal(request);
     const invoiceData = {
       id: invoiceId,
@@ -351,7 +402,8 @@ export class InvoiceService {
       service_charge_amount: null,
       grand_total: null,
       cashier_id: header.user.id,
-      invoice_number: '', // TODO: implement invoice number generator
+      invoice_number: invoiceNumber,
+      order_status: order_status.ready,
     };
 
     // create invoice with status unpaid
@@ -444,20 +496,28 @@ export class InvoiceService {
     );
 
     // update invoice
-    await this.update(
-      invoice.id,
-      calculation.total,
-      calculation.taxId,
-      calculation.serviceChargeId,
-      calculation.tax,
-      calculation.serviceCharge,
-      calculation.grandTotal,
-    );
+    await this.update(invoice.id, {
+      subtotal: calculation.total,
+      tax_id: calculation.taxId,
+      service_charge_id: calculation.serviceChargeId,
+      tax_amount: calculation.tax,
+      service_charge_amount: calculation.serviceCharge,
+      grand_total: calculation.grandTotal,
+      payment_method_id: request.paymentMethodId,
+    });
+
+    let invoiceNumber = '';
+    if (invoice.invoice_number === null) {
+      this.logger.error(`Invoice number is null`);
+      throw new BadRequestException(`Invoice number is null`);
+    } else {
+      invoiceNumber = invoice.invoice_number;
+    }
 
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
       paymentProvider,
-      request.invoiceId,
+      invoiceNumber,
       calculation.grandTotal,
     );
 
@@ -909,6 +969,7 @@ export class InvoiceService {
           grand_total: invoice.grand_total ?? null,
           cashier_id: invoice.cashier_id,
           invoice_number: invoice.invoice_number,
+          order_status: invoice.order_status,
         },
       });
     } catch (error) {
@@ -921,25 +982,12 @@ export class InvoiceService {
     }
   }
 
-  public async update(
-    invoiceId: string,
-    subtotal: number,
-    taxId: string,
-    serviceChargeId: string,
-    taxAmount: number,
-    serviceChargeAmount: number,
-    grandTotal: number,
-  ) {
+  public async update(invoiceId: string, data: InvoiceUpdateDto) {
     try {
       await this._prisma.invoice.update({
         where: { id: invoiceId },
         data: {
-          subtotal: subtotal,
-          tax_id: taxId,
-          service_charge_id: serviceChargeId,
-          tax_amount: taxAmount,
-          service_charge_amount: serviceChargeAmount,
-          grand_total: grandTotal,
+          ...data,
           update_at: new Date(),
         },
       });
