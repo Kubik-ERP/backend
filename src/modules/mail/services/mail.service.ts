@@ -6,7 +6,6 @@ import * as nodemailer from 'nodemailer';
 import { Injectable } from '@nestjs/common';
 import * as path from 'path';
 import * as handlebars from 'handlebars';
-// import * as fs from 'fs-extra';
 
 import * as ejs from 'ejs';
 import * as fs from 'fs';
@@ -143,42 +142,4 @@ export class MailService {
       throw new Error('Failed to load template');
     }
   }
-
-  // private async loadTemplateV1(
-  //   templateName: string,
-  //   data: any,
-  // ): Promise<string> {
-  //   try {
-  //     // Tentukan path untuk folder partials
-  //     const partialsPath = path.resolve(
-  //       __dirname,
-  //       '../../../../src/common/htmls/partials',
-  //     );
-
-  //     // Path untuk header dan footer
-  //     const headerPath = path.join(partialsPath, 'header.html');
-  //     const footerPath = path.join(partialsPath, 'footer.html');
-
-  //     // Membaca file header dan footer
-  //     const header = await fs.readFile(headerPath, 'utf-8');
-  //     const footer = await fs.readFile(footerPath, 'utf-8');
-
-  //     // Mendaftarkan partials
-  //     handlebars.registerPartial('header', header); // Register header partial
-  //     handlebars.registerPartial('footer', footer); // Register footer partial
-
-  //     const filePath = path.resolve(
-  //       __dirname,
-  //       '../../../../src/common/htmls',
-  //       `${templateName}`,
-  //     );
-  //     console.log('data in template email', data);
-  //     const templateFile = await fs.readFile(filePath, 'utf-8');
-  //     const compiledTemplate = handlebars.compile(templateFile);
-  //     return compiledTemplate(data);
-  //   } catch (error) {
-  //     console.log(error);
-  //     throw new Error('Failed to load template');
-  //   }
-  // }
 }

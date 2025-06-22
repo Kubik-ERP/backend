@@ -129,30 +129,11 @@ export class AuthenticationService {
    */
   public async generateOtp(email: string): Promise<object> {
     try {
-      // const newSecret = speakeasy.generateSecret({ length: 20 }).base32;
-
-      // // Save OTP Secret within 5 minutes
-      // const ttl = 5 * 60 * 1000;
-      // await this.cacheManager.set(`otp_secret:${email}`, newSecret, ttl);
-
-      // // Generate OTP
-      // const otp = speakeasy.totp({
-      //   secret: newSecret,
-      //   encoding: 'base32',
-      //   step: 300,
-      //   digits: 4,
-      // });
-
       // Kirim OTP ke email
-      // await this._mailService.sendOtpEmail(email, otp);
       const result = await this.templatesEmailService.sendEmailGenerateOtp(
         EmailTemplateType.VERIFICATION_EMAIL,
         email, //note: Email
       );
-
-      // const result = {
-      //   otp: otp,
-      // };
 
       return result;
     } catch (error) {
