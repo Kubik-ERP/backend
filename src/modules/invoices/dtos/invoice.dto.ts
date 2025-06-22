@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { invoice_type, order_type } from '@prisma/client';
+import { invoice_type, order_status, order_type } from '@prisma/client';
 import {
   IsDate,
   IsEnum,
@@ -124,6 +124,16 @@ export class GetInvoiceDto {
   })
   @IsString()
   invoiceNumber?: string;
+}
+
+export class UpdateInvoiceOrderStatusDto {
+  @ApiProperty({
+    description: 'Order status',
+    required: true,
+    example: 'in_progress',
+  })
+  @IsEnum(order_status)
+  orderStatus: order_status;
 }
 
 // Response DTO
@@ -305,4 +315,5 @@ export class InvoiceUpdateDto {
   tax_amount?: number;
   service_charge_amount?: number;
   grand_total?: number;
+  order_status?: order_status;
 }

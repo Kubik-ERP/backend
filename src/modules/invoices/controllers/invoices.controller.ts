@@ -7,6 +7,7 @@ import {
   Param,
   Req,
   UseGuards,
+  Put,
 } from '@nestjs/common';
 import { InvoiceService } from '../services/invoices.service';
 import {
@@ -21,7 +22,10 @@ import {
 } from '../dtos/callback-payment.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/invoice.dto';
+import {
+  GetListInvoiceDto,
+  UpdateInvoiceOrderStatusDto,
+} from '../dtos/invoice.dto';
 import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { GenerateInvoiceNumberResponseDto } from '../dtos/GenerateInvoiceNumberResponseDto.dto';
@@ -44,15 +48,35 @@ export class InvoiceController {
     };
   }
 
-  @Get(':IdOrNumber')
+  @Get(':idOrNumber')
   @ApiOperation({
     summary: 'Get invoice by invoice ID or number',
   })
-  public async invoiceByKey(@Param('IdOrNumber') IdOrNumber: string) {
+  public async invoiceByKey(@Param('idOrNumber') idOrNumber: string) {
     const response = await this.invoiceService.getInvoicePreview(
-      isUUID(IdOrNumber)
-        ? { invoiceId: IdOrNumber }
-        : { invoiceNumber: IdOrNumber },
+      isUUID(idOrNumber)
+        ? { invoiceId: idOrNumber }
+        : { invoiceNumber: idOrNumber },
+    );
+
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @Put('order/status/:invoiceId')
+  @ApiOperation({
+    summary: 'Update order status of the invoice',
+  })
+  public async UpdateInvoiceOrderStatus(
+    @Param('invoiceId') invoiceId: string,
+    @Body() body: UpdateInvoiceOrderStatusDto,
+  ) {
+    const response = await this.invoiceService.UpdateInvoiceOrderStatus(
+      invoiceId,
+      body,
     );
 
     return {
