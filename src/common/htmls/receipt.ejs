@@ -28,7 +28,7 @@
                   <!-- UNPAID -->
                   <p>Thank you for your order at <b>
                       <!-- NOTE: Store Name -->
-                      <% if (invoice_has_stores) { %>
+                      <% if (invoice_has_stores.length> 0) { %>
                         <%= invoice_has_stores[0].stores.name %>
                           <% } %>
                     </b>!</p>
@@ -37,7 +37,7 @@
                     <!-- PAID -->
                     <p>Thank you for your purchase at
                       <b>
-                        <% if (invoice_has_stores) { %>
+                        <% if (invoice_has_stores.length> 0) { %>
                           <%= invoice_has_stores[0].stores.name %>
                             <% } else { %>
                               Store Name
@@ -51,7 +51,7 @@
 
                         <h4
                           style="margin: 0 0 10px; font-weight: 600; color: #000; font-size: 14px; text-align: center;">
-                          <% if (invoice_has_stores) { %>
+                          <% if (invoice_has_stores.length> 0) { %>
                             <%= invoice_has_stores[0].stores.name %>
                               <% } else { %>
                                 Store Name
@@ -60,7 +60,7 @@
 
                         <p style="margin: 0 0 10px; font-size: 14px; color: #000; text-align: center;">
                           <!-- NOTE: Store Address -->
-                          <% if (invoice_has_stores) { %>
+                          <% if (invoice_has_stores.length> 0) { %>
                             <%= invoice_has_stores[0].stores.address %>
                               <% } else { %>
                                 Lawson Kaliurang - Jl. Kaliurang KM 6, Blotan, <br>
@@ -241,7 +241,7 @@
                             Please complete your payment at cashier to process your order.
                             If you have already made the payment or need help, feel free to contact us at <a href="#"
                               style="color: #16658a; text-decoration: none">
-                              <% if (invoice_has_stores) { %>
+                              <% if (invoice_has_stores.length> 0) { %>
                                 <%= invoice_has_stores[0].stores.email %>
                                   <% } %>
                             </a>
@@ -249,7 +249,7 @@
                           <p style="font-size: 14px; color: #000000; margin: 0 0 24px">
                             Thank You,<br />
                             <strong>
-                              <% if (invoice_has_stores) { %>
+                              <% if (invoice_has_stores.length> 0) { %>
                                 <%= invoice_has_stores[0].stores.name %>
                                   <% } %>
                             </strong>
@@ -258,7 +258,7 @@
                             <!-- // NOTE: PAID -->
                             <p style="font-size: 14px; color: #000000; margin: 0 0 16px">
                               If you have any questions about this inovice, feel free to contact us at
-                              <% if (invoice_has_stores) { %>
+                              <% if (invoice_has_stores.length> 0) { %>
                                 <%= invoice_has_stores[0].stores.email %>
                                   <% } else { %>
                                     Email Name
