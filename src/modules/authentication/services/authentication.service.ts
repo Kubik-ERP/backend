@@ -24,7 +24,7 @@ import { ILogin } from '../interfaces/authentication.interface';
 import { v4 as uuidv4 } from 'uuid';
 
 import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
-import { EmailTemplateType } from '../../templates-email/dtos/send-template-email.dto';
+import { EmailTemplateType } from '../../../enum/EmailTemplateType-enum';
 
 // NestJS Libraries
 import {

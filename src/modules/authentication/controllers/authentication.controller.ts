@@ -58,7 +58,8 @@ import { access } from 'fs';
 import { NoAuthPinGuard } from 'src/common/guards/noauth-pin.guard';
 
 import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
-import { EmailTemplateType } from '../../templates-email/dtos/send-template-email.dto';
+// Enum
+import { EmailTemplateType } from '../../../enum/EmailTemplateType-enum';
 
 @Controller('authentication')
 @ApiTags('Authentication')

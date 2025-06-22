@@ -30,7 +30,8 @@ import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { GenerateInvoiceNumberResponseDto } from '../dtos/GenerateInvoiceNumberResponseDto.dto';
 import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
-import { EmailTemplateType } from '../../templates-email/dtos/send-template-email.dto';
+// Enum
+import { EmailTemplateType } from '../../../enum/EmailTemplateType-enum';
 import { validate as isUUID } from 'uuid';
 
 @Controller('invoice')
