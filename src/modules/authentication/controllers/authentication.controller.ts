@@ -235,7 +235,11 @@ export class AuthenticationController {
   })
   public async forgotPassword(@Body() body: ForgotPasswordDto) {
     try {
-      await this._authenticationService.forgotPassword(body.email);
+      // await this._authenticationService.forgotPassword(body.email);
+      await this.templatesEmailService.sendEmailResetPassword(
+        EmailTemplateType.RESET_PASSWORD,
+        body.email, //note: Email
+      );
 
       return {
         message:

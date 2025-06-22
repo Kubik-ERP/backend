@@ -238,6 +238,13 @@ export class TemplatesEmailService {
     }
   }
 
+  /**
+   *
+   * @param template
+   * @param email
+   * @returns
+   * @description Sent email login notification when user login
+   */
   public async sendEmailLoginNotification(
     template: EmailTemplateType,
     email: string,
@@ -279,6 +286,99 @@ export class TemplatesEmailService {
     );
 
     console.log(`Success sent email login notification to ${email}`);
+
+    return {
+      template: template, //note: template
+      subjectEmail: subjectEmail, //note: subject
+      data: data, //note: data
+      email_to: email, //note: email to
+    };
+  }
+
+  public async sendEmailResetPassword(
+    template: EmailTemplateType,
+    email: string,
+  ) {
+    let data = null;
+    let subjectEmail: string;
+    //validate user email
+    const user = await this._usersService.findOneByEmail(email);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    if (!Object.values(EmailTemplateType).includes(template)) {
+      throw new BadRequestException('Template not found');
+    }
+    //generate token
+    const token = uuidv4();
+    const ttl = 15 * 60 * 1000;
+
+    //set token to cache with 15 minutes expiration
+    await this.cacheManager.set(`forgot_token:${email}`, token, ttl);
+
+    data = {
+      token: token,
+      name: user.fullname,
+      base_url: process.env.FRONTEND_URL,
+    };
+
+    subjectEmail = this.templateToSubjectMap[template];
+
+    // sent email
+    this._mailService.sendMailWithTemplate(
+      template + '.ejs', //note: template
+      subjectEmail, //note: subject
+      data, //note: data
+      email, //note: email to
+    );
+
+    console.log(`Success sent email reset password to ${email}`);
+
+    return {
+      template: template, //note: template
+      subjectEmail: subjectEmail, //note: subject
+      data: data, //note: data
+      email_to: email, //note: email to
+    };
+  }
+
+  public async sendEmailGenerateOtp(
+    template: EmailTemplateType,
+    email: string,
+  ) {
+    let data = null;
+    let subjectEmail: string;
+    const user = await this._usersService.findOneByEmail(email);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    //note: Verification Account Email
+    const newSecret = speakeasy.generateSecret({ length: 20 }).base32;
+    // Save OTP Secret within 5 minutes
+    const ttl = 5 * 60 * 1000;
+    await this.cacheManager.set(`otp_secret:${email}`, newSecret, ttl);
+    // Generate OTP
+    const otp = speakeasy.totp({
+      secret: newSecret,
+      encoding: 'base32',
+      step: 300,
+      digits: 4,
+    });
+    data = {
+      otp: otp,
+      name: user.fullname,
+    };
+    subjectEmail = this.templateToSubjectMap[template];
+
+    // sent email
+    this._mailService.sendMailWithTemplate(
+      template + '.ejs', //note: template
+      subjectEmail, //note: subject
+      data, //note: data
+      email, //note: email to
+    );
+
+    console.log(`Success sent email generate otp to ${email}`);
 
     return {
       template: template, //note: template
