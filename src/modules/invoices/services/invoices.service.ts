@@ -15,6 +15,7 @@ import {
   invoice_charges,
   invoice_details,
   invoice_type,
+  order_status,
   order_type,
   Prisma,
 } from '@prisma/client';
@@ -36,6 +37,7 @@ import {
   GetInvoiceDto,
   GetListInvoiceDto,
   InvoiceUpdateDto,
+  UpdateInvoiceOrderStatusDto,
 } from '../dtos/invoice.dto';
 import { NotificationHelper } from 'src/common/helpers/notification.helper';
 import { ChargesService } from 'src/modules/charges/services/charges.service';
@@ -177,6 +179,24 @@ export class InvoiceService {
     return formatted;
   }
 
+  public async UpdateInvoiceOrderStatus(
+    invoiceId: string,
+    request: UpdateInvoiceOrderStatusDto,
+  ) {
+    // check invoice
+    const invoice = await this.findInvoiceId(invoiceId);
+
+    // update status
+    await this.update(invoiceId, {
+      order_status: request.orderStatus,
+    });
+
+    return {
+      success: true,
+      message: `Invoice number ${invoice.invoice_number} order status has been updated`,
+    };
+  }
+
   public async sentEmailInvoiceById(invoiceId: string): Promise<any> {
     // Find the invoice by id
     const invoice = await this.getInvoicePreview({ invoiceId });
@@ -281,6 +301,7 @@ export class InvoiceService {
       grand_total: null,
       cashier_id: header.user.id,
       invoice_number: invoiceNumber,
+      order_status: order_status.ready,
     };
 
     // create invoice with status unpaid
@@ -354,6 +375,7 @@ export class InvoiceService {
   ) {
     // create invoice ID
     const invoiceId = uuidv4();
+    const invoiceNumber = await this.generateInvoiceNumber();
     const calculation = await this.calculateTotal(request);
     const invoiceData = {
       id: invoiceId,
@@ -374,7 +396,8 @@ export class InvoiceService {
       service_charge_amount: null,
       grand_total: null,
       cashier_id: header.user.id,
-      invoice_number: '', // TODO: implement invoice number generator
+      invoice_number: invoiceNumber,
+      order_status: order_status.ready,
     };
 
     // create invoice with status unpaid
@@ -940,6 +963,7 @@ export class InvoiceService {
           grand_total: invoice.grand_total ?? null,
           cashier_id: invoice.cashier_id,
           invoice_number: invoice.invoice_number,
+          order_status: invoice.order_status,
         },
       });
     } catch (error) {
