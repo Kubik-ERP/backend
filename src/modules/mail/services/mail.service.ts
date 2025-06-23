@@ -6,7 +6,9 @@ import * as nodemailer from 'nodemailer';
 import { Injectable } from '@nestjs/common';
 import * as path from 'path';
 import * as handlebars from 'handlebars';
-import * as fs from 'fs-extra';
+
+import * as ejs from 'ejs';
+import * as fs from 'fs';
 
 dotenv.config();
 
@@ -93,21 +95,48 @@ export class MailService {
       subject: subject,
       html: htmlTemplate,
     });
-
-    console.log(`mail send to ${to} with subject ${subject}`);
   }
 
   private async loadTemplate(templateName: string, data: any): Promise<string> {
     try {
+      // Tentukan path untuk folder partials
+      const partialsPath = path.resolve(
+        __dirname,
+        '../../../../src/common/htmls/partials',
+      );
+
+      // Path untuk header dan footer
+      const headerPath = path.join(partialsPath, 'header.ejs'); // Ganti dengan .ejs
+      const footerPath = path.join(partialsPath, 'footer.ejs'); // Ganti dengan .ejs
+
+      // Membaca file header dan footer
+      const header = await fs.promises.readFile(headerPath, 'utf-8');
+      const footer = await fs.promises.readFile(footerPath, 'utf-8');
+
+      // Mendaftarkan partials untuk EJS
+      // EJS tidak membutuhkan register partial seperti Handlebars, jadi kita bisa langsung memasukkan header dan footer ke dalam data.
+      data.header = header;
+      data.footer = footer;
+
+      // Path untuk template utama
       const filePath = path.resolve(
         __dirname,
         '../../../../src/common/htmls',
-        `${templateName}.html`,
+        `${templateName}`,
       );
-      console.log(data);
-      const templateFile = await fs.readFile(filePath, 'utf-8');
-      const compiledTemplate = handlebars.compile(templateFile);
-      return compiledTemplate(data);
+
+      console.log('Bugging filePath', filePath);
+
+      // Membaca file template
+      // console.log('data in template email', data);
+      const templateFile = await fs.promises.readFile(filePath, 'utf-8');
+
+      // Render template dengan EJS
+      const html = ejs.render(templateFile, data);
+
+      console.log('Success to load template');
+
+      return html;
     } catch (error) {
       console.log(error);
       throw new Error('Failed to load template');

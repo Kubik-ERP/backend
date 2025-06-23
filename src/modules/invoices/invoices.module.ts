@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { InvoiceService } from './services/invoices.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { InvoiceController } from './controllers/invoices.controller';
@@ -11,9 +11,14 @@ import { ChargesService } from '../charges/services/charges.service';
 import { InvoiceSettingController } from './controllers/invoices-setting.controller';
 import { StoresService } from '../stores/services/stores.service';
 import { StorageServiceModule } from '../storage-service/storage-service.module';
+import { TemplatesEmailModule } from '../templates-email/templates-email.module';
 
 @Module({
-  imports: [MailModule, StorageServiceModule],
+  imports: [
+    MailModule,
+    StorageServiceModule,
+    forwardRef(() => TemplatesEmailModule),
+  ],
   providers: [
     InvoiceService,
     PaymentFactory,

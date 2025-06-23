@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice Email</title>
+</head>
+
+<body style="margin: 0; padding: 0; font-family: Inter, sans-serif; background-color: #f3f6f9; color: #333;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f6f9; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0"
+          style="background-color: #ffffff; border-radius: 6px; overflow: hidden;">
+
+          <!-- Header -->
+          <%- header %>
+
+
+            <!-- Invoice Content -->
+            <tr>
+              <td style="padding: 30px; font-size: 14px; line-height: 1.6;">
+
+                <h2><strong>Hi <%= name %>,</strong></h2>
+
+                <% if (payment_status=='unpaid' ) { %>
+                  <!-- UNPAID -->
+                  <p>Thank you for your order at <b>
+                      <!-- NOTE: Store Name -->
+                      <% if (invoice_has_stores.length> 0) { %>
+                        <%= invoice_has_stores[0].stores.name %>
+                          <% } %>
+                    </b>!</p>
+                  <p>We’ve received your order, but payment has not been completed yet.</p>
+                  <% } else { %>
+                    <!-- PAID -->
+                    <p>Thank you for your purchase at
+                      <b>
+                        <% if (invoice_has_stores.length> 0) { %>
+                          <%= invoice_has_stores[0].stores.name %>
+                            <% } else { %>
+                              Store Name
+                              <% } %>!
+                      </b>
+                    </p>
+                    <p>Here are the details of your transaction:</p>
+                    <% } %>
+                      <div
+                        style="margin-top: 40px; margin-right: 60px; margin-left: 60px; border: 1px solid #D9D9D9; padding: 20px;  border-radius: 6px;">
+
+                        <h4
+                          style="margin: 0 0 10px; font-weight: 600; color: #000; font-size: 14px; text-align: center;">
+                          <% if (invoice_has_stores.length> 0) { %>
+                            <%= invoice_has_stores[0].stores.name %>
+                              <% } else { %>
+                                Store Name
+                                <% } %>
+                        </h4>
+
+                        <p style="margin: 0 0 10px; font-size: 14px; color: #000; text-align: center;">
+                          <!-- NOTE: Store Address -->
+                          <% if (invoice_has_stores.length> 0) { %>
+                            <%= invoice_has_stores[0].stores.address %>
+                              <% } else { %>
+                                Lawson Kaliurang - Jl. Kaliurang KM 6, Blotan, <br>
+                                Sukoharjo, Kec. Ngaglik, Kabupaten Sleman, Daerah <br>
+                                Istimewa Yogyakarta
+                                <% } %>
+                        </p>
+
+                        <div style="width: 100%; font-family: monospace; font-size: 12px; text-align: center;">
+                          <div>=========================================================</div>
+                          <table width="100%" style="border-collapse: collapse; font-size: 14px;">
+                            <tr>
+                              <% if (payment_status=='unpaid' ) { %>
+                                <!-- UNPAID -->
+                                <span style="color: #E57171">
+                                  <%= payment_status %>
+                                </span>
+                                <% } else { %>
+                                  <!-- PAID -->
+                                  <td style="text-align: left;">
+                                    <%= new Date(created_at).toLocaleDateString('id-ID') %>
+                                      <%= new Date(created_at).toLocaleTimeString('id-ID', { hour: '2-digit' ,
+                                        minute: '2-digit' }) %>
+                                  </td>
+                                  <td style=" text-align: right;">
+                                    KASIR <%= invoice_number ?? 'Invoice Number' %>
+                                  </td>
+                                  <% } %>
+                            </tr>
+                          </table>
+                          <div>=========================================================</div>
+                        </div>
+
+                        <table width="100%" style="margin-top: 20px; border-collapse: collapse; font-size: 14px;">
+                          <tr>
+                            <td style="padding: 4px 0;">Cashier</td>
+                            <td style="padding: 4px 0; text-align: right;">
+                              <%= users?.fullname || 'Cashier Name' %>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding: 4px 0;">Cust. Name</td>
+                            <td style="padding: 4px 0; text-align: right;">
+                              <%= customer?.name || '-' %>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding: 4px 0;">Order Type</td>
+                            <td style="padding: 4px 0; text-align: right;">
+                              <%= order_type.replace(/_/g, ' ' ).toUpperCase() %>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding: 4px 0;">Queue</td>
+                            <td style="padding: 4px 0; text-align: right;">[38]</td>
+                          </tr>
+                          <tr>
+                            <td style="padding: 4px 0;">Table No.</td>
+                            <td style="padding: 4px 0; text-align: right;">
+                              <%= table_code || '-' %>
+                            </td>
+                          </tr>
+                        </table>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px dashed #000;" />
+
+                        <table width="100%" style="font-size: 14px;">
+                          <thead>
+                            <tr style="border-bottom: 1px dashed #000;">
+                              <th align="left">Deskripsi</th>
+                              <th align="center">Qty</th>
+                              <th align="center">Harga</th>
+                              <th align="right">Subtotal</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <% let total=0; let totalQty=0; %>
+                              <% invoice_details.forEach(function(item) { %>
+                                <% const combinedPrice=item.product_price + (item.variant ? item.variant.price : 0); %>
+                                  <% const subtotal=item.qty * combinedPrice; %>
+                                    <!-- Repeat for each item -->
+                                    <tr>
+                                      <td>
+                                        <%= item.products.name %>
+                                      </td>
+                                      <td align="center">
+                                        <%= item.qty %>
+                                      </td>
+                                      <td align="right">Rp <%= item.product_price.toLocaleString('id-ID') %>
+                                      <td align="right">Rp <%= subtotal.toLocaleString('id-ID') %>
+                                    </tr>
+                                    <!-- If has variant -->
+                                    <% if (item.variant) { %>
+                                      <tr>
+                                        <td style="padding-left: 16px; font-style: italic; font-size: 12px;">
+                                          <%= item.variant.name %>
+                                        </td>
+                                        <td align="center">
+                                          <%= item.qty %>
+                                        </td>
+                                        <td align="right">Rp <%= item.variant.price.toLocaleString('id-ID') %>
+                                        </td>
+                                        <td align="right">Rp <%= (item.variant.price * item.qty).toLocaleString('id-ID')
+                                            %>
+                                        </td>
+                                      </tr>
+                                      <% } %>
+                                        <% total +=subtotal; %>
+                                          <% totalQty +=item.qty; %>
+                                            <% }); %>
+                          </tbody>
+                        </table>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px solid #000;" />
+
+                        <table width="100%" style="margin-top: 20px; font-size: 14px;">
+                          <tr>
+                            <td>Sub Total</td>
+                            <td align="">
+                              <%= totalQty %>
+                            </td>
+                            <td align="right">
+                              Rp <%= total.toLocaleString('id-ID') %>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td>Promo</td>
+                            <td></td>
+                            <td align="right">-Rp0</td>
+                          </tr>
+                          <tr>
+                            <td>PPN</td>
+                            <td></td>
+                            <td align="right">Rp0</td>
+                          </tr>
+                        </table>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px solid #000;" />
+
+                        <table width="100%" style="margin-top: 20px; font-size: 14px;">
+                          <tr style="font-weight: bold;">
+                            <td>Total</td>
+                            <td align="right">Rp <%= total.toLocaleString('id-ID') %>
+                          </tr>
+                        </table>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px dashed #000;" />
+
+                        <table width="100%" style="margin-top: 20px; font-size: 14px;">
+                          <tr>
+                            <td>Debit</td>
+                            <td align="right">Rp0</td>
+                          </tr>
+                          <tr>
+                            <td>Kembali</td>
+                            <td align="right">Rp0</td>
+                          </tr>
+                        </table>
+
+                        <hr style="margin: 20px 0; border: none; border-top: 1px dashed #000;" />
+
+                        <!-- Social Media Info -->
+                        <p style="text-align: center; font-size: 14px; margin-bottom: 10px;">
+                          Social Media<br>
+                          Instagram: @lawsonkal
+                        </p>
+
+                        <p style="text-align: center; font-size: 14px; margin-top: 10px;">
+                          Terima kasih dan kami tunggu kedatangan Anda kembali
+                        </p>
+                      </div>
+
+
+                      <div style="margin-top: 40px;">
+                        <% if (payment_status=='unpaid' ) { %>
+                          <!-- // NOTE: UNPAID -->
+                          <p style="font-size: 14px; color: #000000; margin: 0 0 16px">
+                            Please complete your payment at cashier to process your order.
+                            If you have already made the payment or need help, feel free to contact us at <a href="#"
+                              style="color: #16658a; text-decoration: none">
+                              <% if (invoice_has_stores.length> 0) { %>
+                                <%= invoice_has_stores[0].stores.email %>
+                                  <% } %>
+                            </a>
+                          </p>
+                          <p style="font-size: 14px; color: #000000; margin: 0 0 24px">
+                            Thank You,<br />
+                            <strong>
+                              <% if (invoice_has_stores.length> 0) { %>
+                                <%= invoice_has_stores[0].stores.name %>
+                                  <% } %>
+                            </strong>
+                          </p>
+                          <% } else { %>
+                            <!-- // NOTE: PAID -->
+                            <p style="font-size: 14px; color: #000000; margin: 0 0 16px">
+                              If you have any questions about this inovice, feel free to contact us at
+                              <% if (invoice_has_stores.length> 0) { %>
+                                <%= invoice_has_stores[0].stores.email %>
+                                  <% } else { %>
+                                    Email Name
+                                    <% } %>!.
+                            </p>
+                            <% } %>
+                              <div style="width: 100%; display: flex; justify-content: center; align-items: center; ">
+                                <span>Powered by <b>KUBIK POS</b></span>
+                              </div>
+                      </div>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <%- footer %>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

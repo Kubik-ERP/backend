@@ -8,6 +8,7 @@ import { UsersModule } from './modules/users/users.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentMethodModule } from './modules/payment-methods/payment-method.module';
 import { CustomLogger } from './common/logger/custom.logger';
+import { TemplatesEmailModule } from './modules/templates-email/templates-email.module';
 
 // NestJS Libraries
 import { Logger, Module } from '@nestjs/common';
@@ -61,6 +62,7 @@ import { CashDrawerModule } from './modules/cash-drawer/cash-drawer.module';
     RolesModule,
     ShiftModule,
     CashDrawerModule,
+    TemplatesEmailModule,
   ],
   providers: [
     {

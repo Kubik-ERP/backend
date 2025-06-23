@@ -156,6 +156,11 @@ export class InvoiceService {
         },
         invoice_charges: true,
         payment_methods: true,
+        invoice_has_stores: {
+          include: {
+            stores: true,
+          },
+        },
       },
     });
 
@@ -226,6 +231,7 @@ export class InvoiceService {
     return {
       success: true,
       message: `Email sent successfully to ${email}`,
+      safeInvoice: safeInvoice,
     };
   }
 

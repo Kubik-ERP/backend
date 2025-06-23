@@ -23,6 +23,9 @@ import { ILogin } from '../interfaces/authentication.interface';
 //UUID
 import { v4 as uuidv4 } from 'uuid';
 
+import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
+import { EmailTemplateType } from '../../../enum/EmailTemplateType-enum';
+
 // NestJS Libraries
 import {
   BadRequestException,
@@ -48,6 +51,7 @@ export class AuthenticationService {
     private readonly _usersService: UsersService,
     private readonly _jwtService: JwtService,
     private readonly _mailService: MailService,
+    private readonly templatesEmailService: TemplatesEmailService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
     // this._secret = process.env.OTP_SECRET || speakeasy.generateSecret().base32;
@@ -125,26 +129,11 @@ export class AuthenticationService {
    */
   public async generateOtp(email: string): Promise<object> {
     try {
-      const newSecret = speakeasy.generateSecret({ length: 20 }).base32;
-
-      // Save OTP Secret within 5 minutes
-      const ttl = 5 * 60 * 1000;
-      await this.cacheManager.set(`otp_secret:${email}`, newSecret, ttl);
-
-      // Generate OTP
-      const otp = speakeasy.totp({
-        secret: newSecret,
-        encoding: 'base32',
-        step: 300,
-        digits: 4,
-      });
-
       // Kirim OTP ke email
-      await this._mailService.sendOtpEmail(email, otp);
-
-      const result = {
-        otp: otp,
-      };
+      const result = await this.templatesEmailService.sendEmailGenerateOtp(
+        EmailTemplateType.VERIFICATION_EMAIL,
+        email, //note: Email
+      );
 
       return result;
     } catch (error) {

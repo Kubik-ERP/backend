@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Forgot Password</title>
+    <title>Verification Email</title>
   </head>
+
   <body
     style="margin: 0; padding: 0; background-color: #f3f6f9; font-family: Inter"
   >
@@ -27,39 +28,42 @@
             "
           >
             <!-- Header -->
-            <!-- Include Header Partial -->
             {{> header }}
 
             <!-- Content -->
             <tr>
               <td style="padding: 40px">
                 <h2 style="color: #000000; margin-bottom: 20px">
-                  Reset Password Request
+                  Hi {{ name }},
                 </h2>
                 <p style="color: #333333; font-size: 16px; line-height: 1.6">
-                  We received a request to reset your password. If you made this
-                  request, please click the button below to set a new password:
+                  Welcome to KUBIK POS 👋
+                </p>
+                <p style="color: #333333; font-size: 16px; line-height: 1.6">
+                  To complete your account verification, please enter the
+                  following One-Time Password (OTP):
                 </p>
 
-                <div style="text-align: left; margin: 30px 0">
-                  <a
-                    href="{{base_url}}/authentication/create-new-password?token={{token}}"
-                    style="
-                      background-color: #16658a;
-                      color: #ffffff;
-                      padding: 12px 24px;
-                      border-radius: 6px;
-                      text-decoration: none;
-                      font-weight: bold;
-                    "
-                  >
-                    Reset Password
-                  </a>
-                </div>
+                <p
+                  style="
+                    font-size: 36px;
+                    letter-spacing: 10px;
+                    font-weight: bold;
+                    text-align: center;
+                    margin: 30px 0;
+                  "
+                >
+                  {{ otp }}
+                </p>
 
-                <p style="color: #555555; font-size: 14px; line-height: 1.6">
-                  If you didn’t request a password reset, please ignore this
-                  email. Your account remains secure.
+                <p>
+                  This code is valid for the next 10 minutes. Please do not
+                  share this code with anyone.
+                </p>
+
+                <p>
+                  If you didn’t request this, please ignore this email or
+                  contact our support team immediately.
                 </p>
               </td>
             </tr>
