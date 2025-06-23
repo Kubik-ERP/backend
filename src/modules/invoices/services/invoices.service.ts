@@ -984,15 +984,48 @@ export class InvoiceService {
 
   public async update(invoiceId: string, data: InvoiceUpdateDto) {
     try {
+      const {
+        tax_id,
+        service_charge_id,
+        customer_id,
+        payment_method_id,
+        ...rest
+      } = data;
+
+      const updateData: any = {
+        ...rest,
+        update_at: new Date(),
+      };
+
+      if (tax_id) {
+        updateData.charges_invoice_tax_idTocharges = {
+          connect: { id: tax_id },
+        };
+      }
+
+      if (service_charge_id) {
+        updateData.charges_invoice_service_charge_idTocharges = {
+          connect: { id: service_charge_id },
+        };
+      }
+
+      if (customer_id) {
+        updateData.customer = {
+          connect: { id: customer_id },
+        };
+      }
+
+      if (payment_method_id) {
+        updateData.payment_methods = {
+          connect: { id: payment_method_id },
+        };
+      }
+
       await this._prisma.invoice.update({
         where: { id: invoiceId },
-        data: {
-          ...data,
-          update_at: new Date(),
-        },
+        data: updateData,
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to update invoice');
       throw new BadRequestException('Failed to update invoice', {
         cause: new Error(),
