@@ -235,7 +235,139 @@ export class InvoiceService {
     };
   }
 
-  public async generateInvoiceNumber(): Promise<string> {
+  public async generateInvoiceNumber(storeId: string): Promise<any> {
+    const today = new Date();
+    const dateKey = today.toISOString().split('T')[0].replace(/-/g, ''); // yyyyMMdd
+    console.log(`storeId is `, storeId);
+
+    // Ambil konfigurasi invoice store terkait
+    const setting = await this._prisma.invoice_settings.findUnique({
+      where: { store_id: storeId },
+    });
+
+    if (!setting) {
+      throw new NotFoundException('Invoice settings not found for this store');
+    }
+
+    const resetType = setting.reset_sequence?.toLowerCase() ?? 'never';
+    const incrementBy = setting.increment_by ?? 1;
+    const startingNumber = setting.starting_number ?? 1;
+
+    // Hitung reset key sesuai reset_sequence
+    const getResetKey = (): string => {
+      const y = today.getFullYear();
+      const m = String(today.getMonth() + 1).padStart(2, '0');
+      const d = String(today.getDate()).padStart(2, '0');
+      switch (resetType) {
+        case 'daily':
+        case 'never': // Tetap pakai tanggal sebagai prefix
+          return `${y}${m}${d}`;
+        case 'weekly': {
+          const firstDay = new Date(today);
+          const day = firstDay.getDay();
+          const diff = firstDay.getDate() - day + (day === 0 ? -6 : 1);
+          firstDay.setDate(diff);
+          return firstDay.toISOString().split('T')[0].replace(/-/g, '');
+        }
+        case 'monthly':
+          return `${y}${m}01`;
+        case 'quarterly': {
+          const quarterStartMonth = Math.floor(today.getMonth() / 3) * 3 + 1;
+          const qMonth = String(quarterStartMonth).padStart(2, '0');
+          return `${y}${qMonth}01`;
+        }
+        case 'yearly':
+          return `${y}0101`;
+        case 'never':
+        default:
+          return `${y}${m}${d}`;
+      }
+    };
+
+    const resetKey = getResetKey();
+
+    // start: real generate invoice number
+    // Transaction with locking to handle race condition
+    const result = await this._prisma.$transaction(async (tx) => {
+      const latestInvoice = await tx.invoice.findFirst({
+        where: {
+          // store_id: storeId,
+          invoice_number: {
+            startsWith: resetKey,
+          },
+          invoice_has_stores: {
+            some: {
+              stores_id: storeId,
+            },
+          },
+        },
+        orderBy: {
+          invoice_number: 'desc',
+        },
+        take: 1,
+      });
+
+      let newNumber = startingNumber;
+      if (latestInvoice?.invoice_number) {
+        const lastSeq = parseInt(latestInvoice.invoice_number.slice(8), 10);
+        newNumber = lastSeq + incrementBy;
+      }
+
+      const paddedNumber = newNumber.toString().padStart(5, '0');
+      return `${resetKey}${paddedNumber}`;
+    });
+    return result;
+    // end: real generate invoice number
+
+    // start: Bugging generate invoice number
+    // Ambil invoice terakhir untuk resetKey dan store
+    // const latestInvoice = await this._prisma.invoice.findFirst({
+    //   where: {
+    //     invoice_number: {
+    //       startsWith: resetKey,
+    //     },
+    //     invoice_has_stores: {
+    //       some: {
+    //         stores_id: storeId,
+    //       },
+    //     },
+    //   },
+    //   orderBy: {
+    //     invoice_number: 'desc',
+    //   },
+    //   take: 1,
+    // });
+
+    // let startFrom: number;
+
+    // if (latestInvoice?.invoice_number) {
+    //   const lastSeq = parseInt(latestInvoice.invoice_number.slice(8), 10);
+    //   startFrom = lastSeq + incrementBy;
+    // } else {
+    //   startFrom = startingNumber;
+    // }
+
+    // // Generate 10 nomor invoice
+    // const invoiceNumbers: string[] = [];
+    // for (let i = 0; i < 40; i++) {
+    //   const num = startFrom + i * incrementBy;
+    //   const padded = num.toString().padStart(5, '0');
+    //   invoiceNumbers.push(`${resetKey}${padded}`);
+    // }
+
+    // return {
+    //   setting: {
+    //     incrementBy: setting.increment_by,
+    //     resetSequence: setting.reset_sequence,
+    //     startingNumber: setting.starting_number,
+    //   },
+    //   invoiceNumbers,
+    // };
+
+    // end: Bugging generate invoice number
+  }
+
+  public async generateInvoiceNumberV1(): Promise<string> {
     const today = new Date();
     const dateKey = today.toISOString().split('T')[0].replace(/-/g, ''); // yyyyMMdd
 
@@ -285,7 +417,7 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
-    const invoiceNumber = await this.generateInvoiceNumber();
+    const invoiceNumber = await this.generateInvoiceNumber(invoiceId); //TODO: Please change invoiceId with storeId
 
     const invoiceData = {
       id: invoiceId,
@@ -381,7 +513,7 @@ export class InvoiceService {
   ) {
     // create invoice ID
     const invoiceId = uuidv4();
-    const invoiceNumber = await this.generateInvoiceNumber();
+    const invoiceNumber = await this.generateInvoiceNumber(invoiceId); //TODO: Please change invoiceId with storeId
     const calculation = await this.calculateTotal(request);
     const invoiceData = {
       id: invoiceId,
