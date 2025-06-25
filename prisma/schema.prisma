@@ -100,8 +100,8 @@ model customer {
   username               String?                  @db.VarChar(45)
   address                String?                  @db.VarChar(45)
   gender                 String?                  @db.VarChar(45)
-  point                  Int?
   tag                    String?                  @db.VarChar(45)
+  point                  Int?
   customer_has_stores    customer_has_stores[]
   customers_has_invoices customers_has_invoices[]
   customers_has_tag      customers_has_tag[]
@@ -597,15 +597,15 @@ model voucher_has_products {
 }
 
 model trn_customer_points {
-  id          String       @id(map: "trn_customer_points_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String      @id(map: "trn_customer_points_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   value       Int
-  customer_id String       @db.Uuid
-  invoice_id  String?      @db.Uuid
-  type        points_type?
-  expiry_date DateTime?    @db.Date
-  notes       String?      @db.VarChar(45)
-  customer    customer     @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_customer_id_fk")
-  invoice     invoice?     @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_invoice_id_fk")
+  customer_id String      @db.Uuid
+  invoice_id  String?     @db.Uuid
+  type        point_type?
+  expiry_date DateTime?   @db.Date
+  notes       String?     @db.VarChar(45)
+  customer    customer    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_customer_id_fk")
+  invoice     invoice?    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_invoice_id_fk")
 }
 
 enum cash_drawer_type {
@@ -657,7 +657,7 @@ enum order_status {
   cancelled
 }
 
-enum points_type {
-  Point_Addition  @map("Point Addition")
-  Point_Deduction @map("Point Deduction")
+enum point_type {
+  point_addition
+  point_deduction
 }

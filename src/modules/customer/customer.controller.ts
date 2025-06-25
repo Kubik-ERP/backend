@@ -15,6 +15,7 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerService } from './customer.service';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
+import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
 
 @Controller('customers')
 export class CustomersController {
@@ -88,6 +89,7 @@ export class CustomersController {
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           message: 'Failed to fetch detail Customers',
+          result: error,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -114,6 +116,28 @@ export class CustomersController {
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           message: 'Failed to fetch detail Customers',
+          result: error,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('/loyalty-points')
+  async createLoyaltyPoint(@Body() dto: CreateCustomerPointDto) {
+    try {
+      const result = await this.customersService.createLoyaltyPoint(dto);
+      return {
+        statusCode: 201,
+        message: 'Point added successfully',
+        result,
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to create customer point',
+          result: error,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );

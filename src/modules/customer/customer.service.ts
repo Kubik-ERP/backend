@@ -9,7 +9,8 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { validate as isUUID } from 'uuid';
-import { customer as CustomerModel } from '@prisma/client';
+import { customer as CustomerModel, point_type, Prisma } from '@prisma/client';
+import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
 
 @Injectable()
 export class CustomerService {
@@ -143,7 +144,7 @@ export class CustomerService {
           include: { stores: true },
         },
         invoice: {
-          orderBy: { created_at: 'desc' }, // pastikan invoice terurut dari terbaru
+          orderBy: { created_at: 'desc' },
         },
       },
     });
@@ -193,17 +194,51 @@ export class CustomerService {
         customer_has_stores: {
           include: { stores: true },
         },
-        trn_customer_points: true,
+        trn_customer_points: {
+          include: {
+            invoice: true,
+          },
+        },
       },
     });
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
+    const totalPoints = customer.trn_customer_points.reduce((sum, point) => {
+      if (point.type?.toString() === 'point_deduction') {
+        return sum - point.value;
+      } else {
+        return sum + point.value;
+      }
+    }, 0);
 
     return {
-      customer,
+      id: customer.id,
+      name: customer.name,
+      code: customer.code,
+      number: customer.number,
+      email: customer.email,
+      dob: customer.dob,
+      address: customer.address,
+      tags: customer.customers_has_tag.map((cht) => cht.tag),
+      stores: customer.customer_has_stores.map((chs) => chs.stores),
+      points: {
+        total: totalPoints,
+        details: customer.trn_customer_points,
+      },
     };
+  }
+
+  async createLoyaltyPoint(dto: CreateCustomerPointDto) {
+    try {
+      const result = await this.prisma.trn_customer_points.create({
+        data: dto,
+      });
+      return result;
+    } catch (err) {
+      throw new BadRequestException('Failed to create point: ' + err.message);
+    }
   }
 
   public async findOne(idOrName: string): Promise<CustomerModel | null> {
