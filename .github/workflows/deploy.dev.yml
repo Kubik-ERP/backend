@@ -40,5 +40,3 @@ jobs:
 
             # Rebuild dan jalankan hanya backend (Redis & MinIO tetap jalan)
             docker compose up -d --build kubik-backend
-
-            docker system prune -a --volumes -f

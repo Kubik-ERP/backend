@@ -127,21 +127,9 @@ export class InvoiceService {
   }
 
   public async getInvoicePreview(request: GetInvoiceDto) {
-    const { invoiceId, invoiceNumber } = request;
-
-    if (request.invoiceId && request.invoiceNumber) {
-      this.logger.error(
-        'Please provide only one of invoiceId or invoiceNumber',
-      );
-      throw new BadRequestException(
-        'Please provide only one of invoiceId or invoiceNumber',
-      );
-    }
-
     const invoice = await this._prisma.invoice.findFirst({
       where: {
-        ...(invoiceId && { id: invoiceId }),
-        ...(invoiceNumber && { invoice_number: invoiceNumber }),
+        ...{ id: request.invoiceId },
       },
       include: {
         customer: true,
@@ -156,11 +144,6 @@ export class InvoiceService {
         },
         invoice_charges: true,
         payment_methods: true,
-        invoice_has_stores: {
-          include: {
-            stores: true,
-          },
-        },
       },
     });
 
@@ -440,6 +423,7 @@ export class InvoiceService {
       cashier_id: header.user.id,
       invoice_number: invoiceNumber,
       order_status: order_status.ready,
+      store_id: request.storeId,
     };
 
     // create invoice with status unpaid
@@ -500,7 +484,7 @@ export class InvoiceService {
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
       paymentProvider,
-      invoiceNumber,
+      invoiceId,
       calculation.total,
     );
 
@@ -536,6 +520,7 @@ export class InvoiceService {
       cashier_id: header.user.id,
       invoice_number: invoiceNumber,
       order_status: order_status.ready,
+      store_id: request.storeId,
     };
 
     // create invoice with status unpaid
@@ -649,7 +634,7 @@ export class InvoiceService {
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
       paymentProvider,
-      invoiceNumber,
+      invoice.id,
       calculation.grandTotal,
     );
 
@@ -985,29 +970,42 @@ export class InvoiceService {
     productId: string,
     variantId?: string,
   ): Promise<string | null> {
-    const hasVariant = await this._prisma.variant_has_products.findFirst({
+    const variantLinks = await this._prisma.variant_has_products.findMany({
       where: { products_id: productId },
       select: { variant_id: true },
     });
 
-    // check if product has a variant, but can be set as product only
-    if (hasVariant && variantId !== '' && variantId !== hasVariant.variant_id) {
-      this.logger.error(
-        `Product ${productId} requires a variant but none was provided`,
-      );
-      throw new Error(`Product ${productId} requires a variant`);
+    const variantIds = variantLinks.map((v) => v.variant_id);
+
+    // If product doesn't have variant
+    if (variantIds.length === 0) {
+      if (variantId) {
+        this.logger.warn(
+          `Product ${productId} does not support variants, but variant ${variantId} was provided.`,
+        );
+        throw new BadRequestException(
+          `Product ${productId} does not support variants.`,
+        );
+      }
+      return null;
     }
 
-    if (!hasVariant && variantId) {
-      this.logger.warn(
-        `Product ${productId} does not support variants, but variant ${variantId} was provided. Ignoring variant.`,
+    // if product has variant but variantId not sent
+    if (!variantId || variantId === '') {
+      return null;
+    }
+
+    // if varint has sent, check if is valid
+    if (!variantIds.includes(variantId)) {
+      this.logger.error(
+        `Variant ${variantId} is not valid for product ${productId}.`,
       );
       throw new BadRequestException(
-        `Product ${productId} does not support variants, but variant ${variantId} was provided. Ignoring variant.`,
+        `Variant ${variantId} is not valid for product ${productId}.`,
       );
     }
 
-    return variantId ?? null;
+    return variantId;
   }
 
   private async upsertInvoiceCharge(request: invoice_charges) {
@@ -1102,6 +1100,7 @@ export class InvoiceService {
           cashier_id: invoice.cashier_id,
           invoice_number: invoice.invoice_number,
           order_status: invoice.order_status,
+          store_id: invoice.store_id,
         },
       });
     } catch (error) {

@@ -32,7 +32,6 @@ import { GenerateInvoiceNumberResponseDto } from '../dtos/GenerateInvoiceNumberR
 import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
 // Enum
 import { EmailTemplateType } from '../../../enum/EmailTemplateType-enum';
-import { validate as isUUID } from 'uuid';
 
 @Controller('invoice')
 export class InvoiceController {
@@ -54,16 +53,14 @@ export class InvoiceController {
     };
   }
 
-  @Get(':idOrNumber')
+  @Get(':invoiceId')
   @ApiOperation({
-    summary: 'Get invoice by invoice ID or number',
+    summary: 'Get invoice by invoice ID',
   })
-  public async invoiceByKey(@Param('idOrNumber') idOrNumber: string) {
-    const response = await this.invoiceService.getInvoicePreview(
-      isUUID(idOrNumber)
-        ? { invoiceId: idOrNumber }
-        : { invoiceNumber: idOrNumber },
-    );
+  public async invoiceByKey(@Param('invoiceId') invoiceId: string) {
+    const response = await this.invoiceService.getInvoicePreview({
+      invoiceId: invoiceId,
+    });
 
     return {
       result: toCamelCase(response),
