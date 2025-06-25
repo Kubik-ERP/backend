@@ -115,15 +115,7 @@ export class GetInvoiceDto {
     example: '01970571-bd68-7dfd-ba41-00aa890cc3db',
   })
   @IsUUID()
-  invoiceId?: string;
-
-  @ApiProperty({
-    description: 'Number of invoice',
-    required: true,
-    example: '2025063000025',
-  })
-  @IsString()
-  invoiceNumber?: string;
+  invoiceId: string;
 }
 
 export class UpdateInvoiceOrderStatusDto {
