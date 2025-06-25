@@ -335,7 +335,7 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
-    const invoiceNumber = await this.generateInvoiceNumber(invoiceId); //TODO: Please change invoiceId with storeId
+    const invoiceNumber = await this.generateInvoiceNumber(request.storeId);
 
     const invoiceData = {
       id: invoiceId,
@@ -432,7 +432,7 @@ export class InvoiceService {
   ) {
     // create invoice ID
     const invoiceId = uuidv4();
-    const invoiceNumber = await this.generateInvoiceNumber(invoiceId); //TODO: Please change invoiceId with storeId
+    const invoiceNumber = await this.generateInvoiceNumber(request.storeId);
     const calculation = await this.calculateTotal(request);
     const invoiceData = {
       id: invoiceId,
