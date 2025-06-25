@@ -1,9 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsUUID } from 'class-validator';
 
 export class GenerateInvoiceNumberResponseDto {
   @ApiProperty({
-    example: '202506100001',
-    description: 'Generated invoice number in the format yyyyMMdd00001',
+    example: 'a4b53c4d-1f0e-4a7a-89bb-98b1522e1234',
+    description: 'Store ID',
   })
-  invoiceNumber: string;
+  @IsUUID()
+  storeId: string;
 }

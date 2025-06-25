@@ -109,8 +109,12 @@ export class InvoiceController {
   @ApiOperation({
     summary: 'Generate a new invoice number',
   })
-  public async generateInvoiceNumber(body: GenerateInvoiceNumberResponseDto) {
-    const invoiceNumber = await this.invoiceService.generateInvoiceNumber();
+  public async generateInvoiceNumber(
+    @Body() body: GenerateInvoiceNumberResponseDto,
+  ) {
+    const storeId = body.storeId;
+    const invoiceNumber =
+      await this.invoiceService.generateInvoiceNumber(storeId);
     return {
       result: {
         invoiceNumber,

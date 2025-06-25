@@ -218,18 +218,76 @@ export class InvoiceService {
     };
   }
 
-  public async generateInvoiceNumber(): Promise<string> {
+  public async generateInvoiceNumber(storeId: string): Promise<string> {
     const today = new Date();
-    const dateKey = today.toISOString().split('T')[0].replace(/-/g, ''); // yyyyMMdd
 
-    // Transaction with locking to handle race condition
+    const setting = await this._prisma.invoice_settings.findUnique({
+      where: { store_id: storeId },
+    });
+
+    if (!setting) {
+      throw new NotFoundException('Invoice settings not found for this store');
+    }
+
+    const resetType = setting.reset_sequence?.toLowerCase() ?? 'never';
+    const incrementBy = setting.increment_by ?? 1;
+    const startingNumber = setting.starting_number ?? 1;
+
+    const getResetKey = (date: Date): string => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}${m}${d}`;
+    };
+
+    const resetKey = getResetKey(today);
+
+    const isSameResetPeriod = (lastDate: Date, currentDate: Date): boolean => {
+      switch (resetType) {
+        case 'daily':
+          return (
+            lastDate.getFullYear() === currentDate.getFullYear() &&
+            lastDate.getMonth() === currentDate.getMonth() &&
+            lastDate.getDate() === currentDate.getDate()
+          );
+        case 'weekly': {
+          const getWeekStart = (date: Date) => {
+            const day = date.getDay();
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(date);
+            monday.setDate(diff);
+            monday.setHours(0, 0, 0, 0);
+            return monday;
+          };
+          const start1 = getWeekStart(lastDate);
+          const start2 = getWeekStart(currentDate);
+          return start1.getTime() === start2.getTime();
+        }
+        case 'monthly':
+          return (
+            lastDate.getFullYear() === currentDate.getFullYear() &&
+            lastDate.getMonth() === currentDate.getMonth()
+          );
+        case 'quarterly': {
+          const getQuarter = (date: Date) => Math.floor(date.getMonth() / 3);
+          return (
+            lastDate.getFullYear() === currentDate.getFullYear() &&
+            getQuarter(lastDate) === getQuarter(currentDate)
+          );
+        }
+        case 'yearly':
+          return lastDate.getFullYear() === currentDate.getFullYear();
+        case 'never':
+        default:
+          return true;
+      }
+    };
+
     const result = await this._prisma.$transaction(async (tx) => {
-      // Select invoices for today with FOR UPDATE to lock rows for this day
       const latestInvoice = await tx.invoice.findFirst({
         where: {
-          invoice_number: {
-            startsWith: dateKey,
-          },
+          store_id: storeId,
+          invoice_number: { not: null },
         },
         orderBy: {
           invoice_number: 'desc',
@@ -237,20 +295,29 @@ export class InvoiceService {
         take: 1,
       });
 
-      // Extract the latest number and increment
-      let incrementNumber = 1;
-      if (latestInvoice) {
-        const lastNumber = parseInt(
-          (latestInvoice.invoice_number ?? '').slice(8),
-          10,
+      let newNumber = startingNumber;
+
+      if (latestInvoice?.invoice_number) {
+        const lastPrefix = latestInvoice.invoice_number.slice(0, 8);
+        const lastSeq = parseInt(latestInvoice.invoice_number.slice(8), 10);
+
+        const lastDate = new Date(
+          `${lastPrefix.slice(0, 4)}-${lastPrefix.slice(4, 6)}-${lastPrefix.slice(6, 8)}T00:00:00`,
         );
-        incrementNumber = lastNumber + 1;
+
+        const samePeriod = isSameResetPeriod(lastDate, today);
+
+        if (samePeriod) {
+          newNumber = Math.max(lastSeq + incrementBy, startingNumber);
+        } else {
+          newNumber = startingNumber;
+        }
       }
 
-      // Format the incremented number with leading zeros
-      const paddedNumber = incrementNumber.toString().padStart(5, '0');
-      return `${dateKey}${paddedNumber}`;
+      const paddedNumber = newNumber.toString().padStart(5, '0');
+      return `${resetKey}${paddedNumber}`;
     });
+
     return result;
   }
 
@@ -268,7 +335,7 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
-    const invoiceNumber = await this.generateInvoiceNumber();
+    const invoiceNumber = await this.generateInvoiceNumber(invoiceId); //TODO: Please change invoiceId with storeId
 
     const invoiceData = {
       id: invoiceId,
@@ -365,7 +432,7 @@ export class InvoiceService {
   ) {
     // create invoice ID
     const invoiceId = uuidv4();
-    const invoiceNumber = await this.generateInvoiceNumber();
+    const invoiceNumber = await this.generateInvoiceNumber(invoiceId); //TODO: Please change invoiceId with storeId
     const calculation = await this.calculateTotal(request);
     const invoiceData = {
       id: invoiceId,
