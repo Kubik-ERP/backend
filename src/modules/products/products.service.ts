@@ -41,9 +41,7 @@ export class ProductsService {
       });
 
       if (createProductDto.categories?.length) {
-
         for (const category of createProductDto.categories) {
-
           await this.prisma.categories_has_products.create({
             data: {
               products_id: createdProduct.id,
