@@ -5,14 +5,48 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Invoice Email</title>
+  <style>
+    @media only screen and (max-width: 600px) {
+      .container {
+        width: 100% !important;
+        padding: 16px !important;
+      }
+
+      .content-padding {
+        padding: 20px !important;
+      }
+
+      h2,
+      h4,
+      p,
+      td,
+      th {
+        font-size: 14px !important;
+      }
+
+      .invoice-box table tr td,
+      .invoice-box table tr th {
+        padding: 6px 4px !important;
+      }
+
+      .text-center-mobile {
+        text-align: center !important;
+      }
+
+      .logo {
+        width: 100px !important;
+        height: auto !important;
+      }
+    }
+  </style>
 </head>
 
 <body style="margin: 0; padding: 0; font-family: Inter, sans-serif; background-color: #f3f6f9; color: #333;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f6f9; padding: 20px 0;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0"
-          style="background-color: #ffffff; border-radius: 6px; overflow: hidden;">
+        <table class="container" width="600" cellpadding="0" cellspacing="0"
+          style="background-color: #ffffff; border-radius: 6px; overflow: hidden; width: 600px; max-width: 100%;">
 
           <!-- Header -->
           <%- header %>
@@ -20,16 +54,16 @@
 
             <!-- Invoice Content -->
             <tr>
-              <td style="padding: 30px; font-size: 14px; line-height: 1.6;">
+              <td class="content-padding" style="padding: 30px; font-size: 14px; line-height: 1.6;">
 
-                <h2><strong>Hi <%= name %>,</strong></h2>
+                <h2 style="margin-top: 0;"><strong>Hi <%= name %>,</strong></h2>
 
                 <% if (payment_status=='unpaid' ) { %>
                   <!-- UNPAID -->
                   <p>Thank you for your order at <b>
                       <!-- NOTE: Store Name -->
-                      <% if (invoice_has_stores.length> 0) { %>
-                        <%= invoice_has_stores[0].stores.name %>
+                      <% if (stores.length> 0) { %>
+                        <%= stores.name %>
                           <% } %>
                     </b>!</p>
                   <p>We’ve received your order, but payment has not been completed yet.</p>
@@ -37,8 +71,8 @@
                     <!-- PAID -->
                     <p>Thank you for your purchase at
                       <b>
-                        <% if (invoice_has_stores.length> 0) { %>
-                          <%= invoice_has_stores[0].stores.name %>
+                        <% if (stores.length> 0) { %>
+                          <%= stores.name %>
                             <% } else { %>
                               Store Name
                               <% } %>!
@@ -46,22 +80,19 @@
                     </p>
                     <p>Here are the details of your transaction:</p>
                     <% } %>
-                      <div
-                        style="margin-top: 40px; margin-right: 60px; margin-left: 60px; border: 1px solid #D9D9D9; padding: 20px;  border-radius: 6px;">
-
-                        <h4
-                          style="margin: 0 0 10px; font-weight: 600; color: #000; font-size: 14px; text-align: center;">
-                          <% if (invoice_has_stores.length> 0) { %>
-                            <%= invoice_has_stores[0].stores.name %>
+                      <div style="margin-top: 40px; border: 1px solid #D9D9D9; padding: 20px; border-radius: 6px;">
+                        <h4 style="text-align: center; margin: 0 0 10px;">
+                          <% if (stores.length> 0) { %>
+                            <%= stores.name %>
                               <% } else { %>
                                 Store Name
                                 <% } %>
                         </h4>
 
-                        <p style="margin: 0 0 10px; font-size: 14px; color: #000; text-align: center;">
+                        <p style="text-align: center; margin: 0 0 10px;">
                           <!-- NOTE: Store Address -->
-                          <% if (invoice_has_stores.length> 0) { %>
-                            <%= invoice_has_stores[0].stores.address %>
+                          <% if (stores.length> 0) { %>
+                            <%= stores.address %>
                               <% } else { %>
                                 Lawson Kaliurang - Jl. Kaliurang KM 6, Blotan, <br>
                                 Sukoharjo, Kec. Ngaglik, Kabupaten Sleman, Daerah <br>
@@ -69,15 +100,17 @@
                                 <% } %>
                         </p>
 
-                        <div style="width: 100%; font-family: monospace; font-size: 12px; text-align: center;">
-                          <div>=========================================================</div>
+                        <div
+                          style="width: 100%; font-family: monospace; font-size: 12px; text-align: center; margin-top:10px;">
+                          <div style="width: 100%; border-top: 1px dashed #000; margin-bottom: 8px;"></div>
                           <table width="100%" style="border-collapse: collapse; font-size: 14px;">
                             <tr>
                               <% if (payment_status=='unpaid' ) { %>
                                 <!-- UNPAID -->
-                                <span style="color: #E57171">
+                                <div
+                                  style="width: 100%; text-align: center; color: #E57171; font-weight: bold; font-size: 14px; margin-bottom: 10px;">
                                   <%= payment_status %>
-                                </span>
+                                </div>
                                 <% } else { %>
                                   <!-- PAID -->
                                   <td style="text-align: left;">
@@ -91,35 +124,36 @@
                                   <% } %>
                             </tr>
                           </table>
-                          <div>=========================================================</div>
+                          <div style="width: 100%; border-top: 1px dashed #000; margin-bottom: 8px;"></div>
                         </div>
 
+                        <!-- Info Table -->
                         <table width="100%" style="margin-top: 20px; border-collapse: collapse; font-size: 14px;">
                           <tr>
-                            <td style="padding: 4px 0;">Cashier</td>
-                            <td style="padding: 4px 0; text-align: right;">
+                            <td>Cashier</td>
+                            <td style="text-align: right;">
                               <%= users?.fullname || 'Cashier Name' %>
                             </td>
                           </tr>
                           <tr>
-                            <td style="padding: 4px 0;">Cust. Name</td>
-                            <td style="padding: 4px 0; text-align: right;">
+                            <td>Cust. Name</td>
+                            <td style="text-align: right;">
                               <%= customer?.name || '-' %>
                             </td>
                           </tr>
                           <tr>
-                            <td style="padding: 4px 0;">Order Type</td>
-                            <td style="padding: 4px 0; text-align: right;">
+                            <td>Order Type</td>
+                            <td style="text-align: right;">
                               <%= order_type.replace(/_/g, ' ' ).toUpperCase() %>
                             </td>
                           </tr>
                           <tr>
-                            <td style="padding: 4px 0;">Queue</td>
-                            <td style="padding: 4px 0; text-align: right;">[38]</td>
+                            <td>Queue</td>
+                            <td style="text-align: right;">[38]</td>
                           </tr>
                           <tr>
-                            <td style="padding: 4px 0;">Table No.</td>
-                            <td style="padding: 4px 0; text-align: right;">
+                            <td>Table No.</td>
+                            <td style="text-align: right;">
                               <%= table_code || '-' %>
                             </td>
                           </tr>
@@ -127,6 +161,7 @@
 
                         <hr style="margin: 20px 0; border: none; border-top: 1px dashed #000;" />
 
+                        <!-- Product List -->
                         <table width="100%" style="font-size: 14px;">
                           <thead>
                             <tr style="border-bottom: 1px dashed #000;">
@@ -137,79 +172,81 @@
                             </tr>
                           </thead>
                           <tbody>
-                            <% let total=0; let totalQty=0; %>
-                              <% invoice_details.forEach(function(item) { %>
-                                <% const combinedPrice=item.product_price + (item.variant ? item.variant.price : 0); %>
-                                  <% const subtotal=item.qty * combinedPrice; %>
-                                    <!-- Repeat for each item -->
-                                    <tr>
-                                      <td>
-                                        <%= item.products.name %>
-                                      </td>
-                                      <td align="center">
-                                        <%= item.qty %>
-                                      </td>
-                                      <td align="right">Rp <%= item.product_price.toLocaleString('id-ID') %>
-                                      <td align="right">Rp <%= subtotal.toLocaleString('id-ID') %>
-                                    </tr>
-                                    <!-- If has variant -->
-                                    <% if (item.variant) { %>
-                                      <tr>
-                                        <td style="padding-left: 16px; font-style: italic; font-size: 12px;">
-                                          <%= item.variant.name %>
-                                        </td>
-                                        <td align="center">
-                                          <%= item.qty %>
-                                        </td>
-                                        <td align="right">Rp <%= item.variant.price.toLocaleString('id-ID') %>
-                                        </td>
-                                        <td align="right">Rp <%= (item.variant.price * item.qty).toLocaleString('id-ID')
-                                            %>
-                                        </td>
-                                      </tr>
-                                      <% } %>
-                                        <% total +=subtotal; %>
-                                          <% totalQty +=item.qty; %>
-                                            <% }); %>
+                            <% let totalQty=0; %>
+                              <% invoice_details.forEach(function(item) { const itemPrice=item.product_price ||
+                                item.products?.discountPrice || item.products?.price || 0; const
+                                variantPrice=item.variant?.price || 0; const qty=item.qty || 1; const
+                                itemSubtotal=(itemPrice + variantPrice) * qty; totalQty +=qty; %>
+                                <!-- Repeat for each item -->
+                                <tr>
+                                  <td>
+                                    <%= item.products.name %>
+                                  </td>
+                                  <td align="center">
+                                    <%= qty %>
+                                  </td>
+                                  <td align="right">Rp <%= (itemPrice).toLocaleString('id-ID') %>
+                                  <td align="right">Rp <%= (itemPrice * qty).toLocaleString('id-ID') %>
+                                </tr>
+                                <!-- If has variant -->
+                                <% if (item.variant) { %>
+                                  <tr>
+                                    <td style="padding-left: 16px; font-style: italic; font-size: 12px;">
+                                      <%= item.variant.name %>
+                                    </td>
+                                    <td align="center">
+                                      <%= qty %>
+                                    </td>
+                                    <td align="right">Rp <%= (variantPrice).toLocaleString('id-ID') %>
+                                    </td>
+                                    <td align="right">Rp <%= (variantPrice * qty).toLocaleString('id-ID') %>
+                                    </td>
+                                  </tr>
+                                  <% } %>
+                                    <% }); %>
                           </tbody>
                         </table>
 
                         <hr style="margin: 20px 0; border: none; border-top: 1px solid #000;" />
 
-                        <table width="100%" style="margin-top: 20px; font-size: 14px;">
+                        <!-- Summary -->
+                        <table width="100%" style="font-size: 14px;">
                           <tr>
                             <td>Sub Total</td>
                             <td align="">
                               <%= totalQty %>
                             </td>
                             <td align="right">
-                              Rp <%= total.toLocaleString('id-ID') %>
+                              Rp <%= (subtotal).toLocaleString('id-ID') %>
                             </td>
                           </tr>
                           <tr>
                             <td>Promo</td>
                             <td></td>
-                            <td align="right">-Rp0</td>
+                            <td align="right">-Rp <%= (discount_amount).toLocaleString('id-ID') %>
+                            </td>
                           </tr>
                           <tr>
                             <td>PPN</td>
                             <td></td>
-                            <td align="right">Rp0</td>
+                            <td align="right">Rp <%= (tax_amount).toLocaleString('id-ID') %>
+                            </td>
                           </tr>
                         </table>
 
                         <hr style="margin: 20px 0; border: none; border-top: 1px solid #000;" />
 
-                        <table width="100%" style="margin-top: 20px; font-size: 14px;">
+                        <!-- Total -->
+                        <table width="100%" style="font-size: 14px;">
                           <tr style="font-weight: bold;">
                             <td>Total</td>
-                            <td align="right">Rp <%= total.toLocaleString('id-ID') %>
+                            <td align="right">Rp <%= (grand_total).toLocaleString('id-ID') %>
                           </tr>
                         </table>
 
                         <hr style="margin: 20px 0; border: none; border-top: 1px dashed #000;" />
 
-                        <table width="100%" style="margin-top: 20px; font-size: 14px;">
+                        <table width="100%" style="font-size: 14px;">
                           <tr>
                             <td>Debit</td>
                             <td align="right">Rp0</td>
@@ -241,16 +278,16 @@
                             Please complete your payment at cashier to process your order.
                             If you have already made the payment or need help, feel free to contact us at <a href="#"
                               style="color: #16658a; text-decoration: none">
-                              <% if (invoice_has_stores.length> 0) { %>
-                                <%= invoice_has_stores[0].stores.email %>
+                              <% if (stores.length> 0) { %>
+                                <%= stores.email %>
                                   <% } %>
                             </a>
                           </p>
                           <p style="font-size: 14px; color: #000000; margin: 0 0 24px">
                             Thank You,<br />
                             <strong>
-                              <% if (invoice_has_stores.length> 0) { %>
-                                <%= invoice_has_stores[0].stores.name %>
+                              <% if (stores.length> 0) { %>
+                                <%= stores.name %>
                                   <% } %>
                             </strong>
                           </p>
@@ -258,8 +295,8 @@
                             <!-- // NOTE: PAID -->
                             <p style="font-size: 14px; color: #000000; margin: 0 0 16px">
                               If you have any questions about this inovice, feel free to contact us at
-                              <% if (invoice_has_stores.length> 0) { %>
-                                <%= invoice_has_stores[0].stores.email %>
+                              <% if (stores.length> 0) { %>
+                                <%= stores.email %>
                                   <% } else { %>
                                     Email Name
                                     <% } %>!.

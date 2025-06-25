@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as handlebars from 'handlebars';
@@ -140,7 +145,7 @@ export class TemplatesEmailService {
 
         // Pastikan invoice_details berisi data yang valid
         if (!invoice.invoice_details || invoice.invoice_details.length === 0) {
-          throw new Error('Invoice details not found');
+          throw new NotFoundException('Invoice details not found');
         }
 
         // Ensure created_at is not null and is a string or Date
@@ -169,7 +174,7 @@ export class TemplatesEmailService {
       };
     } catch (error) {
       console.log('error sent email', error);
-      throw new Error(`Error sent email with error ${error}`);
+      throw new NotFoundException(`Error sent email with error ${error}`);
     }
   }
 
@@ -234,7 +239,7 @@ export class TemplatesEmailService {
       };
     } catch (error) {
       console.log('error sent email', error);
-      throw new Error(`Error sent email with error ${error}`);
+      throw new NotFoundException(`Error sent email with error ${error}`);
     }
   }
 
@@ -247,10 +252,11 @@ export class TemplatesEmailService {
    */
   public async sendEmailLoginNotification(
     template: EmailTemplateType,
-    email: string,
+    body: any,
   ) {
     let data = null;
     let subjectEmail: string;
+    let email = body.username;
     //validate user email
     const user = await this._usersService.findOneByEmail(email);
     if (!user) {
@@ -264,15 +270,18 @@ export class TemplatesEmailService {
     const loginTime = now.toLocaleTimeString('id-ID', {
       timeZone: 'Asia/Jakarta',
     });
+    console.log(
+      `username: ${body.username}, deviceType: ${body.deviceType}, browser: ${body.browser}, city: ${body.city}, country: ${body.country}`,
+    );
     // note: Login Notification
     data = {
       fullname: user.fullname,
       loginDate: loginDate,
       loginTime: loginTime,
-      deviceType: 'Desktop bugging',
-      browser: 'Chrome 114.0 bugging',
-      city: 'Jakarta bugging',
-      country: 'Indonesia bugging',
+      deviceType: body.deviceType,
+      browser: body.browser,
+      city: body.city,
+      country: body.country,
     };
 
     subjectEmail = this.templateToSubjectMap[template];
@@ -290,8 +299,9 @@ export class TemplatesEmailService {
     return {
       template: template, //note: template
       subjectEmail: subjectEmail, //note: subject
+      body: body,
       data: data, //note: data
-      email_to: email, //note: email to
+      email_to: email, //note: email to,
     };
   }
 

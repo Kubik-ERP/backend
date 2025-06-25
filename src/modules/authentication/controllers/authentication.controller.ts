@@ -85,13 +85,13 @@ export class AuthenticationController {
     const sentEmailLoginNotification =
       await this.templatesEmailService.sendEmailLoginNotification(
         EmailTemplateType.LOGIN_NOTIFICATION,
-        _body.username, //note: Email
+        _body, //note: Email
       );
 
     return {
       message: 'User logged in successfully',
       result,
-      sentEmailLoginNotification,
+      data_sentEmailLoginNotification: sentEmailLoginNotification,
     };
   }
 

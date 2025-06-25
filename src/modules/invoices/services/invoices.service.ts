@@ -133,6 +133,7 @@ export class InvoiceService {
       },
       include: {
         customer: true,
+        stores: true,
         invoice_details: {
           include: {
             products: true,
