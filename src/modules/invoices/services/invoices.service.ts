@@ -218,12 +218,9 @@ export class InvoiceService {
     };
   }
 
-  public async generateInvoiceNumber(storeId: string): Promise<any> {
+  public async generateInvoiceNumber(storeId: string): Promise<string> {
     const today = new Date();
-    const dateKey = today.toISOString().split('T')[0].replace(/-/g, ''); // yyyyMMdd
-    console.log(`storeId is `, storeId);
 
-    // Ambil konfigurasi invoice store terkait
     const setting = await this._prisma.invoice_settings.findUnique({
       where: { store_id: storeId },
     });
@@ -236,53 +233,61 @@ export class InvoiceService {
     const incrementBy = setting.increment_by ?? 1;
     const startingNumber = setting.starting_number ?? 1;
 
-    // Hitung reset key sesuai reset_sequence
-    const getResetKey = (): string => {
-      const y = today.getFullYear();
-      const m = String(today.getMonth() + 1).padStart(2, '0');
-      const d = String(today.getDate()).padStart(2, '0');
+    const getResetKey = (date: Date): string => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}${m}${d}`;
+    };
+
+    const resetKey = getResetKey(today);
+
+    const isSameResetPeriod = (lastDate: Date, currentDate: Date): boolean => {
       switch (resetType) {
         case 'daily':
-        case 'never': // Tetap pakai tanggal sebagai prefix
-          return `${y}${m}${d}`;
+          return (
+            lastDate.getFullYear() === currentDate.getFullYear() &&
+            lastDate.getMonth() === currentDate.getMonth() &&
+            lastDate.getDate() === currentDate.getDate()
+          );
         case 'weekly': {
-          const firstDay = new Date(today);
-          const day = firstDay.getDay();
-          const diff = firstDay.getDate() - day + (day === 0 ? -6 : 1);
-          firstDay.setDate(diff);
-          return firstDay.toISOString().split('T')[0].replace(/-/g, '');
+          const getWeekStart = (date: Date) => {
+            const day = date.getDay();
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(date);
+            monday.setDate(diff);
+            monday.setHours(0, 0, 0, 0);
+            return monday;
+          };
+          const start1 = getWeekStart(lastDate);
+          const start2 = getWeekStart(currentDate);
+          return start1.getTime() === start2.getTime();
         }
         case 'monthly':
-          return `${y}${m}01`;
+          return (
+            lastDate.getFullYear() === currentDate.getFullYear() &&
+            lastDate.getMonth() === currentDate.getMonth()
+          );
         case 'quarterly': {
-          const quarterStartMonth = Math.floor(today.getMonth() / 3) * 3 + 1;
-          const qMonth = String(quarterStartMonth).padStart(2, '0');
-          return `${y}${qMonth}01`;
+          const getQuarter = (date: Date) => Math.floor(date.getMonth() / 3);
+          return (
+            lastDate.getFullYear() === currentDate.getFullYear() &&
+            getQuarter(lastDate) === getQuarter(currentDate)
+          );
         }
         case 'yearly':
-          return `${y}0101`;
+          return lastDate.getFullYear() === currentDate.getFullYear();
         case 'never':
         default:
-          return `${y}${m}${d}`;
+          return true;
       }
     };
 
-    const resetKey = getResetKey();
-
-    // start: real generate invoice number
-    // Transaction with locking to handle race condition
     const result = await this._prisma.$transaction(async (tx) => {
       const latestInvoice = await tx.invoice.findFirst({
         where: {
-          // store_id: storeId,
-          invoice_number: {
-            startsWith: resetKey,
-          },
-          invoice_has_stores: {
-            some: {
-              stores_id: storeId,
-            },
-          },
+          store_id: storeId,
+          invoice_number: { not: null },
         },
         orderBy: {
           invoice_number: 'desc',
@@ -291,98 +296,28 @@ export class InvoiceService {
       });
 
       let newNumber = startingNumber;
+
       if (latestInvoice?.invoice_number) {
+        const lastPrefix = latestInvoice.invoice_number.slice(0, 8);
         const lastSeq = parseInt(latestInvoice.invoice_number.slice(8), 10);
-        newNumber = lastSeq + incrementBy;
+
+        const lastDate = new Date(
+          `${lastPrefix.slice(0, 4)}-${lastPrefix.slice(4, 6)}-${lastPrefix.slice(6, 8)}T00:00:00`,
+        );
+
+        const samePeriod = isSameResetPeriod(lastDate, today);
+
+        if (samePeriod) {
+          newNumber = Math.max(lastSeq + incrementBy, startingNumber);
+        } else {
+          newNumber = startingNumber;
+        }
       }
 
       const paddedNumber = newNumber.toString().padStart(5, '0');
       return `${resetKey}${paddedNumber}`;
     });
-    return result;
-    // end: real generate invoice number
 
-    // start: Bugging generate invoice number
-    // Ambil invoice terakhir untuk resetKey dan store
-    // const latestInvoice = await this._prisma.invoice.findFirst({
-    //   where: {
-    //     invoice_number: {
-    //       startsWith: resetKey,
-    //     },
-    //     invoice_has_stores: {
-    //       some: {
-    //         stores_id: storeId,
-    //       },
-    //     },
-    //   },
-    //   orderBy: {
-    //     invoice_number: 'desc',
-    //   },
-    //   take: 1,
-    // });
-
-    // let startFrom: number;
-
-    // if (latestInvoice?.invoice_number) {
-    //   const lastSeq = parseInt(latestInvoice.invoice_number.slice(8), 10);
-    //   startFrom = lastSeq + incrementBy;
-    // } else {
-    //   startFrom = startingNumber;
-    // }
-
-    // // Generate 10 nomor invoice
-    // const invoiceNumbers: string[] = [];
-    // for (let i = 0; i < 40; i++) {
-    //   const num = startFrom + i * incrementBy;
-    //   const padded = num.toString().padStart(5, '0');
-    //   invoiceNumbers.push(`${resetKey}${padded}`);
-    // }
-
-    // return {
-    //   setting: {
-    //     incrementBy: setting.increment_by,
-    //     resetSequence: setting.reset_sequence,
-    //     startingNumber: setting.starting_number,
-    //   },
-    //   invoiceNumbers,
-    // };
-
-    // end: Bugging generate invoice number
-  }
-
-  public async generateInvoiceNumberV1(): Promise<string> {
-    const today = new Date();
-    const dateKey = today.toISOString().split('T')[0].replace(/-/g, ''); // yyyyMMdd
-
-    // Transaction with locking to handle race condition
-    const result = await this._prisma.$transaction(async (tx) => {
-      // Select invoices for today with FOR UPDATE to lock rows for this day
-      const latestInvoice = await tx.invoice.findFirst({
-        where: {
-          invoice_number: {
-            startsWith: dateKey,
-          },
-        },
-        orderBy: {
-          invoice_number: 'desc',
-        },
-        take: 1,
-      });
-
-      // Extract the latest number and increment
-      let incrementNumber = 1;
-      if (latestInvoice) {
-        const lastNumber = parseInt(
-          (latestInvoice.invoice_number ?? '').slice(8),
-          10,
-        );
-        incrementNumber = lastNumber + 1;
-      }
-
-      // Format the incremented number with leading zeros
-      const paddedNumber = incrementNumber.toString().padStart(5, '0');
-      return `${dateKey}${paddedNumber}`;
-    });
     return result;
   }
 
