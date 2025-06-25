@@ -193,7 +193,6 @@ export class CustomerService {
         customer_has_stores: {
           include: { stores: true },
         },
-
         trn_customer_points: true,
       },
     });
@@ -203,13 +202,7 @@ export class CustomerService {
     }
 
     return {
-      id: customer.id,
-      name: customer.name,
-      code: customer.code,
-      number: customer.number,
-      email: customer.email,
-      dob: customer.dob,
-      address: customer.address,
+      customer,
     };
   }
 
