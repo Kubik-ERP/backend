@@ -16,6 +16,7 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerService } from './customer.service';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
+import { QueryInvoiceDto } from './dto/query-invoice.dto';
 
 @Controller('customers')
 export class CustomersController {
@@ -69,20 +70,17 @@ export class CustomersController {
     }
   }
 
-  @Get('/details/:id')
-  async detail(@Param('id') id: string) {
+  @Get(':id/details')
+  async getCustomerDetails(
+    @Param('id') id: string,
+    @Query() query: QueryInvoiceDto,
+  ) {
     try {
-      const customer = await this.customersService.details(id);
-      if (!customer) {
-        throw new HttpException(
-          { statusCode: HttpStatus.NOT_FOUND, message: 'Customer not found' },
-          HttpStatus.NOT_FOUND,
-        );
-      }
+      const result = await this.customersService.details(id, query);
       return {
         statusCode: 200,
         message: 'Success',
-        result: toCamelCase(customer),
+        result,
       };
     } catch (error) {
       throw new HttpException(

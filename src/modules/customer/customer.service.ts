@@ -11,6 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { validate as isUUID } from 'uuid';
 import { customer as CustomerModel, point_type, Prisma } from '@prisma/client';
 import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
+import { QueryInvoiceDto } from './dto/query-invoice.dto';
 
 @Injectable()
 export class CustomerService {
@@ -133,38 +134,66 @@ export class CustomerService {
     };
   }
 
-  public async details(id: string): Promise<any> {
+  async details(id: string, query: QueryInvoiceDto) {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      payment_status,
+      order_type,
+      created_at,
+    } = query;
+
+    const skip = (page - 1) * limit;
+
     const customer = await this.prisma.customer.findUnique({
       where: { id },
       include: {
-        customers_has_tag: {
-          include: { tag: true },
-        },
-        customer_has_stores: {
-          include: { stores: true },
-        },
-        invoice: {
-          orderBy: { created_at: 'desc' },
-        },
+        customers_has_tag: { include: { tag: true } },
+        customer_has_stores: { include: { stores: true } },
       },
     });
 
-    if (!customer) {
-      throw new NotFoundException('Customer not found');
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const invoiceWhere: any = {
+      customer_id: id,
+    };
+
+    if (search) {
+      invoiceWhere.invoice_number = {
+        contains: search,
+        mode: 'insensitive',
+      };
     }
 
-    const paidTotal = customer.invoice
+    if (payment_status) invoiceWhere.payment_status = payment_status;
+    if (order_type) invoiceWhere.order_type = order_type;
+    if (created_at) {
+      invoiceWhere.created_at = {
+        gte: new Date(created_at),
+        lt: new Date(new Date(created_at).getTime() + 24 * 60 * 60 * 1000),
+      };
+    }
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: invoiceWhere,
+      orderBy: { created_at: 'desc' },
+      skip,
+      take: limit,
+    });
+
+    const paidTotal = invoices
       .filter((inv) => inv.payment_status === 'paid')
       .reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
 
-    const unpaidTotal = customer.invoice
+    const unpaidTotal = invoices
       .filter((inv) => inv.payment_status === 'unpaid')
       .reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
 
-    const totalSales = customer.invoice.length;
+    const totalSales = invoices.length;
 
-    const lastVisited =
-      customer.invoice.length > 0 ? customer.invoice[0].created_at : null;
+    const lastVisited = invoices.length > 0 ? invoices[0].created_at : null;
 
     return {
       id: customer.id,
@@ -180,7 +209,7 @@ export class CustomerService {
       last_visited: lastVisited,
       tags: customer.customers_has_tag.map((cht) => cht.tag),
       stores: customer.customer_has_stores.map((chs) => chs.stores),
-      invoices: customer.invoice,
+      invoices,
     };
   }
 
