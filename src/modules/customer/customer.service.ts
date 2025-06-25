@@ -142,10 +142,8 @@ export class CustomerService {
         customer_has_stores: {
           include: { stores: true },
         },
-        customers_has_invoices: {
-          include: {
-            invoice: true,
-          },
+        invoice: {
+          orderBy: { created_at: 'desc' }, // pastikan invoice terurut dari terbaru
         },
       },
     });
@@ -154,13 +152,18 @@ export class CustomerService {
       throw new NotFoundException('Customer not found');
     }
 
-    const paidTotal = customer.customers_has_invoices
-      .filter((chi) => chi.invoice?.payment_status === 'paid')
-      .reduce((sum, chi) => sum + (chi.invoice?.subtotal || 0), 0);
+    const paidTotal = customer.invoice
+      .filter((inv) => inv.payment_status === 'paid')
+      .reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
 
-    const unpaidTotal = customer.customers_has_invoices
-      .filter((chi) => chi.invoice?.payment_status === 'unpaid')
-      .reduce((sum, chi) => sum + (chi.invoice?.subtotal || 0), 0);
+    const unpaidTotal = customer.invoice
+      .filter((inv) => inv.payment_status === 'unpaid')
+      .reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
+
+    const totalSales = customer.invoice.length;
+
+    const lastVisited =
+      customer.invoice.length > 0 ? customer.invoice[0].created_at : null;
 
     return {
       id: customer.id,
@@ -172,9 +175,41 @@ export class CustomerService {
       address: customer.address,
       paid: paidTotal,
       unpaid: unpaidTotal,
+      total_sales: totalSales,
+      last_visited: lastVisited,
       tags: customer.customers_has_tag.map((cht) => cht.tag),
       stores: customer.customer_has_stores.map((chs) => chs.stores),
-      invoices: customer.customers_has_invoices.map((chi) => chi.invoice),
+      invoices: customer.invoice,
+    };
+  }
+
+  public async loyaltyPoints(id: string): Promise<any> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      include: {
+        customers_has_tag: {
+          include: { tag: true },
+        },
+        customer_has_stores: {
+          include: { stores: true },
+        },
+
+        trn_customer_points: true,
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    return {
+      id: customer.id,
+      name: customer.name,
+      code: customer.code,
+      number: customer.number,
+      email: customer.email,
+      dob: customer.dob,
+      address: customer.address,
     };
   }
 
