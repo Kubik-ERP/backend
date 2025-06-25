@@ -41,7 +41,6 @@ export class ProductsService {
       });
 
       if (createProductDto.categories?.length) {
-        console.log('masuk');
         for (const category of createProductDto.categories) {
           await this.prisma.categories_has_products.create({
             data: {

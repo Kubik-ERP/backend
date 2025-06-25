@@ -33,7 +33,7 @@ export class ProductsController {
   @Post()
   async create(
     @Body() createProductDto: CreateProductDto,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     try {
       let relativePath = '';
@@ -46,7 +46,7 @@ export class ProductsController {
       }
       const newProducts = await this.productsService.create({
         ...createProductDto,
-        image: relativePath,
+        image: relativePath || '',
       });
 
       return {
