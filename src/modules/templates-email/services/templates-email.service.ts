@@ -19,6 +19,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { v4 as uuidv4 } from 'uuid';
 // Speaksy
 import * as speakeasy from 'speakeasy';
+import { LoginUsernameDto } from '../../authentication/dtos/login.dto';
 
 // Define or import EmailTemplateType
 export enum EmailTemplateType {
@@ -32,6 +33,7 @@ export enum EmailTemplateType {
 
 @Injectable()
 export class TemplatesEmailService {
+  private frontendUrl: string;
   private readonly templateToSubjectMap = {
     [EmailTemplateType.RESET_PASSWORD]: 'Reset Password',
     [EmailTemplateType.LOGIN_NOTIFICATION]: 'Login Notification',
@@ -46,6 +48,7 @@ export class TemplatesEmailService {
     private readonly _invoiceService: InvoiceService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
+    this.frontendUrl = process.env.FRONTEND_URL || '';
     // this._secret = process.env.OTP_SECRET || speakeasy.generateSecret().base32;
     handlebars.registerHelper('multiply', (a, b) => a * b);
     handlebars.registerHelper('add', (a, b) => a + b);
@@ -84,6 +87,7 @@ export class TemplatesEmailService {
         //note: Reset Password
         const token = uuidv4();
         data = {
+          frontendUrl: this.frontendUrl,
           token: token,
           name: user.fullname,
           base_url: process.env.FRONTEND_URL,
@@ -115,12 +119,14 @@ export class TemplatesEmailService {
           digits: 4,
         });
         data = {
+          frontendUrl: this.frontendUrl,
           otp: otp,
           name: user.fullname,
         };
       } else if (body.template === EmailTemplateType.LOGIN_NOTIFICATION) {
         // note: Login Notification
         data = {
+          frontendUrl: this.frontendUrl,
           fullname: user.fullname,
           loginDate: '2025-06-20',
           loginTime: '10:30 WIB',
@@ -151,6 +157,7 @@ export class TemplatesEmailService {
         // Ensure created_at is not null and is a string or Date
         data = {
           ...invoice,
+          frontendUrl: this.frontendUrl,
           created_at: invoice.created_at ?? new Date(),
           name: invoice.customer?.name ?? 'Unknown Customer',
         };
@@ -218,6 +225,7 @@ export class TemplatesEmailService {
       // Ensure created_at is not null and is a string or Date
       data = {
         ...invoice,
+        frontendUrl: this.frontendUrl,
         created_at: invoice.created_at ?? new Date(),
         name: invoice.customer?.name ?? 'Unknown Customer',
       };
@@ -252,7 +260,7 @@ export class TemplatesEmailService {
    */
   public async sendEmailLoginNotification(
     template: EmailTemplateType,
-    body: any,
+    body: LoginUsernameDto,
   ) {
     let data = null;
     let subjectEmail: string;
@@ -283,6 +291,7 @@ export class TemplatesEmailService {
     });
     // note: Login Notification
     data = {
+      frontendUrl: this.frontendUrl,
       fullname: user.fullname,
       loginDateTime: formatter.format(now) + ' WIB',
       deviceType: body.deviceType ?? '-',
@@ -334,6 +343,7 @@ export class TemplatesEmailService {
     await this.cacheManager.set(`forgot_token:${email}`, token, ttl);
 
     data = {
+      frontendUrl: this.frontendUrl,
       token: token,
       name: user.fullname,
       base_url: process.env.FRONTEND_URL,
@@ -382,6 +392,7 @@ export class TemplatesEmailService {
       digits: 4,
     });
     data = {
+      frontendUrl: this.frontendUrl,
       otp: otp,
       name: user.fullname,
     };
