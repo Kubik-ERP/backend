@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as handlebars from 'handlebars';
@@ -14,6 +19,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { v4 as uuidv4 } from 'uuid';
 // Speaksy
 import * as speakeasy from 'speakeasy';
+import { LoginUsernameDto } from '../../authentication/dtos/login.dto';
 
 // Define or import EmailTemplateType
 export enum EmailTemplateType {
@@ -27,6 +33,7 @@ export enum EmailTemplateType {
 
 @Injectable()
 export class TemplatesEmailService {
+  private frontendUrl: string;
   private readonly templateToSubjectMap = {
     [EmailTemplateType.RESET_PASSWORD]: 'Reset Password',
     [EmailTemplateType.LOGIN_NOTIFICATION]: 'Login Notification',
@@ -41,6 +48,7 @@ export class TemplatesEmailService {
     private readonly _invoiceService: InvoiceService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
+    this.frontendUrl = process.env.FRONTEND_URL || '';
     // this._secret = process.env.OTP_SECRET || speakeasy.generateSecret().base32;
     handlebars.registerHelper('multiply', (a, b) => a * b);
     handlebars.registerHelper('add', (a, b) => a + b);
@@ -79,6 +87,7 @@ export class TemplatesEmailService {
         //note: Reset Password
         const token = uuidv4();
         data = {
+          frontendUrl: this.frontendUrl,
           token: token,
           name: user.fullname,
           base_url: process.env.FRONTEND_URL,
@@ -110,12 +119,14 @@ export class TemplatesEmailService {
           digits: 4,
         });
         data = {
+          frontendUrl: this.frontendUrl,
           otp: otp,
           name: user.fullname,
         };
       } else if (body.template === EmailTemplateType.LOGIN_NOTIFICATION) {
         // note: Login Notification
         data = {
+          frontendUrl: this.frontendUrl,
           fullname: user.fullname,
           loginDate: '2025-06-20',
           loginTime: '10:30 WIB',
@@ -140,12 +151,13 @@ export class TemplatesEmailService {
 
         // Pastikan invoice_details berisi data yang valid
         if (!invoice.invoice_details || invoice.invoice_details.length === 0) {
-          throw new Error('Invoice details not found');
+          throw new NotFoundException('Invoice details not found');
         }
 
         // Ensure created_at is not null and is a string or Date
         data = {
           ...invoice,
+          frontendUrl: this.frontendUrl,
           created_at: invoice.created_at ?? new Date(),
           name: invoice.customer?.name ?? 'Unknown Customer',
         };
@@ -169,7 +181,7 @@ export class TemplatesEmailService {
       };
     } catch (error) {
       console.log('error sent email', error);
-      throw new Error(`Error sent email with error ${error}`);
+      throw new NotFoundException(`Error sent email with error ${error}`);
     }
   }
 
@@ -213,6 +225,7 @@ export class TemplatesEmailService {
       // Ensure created_at is not null and is a string or Date
       data = {
         ...invoice,
+        frontendUrl: this.frontendUrl,
         created_at: invoice.created_at ?? new Date(),
         name: invoice.customer?.name ?? 'Unknown Customer',
       };
@@ -234,7 +247,7 @@ export class TemplatesEmailService {
       };
     } catch (error) {
       console.log('error sent email', error);
-      throw new Error(`Error sent email with error ${error}`);
+      throw new NotFoundException(`Error sent email with error ${error}`);
     }
   }
 
@@ -247,10 +260,11 @@ export class TemplatesEmailService {
    */
   public async sendEmailLoginNotification(
     template: EmailTemplateType,
-    email: string,
+    body: LoginUsernameDto,
   ) {
     let data = null;
     let subjectEmail: string;
+    let email = body.username;
     //validate user email
     const user = await this._usersService.findOneByEmail(email);
     if (!user) {
@@ -264,15 +278,26 @@ export class TemplatesEmailService {
     const loginTime = now.toLocaleTimeString('id-ID', {
       timeZone: 'Asia/Jakarta',
     });
+    const nowDate = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta',
+      hour12: false,
+    });
     // note: Login Notification
     data = {
+      frontendUrl: this.frontendUrl,
       fullname: user.fullname,
-      loginDate: loginDate,
-      loginTime: loginTime,
-      deviceType: 'Desktop bugging',
-      browser: 'Chrome 114.0 bugging',
-      city: 'Jakarta bugging',
-      country: 'Indonesia bugging',
+      loginDateTime: formatter.format(now) + ' WIB',
+      deviceType: body.deviceType ?? '-',
+      browser: body.browser ?? '-',
+      city: body.city ?? '-',
+      country: body.country ?? '-',
     };
 
     subjectEmail = this.templateToSubjectMap[template];
@@ -290,8 +315,9 @@ export class TemplatesEmailService {
     return {
       template: template, //note: template
       subjectEmail: subjectEmail, //note: subject
+      body: body,
       data: data, //note: data
-      email_to: email, //note: email to
+      email_to: email, //note: email to,
     };
   }
 
@@ -317,6 +343,7 @@ export class TemplatesEmailService {
     await this.cacheManager.set(`forgot_token:${email}`, token, ttl);
 
     data = {
+      frontendUrl: this.frontendUrl,
       token: token,
       name: user.fullname,
       base_url: process.env.FRONTEND_URL,
@@ -365,6 +392,7 @@ export class TemplatesEmailService {
       digits: 4,
     });
     data = {
+      frontendUrl: this.frontendUrl,
       otp: otp,
       name: user.fullname,
     };
