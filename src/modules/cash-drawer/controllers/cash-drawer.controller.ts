@@ -181,7 +181,7 @@ export class CashDrawerController {
     };
   }
 
-  //TODO: Implement the addTransaction method to handle adding transactions to the cash drawer
+  //Implement the addTransaction method to handle adding transactions to the cash drawer
   @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
   @ApiBearerAuth()
@@ -251,54 +251,23 @@ export class CashDrawerController {
       'type: 0=> opening, 1 => cash in, 2 => sale, 3 => cash out, 4 => refund, 5 =>closing',
   })
   @Get('transactions/:cashDrawerId')
-  async getCashDrawerTransactions(@Param('cashDrawerId') cashDrawerId: string) {
+  async getCashDrawerTransactions(
+    @Param('cashDrawerId') cashDrawerId: string,
+    @Query() query: CashDrawerQueryDto,
+  ) {
     // Logic to get transactions related to the cash drawer
-    const data = [
-      {
-        id: 4,
-        amount: 100,
-        type: 5,
-        date: '2023-10-01 12:59',
-        finalAmount: 5000,
-      }, //closing register
-      {
-        id: 4,
-        amount: 100,
-        type: 4,
-        date: '2023-10-01 12:59',
-        finalAmount: 5000,
-      }, //cash refund
-      {
-        id: 4,
-        amount: 100,
-        type: 3,
-        date: '2023-10-01 12:59',
-        finalAmount: 5000,
-      }, //cash out
-      {
-        id: 3,
-        amount: 50,
-        type: 2,
-        date: '2023-10-02 12:59',
-        finalAmount: 5000,
-      }, //sale
-      {
-        id: 2,
-        amount: 100,
-        type: 1,
-        date: '2023-10-01 12:59',
-        finalAmount: 5000,
-      }, //cash in
-      {
-        id: 1,
-        amount: 50,
-        type: 0,
-        date: '2023-10-02 12:59',
-        finalAmount: 5000,
-      }, //opening
-    ];
+    const [data, total] = await this.service.getCashDrawerTransactions(
+      cashDrawerId,
+      query,
+    );
 
-    let res = formatPaginatedResult(data, 6);
+    let results = toCamelCase(data);
+    let res = formatPaginatedResult(
+      results,
+      parseInt(total.toString()) ?? 0,
+      query.page,
+      query.limit,
+    );
 
     return {
       message: 'Cash drawer transactions retrieved successfully',
