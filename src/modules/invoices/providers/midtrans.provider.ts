@@ -52,9 +52,7 @@ export class MidtransProvider implements PaymentGateway {
           redirectUrl: response.data.redirect_url,
         };
       } else {
-        throw new InternalServerErrorException(
-          'Invalid response from Midtrans',
-        );
+        throw new Error('Invalid response from Midtrans');
       }
     } catch (error) {
       const errorResponse = error.response?.data || error.message;
