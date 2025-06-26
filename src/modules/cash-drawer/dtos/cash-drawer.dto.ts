@@ -169,7 +169,7 @@ export class AddTransactionParams {
   @ApiProperty({
     required: true,
     description: 'Cash Drawer ID',
-    default: 1000,
+    default: '1d9e147e-daf5-42ab-affa-7bed00b8280a',
   })
   @IsUUID()
   @IsNotEmpty()
