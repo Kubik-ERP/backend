@@ -133,7 +133,7 @@ export class MidtransProvider implements PaymentGateway {
 
       console.error('Midtrans initiatePayment error:', error);
       throw new InternalServerErrorException(
-        `Failed to initiate payment with Midtrans: ${error}`,
+        `Failed to initiate payment with Midtrans: ${error} || with URL: ${this.qrisUrl} || and Key: ${this.apiKey}`,
       );
     }
   }
