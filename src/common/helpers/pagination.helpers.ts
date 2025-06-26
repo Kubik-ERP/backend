@@ -12,7 +12,13 @@ export const formatPaginatedResult = <T>(
     for (const key in item) {
       const value = item[key];
 
-      if ((key === 'created_at' || key === 'updated_at' || key === 'createdAt' || key === 'updatedAt') && value != null) {
+      if (
+        (key === 'created_at' ||
+          key === 'updated_at' ||
+          key === 'createdAt' ||
+          key === 'updatedAt') &&
+        value != null
+      ) {
         try {
           newItem[key] = convertFromUnixTimestamp(BigInt(value));
         } catch {

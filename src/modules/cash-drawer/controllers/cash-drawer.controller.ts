@@ -251,12 +251,23 @@ export class CashDrawerController {
       'type: 0=> opening, 1 => cash in, 2 => sale, 3 => cash out, 4 => refund, 5 =>closing',
   })
   @Get('transactions/:cashDrawerId')
-  async getCashDrawerTransactions(@Param('cashDrawerId') cashDrawerId: string, @Query() query: CashDrawerQueryDto) {
+  async getCashDrawerTransactions(
+    @Param('cashDrawerId') cashDrawerId: string,
+    @Query() query: CashDrawerQueryDto,
+  ) {
     // Logic to get transactions related to the cash drawer
-    const [data, total] = await this.service.getCashDrawerTransactions(cashDrawerId, query);
+    const [data, total] = await this.service.getCashDrawerTransactions(
+      cashDrawerId,
+      query,
+    );
 
-    let results = toCamelCase(data)
-    let res = formatPaginatedResult(results, parseInt(total.toString()) ?? 0, query.page, query.limit);
+    let results = toCamelCase(data);
+    let res = formatPaginatedResult(
+      results,
+      parseInt(total.toString()) ?? 0,
+      query.page,
+      query.limit,
+    );
 
     return {
       message: 'Cash drawer transactions retrieved successfully',
