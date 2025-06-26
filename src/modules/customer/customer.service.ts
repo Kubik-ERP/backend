@@ -350,4 +350,43 @@ export class CustomerService {
       );
     }
   }
+
+  async queueWaitingListOrder() {
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        order_type: 'dine_in',
+      },
+      select: {
+        id: true,
+        customer_id: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        payment_status: true,
+        created_at: true,
+        order_type: true,
+        invoice_number: true,
+        order_status: true,
+      },
+      orderBy: {
+        created_at: 'asc',
+      },
+    });
+    const preparingOrders = invoices.filter(
+      (inv) => inv.order_status === 'in_progress',
+    );
+
+    const completedOrders = invoices.filter(
+      (inv) => inv.order_status === 'completed',
+    );
+
+    return {
+      preparingOrders,
+      completedOrders,
+    };
+  }
 }

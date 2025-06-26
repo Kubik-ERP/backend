@@ -9,12 +9,15 @@ import {
   HttpException,
   HttpStatus,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerService } from './customer.service';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
+import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('customers')
 export class CustomersController {
@@ -175,5 +178,15 @@ export class CustomersController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @Get('/waiting/list')
+  async waitingListOrders() {
+    const responses = await this.customersService.queueWaitingListOrder();
+    return {
+      result: toCamelCase(responses),
+    };
   }
 }
