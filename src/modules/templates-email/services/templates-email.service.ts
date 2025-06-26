@@ -285,10 +285,10 @@ export class TemplatesEmailService {
     data = {
       fullname: user.fullname,
       loginDateTime: formatter.format(now) + ' WIB',
-      deviceType: body.deviceType,
-      browser: body.browser,
-      city: body.city,
-      country: body.country,
+      deviceType: body.deviceType ?? '-',
+      browser: body.browser ?? '-',
+      city: body.city ?? '-',
+      country: body.country ?? '-',
     };
 
     subjectEmail = this.templateToSubjectMap[template];
