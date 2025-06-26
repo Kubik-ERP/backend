@@ -199,6 +199,7 @@ export class CustomerService {
       id: customer.id,
       name: customer.name,
       code: customer.code,
+      gender: customer.gender,
       number: customer.number,
       email: customer.email,
       dob: customer.dob,
