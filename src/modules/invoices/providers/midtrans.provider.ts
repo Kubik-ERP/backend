@@ -1,5 +1,5 @@
 import * as dotenv from 'dotenv';
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PaymentGateway } from '../interfaces/payments.interface';
 import axios from 'axios';
 import { MidtransCoreQrisResponseItemDto } from '../dtos/callback-payment.dto';
@@ -52,7 +52,7 @@ export class MidtransProvider implements PaymentGateway {
           redirectUrl: response.data.redirect_url,
         };
       } else {
-        throw new Error('Invalid response from Midtrans');
+        throw new InternalServerErrorException('Invalid response from Midtrans');
       }
     } catch (error) {
       const errorResponse = error.response?.data || error.message;
@@ -69,7 +69,7 @@ export class MidtransProvider implements PaymentGateway {
       );
 
       console.error('Midtrans initiatePayment error:', errorResponse);
-      throw new Error('Failed to initiate payment with Midtrans');
+      throw new InternalServerErrorException('Failed to initiate payment with Midtrans');
     }
   }
 
@@ -127,8 +127,8 @@ export class MidtransProvider implements PaymentGateway {
         'POST',
       );
 
-      console.error('Midtrans initiatePayment error:', errorResponse);
-      throw new Error('Failed to initiate payment with Midtrans');
+      console.error('Midtrans initiatePayment error:', error);
+      throw new InternalServerErrorException(`Failed to initiate payment with Midtrans: ${error}`);
     }
   }
 
