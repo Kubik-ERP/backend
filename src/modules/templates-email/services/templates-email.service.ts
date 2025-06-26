@@ -270,14 +270,21 @@ export class TemplatesEmailService {
     const loginTime = now.toLocaleTimeString('id-ID', {
       timeZone: 'Asia/Jakarta',
     });
-    console.log(
-      `username: ${body.username}, deviceType: ${body.deviceType}, browser: ${body.browser}, city: ${body.city}, country: ${body.country}`,
-    );
+    const nowDate = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta',
+      hour12: false,
+    });
     // note: Login Notification
     data = {
       fullname: user.fullname,
-      loginDate: loginDate,
-      loginTime: loginTime,
+      loginDateTime: formatter.format(now) + ' WIB',
       deviceType: body.deviceType,
       browser: body.browser,
       city: body.city,

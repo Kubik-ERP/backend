@@ -1,5 +1,5 @@
 // Class Validator
-import { IsNotEmpty } from 'class-validator';
+import { IsNotEmpty, IsOptional } from 'class-validator';
 
 // Interfaces
 import { ILogin } from '../interfaces/authentication.interface';
@@ -17,15 +17,19 @@ export class LoginUsernameDto {
   public password: string;
 
   @ApiProperty()
+  @IsOptional()
   public deviceType: string;
 
   @ApiProperty()
+  @IsOptional()
   public browser: string;
 
   @ApiProperty()
+  @IsOptional()
   public city: string;
 
   @ApiProperty()
+  @IsOptional()
   public country: string;
 }
 
