@@ -57,7 +57,10 @@ export class TablesService {
     return table;
   }
 
-  async update(id: number, updateTableDto: UpdateTableDto): Promise<TableModel> {
+  async update(
+    id: number,
+    updateTableDto: UpdateTableDto,
+  ): Promise<TableModel> {
     const existing = await this.prisma.tables.findUnique({
       where: { id },
     });
@@ -101,7 +104,10 @@ export class TablesService {
     return true;
   }
 
-  async findByStoreId(store_id: string, floor_number: number): Promise<TableModel[]> {
+  async findByStoreId(
+    store_id: string,
+    floor_number: number,
+  ): Promise<TableModel[]> {
     return this.prisma.tables.findMany({
       where: {
         store_id,

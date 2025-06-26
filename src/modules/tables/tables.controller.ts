@@ -50,7 +50,6 @@ export class TablesController {
     return this.tablesService.remove(id);
   }
 
-
   @Get('store/:store_id/:floor_number')
   async findByStoreId(@Param('store_id') store_id: string) {
     return this.tablesService.findByStoreId(store_id);
