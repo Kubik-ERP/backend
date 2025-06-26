@@ -152,7 +152,10 @@ export class TablesController {
     @Param('floorNumber') floorNumber: number,
   ) {
     try {
-      const tables = await this.tablesService.findByStoreId(storeId, floorNumber);
+      const tables = await this.tablesService.findByStoreId(
+        storeId,
+        floorNumber,
+      );
       return {
         statusCode: 200,
         message: 'Success',

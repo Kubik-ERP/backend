@@ -44,7 +44,6 @@ export class TablesService {
     });
   }
 
-
   async findOne(id: string): Promise<TableModel> {
     const table = await this.prisma.tables.findUnique({
       where: { id },
