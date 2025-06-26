@@ -25,7 +25,6 @@ import Keyv from 'keyv';
 import { CustomerModule } from './modules/customer/customer.module';
 import { ChargesModule } from './modules/charges/charges.module';
 import { CashDrawerModule } from './modules/cash-drawer/cash-drawer.module';
-import { TablesModule } from './tables/tables.module';
 import { TablesModule } from './modules/tables/tables.module';
 
 @Module({

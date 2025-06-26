@@ -6,13 +6,14 @@ import {
   Patch,
   Param,
   Delete,
+  HttpException,
+  HttpStatus,
   Query,
-  ParseIntPipe,
-  DefaultValuePipe,
 } from '@nestjs/common';
 import { TablesService } from './tables.service';
 import { CreateTableDto } from './dto/create-table.dto';
 import { UpdateTableDto } from './dto/update-table.dto';
+import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 
 @Controller('tables')
 export class TablesController {
@@ -20,38 +21,152 @@ export class TablesController {
 
   @Post()
   async create(@Body() createTableDto: CreateTableDto) {
-    return this.tablesService.create(createTableDto);
+    try {
+      const newTable = await this.tablesService.create(createTableDto);
+      return {
+        statusCode: 201,
+        message: 'Table created successfully',
+        result: toCamelCase(newTable),
+      };
+    } catch (error) {
+      return {
+        statusCode: error?.status || 500,
+        message: error?.message || 'Failed to create table',
+        result: null,
+      };
+    }
   }
 
   @Get()
-  async findAll(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
-    @Query('search') search?: string,
-  ) {
-    return this.tablesService.findAll({ page, limit, search });
+  async findAll() {
+    try {
+      const tables = await this.tablesService.findAll();
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(tables),
+      };
+    } catch (error) {
+      console.error('Error fetching tables:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch tables',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.tablesService.findOne(id);
+  async findOne(@Param('id') id: string) {
+    try {
+      const table = await this.tablesService.findOne(id);
+
+      if (!table) {
+        throw new HttpException(
+          { statusCode: HttpStatus.NOT_FOUND, message: 'Table not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(table),
+      };
+    } catch (error) {
+      console.error('Error finding table:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch table',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Patch(':id')
   async update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() updateTableDto: UpdateTableDto,
   ) {
-    return this.tablesService.update(id, updateTableDto);
+    try {
+      const updatedTable = await this.tablesService.update(id, updateTableDto);
+
+      if (!updatedTable) {
+        throw new HttpException(
+          { statusCode: HttpStatus.NOT_FOUND, message: 'Table not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      return {
+        statusCode: 200,
+        message: 'Table updated successfully',
+        result: toCamelCase(updatedTable),
+      };
+    } catch (error) {
+      console.error('Error updating table:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: error.message || 'Failed to update table',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Delete(':id')
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.tablesService.remove(id);
-  }
+  async remove(@Param('id') id: string) {
+    try {
+      const deleted = await this.tablesService.remove(id);
 
-  @Get('store/:store_id/:floor_number')
-  async findByStoreId(@Param('store_id') store_id: string) {
-    return this.tablesService.findByStoreId(store_id);
+      if (!deleted) {
+        throw new HttpException(
+          { statusCode: HttpStatus.NOT_FOUND, message: 'Table not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      return {
+        statusCode: 200,
+        message: 'Table deleted successfully',
+      };
+    } catch (error) {
+      console.error('Error deleting table:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to delete table',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+  @Get('store/:storeId/:floorNumber')
+  async findByStoreId(
+    @Param('storeId') storeId: string,
+    @Param('floorNumber') floorNumber: number,
+  ) {
+    try {
+      const tables = await this.tablesService.findByStoreId(storeId, floorNumber);
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(tables),
+      };
+    } catch (error) {
+      console.error('Error fetching tables by store:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch tables by store',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

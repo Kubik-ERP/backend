@@ -9,6 +9,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateTableDto } from './dto/create-table.dto';
 import { UpdateTableDto } from './dto/update-table.dto';
 import { tables as TableModel, Prisma } from '@prisma/client';
+import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 
 @Injectable()
 export class TablesService {
@@ -35,16 +36,16 @@ export class TablesService {
       data: createTableDto as Prisma.tablesUncheckedCreateInput,
     });
   }
-
   async findAll(): Promise<TableModel[]> {
     return this.prisma.tables.findMany({
       include: {
-        store: true,
+        stores: true,
       },
     });
   }
 
-  async findOne(id: number): Promise<TableModel> {
+
+  async findOne(id: string): Promise<TableModel> {
     const table = await this.prisma.tables.findUnique({
       where: { id },
       include: { stores: true },
@@ -58,7 +59,7 @@ export class TablesService {
   }
 
   async update(
-    id: number,
+    id: string,
     updateTableDto: UpdateTableDto,
   ): Promise<TableModel> {
     const existing = await this.prisma.tables.findUnique({
@@ -88,7 +89,7 @@ export class TablesService {
     });
   }
 
-  async remove(id: number): Promise<boolean> {
+  async remove(id: string): Promise<boolean> {
     const existing = await this.prisma.tables.findUnique({
       where: { id },
     });
