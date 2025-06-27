@@ -70,7 +70,7 @@ export class CustomersController {
     }
   }
 
-  @Get(':id/details')
+  @Get('details/:id')
   async getCustomerDetails(
     @Param('id') id: string,
     @Query() query: QueryInvoiceDto,
@@ -80,7 +80,7 @@ export class CustomersController {
       return {
         statusCode: 200,
         message: 'Success',
-        result,
+        result: toCamelCase(result),
       };
     } catch (error) {
       throw new HttpException(
