@@ -179,9 +179,10 @@ model employees_shift {
 }
 
 model floor {
-  id           String   @id @db.Uuid
-  floor_number String?  @db.VarChar(45)
-  tables       tables[]
+  id           String  @id @db.Uuid
+  floor_number String? @db.VarChar(45)
+  stores_id    String? @db.Uuid
+  stores       stores? @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "floor_stores_id_fk")
 }
 
 model invoice {
@@ -450,10 +451,12 @@ model stores {
   business_owner_has_stores business_owner_has_stores[]
   cash_drawers              cash_drawers[]
   customer_has_stores       customer_has_stores[]
+  floor                     floor[]
   invoice                   invoice[]
   operational_hours         operational_hours[]
   stores_has_employees      stores_has_employees[]
   stores_has_products       stores_has_products[]
+  tables                    tables[]
   user_has_stores           user_has_stores[]
 }
 
@@ -480,14 +483,12 @@ model stores_has_products {
 }
 
 model tables {
-  id         Int
-  table_code String? @db.VarChar(45)
-  capacity   Int?
-  floor_id   String  @db.Uuid
-  floor      floor   @relation(fields: [floor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tables_floor1")
-
-  @@id([id, floor_id])
-  @@index([floor_id], map: "fk_tables_floor1_idx")
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  table_code   String? @db.VarChar(45)
+  capacity     Int?
+  floor_number Int?
+  store_id     String? @db.Uuid
+  stores       stores? @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "tables_stores_id_fk")
 }
 
 model tag {
