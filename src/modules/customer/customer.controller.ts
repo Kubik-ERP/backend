@@ -18,6 +18,8 @@ import { CustomerService } from './customer.service';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
+import { QueryInvoiceDto } from './dto/query-invoice.dto';
 
 @Controller('customers')
 export class CustomersController {
@@ -71,10 +73,34 @@ export class CustomersController {
     }
   }
 
-  @Get('/details/:id')
-  async detail(@Param('id') id: string) {
+  @Get('details/:id')
+  async getCustomerDetails(
+    @Param('id') id: string,
+    @Query() query: QueryInvoiceDto,
+  ) {
     try {
-      const customer = await this.customersService.details(id);
+      const result = await this.customersService.details(id, query);
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(result),
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch detail Customers',
+          result: error,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('/loyalty-points/:id')
+  async loyaltyPoints(@Param('id') id: string) {
+    try {
+      const customer = await this.customersService.loyaltyPoints(id);
       if (!customer) {
         throw new HttpException(
           { statusCode: HttpStatus.NOT_FOUND, message: 'Customer not found' },
@@ -91,6 +117,28 @@ export class CustomersController {
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           message: 'Failed to fetch detail Customers',
+          result: error,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('/loyalty-points')
+  async createLoyaltyPoint(@Body() dto: CreateCustomerPointDto) {
+    try {
+      const result = await this.customersService.createLoyaltyPoint(dto);
+      return {
+        statusCode: 201,
+        message: 'Point added successfully',
+        result,
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to create customer point',
+          result: error,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );

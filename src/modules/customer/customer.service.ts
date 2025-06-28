@@ -9,7 +9,9 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { validate as isUUID } from 'uuid';
-import { customer as CustomerModel } from '@prisma/client';
+import { customer as CustomerModel, point_type, Prisma } from '@prisma/client';
+import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
+import { QueryInvoiceDto } from './dto/query-invoice.dto';
 
 @Injectable()
 export class CustomerService {
@@ -132,7 +134,87 @@ export class CustomerService {
     };
   }
 
-  public async details(id: string): Promise<any> {
+  async details(id: string, query: QueryInvoiceDto) {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      payment_status,
+      order_type,
+      created_at,
+    } = query;
+
+    const skip = (page - 1) * limit;
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      include: {
+        customers_has_tag: { include: { tag: true } },
+        customer_has_stores: { include: { stores: true } },
+      },
+    });
+
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const invoiceWhere: any = {
+      customer_id: id,
+    };
+
+    if (search) {
+      invoiceWhere.invoice_number = {
+        contains: search,
+        mode: 'insensitive',
+      };
+    }
+
+    if (payment_status) invoiceWhere.payment_status = payment_status;
+    if (order_type) invoiceWhere.order_type = order_type;
+    if (created_at) {
+      invoiceWhere.created_at = {
+        gte: new Date(created_at),
+        lt: new Date(new Date(created_at).getTime() + 24 * 60 * 60 * 1000),
+      };
+    }
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: invoiceWhere,
+      orderBy: { created_at: 'desc' },
+      skip,
+      take: limit,
+    });
+
+    const paidTotal = invoices
+      .filter((inv) => inv.payment_status === 'paid')
+      .reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
+
+    const unpaidTotal = invoices
+      .filter((inv) => inv.payment_status === 'unpaid')
+      .reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
+
+    const totalSales = invoices.length;
+
+    const lastVisited = invoices.length > 0 ? invoices[0].created_at : null;
+
+    return {
+      id: customer.id,
+      name: customer.name,
+      code: customer.code,
+      gender: customer.gender,
+      number: customer.number,
+      email: customer.email,
+      dob: customer.dob,
+      address: customer.address,
+      paid: paidTotal,
+      unpaid: unpaidTotal,
+      total_sales: totalSales,
+      last_visited: lastVisited,
+      tags: customer.customers_has_tag.map((cht) => cht.tag),
+      stores: customer.customer_has_stores.map((chs) => chs.stores),
+      invoices,
+    };
+  }
+
+  public async loyaltyPoints(id: string): Promise<any> {
     const customer = await this.prisma.customer.findUnique({
       where: { id },
       include: {
@@ -142,7 +224,7 @@ export class CustomerService {
         customer_has_stores: {
           include: { stores: true },
         },
-        customers_has_invoices: {
+        trn_customer_points: {
           include: {
             invoice: true,
           },
@@ -153,14 +235,13 @@ export class CustomerService {
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
-
-    const paidTotal = customer.customers_has_invoices
-      .filter((chi) => chi.invoice?.payment_status === 'paid')
-      .reduce((sum, chi) => sum + (chi.invoice?.subtotal || 0), 0);
-
-    const unpaidTotal = customer.customers_has_invoices
-      .filter((chi) => chi.invoice?.payment_status === 'unpaid')
-      .reduce((sum, chi) => sum + (chi.invoice?.subtotal || 0), 0);
+    const totalPoints = customer.trn_customer_points.reduce((sum, point) => {
+      if (point.type?.toString() === 'point_deduction') {
+        return sum - point.value;
+      } else {
+        return sum + point.value;
+      }
+    }, 0);
 
     return {
       id: customer.id,
@@ -170,12 +251,24 @@ export class CustomerService {
       email: customer.email,
       dob: customer.dob,
       address: customer.address,
-      paid: paidTotal,
-      unpaid: unpaidTotal,
       tags: customer.customers_has_tag.map((cht) => cht.tag),
       stores: customer.customer_has_stores.map((chs) => chs.stores),
-      invoices: customer.customers_has_invoices.map((chi) => chi.invoice),
+      points: {
+        total: totalPoints,
+        details: customer.trn_customer_points,
+      },
     };
+  }
+
+  async createLoyaltyPoint(dto: CreateCustomerPointDto) {
+    try {
+      const result = await this.prisma.trn_customer_points.create({
+        data: dto,
+      });
+      return result;
+    } catch (err) {
+      throw new BadRequestException('Failed to create point: ' + err.message);
+    }
   }
 
   public async findOne(idOrName: string): Promise<CustomerModel | null> {

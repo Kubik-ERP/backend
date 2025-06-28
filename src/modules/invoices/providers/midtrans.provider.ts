@@ -52,9 +52,7 @@ export class MidtransProvider implements PaymentGateway {
           redirectUrl: response.data.redirect_url,
         };
       } else {
-        throw new InternalServerErrorException(
-          'Invalid response from Midtrans',
-        );
+        throw new Error('Invalid response from Midtrans');
       }
     } catch (error) {
       const errorResponse = error.response?.data || error.message;
@@ -133,7 +131,7 @@ export class MidtransProvider implements PaymentGateway {
 
       console.error('Midtrans initiatePayment error:', error);
       throw new InternalServerErrorException(
-        `Failed to initiate payment with Midtrans: ${error}`,
+        `Failed to initiate payment with Midtrans: ${error} || with URL: ${this.qrisUrl} || and Key: ${this.apiKey}`,
       );
     }
   }
