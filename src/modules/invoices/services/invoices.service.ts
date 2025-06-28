@@ -175,10 +175,18 @@ export class InvoiceService {
     // check invoice
     const invoice = await this.findInvoiceId(invoiceId);
 
-    // update status
-    await this.update(invoiceId, {
+    // update payload
+    const updatePayload: InvoiceUpdateDto = {
       order_status: request.orderStatus,
-    });
+    };
+
+    // add complete time
+    if (request.orderStatus == order_status.completed) {
+      updatePayload.complete_order_at = new Date();
+    }
+
+    // update status
+    await this.update(invoiceId, updatePayload);
 
     return {
       success: true,
@@ -360,6 +368,7 @@ export class InvoiceService {
       invoice_number: invoiceNumber,
       order_status: order_status.ready,
       store_id: request.storeId,
+      complete_order_at: null,
     };
 
     // create invoice with status unpaid
@@ -421,7 +430,7 @@ export class InvoiceService {
       request.paymentMethodId,
       paymentProvider,
       invoiceId,
-      calculation.total,
+      calculation.grandTotal,
     );
 
     return response;
@@ -457,6 +466,7 @@ export class InvoiceService {
       invoice_number: invoiceNumber,
       order_status: order_status.ready,
       store_id: request.storeId,
+      complete_order_at: null,
     };
 
     // create invoice with status unpaid
@@ -501,6 +511,9 @@ export class InvoiceService {
     };
     return result;
   }
+
+  // TODO: process kitchen queue
+  public async processKitchenQueue() {}
 
   public async proceedPayment(request: ProceedPaymentDto) {
     // Check the invoice is unpaid
@@ -558,14 +571,6 @@ export class InvoiceService {
       grand_total: calculation.grandTotal,
       payment_method_id: request.paymentMethodId,
     });
-
-    let invoiceNumber = '';
-    if (invoice.invoice_number === null) {
-      this.logger.error(`Invoice number is null`);
-      throw new BadRequestException(`Invoice number is null`);
-    } else {
-      invoiceNumber = invoice.invoice_number;
-    }
 
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
@@ -1037,6 +1042,7 @@ export class InvoiceService {
           invoice_number: invoice.invoice_number,
           order_status: invoice.order_status,
           store_id: invoice.store_id,
+          complete_order_at: invoice.complete_order_at,
         },
       });
     } catch (error) {

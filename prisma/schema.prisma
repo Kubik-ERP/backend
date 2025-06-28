@@ -207,6 +207,7 @@ model invoice {
   invoice_number                             String?                  @db.VarChar(100)
   order_status                               order_status?
   store_id                                   String?                  @db.Uuid
+  complete_order_at                          DateTime?                @db.Timestamp(6)
   customers_has_invoices                     customers_has_invoices[]
   customer                                   customer                 @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods                            payment_methods?         @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
@@ -216,6 +217,7 @@ model invoice {
   users                                      users?                   @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
   invoice_charges                            invoice_charges[]
   invoice_details                            invoice_details[]
+  kitchen_queue                              kitchen_queue[]
   trn_customer_points                        trn_customer_points[]
 
   @@index([customer_id], map: "fk_invoice_customer1_idx")
@@ -384,6 +386,7 @@ model products {
   is_percent              Boolean?                  @default(false)
   categories_has_products categories_has_products[]
   invoice_details         invoice_details[]
+  kitchen_queue           kitchen_queue[]
   product_commissions     product_commissions[]
   recipe                  recipe[]
   stores_has_products     stores_has_products[]
@@ -545,6 +548,7 @@ model variant {
   name                 String?                @db.VarChar(45)
   price                Float?                 @default(0)
   invoice_details      invoice_details[]
+  kitchen_queue        kitchen_queue[]
   variant_has_products variant_has_products[]
 }
 
@@ -607,6 +611,20 @@ model trn_customer_points {
   notes       String?     @db.VarChar(45)
   customer    customer    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_customer_id_fk")
   invoice     invoice?    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_invoice_id_fk")
+}
+
+model kitchen_queue {
+  id           String       @id(map: "kitchen_queue_pk") @db.Uuid
+  invoice_id   String       @db.Uuid
+  product_id   String       @db.Uuid
+  variant_id   String?      @db.Uuid
+  order_status order_status
+  notes        String?      @db.VarChar(255)
+  created_at   DateTime     @db.Timestamp(6)
+  updated_at   DateTime?    @db.Timestamp(6)
+  invoice      invoice      @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_invoice_fk")
+  products     products     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_products_fk")
+  variant      variant?     @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_variant_fk")
 }
 
 enum cash_drawer_type {

@@ -308,4 +308,5 @@ export class InvoiceUpdateDto {
   service_charge_amount?: number;
   grand_total?: number;
   order_status?: order_status;
+  complete_order_at?: Date;
 }
