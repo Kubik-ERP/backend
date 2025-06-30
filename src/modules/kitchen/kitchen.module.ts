@@ -6,4 +6,4 @@ import { PrismaService } from 'src/prisma/prisma.service';
   providers: [KitchenService, PrismaService],
   exports: [PrismaService],
 })
-export class KitchenModules {}
+export class KitchenMweodules {}
