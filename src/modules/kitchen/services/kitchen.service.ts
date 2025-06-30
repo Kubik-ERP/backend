@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { kitchen_queue, order_status } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { KitchenQueueAdd } from '../dtos/kitchen-queue.dto';
+import { KitchenQueueAdd } from '../dtos/queue.dto';
 
 @Injectable()
-export class KitchenQueueService {
-  private readonly logger = new Logger(KitchenQueueService.name);
+export class KitchenService {
+  private readonly logger = new Logger(KitchenService.name);
 
   constructor(private readonly _prisma: PrismaService) {}
 

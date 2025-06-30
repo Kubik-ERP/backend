@@ -12,14 +12,14 @@ import { InvoiceSettingController } from './controllers/invoices-setting.control
 import { StoresService } from '../stores/services/stores.service';
 import { StorageServiceModule } from '../storage-service/storage-service.module';
 import { TemplatesEmailModule } from '../templates-email/templates-email.module';
-import { KitchenQueueModule } from '../kitchen-queue/kitchen-queue.module';
-import { KitchenQueueService } from '../kitchen-queue/services/kitchen-queue.service';
+import { KitchenModule } from '../kitchen/kitchen.module';
+import { KitchenService } from '../kitchen/services/kitchen.service';
 
 @Module({
   imports: [
     MailModule,
     StorageServiceModule,
-    KitchenQueueModule,
+    KitchenModule,
     forwardRef(() => TemplatesEmailModule),
   ],
   providers: [
@@ -31,7 +31,7 @@ import { KitchenQueueService } from '../kitchen-queue/services/kitchen-queue.ser
     PaymentLogsService,
     ChargesService,
     StoresService,
-    KitchenQueueService,
+    KitchenService,
   ],
   controllers: [InvoiceSettingController, InvoiceController],
   exports: [

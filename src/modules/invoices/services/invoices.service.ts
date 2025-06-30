@@ -47,8 +47,8 @@ import {
 } from '../dtos/setting-invoice.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { MailService } from 'src/modules/mail/services/mail.service';
-import { KitchenQueueAdd } from 'src/modules/kitchen-queue/dtos/kitchen-queue.dto';
-import { KitchenQueueService } from 'src/modules/kitchen-queue/services/kitchen-queue.service';
+import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
+import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
 
 @Injectable()
 export class InvoiceService {
@@ -57,7 +57,7 @@ export class InvoiceService {
   constructor(
     private readonly _prisma: PrismaService,
     private readonly _charge: ChargesService,
-    private readonly _kitchenQueue: KitchenQueueService,
+    private readonly _kitchenQueue: KitchenService,
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
     private readonly _mailService: MailService,

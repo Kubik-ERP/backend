@@ -26,7 +26,7 @@ import { CustomerModule } from './modules/customer/customer.module';
 import { ChargesModule } from './modules/charges/charges.module';
 import { CashDrawerModule } from './modules/cash-drawer/cash-drawer.module';
 import { TablesModule } from './modules/tables/tables.module';
-import { KitchenQueueModule } from './modules/kitchen-queue/kitchen-queue.module';
+import { KitchenModule } from './modules/kitchen/kitchen.module';
 
 @Module({
   imports: [
@@ -58,7 +58,7 @@ import { KitchenQueueModule } from './modules/kitchen-queue/kitchen-queue.module
     CustomerModule,
     EmployeesModule,
     InvoicesModule,
-    KitchenQueueModule,
+    KitchenModule,
     PaymentMethodModule,
     ProductsModule,
     RolesModule,
