@@ -440,11 +440,11 @@ export class InvoiceService {
           notes: detail.notes ?? '',
           created_at: new Date(),
           updated_at: new Date(),
-        }
-        
+        };
+
         kitchenQueue.push(queue);
       }
-    };
+    }
 
     // create kitchen queue
     await this._kitchenQueue.createKitchenQueue(kitchenQueue);
@@ -538,8 +538,8 @@ export class InvoiceService {
           notes: detail.notes ?? '',
           created_at: new Date(),
           updated_at: new Date(),
-        }
-        
+        };
+
         kitchenQueue.push(queue);
       }
     });
