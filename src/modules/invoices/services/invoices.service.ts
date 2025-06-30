@@ -47,6 +47,8 @@ import {
 } from '../dtos/setting-invoice.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { MailService } from 'src/modules/mail/services/mail.service';
+import { KitchenQueueAdd } from 'src/modules/kitchen-queue/dtos/kitchen-queue.dto';
+import { KitchenQueueService } from 'src/modules/kitchen-queue/services/kitchen-queue.service';
 
 @Injectable()
 export class InvoiceService {
@@ -55,6 +57,7 @@ export class InvoiceService {
   constructor(
     private readonly _prisma: PrismaService,
     private readonly _charge: ChargesService,
+    private readonly _kitchenQueue: KitchenQueueService,
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
     private readonly _mailService: MailService,
@@ -345,6 +348,7 @@ export class InvoiceService {
     // create invoice ID
     const invoiceId = uuidv4();
     const invoiceNumber = await this.generateInvoiceNumber(request.storeId);
+    let kitchenQueue: KitchenQueueAdd[] = [];
 
     const invoiceData = {
       id: invoiceId,
@@ -389,7 +393,7 @@ export class InvoiceService {
     // insert the customer has invoice
     await this.createCustomerInvoice(invoiceId, request.customerId);
 
-    request.products.forEach(async (detail) => {
+    for (const detail of request.products) {
       // find the price
       let productPrice = 0,
         variantPrice = 0;
@@ -424,7 +428,26 @@ export class InvoiceService {
 
       // create invoice with status unpaid
       await this.createInvoiceDetail(invoiceDetailData);
-    });
+
+      // looping each quantity
+      for (let i = 0; i < detail.quantity; i++) {
+        const queue: KitchenQueueAdd = {
+          id: uuidv4(),
+          invoice_id: invoiceId,
+          order_status: order_status.ready,
+          product_id: detail.productId,
+          variant_id: detail.variantId ?? null,
+          notes: detail.notes ?? '',
+          created_at: new Date(),
+          updated_at: new Date(),
+        }
+        
+        kitchenQueue.push(queue);
+      }
+    };
+
+    // create kitchen queue
+    await this._kitchenQueue.createKitchenQueue(kitchenQueue);
 
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
@@ -444,6 +467,8 @@ export class InvoiceService {
     const invoiceId = uuidv4();
     const invoiceNumber = await this.generateInvoiceNumber(request.storeId);
     const calculation = await this.calculateTotal(request);
+    let kitchenQueue: KitchenQueueAdd[] = [];
+
     const invoiceData = {
       id: invoiceId,
       payment_methods_id: null,
@@ -501,19 +526,35 @@ export class InvoiceService {
 
       // create invoice with status unpaid
       await this.createInvoiceDetail(invoiceDetailData);
+
+      // looping each quantity
+      for (let i = 0; i < detail.quantity; i++) {
+        const queue: KitchenQueueAdd = {
+          id: uuidv4(),
+          invoice_id: invoiceId,
+          order_status: order_status.ready,
+          product_id: detail.productId,
+          variant_id: detail.variantId ?? null,
+          notes: detail.notes ?? '',
+          created_at: new Date(),
+          updated_at: new Date(),
+        }
+        
+        kitchenQueue.push(queue);
+      }
     });
 
     // insert the customer has invoice
     await this.createCustomerInvoice(invoiceId, request.customerId);
+
+    // create kitchen queue
+    await this._kitchenQueue.createKitchenQueue(kitchenQueue);
 
     const result = {
       orderId: invoiceId,
     };
     return result;
   }
-
-  // TODO: process kitchen queue
-  public async processKitchenQueue() {}
 
   public async proceedPayment(request: ProceedPaymentDto) {
     // Check the invoice is unpaid
@@ -1046,7 +1087,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create invoice');
       throw new BadRequestException('Failed to create invoice', {
         cause: new Error(),
