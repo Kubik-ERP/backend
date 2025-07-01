@@ -139,7 +139,7 @@ export class CashDrawerController {
 
     //TODO: get staff id if role is not owner
 
-    await this.service.openCashDrawer(
+    const data = await this.service.openCashDrawer(
       req.user.id,
       staffId,
       openCashDrawerDto.balance,
@@ -147,7 +147,10 @@ export class CashDrawerController {
       openCashDrawerDto.notes,
     );
 
-    return { message: 'Cash drawer opened successfully' };
+    return {
+      message: 'Cash drawer opened successfully',
+      result: toCamelCase(data),
+    };
   }
 
   @Put('edit/:cashDrawerId')
