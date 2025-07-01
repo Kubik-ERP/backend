@@ -1,7 +1,13 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { kitchen_queue, order_status } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { KitchenQueueAdd } from '../dtos/queue.dto';
+import { GetInvoiceDto } from '../dtos/kitchen.dto';
 
 @Injectable()
 export class KitchenService {
@@ -46,5 +52,65 @@ export class KitchenService {
         description: error.message,
       });
     }
+  }
+
+  public async ticketByInvoiceId(request: GetInvoiceDto) {
+    const invoiceRaw = await this._prisma.invoice.findFirst({
+      where: {
+        id: request.invoiceId,
+      },
+      select: {
+        id: true,
+        created_at: true,
+        invoice_number: true,
+        users: {
+          select: { id: true, fullname: true },
+        },
+        order_type: true,
+        customer: {
+          select: { id: true, name: true },
+        },
+        invoice_details: {
+          include: {
+            products: {
+              include: {
+                categories_has_products: {
+                  include: {
+                    categories: true,
+                  },
+                },
+              },
+            },
+            variant: true,
+          },
+        },
+      },
+    });
+    if (!invoiceRaw) {
+      this.logger.error(`Invoice with ID ${request.invoiceId} not found.`);
+      throw new NotFoundException(
+        `Invoice with ID ${request.invoiceId} not found.`,
+      );
+    }
+    function formatDate(date: Date | null): string {
+      if (!date) return '';
+      const d = new Date(date);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+
+      const day = pad(d.getDate());
+      const month = pad(d.getMonth() + 1);
+      const year = d.getFullYear();
+      const hours = pad(d.getHours());
+      const minutes = pad(d.getMinutes());
+
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
+    }
+
+    const invoice = {
+      ...invoiceRaw,
+      created_at_formatted: formatDate(invoiceRaw.created_at),
+    };
+
+    return invoice;
   }
 }
