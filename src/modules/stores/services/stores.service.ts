@@ -38,16 +38,32 @@ export class StoresService {
         },
       });
 
-      console.log(data.businessHours);
+      console.log(
+        'Parsed businessHours:',
+        JSON.stringify(data.businessHours, null, 2),
+      );
 
-      // Insert Business Hours (Operational Hours)
-      if (data.businessHours?.length) {
+      let parsedBusinessHours: any[] = [];
+
+      if (typeof data.businessHours === 'string') {
+        try {
+          parsedBusinessHours = JSON.parse(data.businessHours);
+        } catch (e) {
+          parsedBusinessHours = [];
+        }
+      } else {
+        parsedBusinessHours = data.businessHours;
+      }
+
+      console.log('✅ Final parsed businessHours:', parsedBusinessHours);
+
+      if (parsedBusinessHours?.length) {
         await prisma.operational_hours.createMany({
-          data: data.businessHours.map((bh) => ({
-            days: this.mapDayToNumber(bh.day), // Convert hari ke angka
+          data: parsedBusinessHours.map((bh) => ({
+            days: this.mapDayToNumber(bh.day),
             open_time: formatTime(bh.openTime),
             close_time: formatTime(bh.closeTime),
-            stores_id: store.id, // Ambil ID store yang baru dibuat
+            stores_id: store.id,
           })),
         });
       }

@@ -97,16 +97,38 @@ export class CreateStoreDto {
 
   @Transform(({ value }) => {
     try {
-      return JSON.parse(value);
+      if (typeof value === 'string') {
+        const parsed = JSON.parse(value);
+
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((obj) => {
+            const isValid =
+              obj &&
+              typeof obj.day === 'string' &&
+              typeof obj.openTime === 'string' &&
+              typeof obj.closeTime === 'string';
+
+            return isValid;
+          });
+
+          return filtered;
+        }
+      }
     } catch (err) {
-      console.error('Failed to parse businessHours in DTO:', err);
-      return [];
+      console.error('❗ Failed to parse businessHours:', err);
     }
+
+    return [];
   })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => BusinessHoursDto)
-  @ApiProperty({ type: BusinessHoursDto, isArray: true })
+  @ApiProperty({
+    type: BusinessHoursDto,
+    example: `[{"day":"Monday","openTime":"09:00:00","closeTime":"18:00:00"},{"day":"Tuesday","openTime":"10:00:00","closeTime":"19:00:00"}]`,
+    description:
+      'JSON string representing an array of business hours objects. Each object must have "day", "openTime", and "closeTime" in "HH:mm:ss" format.',
+  })
   businessHours: BusinessHoursDto[];
 
   @ApiProperty({ required: false })

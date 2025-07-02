@@ -14,6 +14,8 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -45,10 +47,10 @@ export class StoresController {
     private readonly storageService: StorageService,
   ) {}
 
-  // @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthenticationJWTGuard)
   @Post('/')
   @HttpCode(200)
-  // @ApiBearerAuth()
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Create store' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -118,16 +120,17 @@ export class StoresController {
         'streetAddress',
         'city',
         'businessHours',
-        // 'file',
+        'file',
       ],
     },
   })
   @ApiConsumes('multipart/form-data')
-  // @UseGuards(PinGuard)
+  @UseGuards(PinGuard)
   @UseInterceptors(ImageUploadInterceptor('file'))
+  @UsePipes(new ValidationPipe({ transform: true }))
   public async createStore(
     @Req() req: ICustomRequestHeaders,
-    @Body() body: CreateStoreDto,
+    @Body() body: any,
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
@@ -141,7 +144,10 @@ export class StoresController {
       }
       //const relativePath = file ? `/public/images/${file.filename}` : undefined;
 
-      await this._storeService.createStore({ ...body, photo: relativePath }, 7);
+      await this._storeService.createStore(
+        { ...body, photo: relativePath },
+        req.user.id,
+      );
 
       return {
         message: 'Store created successfully',
