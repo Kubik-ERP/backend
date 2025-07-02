@@ -5,6 +5,7 @@ export class KitchenQueueAdd {
   invoice_id: string;
   product_id: string;
   variant_id?: string;
+  store_id: string;
   notes?: string;
   order_status: order_status;
   created_at?: Date;

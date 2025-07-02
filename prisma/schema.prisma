@@ -304,7 +304,6 @@ model operational_hours {
   stores     stores  @relation(fields: [stores_id], references: [id], onDelete: Cascade, map: "operational_hours_stores_fk")
 
   @@id([id, stores_id])
-  @@unique([days, stores_id], map: "operational_hours_unique")
   @@index([stores_id], map: "fk_operational_hours_stores1_idx")
 }
 
@@ -456,6 +455,7 @@ model stores {
   customer_has_stores       customer_has_stores[]
   floor                     floor[]
   invoice                   invoice[]
+  kitchen_queue             kitchen_queue[]
   operational_hours         operational_hours[]
   stores_has_employees      stores_has_employees[]
   stores_has_products       stores_has_products[]
@@ -622,8 +622,10 @@ model kitchen_queue {
   notes        String?      @db.VarChar(255)
   created_at   DateTime     @db.Timestamp(6)
   updated_at   DateTime?    @db.Timestamp(6)
+  store_id     String       @db.Uuid
   invoice      invoice      @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_invoice_fk")
   products     products     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_products_fk")
+  stores       stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_stores_fk")
   variant      variant?     @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_variant_fk")
 }
 
