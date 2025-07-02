@@ -35,6 +35,7 @@ import { diskStorage } from 'multer';
 import { ImageUploadInterceptor } from 'src/common/interceptors/image-upload.interceptor';
 import { StorageService } from 'src/modules/storage-service/services/storage-service.service';
 import { PinGuard } from 'src/common/guards/authentication-pin.guard';
+import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
 
 @Controller('store')
 @ApiTags('Stores')
@@ -293,6 +294,7 @@ export class StoresController {
         id: result.id,
         name: result.name,
         email: result.email,
+
         phone_number: result.phone_number,
         business_type: result.business_type,
         photo: result.photo,
@@ -302,9 +304,16 @@ export class StoresController {
         building: result.building,
         created_at: formatDate(result.created_at),
         updated_at: formatDate(result.updated_at),
+        operationalHours: result.operational_hours.map((item: any) => ({
+          id: item.id,
+          days: item.days,
+          openTime: item.open_time,
+          closeTime: item.close_time,
+          storesId: item.stores_id,
+        })),
       };
       return {
-        result: response,
+        result: toCamelCase(response),
       };
     } catch (error) {
       console.log(error);
