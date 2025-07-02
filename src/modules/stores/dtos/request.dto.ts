@@ -11,7 +11,7 @@ import {
   Max,
   MaxLength,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 enum BusinessType {
@@ -95,10 +95,18 @@ export class CreateStoreDto {
   @MaxLength(255)
   building?: string;
 
-  @ApiProperty({ type: BusinessHoursDto, isArray: true })
+  @Transform(({ value }) => {
+    try {
+      return JSON.parse(value);
+    } catch (err) {
+      console.error('Failed to parse businessHours in DTO:', err);
+      return [];
+    }
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => BusinessHoursDto)
+  @ApiProperty({ type: BusinessHoursDto, isArray: true })
   businessHours: BusinessHoursDto[];
 
   @ApiProperty({ required: false })

@@ -38,6 +38,8 @@ export class StoresService {
         },
       });
 
+      console.log(data.businessHours);
+
       // Insert Business Hours (Operational Hours)
       if (data.businessHours?.length) {
         await prisma.operational_hours.createMany({
@@ -149,7 +151,11 @@ export class StoresService {
     return await this.prisma.stores.findUnique({
       where: { id: storeId },
       include: {
-        operational_hours: true,
+        operational_hours: {
+          orderBy: {
+            days: 'asc',
+          },
+        },
         user_has_stores: true,
       },
     });

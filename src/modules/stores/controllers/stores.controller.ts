@@ -45,10 +45,10 @@ export class StoresController {
     private readonly storageService: StorageService,
   ) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  // @UseGuards(AuthenticationJWTGuard)
   @Post('/')
   @HttpCode(200)
-  @ApiBearerAuth()
+  // @ApiBearerAuth()
   @ApiOperation({ summary: 'Create store' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -118,12 +118,12 @@ export class StoresController {
         'streetAddress',
         'city',
         'businessHours',
-        'file',
+        // 'file',
       ],
     },
   })
   @ApiConsumes('multipart/form-data')
-  @UseGuards(PinGuard)
+  // @UseGuards(PinGuard)
   @UseInterceptors(ImageUploadInterceptor('file'))
   public async createStore(
     @Req() req: ICustomRequestHeaders,
@@ -141,10 +141,7 @@ export class StoresController {
       }
       //const relativePath = file ? `/public/images/${file.filename}` : undefined;
 
-      await this._storeService.createStore(
-        { ...body, photo: relativePath },
-        req.user.id,
-      );
+      await this._storeService.createStore({ ...body, photo: relativePath }, 7);
 
       return {
         message: 'Store created successfully',
@@ -283,13 +280,30 @@ export class StoresController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  // @UseGuards(AuthenticationJWTGuard)
   @Get('/:id')
-  @ApiBearerAuth()
+  // @ApiBearerAuth()
   @ApiOperation({ summary: 'Get store by ID' })
   public async getStoreById(@Param('id') id: string) {
     try {
       const result = await this._storeService.getStoreById(id);
+      const groupedOperationalHours = result.operational_hours.reduce(
+        (acc: any, item: any) => {
+          const day = item.days;
+          if (!acc[day]) {
+            acc[day] = {
+              days: day,
+              times: [],
+            };
+          }
+          acc[day].times.push({
+            openTime: item.open_time,
+            closeTime: item.close_time,
+          });
+          return acc;
+        },
+        {},
+      );
       const response = {
         id: result.id,
         name: result.name,
@@ -304,13 +318,7 @@ export class StoresController {
         building: result.building,
         created_at: formatDate(result.created_at),
         updated_at: formatDate(result.updated_at),
-        operationalHours: result.operational_hours.map((item: any) => ({
-          id: item.id,
-          days: item.days,
-          openTime: item.open_time,
-          closeTime: item.close_time,
-          storesId: item.stores_id,
-        })),
+        operationalHours: Object.values(groupedOperationalHours),
       };
       return {
         result: toCamelCase(response),
