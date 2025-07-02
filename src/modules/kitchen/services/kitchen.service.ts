@@ -72,15 +72,7 @@ export class KitchenService {
         },
         invoice_details: {
           include: {
-            products: {
-              include: {
-                categories_has_products: {
-                  include: {
-                    categories: true,
-                  },
-                },
-              },
-            },
+            products: true,
             variant: true,
           },
         },
