@@ -26,6 +26,7 @@ import { CustomerModule } from './modules/customer/customer.module';
 import { ChargesModule } from './modules/charges/charges.module';
 import { CashDrawerModule } from './modules/cash-drawer/cash-drawer.module';
 import { TablesModule } from './modules/tables/tables.module';
+import { KitchenModule } from './modules/kitchen/kitchen.module';
 
 @Module({
   imports: [
@@ -51,20 +52,21 @@ import { TablesModule } from './modules/tables/tables.module';
 
     // Core Feature Modules
     AuthenticationModule,
-    UsersModule,
+    CashDrawerModule,
     CategoriesModule,
     ChargesModule,
-    InvoicesModule,
     CustomerModule,
+    EmployeesModule,
+    InvoicesModule,
+    KitchenModule,
     PaymentMethodModule,
     ProductsModule,
-    StoresModule,
-    EmployeesModule,
     RolesModule,
     ShiftModule,
-    CashDrawerModule,
-    TemplatesEmailModule,
+    StoresModule,
+    UsersModule,
     TablesModule,
+    TemplatesEmailModule,
   ],
   providers: [
     {
