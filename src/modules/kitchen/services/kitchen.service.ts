@@ -161,6 +161,12 @@ export class KitchenService {
     try {
       return await this._prisma.kitchen_queue.findMany({
         where: { store_id: storeId, order_status: { in: orderStatus } },
+        include: {
+          customer: true,
+          products: true,
+          variant: true,
+          invoice: true,
+        },
       });
     } catch (error) {
       this.logger.error('Failed to create kitchen queues');

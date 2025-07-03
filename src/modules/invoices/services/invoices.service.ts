@@ -1175,7 +1175,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create invoice detail');
       throw new BadRequestException('Failed to create invoice detail', {
         cause: new Error(),
@@ -1201,7 +1200,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create invoice charge');
       throw new BadRequestException('Failed to create invoice charge', {
         cause: new Error(),
@@ -1229,7 +1227,6 @@ export class InvoiceService {
       });
       return result.count;
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to update invoice charge');
       throw new BadRequestException('Failed to update invoice charge', {
         cause: new Error(),
@@ -1247,7 +1244,6 @@ export class InvoiceService {
         where: { invoice_id: invoiceId },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to fetch invoice detail');
       throw new BadRequestException('Failed to fetch invoice detail', {
         cause: new Error(),
@@ -1265,7 +1261,6 @@ export class InvoiceService {
         where: { invoice_id: invoiceId, charge_id: chargeId },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to fetch invoice charge');
       throw new BadRequestException('Failed to fetch invoice charge', {
         cause: new Error(),
@@ -1337,7 +1332,6 @@ export class InvoiceService {
 
       return toCamelCase(response);
     } catch (error) {
-      console.error(error);
       throw new BadRequestException('Failed to update invoice settings');
     }
   }
@@ -1354,7 +1348,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create customer has invoice');
       throw new BadRequestException('Failed to create customer has invoice', {
         cause: new Error(),
