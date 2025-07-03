@@ -206,7 +206,6 @@ model invoice {
   grand_total                                Float?
   cashier_id                                 Int?
   invoice_number                             String?                  @db.VarChar(100)
-  order_status                               order_status?
   store_id                                   String?                  @db.Uuid
   complete_order_at                          DateTime?                @db.Timestamp(6)
   customers_has_invoices                     customers_has_invoices[]
@@ -676,7 +675,7 @@ enum transaction_type {
 }
 
 enum order_status {
-  ready
+  placed
   in_progress
   served
   completed
