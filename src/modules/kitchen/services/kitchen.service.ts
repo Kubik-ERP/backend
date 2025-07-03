@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { kitchen_queue, order_status, order_type } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { KitchenQueueAdd } from '../dtos/queue.dto';
+import { KitchenQueueAdd, KitchenQueueWithRelations } from '../dtos/queue.dto';
 import { GetInvoiceDto } from '../dtos/kitchen.dto';
 
 @Injectable()
@@ -104,32 +104,45 @@ export class KitchenService {
     ];
 
     // get value of kitchen queue by store id
-    const queues = await this.getKitchenQueueByStoreId(storeId, orderStatus);
+    const queues: KitchenQueueWithRelations[] =
+      await this.getKitchenQueueByStoreId(storeId, orderStatus);
 
-    return queues;
+    const grouped: Record<string, any> = {};
 
-    // const grouped = [];
-    // let currentGroup = null;
+    for (const item of queues) {
+      const invoice_id = item.invoice_id;
 
-    // for (const item of queues) {
-    //   if (!currentGroup || currentGroup.invoice_id !== item.invoice_id) {
-    //     currentGroup = {
-    //       invoice_id: item.invoice_id,
-    //       created_at: item.created_at,
-    //       table_code: item.table_code,
-    //       order_type: item.order_type,
-    //       customer_id: item.customer_id,
-    //       products: [],
-    //     };
-    //     grouped.push(currentGroup);
-    //   }
+      if (!grouped[invoice_id]) {
+        grouped[invoice_id] = {
+          id: item.id,
+          invoice_id: item.invoice_id,
+          invoice_number: item.invoice?.invoice_number ?? '',
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          store_id: item.store_id,
+          table_code: item.invoice?.table_code ?? null,
+          order_type: item.invoice?.order_type ?? '',
+          customer_id: item.invoice?.customer_id ?? null,
+          customer_name: item.customer?.name ?? '',
+          items: [],
+        };
+      }
 
-    // currentGroup.products.push({
-    //   order_status: item.order_status,
-    //   productName: item.productName,
-    //   variant: item.variant,
-    //   notes: item.notes,
-    // });
+      grouped[invoice_id].items.push({
+        products: {
+          order_status: item.order_status,
+          notes: item.notes ?? '',
+          id: item.products?.id ?? '',
+          name: item.products?.name ?? '',
+          variant: {
+            id: item.variant?.id ?? '',
+            name: item.variant?.name ?? '',
+          },
+        },
+      });
+    }
+
+    return Object.values(grouped);
   }
 
   /**
@@ -162,10 +175,34 @@ export class KitchenService {
       return await this._prisma.kitchen_queue.findMany({
         where: { store_id: storeId, order_status: { in: orderStatus } },
         include: {
-          customer: true,
-          products: true,
-          variant: true,
-          invoice: true,
+          customer: {
+            select: {
+              name: true,
+            },
+          },
+          products: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          variant: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          invoice: {
+            select: {
+              id: true,
+              invoice_number: true,
+              created_at: true,
+              table_code: true,
+              order_type: true,
+              store_id: true,
+              customer_id: true,
+            },
+          },
         },
       });
     } catch (error) {

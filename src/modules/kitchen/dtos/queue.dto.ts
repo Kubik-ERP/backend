@@ -1,4 +1,4 @@
-import { order_status, order_type } from '@prisma/client';
+import { kitchen_queue, order_status, order_type } from '@prisma/client';
 
 export class KitchenQueueAdd {
   id: string;
@@ -14,3 +14,16 @@ export class KitchenQueueAdd {
   order_type: order_type;
   customer_id: string;
 }
+
+// type of grouping queue
+export type KitchenQueueWithRelations = kitchen_queue & {
+  customer?: { name: string } | null;
+  invoice?: {
+    invoice_number: string;
+    table_code: string | null;
+    order_type: string;
+    customer_id: string | null;
+  } | null;
+  products?: { id: string; name: string } | null;
+  variant?: { id: string; name: string } | null;
+};
