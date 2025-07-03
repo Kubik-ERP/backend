@@ -1,4 +1,4 @@
-import { order_status } from '@prisma/client';
+import { order_status, order_type } from '@prisma/client';
 
 export class KitchenQueueAdd {
   id: string;
@@ -10,4 +10,7 @@ export class KitchenQueueAdd {
   order_status: order_status;
   created_at?: Date;
   updated_at?: Date;
+  table_code: string;
+  order_type: order_type;
+  customer_id: string;
 }

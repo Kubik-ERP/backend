@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { kitchen_queue, order_status } from '@prisma/client';
+import { kitchen_queue, order_status, order_type } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { KitchenQueueAdd } from '../dtos/queue.dto';
 import { GetInvoiceDto } from '../dtos/kitchen.dto';
@@ -31,6 +31,9 @@ export class KitchenService {
       order_status: queue.order_status as order_status,
       created_at: queue.created_at ?? new Date(),
       updated_at: queue.updated_at ?? new Date(),
+      table_code: queue.table_code,
+      customer_id: queue.customer_id,
+      order_type: queue.order_type as order_type,
     }));
 
     return await this.createMany(kitchenQueues);
@@ -103,24 +106,26 @@ export class KitchenService {
     // get value of kitchen queue by store id
     const queues = await this.getKitchenQueueByStoreId(storeId, orderStatus);
 
-    const grouped = [];
-    let currentGroup = null;
+    return queues;
+
+    // const grouped = [];
+    // let currentGroup = null;
 
     // for (const item of queues) {
     //   if (!currentGroup || currentGroup.invoice_id !== item.invoice_id) {
     //     currentGroup = {
     //       invoice_id: item.invoice_id,
     //       created_at: item.created_at,
-    //       tableNo: item.tableNo,
-    //       orderType: item.orderType,
-    //       customerName: item.customerName,
+    //       table_code: item.table_code,
+    //       order_type: item.order_type,
+    //       customer_id: item.customer_id,
     //       products: [],
     //     };
     //     grouped.push(currentGroup);
     //   }
 
     // currentGroup.products.push({
-    //   orderStatus: item.orderStatus,
+    //   order_status: item.order_status,
     //   productName: item.productName,
     //   variant: item.variant,
     //   notes: item.notes,

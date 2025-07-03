@@ -106,6 +106,7 @@ model customer {
   customers_has_invoices customers_has_invoices[]
   customers_has_tag      customers_has_tag[]
   invoice                invoice[]
+  kitchen_queue          kitchen_queue[]
   trn_customer_points    trn_customer_points[]
 }
 
@@ -623,6 +624,10 @@ model kitchen_queue {
   created_at   DateTime     @db.Timestamp(6)
   updated_at   DateTime?    @db.Timestamp(6)
   store_id     String       @db.Uuid
+  table_code   String?      @db.VarChar
+  order_type   order_type
+  customer_id  String?      @db.Uuid
+  customer     customer?    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_customer_fk")
   invoice      invoice      @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_invoice_fk")
   products     products     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_products_fk")
   stores       stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_stores_fk")
