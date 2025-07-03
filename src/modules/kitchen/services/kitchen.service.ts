@@ -99,7 +99,7 @@ export class KitchenService {
     }
 
     const orderStatus: order_status[] = [
-      order_status.ready,
+      order_status.placed,
       order_status.in_progress,
     ];
 
