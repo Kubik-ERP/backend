@@ -434,12 +434,16 @@ export class InvoiceService {
         const queue: KitchenQueueAdd = {
           id: uuidv4(),
           invoice_id: invoiceId,
+          order_type: request.orderType,
           order_status: order_status.ready,
           product_id: detail.productId,
           variant_id: detail.variantId ?? null,
+          store_id: request.storeId,
+          customer_id: request.customerId,
           notes: detail.notes ?? '',
           created_at: new Date(),
           updated_at: new Date(),
+          table_code: request.tableCode,
         };
 
         kitchenQueue.push(queue);
@@ -532,12 +536,16 @@ export class InvoiceService {
         const queue: KitchenQueueAdd = {
           id: uuidv4(),
           invoice_id: invoiceId,
+          order_type: request.orderType,
           order_status: order_status.ready,
           product_id: detail.productId,
           variant_id: detail.variantId ?? null,
+          store_id: request.storeId,
+          customer_id: request.customerId,
           notes: detail.notes ?? '',
           created_at: new Date(),
           updated_at: new Date(),
+          table_code: request.tableCode,
         };
 
         kitchenQueue.push(queue);

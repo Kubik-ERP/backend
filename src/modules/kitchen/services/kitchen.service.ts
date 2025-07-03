@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { kitchen_queue, order_status } from '@prisma/client';
+import { kitchen_queue, order_status, order_type } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { KitchenQueueAdd } from '../dtos/queue.dto';
 import { GetInvoiceDto } from '../dtos/kitchen.dto';
@@ -26,32 +26,17 @@ export class KitchenService {
       invoice_id: queue.invoice_id,
       product_id: queue.product_id,
       variant_id: queue.variant_id ?? '',
+      store_id: queue.store_id,
       notes: queue.notes ?? null,
       order_status: queue.order_status as order_status,
       created_at: queue.created_at ?? new Date(),
       updated_at: queue.updated_at ?? new Date(),
+      table_code: queue.table_code,
+      customer_id: queue.customer_id,
+      order_type: queue.order_type as order_type,
     }));
 
     return await this.createMany(kitchenQueues);
-  }
-
-  /**
-   * @description Create many kitchen queues
-   */
-  public async createMany(kitchenQueues: kitchen_queue[]): Promise<number> {
-    try {
-      const result = await this._prisma.kitchen_queue.createMany({
-        data: kitchenQueues,
-      });
-
-      return result.count; // total row inserted
-    } catch (error) {
-      this.logger.error('Failed to create kitchen queues');
-      throw new BadRequestException('Failed to create kitchen queues', {
-        cause: new Error(),
-        description: error.message,
-      });
-    }
   }
 
   public async ticketByInvoiceId(request: GetInvoiceDto) {
@@ -104,5 +89,85 @@ export class KitchenService {
     };
 
     return invoice;
+  }
+
+  public async queueList(header: ICustomRequestHeaders) {
+    const storeId = header.store_id ?? '';
+
+    if (storeId === '') {
+      throw new BadRequestException('Store Id is required');
+    }
+
+    const orderStatus: order_status[] = [
+      order_status.ready,
+      order_status.in_progress,
+    ];
+
+    // get value of kitchen queue by store id
+    const queues = await this.getKitchenQueueByStoreId(storeId, orderStatus);
+
+    return queues;
+
+    // const grouped = [];
+    // let currentGroup = null;
+
+    // for (const item of queues) {
+    //   if (!currentGroup || currentGroup.invoice_id !== item.invoice_id) {
+    //     currentGroup = {
+    //       invoice_id: item.invoice_id,
+    //       created_at: item.created_at,
+    //       table_code: item.table_code,
+    //       order_type: item.order_type,
+    //       customer_id: item.customer_id,
+    //       products: [],
+    //     };
+    //     grouped.push(currentGroup);
+    //   }
+
+    // currentGroup.products.push({
+    //   order_status: item.order_status,
+    //   productName: item.productName,
+    //   variant: item.variant,
+    //   notes: item.notes,
+    // });
+  }
+
+  /**
+   * @description Create many kitchen queues
+   */
+  public async createMany(kitchenQueues: kitchen_queue[]): Promise<number> {
+    try {
+      const result = await this._prisma.kitchen_queue.createMany({
+        data: kitchenQueues,
+      });
+
+      return result.count; // total row inserted
+    } catch (error) {
+      this.logger.error('Failed to create kitchen queues');
+      throw new BadRequestException('Failed to create kitchen queues', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Create many kitchen queues
+   */
+  public async getKitchenQueueByStoreId(
+    storeId: string,
+    orderStatus: order_status[],
+  ): Promise<kitchen_queue[]> {
+    try {
+      return await this._prisma.kitchen_queue.findMany({
+        where: { store_id: storeId, order_status: { in: orderStatus } },
+      });
+    } catch (error) {
+      this.logger.error('Failed to create kitchen queues');
+      throw new BadRequestException('Failed to create kitchen queues', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
   }
 }
