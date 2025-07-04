@@ -49,6 +49,8 @@ import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { MailService } from 'src/modules/mail/services/mail.service';
 import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
 import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
+import { isUUID } from 'class-validator';
+import { validateStoreId } from 'src/common/helpers/validators.helper';
 
 @Injectable()
 export class InvoiceService {
@@ -337,6 +339,8 @@ export class InvoiceService {
     header: ICustomRequestHeaders,
     request: ProceedInstantPaymentDto,
   ) {
+    const storeId = validateStoreId(header.store_id);
+
     const paymentProvider = this._paymentFactory.getProvider(request.provider);
     if (!paymentProvider) {
       this.logger.error(`Payment provider '${request.provider}' not found`);
@@ -347,7 +351,7 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
-    const invoiceNumber = await this.generateInvoiceNumber(request.storeId);
+    const invoiceNumber = await this.generateInvoiceNumber(storeId);
     let kitchenQueue: KitchenQueueAdd[] = [];
 
     const invoiceData = {
@@ -371,7 +375,7 @@ export class InvoiceService {
       cashier_id: header.user.id,
       invoice_number: invoiceNumber,
       order_status: order_status.placed,
-      store_id: request.storeId,
+      store_id: storeId,
       complete_order_at: null,
     };
 
@@ -438,7 +442,7 @@ export class InvoiceService {
           order_status: order_status.placed,
           product_id: detail.productId,
           variant_id: detail.variantId ?? null,
-          store_id: request.storeId,
+          store_id: storeId,
           customer_id: request.customerId,
           notes: detail.notes ?? '',
           created_at: new Date(),
@@ -467,9 +471,11 @@ export class InvoiceService {
     header: ICustomRequestHeaders,
     request: ProceedCheckoutInvoiceDto,
   ) {
+    const storeId = validateStoreId(header.store_id);
+
     // create invoice ID
     const invoiceId = uuidv4();
-    const invoiceNumber = await this.generateInvoiceNumber(request.storeId);
+    const invoiceNumber = await this.generateInvoiceNumber(storeId);
     const calculation = await this.calculateTotal(request);
     let kitchenQueue: KitchenQueueAdd[] = [];
 
@@ -494,7 +500,7 @@ export class InvoiceService {
       cashier_id: header.user.id,
       invoice_number: invoiceNumber,
       order_status: order_status.placed,
-      store_id: request.storeId,
+      store_id: storeId,
       complete_order_at: null,
     };
 
@@ -540,7 +546,7 @@ export class InvoiceService {
           order_status: order_status.placed,
           product_id: detail.productId,
           variant_id: detail.variantId ?? null,
-          store_id: request.storeId,
+          store_id: storeId,
           customer_id: request.customerId,
           notes: detail.notes ?? '',
           created_at: new Date(),
@@ -1175,7 +1181,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create invoice detail');
       throw new BadRequestException('Failed to create invoice detail', {
         cause: new Error(),
@@ -1201,7 +1206,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create invoice charge');
       throw new BadRequestException('Failed to create invoice charge', {
         cause: new Error(),
@@ -1229,7 +1233,6 @@ export class InvoiceService {
       });
       return result.count;
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to update invoice charge');
       throw new BadRequestException('Failed to update invoice charge', {
         cause: new Error(),
@@ -1247,7 +1250,6 @@ export class InvoiceService {
         where: { invoice_id: invoiceId },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to fetch invoice detail');
       throw new BadRequestException('Failed to fetch invoice detail', {
         cause: new Error(),
@@ -1265,7 +1267,6 @@ export class InvoiceService {
         where: { invoice_id: invoiceId, charge_id: chargeId },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to fetch invoice charge');
       throw new BadRequestException('Failed to fetch invoice charge', {
         cause: new Error(),
@@ -1337,7 +1338,6 @@ export class InvoiceService {
 
       return toCamelCase(response);
     } catch (error) {
-      console.error(error);
       throw new BadRequestException('Failed to update invoice settings');
     }
   }
@@ -1354,7 +1354,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create customer has invoice');
       throw new BadRequestException('Failed to create customer has invoice', {
         cause: new Error(),
