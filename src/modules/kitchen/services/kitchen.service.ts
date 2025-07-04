@@ -4,11 +4,19 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { kitchen_queue, order_status, order_type } from '@prisma/client';
+import {
+  kitchen_queue,
+  order_status,
+  order_type,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { KitchenQueueAdd, KitchenQueueWithRelations } from '../dtos/queue.dto';
+import {
+  KitchecQueueUpdateOrderStatusDto,
+  KitchenQueueAdd,
+  KitchenQueueWithRelations,
+} from '../dtos/queue.dto';
 import { GetInvoiceDto } from '../dtos/kitchen.dto';
-import { isUUID } from 'class-validator';
 import { validateStoreId } from 'src/common/helpers/validators.helper';
 
 @Injectable()
@@ -103,7 +111,7 @@ export class KitchenService {
 
     // get value of kitchen queue by store id
     const queues: KitchenQueueWithRelations[] =
-      await this.getKitchenQueueByStoreId(storeId, orderStatus);
+      await this.findKitchenQueueByStoreId(storeId, orderStatus);
 
     const grouped: Record<string, any> = {};
 
@@ -143,6 +151,26 @@ export class KitchenService {
     return Object.values(grouped);
   }
 
+  public async updateQueueOrderStatus(
+    queueId: string,
+    request: KitchecQueueUpdateOrderStatusDto,
+  ) {
+    // check the queue is exist
+    const queue = await this.findKitchenQueueById(queueId);
+
+    if (queue === null) {
+      this.logger.error('queue not found');
+      throw new BadRequestException('queue not found');
+    }
+
+    // update queue order status
+    const updated = await this.updateQueueById(queueId, {
+      order_status: request.orderStatus,
+    });
+
+    return updated;
+  }
+
   /**
    * @description Create many kitchen queues
    */
@@ -163,9 +191,31 @@ export class KitchenService {
   }
 
   /**
-   * @description Create many kitchen queues
+   * @description Update kitchen queue by id
    */
-  public async getKitchenQueueByStoreId(
+  public async updateQueueById(
+    id: string,
+    data: Prisma.kitchen_queueUpdateInput,
+  ) {
+    try {
+      const updated = await this._prisma.kitchen_queue.update({
+        where: { id },
+        data,
+      });
+      return updated;
+    } catch (error) {
+      this.logger.error('Failed to create kitchen queues');
+      throw new BadRequestException('Failed to create kitchen queues', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Get kitchen queues by store id
+   */
+  public async findKitchenQueueByStoreId(
     storeId: string,
     orderStatus: order_status[],
   ): Promise<kitchen_queue[]> {
@@ -202,6 +252,24 @@ export class KitchenService {
             },
           },
         },
+        orderBy: { created_at: 'asc' }
+      });
+    } catch (error) {
+      this.logger.error('Failed to create kitchen queues');
+      throw new BadRequestException('Failed to create kitchen queues', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Get kitchen queue by Id
+   */
+  public async findKitchenQueueById(id: string): Promise<kitchen_queue | null> {
+    try {
+      return await this._prisma.kitchen_queue.findUnique({
+        where: { id: id },
       });
     } catch (error) {
       this.logger.error('Failed to create kitchen queues');
