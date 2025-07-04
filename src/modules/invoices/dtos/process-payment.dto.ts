@@ -71,14 +71,6 @@ export class ProceedInstantPaymentDto extends ProductListDto {
   public orderType: order_type;
 
   @ApiProperty({
-    description: 'Store ID',
-    required: true,
-    example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
-  })
-  @IsUUID()
-  public storeId: string;
-
-  @ApiProperty({
     description: 'Payment Method ID',
     required: true,
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
@@ -124,14 +116,6 @@ export class ProceedCheckoutInvoiceDto extends ProductListDto {
   })
   @IsString()
   public vouchers: string[];
-
-  @ApiProperty({
-    description: 'Store ID',
-    required: true,
-    example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
-  })
-  @IsUUID()
-  public storeId: string;
 
   @ApiProperty({
     description: 'Customer ID',
