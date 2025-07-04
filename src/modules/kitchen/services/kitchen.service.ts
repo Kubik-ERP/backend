@@ -9,6 +9,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { KitchenQueueAdd, KitchenQueueWithRelations } from '../dtos/queue.dto';
 import { GetInvoiceDto } from '../dtos/kitchen.dto';
 import { isUUID } from 'class-validator';
+import { validateStoreId } from 'src/common/helpers/validators.helper';
 
 @Injectable()
 export class KitchenService {
@@ -93,11 +94,7 @@ export class KitchenService {
   }
 
   public async queueList(header: ICustomRequestHeaders) {
-    const storeId = header.store_id ?? '';
-
-    if (!storeId || typeof storeId !== 'string' || !isUUID(storeId)) {
-      throw new BadRequestException('X-STORE-ID header must be a valid UUID');
-    }
+    const storeId = validateStoreId(header.store_id);
 
     const orderStatus: order_status[] = [
       order_status.placed,

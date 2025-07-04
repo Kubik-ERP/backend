@@ -50,6 +50,7 @@ import { MailService } from 'src/modules/mail/services/mail.service';
 import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
 import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
 import { isUUID } from 'class-validator';
+import { validateStoreId } from 'src/common/helpers/validators.helper';
 
 @Injectable()
 export class InvoiceService {
@@ -338,11 +339,7 @@ export class InvoiceService {
     header: ICustomRequestHeaders,
     request: ProceedInstantPaymentDto,
   ) {
-    const storeId = header.store_id ?? '';
-
-    if (!storeId || typeof storeId !== 'string' || !isUUID(storeId)) {
-      throw new BadRequestException('X-STORE-ID header must be a valid UUID');
-    }
+    const storeId = validateStoreId(header.store_id);
 
     const paymentProvider = this._paymentFactory.getProvider(request.provider);
     if (!paymentProvider) {
@@ -474,11 +471,7 @@ export class InvoiceService {
     header: ICustomRequestHeaders,
     request: ProceedCheckoutInvoiceDto,
   ) {
-    const storeId = header.store_id ?? '';
-
-    if (!storeId || typeof storeId !== 'string' || !isUUID(storeId)) {
-      throw new BadRequestException('X-STORE-ID header must be a valid UUID');
-    }
+    const storeId = validateStoreId(header.store_id);
 
     // create invoice ID
     const invoiceId = uuidv4();
