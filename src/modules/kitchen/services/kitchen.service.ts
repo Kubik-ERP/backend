@@ -252,7 +252,7 @@ export class KitchenService {
             },
           },
         },
-        orderBy: { created_at: 'asc' }
+        orderBy: { created_at: 'asc' },
       });
     } catch (error) {
       this.logger.error('Failed to create kitchen queues');
