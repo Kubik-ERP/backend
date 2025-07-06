@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -12,10 +13,24 @@ import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.gua
 import { KitchenService } from '../services/kitchen.service';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
 import { KitchecQueueUpdateOrderStatusDto } from '../dtos/queue.dto';
+import { GetListInvoiceDto } from '../dtos/kitchen.dto';
 
 @Controller('kitchen')
 export class KitchenController {
   constructor(private readonly kitchenService: KitchenService) {}
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @Get('')
+  @ApiOperation({
+    summary: 'Get Kitchen Queues List',
+  })
+  public async getKitchenQueuesList(@Query() query: GetListInvoiceDto) {
+    const response = await this.kitchenService.getKitchenQueuesList(query);
+    return {
+      result: toCamelCase(response),
+    };
+  }
 
   @UseGuards(AuthenticationJWTGuard)
   @Get('ticket/:invoiceId')
