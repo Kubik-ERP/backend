@@ -149,6 +149,7 @@ export class KitchenService {
       select: {
         id: true,
         created_at: true,
+        table_code: true,
         invoice_number: true,
         users: {
           select: { id: true, fullname: true },

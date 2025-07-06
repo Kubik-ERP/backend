@@ -33,6 +33,7 @@ export class KitchenController {
   }
 
   @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Get('ticket/:invoiceId')
   @ApiOperation({
     summary: 'Get Kitchen Ticket in Invoice Detail',
