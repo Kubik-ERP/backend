@@ -132,14 +132,14 @@ export class KitchenService {
       id: queue.id,
       invoice_id: queue.invoice_id,
       product_id: queue.product_id,
-      variant_id: queue.variant_id ?? '',
+      variant_id: queue.variant_id || null,
       store_id: queue.store_id,
-      notes: queue.notes ?? null,
+      notes: queue.notes || null,
       order_status: queue.order_status as order_status,
       created_at: queue.created_at ?? new Date(),
       updated_at: queue.updated_at ?? new Date(),
-      table_code: queue.table_code,
-      customer_id: queue.customer_id,
+      table_code: queue.table_code || null,
+      customer_id: queue.customer_id || null,
       order_type: queue.order_type as order_type,
     }));
 
@@ -280,7 +280,7 @@ export class KitchenService {
 
       return result.count; // total row inserted
     } catch (error) {
-      this.logger.error('Failed to create kitchen queues');
+      this.logger.error(`Failed to create kitchen queues: ${error}`);
       throw new BadRequestException('Failed to create kitchen queues', {
         cause: new Error(),
         description: error.message,
