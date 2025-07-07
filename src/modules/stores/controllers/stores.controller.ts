@@ -361,6 +361,9 @@ export class StoresController {
 
   @Get('user/:id')
   @ApiOperation({ summary: 'Get store(s) by user ID' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @UseGuards(PinGuard)
   public async getStoreByUser(@Param('id') id: number) {
     try {
       const stores = await this._storeService.getStoreByUserId(id);
@@ -425,8 +428,10 @@ export class StoresController {
       };
     } catch (error) {
       console.log(error);
-      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
-
 }
