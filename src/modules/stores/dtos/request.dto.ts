@@ -8,7 +8,6 @@ import {
   ValidateNested,
   IsIn,
   Matches,
-  Max,
   MaxLength,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
@@ -20,7 +19,7 @@ enum BusinessType {
 }
 
 class BusinessHoursDto {
-  @ApiProperty()
+  @ApiProperty({ example: 'Monday' })
   @IsString()
   @IsIn(
     [
@@ -32,13 +31,11 @@ class BusinessHoursDto {
       'Saturday',
       'Sunday',
     ],
-    {
-      message: 'day must be a valid weekday in English',
-    },
+    { message: 'day must be a valid weekday in English' },
   )
   day: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '09:00:00' })
   @IsOptional()
   @IsString()
   @Matches(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/, {
@@ -46,7 +43,7 @@ class BusinessHoursDto {
   })
   openTime?: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '18:00:00' })
   @IsOptional()
   @IsString()
   @Matches(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/, {
@@ -56,82 +53,58 @@ class BusinessHoursDto {
 }
 
 export class CreateStoreDto {
-  @ApiProperty()
+  @ApiProperty({ example: 'My Store' })
   @IsString()
   @MaxLength(45)
   storeName: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'my@store.com' })
   @IsEmail()
   email: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '+628123456789' })
   @IsPhoneNumber('ID')
   phoneNumber: string;
 
-  @ApiProperty()
+  @ApiProperty({ enum: BusinessType })
   @IsEnum(BusinessType)
   businessType: BusinessType;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'Jl. Kemerdekaan 10' })
   @IsString()
   @MaxLength(255)
   streetAddress: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'Surabaya' })
   @IsString()
   @MaxLength(45)
   city: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '60236', required: false })
   @IsOptional()
   @IsString()
   @MaxLength(10)
   postalCode?: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'Ruko Blok B', required: false })
   @IsOptional()
   @IsString()
   @MaxLength(255)
   building?: string;
 
-  @Transform(({ value }) => {
-    try {
-      if (typeof value === 'string') {
-        const parsed = JSON.parse(value);
-
-        if (Array.isArray(parsed)) {
-          const filtered = parsed.filter((obj) => {
-            const isValid =
-              obj &&
-              typeof obj.day === 'string' &&
-              typeof obj.openTime === 'string' &&
-              typeof obj.closeTime === 'string';
-
-            return isValid;
-          });
-
-          return filtered;
-        }
-      }
-    } catch (err) {
-      console.error('❗ Failed to parse businessHours:', err);
-    }
-
-    return [];
+  @ApiProperty({
+    type: [BusinessHoursDto],
+    description:
+      'businessHour[0][day], businessHour[0][openTime], businessHour[0][closeTime]',
   })
-  @IsArray()
   @ValidateNested({ each: true })
   @Type(() => BusinessHoursDto)
-  @ApiProperty({
-    type: BusinessHoursDto,
-    example: `[{"day":"Monday","openTime":"09:00:00","closeTime":"18:00:00"},{"day":"Tuesday","openTime":"10:00:00","closeTime":"19:00:00"}]`,
-    description:
-      'JSON string representing an array of business hours objects. Each object must have "day", "openTime", and "closeTime" in "HH:mm:ss" format.',
-  })
   businessHours: BusinessHoursDto[];
 
-  @ApiProperty({ required: false })
+  @ApiProperty({
+    required: false,
+    description: 'Relative image path (optional)',
+  })
   @IsOptional()
   @IsString()
   photo?: string;

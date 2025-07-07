@@ -14,49 +14,31 @@ export class StoresService {
     userId: number,
   ): Promise<void> {
     await this.prisma.$transaction(async (prisma) => {
+      console.log('Data masuk ke service:', data);
+      console.log('Parsed businessHours:', data.businessHours);
       const store = await prisma.stores.create({
         data: {
           id: uuidv4(),
-          name: data.storeName, // DTO pakai `storeName`
+          name: data.storeName,
           email: data.email,
-          phone_number: data.phoneNumber, // DTO pakai `phoneNumber`
-          business_type: data.businessType, // DTO pakai `businessType`
+          phone_number: data.phoneNumber,
+          business_type: data.businessType,
           photo: data.photo ?? null,
-          address: data.streetAddress, // DTO pakai `streetAddress`
+          address: data.streetAddress,
           city: data.city,
-          postal_code: data.postalCode, // DTO pakai `postalCode`
+          postal_code: data.postalCode,
           building: data.building,
           created_at: new Date(),
           updated_at: new Date(),
         },
       });
-
       await prisma.user_has_stores.create({
         data: {
-          user_id: userId, // Ganti dengan ID user yang login
-          store_id: store.id, // Ambil ID store yang baru dibuat
+          user_id: userId,
+          store_id: store.id,
         },
       });
-
-      console.log(
-        'Parsed businessHours:',
-        JSON.stringify(data.businessHours, null, 2),
-      );
-
-      let parsedBusinessHours: any[] = [];
-
-      if (typeof data.businessHours === 'string') {
-        try {
-          parsedBusinessHours = JSON.parse(data.businessHours);
-        } catch (e) {
-          parsedBusinessHours = [];
-        }
-      } else {
-        parsedBusinessHours = data.businessHours;
-      }
-
-      console.log('✅ Final parsed businessHours:', parsedBusinessHours);
-
+      const parsedBusinessHours = data.businessHours;
       if (parsedBusinessHours?.length) {
         await prisma.operational_hours.createMany({
           data: parsedBusinessHours.map((bh) => ({

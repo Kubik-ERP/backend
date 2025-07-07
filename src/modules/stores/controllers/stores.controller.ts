@@ -47,10 +47,10 @@ export class StoresController {
     private readonly storageService: StorageService,
   ) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  // @UseGuards(AuthenticationJWTGuard)
   @Post('/')
   @HttpCode(200)
-  @ApiBearerAuth()
+  // @ApiBearerAuth()
   @ApiOperation({ summary: 'Create store' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -125,12 +125,12 @@ export class StoresController {
     },
   })
   @ApiConsumes('multipart/form-data')
-  @UseGuards(PinGuard)
+  // @UseGuards(PinGuard)
   @UseInterceptors(ImageUploadInterceptor('file'))
   @UsePipes(new ValidationPipe({ transform: true }))
   public async createStore(
     @Req() req: ICustomRequestHeaders,
-    @Body() body: any,
+    @Body() body: CreateStoreDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
@@ -146,7 +146,7 @@ export class StoresController {
 
       await this._storeService.createStore(
         { ...body, photo: relativePath },
-        req.user.id,
+        10,
       );
 
       return {

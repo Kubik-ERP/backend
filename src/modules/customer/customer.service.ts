@@ -128,10 +128,12 @@ export class CustomerService {
 
     return {
       data: customers,
-      total_data: total,
-      current_page: page,
-      page_size: limit,
-      total_pages: Math.ceil(total / limit),
+      meta:{
+        total_data: total,
+        current_page: page,
+        page_size: limit,
+        total_pages: Math.ceil(total / limit),
+      },
     };
   }
 
@@ -213,10 +215,12 @@ export class CustomerService {
       stores: customer.customer_has_stores.map((chs) => chs.stores),
       invoices: {
         data: invoices,
-        total_data: totalSales,
-        current_page: page,
-        page_size: limit,
-        total_pages: Math.ceil(totalSales / limit),
+        meta: {
+          total_data: totalSales,
+          current_page: page,
+          page_size: limit,
+          total_pages: Math.ceil(totalSales / limit),
+        },
       },
     };
   }
