@@ -16,14 +16,111 @@ import {
   KitchenQueueAdd,
   KitchenQueueWithRelations,
 } from '../dtos/queue.dto';
-import { GetInvoiceDto } from '../dtos/kitchen.dto';
+import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/kitchen.dto';
 import { validateStoreId } from 'src/common/helpers/validators.helper';
+import { formatDateCommon } from 'src/common/helpers/common.helpers';
 
 @Injectable()
 export class KitchenService {
   private readonly logger = new Logger(KitchenService.name);
 
   constructor(private readonly _prisma: PrismaService) {}
+
+  public async getKitchenQueuesList(
+    header: ICustomRequestHeaders,
+    request: GetListInvoiceDto,
+  ) {
+    const storeId = validateStoreId(header.store_id);
+    const {
+      page,
+      pageSize,
+      invoiceNumber,
+      createdAtFrom,
+      createdAtTo,
+      orderType,
+      paymentStatus,
+    } = request;
+
+    const createdAtFilter: Record<string, Date> = {};
+    if (createdAtFrom) {
+      createdAtFilter.gte = new Date(createdAtFrom);
+    }
+    if (createdAtTo) {
+      createdAtFilter.lte = new Date(createdAtTo);
+    }
+
+    // order by clause
+    const orderByField = request.orderBy ?? 'created_at';
+    const orderDirection = request.orderDirection ?? 'desc';
+
+    const filters: Prisma.invoiceWhereInput = {
+      ...(Object.keys(createdAtFilter).length > 0 && {
+        created_at: createdAtFilter,
+      }),
+      ...(paymentStatus && {
+        payment_status: {
+          in: Array.isArray(paymentStatus) ? paymentStatus : [paymentStatus],
+        },
+      }),
+      ...(orderType && {
+        order_type: { in: Array.isArray(orderType) ? orderType : [orderType] },
+      }),
+      ...(invoiceNumber && { invoice_number: { equals: invoiceNumber } }),
+      store_id: storeId,
+    };
+
+    const [rawItems, total] = await Promise.all([
+      this._prisma.invoice.findMany({
+        where: filters,
+        select: {
+          id: true,
+          invoice_number: true,
+          created_at: true,
+          order_type: true,
+          payment_status: true,
+          table_code: true,
+          customer: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          order_status: true,
+          complete_order_at: true,
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: {
+          [orderByField]: orderDirection,
+        },
+      }),
+      this._prisma.invoice.count({
+        where: filters,
+      }),
+    ]);
+
+    const items = rawItems.map((item) => ({
+      orderNumber: item.invoice_number,
+      purchaseDate: item.created_at ? formatDateCommon(item.created_at) : '',
+      customer: item.customer?.name ?? '',
+      tableNumber: item.table_code,
+      orderType: item.order_type,
+      orderStatus: item.order_status,
+      duration: item.complete_order_at,
+      createdAt: item.created_at,
+      durationFormatted: item?.complete_order_at ?? '',
+    }));
+
+    return {
+      items,
+      meta: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
+  }
 
   public async createKitchenQueue(queues: KitchenQueueAdd[]) {
     if (!queues || queues.length === 0) {
@@ -57,6 +154,7 @@ export class KitchenService {
       select: {
         id: true,
         created_at: true,
+        table_code: true,
         invoice_number: true,
         users: {
           select: { id: true, fullname: true },

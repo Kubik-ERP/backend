@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -12,20 +13,29 @@ import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.gua
 import { KitchenService } from '../services/kitchen.service';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
 import { KitchecQueueUpdateOrderStatusDto } from '../dtos/queue.dto';
+import { GetListInvoiceDto } from '../dtos/kitchen.dto';
 
 @Controller('kitchen')
 export class KitchenController {
   constructor(private readonly kitchenService: KitchenService) {}
 
   @UseGuards(AuthenticationJWTGuard)
-  @Get('ticket/:invoiceId')
+  @ApiBearerAuth()
+  @Get('queue/customer')
   @ApiOperation({
-    summary: 'Get Kitchen Ticket in Invoice Detail',
+    summary: 'Get Kitchen Queues List',
   })
-  public async getTicketByInvoiceId(@Param('invoiceId') invoiceId: string) {
-    const response = await this.kitchenService.ticketByInvoiceId({
-      invoiceId,
-    });
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  public async getKitchenQueuesList(
+    @Req() req: ICustomRequestHeaders,
+    @Query() query: GetListInvoiceDto,
+  ) {
+    const response = await this.kitchenService.getKitchenQueuesList(req, query);
     return {
       result: toCamelCase(response),
     };
@@ -33,7 +43,7 @@ export class KitchenController {
 
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
-  @Get('queue')
+  @Get('queue/kitchen')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -45,6 +55,21 @@ export class KitchenController {
   })
   public async fetchKitchenQueueList(@Req() req: ICustomRequestHeaders) {
     const response = await this.kitchenService.queueList(req);
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @Get('ticket/:invoiceId')
+  @ApiOperation({
+    summary: 'Get Kitchen Ticket in Invoice Detail',
+  })
+  public async getTicketByInvoiceId(@Param('invoiceId') invoiceId: string) {
+    const response = await this.kitchenService.ticketByInvoiceId({
+      invoiceId,
+    });
     return {
       result: toCamelCase(response),
     };

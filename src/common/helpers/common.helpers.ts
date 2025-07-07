@@ -38,3 +38,13 @@ export const getEndOfDay = (date: string): number => {
   }
   return dt.endOf('day').toUnixInteger(); // Unix timestamp dalam milidetik
 };
+
+export const formatDateCommon = (date: Date): string => {
+  if (!date) return '';
+  const d = new Date(date);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const day = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
