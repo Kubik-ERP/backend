@@ -17,7 +17,7 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerService } from './customer.service';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
 import { QueryInvoiceDto } from './dto/query-invoice.dto';
 
@@ -230,6 +230,9 @@ export class CustomersController {
 
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get Customer Waiting List Orders',
+  })
   @Get('/waiting/list')
   async waitingListOrders() {
     const responses = await this.customersService.queueWaitingListOrder();

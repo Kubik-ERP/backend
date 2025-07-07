@@ -293,7 +293,7 @@ export class InvoicePreviewDto {
   paymentMethods: PaymentMethodDto;
 }
 
-// unexposed DTO to swagger
+// unexposed DTO to swagger, no need decorator
 export class InvoiceUpdateDto {
   payment_method_id?: string;
   customer_id?: string;

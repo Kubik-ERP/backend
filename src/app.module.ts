@@ -11,7 +11,7 @@ import { CustomLogger } from './common/logger/custom.logger';
 import { TemplatesEmailModule } from './modules/templates-email/templates-email.module';
 
 // NestJS Libraries
-import { Logger, Module } from '@nestjs/common';
+import { Logger, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { CacheModule } from '@nestjs/cache-manager';
 
@@ -26,6 +26,8 @@ import { CustomerModule } from './modules/customer/customer.module';
 import { ChargesModule } from './modules/charges/charges.module';
 import { CashDrawerModule } from './modules/cash-drawer/cash-drawer.module';
 import { TablesModule } from './modules/tables/tables.module';
+import { KitchenModule } from './modules/kitchen/kitchen.module';
+import { HeaderMiddleware } from './common/middleware/header-middleware';
 
 @Module({
   imports: [
@@ -51,20 +53,21 @@ import { TablesModule } from './modules/tables/tables.module';
 
     // Core Feature Modules
     AuthenticationModule,
-    UsersModule,
+    CashDrawerModule,
     CategoriesModule,
     ChargesModule,
-    InvoicesModule,
     CustomerModule,
+    EmployeesModule,
+    InvoicesModule,
+    KitchenModule,
     PaymentMethodModule,
     ProductsModule,
-    StoresModule,
-    EmployeesModule,
     RolesModule,
     ShiftModule,
-    CashDrawerModule,
-    TemplatesEmailModule,
+    StoresModule,
+    UsersModule,
     TablesModule,
+    TemplatesEmailModule,
   ],
   providers: [
     {
@@ -75,4 +78,8 @@ import { TablesModule } from './modules/tables/tables.module';
   ],
   exports: [Logger, CustomLogger],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(HeaderMiddleware).forRoutes('*');
+  }
+}

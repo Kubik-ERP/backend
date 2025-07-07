@@ -21,7 +21,7 @@ import {
   PaymentCallbackDto,
 } from '../dtos/callback-payment.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
-import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
 import {
   GetListInvoiceDto,
   UpdateInvoiceOrderStatusDto,
@@ -125,6 +125,12 @@ export class InvoiceController {
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @Post('process/instant')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @ApiOperation({
     summary: 'Create invoice and pay it instantly',
   })
@@ -141,6 +147,12 @@ export class InvoiceController {
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @Post('process/checkout')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @ApiOperation({
     summary: 'Create invoice with unpaid status',
   })

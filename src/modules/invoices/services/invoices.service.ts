@@ -47,6 +47,10 @@ import {
 } from '../dtos/setting-invoice.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { MailService } from 'src/modules/mail/services/mail.service';
+import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
+import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
+import { isUUID } from 'class-validator';
+import { validateStoreId } from 'src/common/helpers/validators.helper';
 
 @Injectable()
 export class InvoiceService {
@@ -55,6 +59,7 @@ export class InvoiceService {
   constructor(
     private readonly _prisma: PrismaService,
     private readonly _charge: ChargesService,
+    private readonly _kitchenQueue: KitchenService,
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
     private readonly _mailService: MailService,
@@ -334,6 +339,8 @@ export class InvoiceService {
     header: ICustomRequestHeaders,
     request: ProceedInstantPaymentDto,
   ) {
+    const storeId = validateStoreId(header.store_id);
+
     const paymentProvider = this._paymentFactory.getProvider(request.provider);
     if (!paymentProvider) {
       this.logger.error(`Payment provider '${request.provider}' not found`);
@@ -344,7 +351,8 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
-    const invoiceNumber = await this.generateInvoiceNumber(request.storeId);
+    const invoiceNumber = await this.generateInvoiceNumber(storeId);
+    let kitchenQueue: KitchenQueueAdd[] = [];
 
     const invoiceData = {
       id: invoiceId,
@@ -366,8 +374,8 @@ export class InvoiceService {
       grand_total: null,
       cashier_id: header.user.id,
       invoice_number: invoiceNumber,
-      order_status: order_status.ready,
-      store_id: request.storeId,
+      order_status: order_status.placed,
+      store_id: storeId,
       complete_order_at: null,
     };
 
@@ -389,7 +397,7 @@ export class InvoiceService {
     // insert the customer has invoice
     await this.createCustomerInvoice(invoiceId, request.customerId);
 
-    request.products.forEach(async (detail) => {
+    for (const detail of request.products) {
       // find the price
       let productPrice = 0,
         variantPrice = 0;
@@ -424,7 +432,30 @@ export class InvoiceService {
 
       // create invoice with status unpaid
       await this.createInvoiceDetail(invoiceDetailData);
-    });
+
+      // looping each quantity
+      for (let i = 0; i < detail.quantity; i++) {
+        const queue: KitchenQueueAdd = {
+          id: uuidv4(),
+          invoice_id: invoiceId,
+          order_type: request.orderType,
+          order_status: order_status.placed,
+          product_id: detail.productId,
+          variant_id: detail.variantId ?? null,
+          store_id: storeId,
+          customer_id: request.customerId,
+          notes: detail.notes ?? '',
+          created_at: new Date(),
+          updated_at: new Date(),
+          table_code: request.tableCode,
+        };
+
+        kitchenQueue.push(queue);
+      }
+    }
+
+    // create kitchen queue
+    await this._kitchenQueue.createKitchenQueue(kitchenQueue);
 
     const response = await this.initiatePaymentBasedOnMethod(
       request.paymentMethodId,
@@ -440,10 +471,14 @@ export class InvoiceService {
     header: ICustomRequestHeaders,
     request: ProceedCheckoutInvoiceDto,
   ) {
+    const storeId = validateStoreId(header.store_id);
+
     // create invoice ID
     const invoiceId = uuidv4();
-    const invoiceNumber = await this.generateInvoiceNumber(request.storeId);
+    const invoiceNumber = await this.generateInvoiceNumber(storeId);
     const calculation = await this.calculateTotal(request);
+    let kitchenQueue: KitchenQueueAdd[] = [];
+
     const invoiceData = {
       id: invoiceId,
       payment_methods_id: null,
@@ -464,8 +499,8 @@ export class InvoiceService {
       grand_total: null,
       cashier_id: header.user.id,
       invoice_number: invoiceNumber,
-      order_status: order_status.ready,
-      store_id: request.storeId,
+      order_status: order_status.placed,
+      store_id: storeId,
       complete_order_at: null,
     };
 
@@ -501,19 +536,39 @@ export class InvoiceService {
 
       // create invoice with status unpaid
       await this.createInvoiceDetail(invoiceDetailData);
+
+      // looping each quantity
+      for (let i = 0; i < detail.quantity; i++) {
+        const queue: KitchenQueueAdd = {
+          id: uuidv4(),
+          invoice_id: invoiceId,
+          order_type: request.orderType,
+          order_status: order_status.placed,
+          product_id: detail.productId,
+          variant_id: detail.variantId ?? null,
+          store_id: storeId,
+          customer_id: request.customerId,
+          notes: detail.notes ?? '',
+          created_at: new Date(),
+          updated_at: new Date(),
+          table_code: request.tableCode,
+        };
+
+        kitchenQueue.push(queue);
+      }
     });
 
     // insert the customer has invoice
     await this.createCustomerInvoice(invoiceId, request.customerId);
+
+    // create kitchen queue
+    await this._kitchenQueue.createKitchenQueue(kitchenQueue);
 
     const result = {
       orderId: invoiceId,
     };
     return result;
   }
-
-  // TODO: process kitchen queue
-  public async processKitchenQueue() {}
 
   public async proceedPayment(request: ProceedPaymentDto) {
     // Check the invoice is unpaid
@@ -1046,7 +1101,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create invoice');
       throw new BadRequestException('Failed to create invoice', {
         cause: new Error(),
@@ -1127,7 +1181,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create invoice detail');
       throw new BadRequestException('Failed to create invoice detail', {
         cause: new Error(),
@@ -1153,7 +1206,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create invoice charge');
       throw new BadRequestException('Failed to create invoice charge', {
         cause: new Error(),
@@ -1181,7 +1233,6 @@ export class InvoiceService {
       });
       return result.count;
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to update invoice charge');
       throw new BadRequestException('Failed to update invoice charge', {
         cause: new Error(),
@@ -1199,7 +1250,6 @@ export class InvoiceService {
         where: { invoice_id: invoiceId },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to fetch invoice detail');
       throw new BadRequestException('Failed to fetch invoice detail', {
         cause: new Error(),
@@ -1217,7 +1267,6 @@ export class InvoiceService {
         where: { invoice_id: invoiceId, charge_id: chargeId },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to fetch invoice charge');
       throw new BadRequestException('Failed to fetch invoice charge', {
         cause: new Error(),
@@ -1289,7 +1338,6 @@ export class InvoiceService {
 
       return toCamelCase(response);
     } catch (error) {
-      console.error(error);
       throw new BadRequestException('Failed to update invoice settings');
     }
   }
@@ -1306,7 +1354,6 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      console.log(error);
       this.logger.error('Failed to create customer has invoice');
       throw new BadRequestException('Failed to create customer has invoice', {
         cause: new Error(),

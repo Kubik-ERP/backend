@@ -1,3 +1,4 @@
+import { Request } from 'express';
 export {};
 
 /**
@@ -38,6 +39,7 @@ declare global {
 
   interface ICustomRequestHeaders extends Request {
     user: IRequestUser;
+    store_id?: string;
   }
 
   interface IValidateJWTStrategy {
@@ -49,6 +51,5 @@ declare global {
     ext: string;
     role: string;
     pin: string;
-
   }
 }
