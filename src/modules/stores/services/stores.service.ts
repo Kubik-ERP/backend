@@ -159,6 +159,38 @@ export class StoresService {
     });
   }
 
+  public async getStoreByUserId(userId: number): Promise<any> {
+    return this.prisma.stores.findMany({
+      where: {
+        user_has_stores: {
+          some: {
+            user_id: userId,
+          },
+        },
+      },
+      include: {
+        operational_hours: {
+          orderBy: {
+            days: 'asc',
+          },
+        },
+        user_has_stores: {
+          include: {
+            users: {
+              include: {
+                users_has_banks: {
+                  include: {
+                    banks: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
   public async getAllStores(userId: number): Promise<any[]> {
     return await this.prisma.stores.findMany({
       where: {

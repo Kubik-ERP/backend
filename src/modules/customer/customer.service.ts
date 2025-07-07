@@ -128,7 +128,7 @@ export class CustomerService {
 
     return {
       data: customers,
-      meta:{
+      meta: {
         total_data: total,
         current_page: page,
         page_size: limit,

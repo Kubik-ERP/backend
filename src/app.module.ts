@@ -28,6 +28,7 @@ import { CashDrawerModule } from './modules/cash-drawer/cash-drawer.module';
 import { TablesModule } from './modules/tables/tables.module';
 import { KitchenModule } from './modules/kitchen/kitchen.module';
 import { HeaderMiddleware } from './common/middleware/header-middleware';
+import { BankModule } from './modules/bank/bank.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { HeaderMiddleware } from './common/middleware/header-middleware';
     UsersModule,
     TablesModule,
     TemplatesEmailModule,
+    BankModule,
   ],
   providers: [
     {

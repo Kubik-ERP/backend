@@ -47,10 +47,10 @@ export class StoresController {
     private readonly storageService: StorageService,
   ) {}
 
-  // @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthenticationJWTGuard)
   @Post('/')
   @HttpCode(200)
-  // @ApiBearerAuth()
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Create store' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -125,7 +125,7 @@ export class StoresController {
     },
   })
   @ApiConsumes('multipart/form-data')
-  // @UseGuards(PinGuard)
+  @UseGuards(PinGuard)
   @UseInterceptors(ImageUploadInterceptor('file'))
   @UsePipes(new ValidationPipe({ transform: true }))
   public async createStore(
@@ -146,7 +146,7 @@ export class StoresController {
 
       await this._storeService.createStore(
         { ...body, photo: relativePath },
-        10,
+        req.user.id,
       );
 
       return {
@@ -161,12 +161,12 @@ export class StoresController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  // @UseGuards(AuthenticationJWTGuard)
   @Put('/:id')
-  @ApiBearerAuth()
+  // @ApiBearerAuth()
   @ApiOperation({ summary: 'Update store by ID' })
   @ApiConsumes('multipart/form-data')
-  @UseGuards(PinGuard)
+  // @UseGuards(PinGuard)
   @ApiBody({
     description: 'Form data for creating a store (including file upload)',
     schema: {
@@ -235,7 +235,7 @@ export class StoresController {
         relativePath = `/${result.bucket}/${result.filename}`;
       }
 
-      await this._storeService.updateStore(id, req.user.id, {
+      await this._storeService.updateStore(id, 10, {
         ...body,
         photo: relativePath,
       });
@@ -286,9 +286,9 @@ export class StoresController {
     }
   }
 
-  // @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthenticationJWTGuard)
   @Get('/:id')
-  // @ApiBearerAuth()
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get store by ID' })
   public async getStoreById(@Param('id') id: string) {
     try {
@@ -350,6 +350,68 @@ export class StoresController {
     try {
       await this._storeService.deleteStore(id, req.user.id);
       return { message: 'Store deleted successfully' };
+    } catch (error) {
+      console.log(error);
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('user/:id')
+  @ApiOperation({ summary: 'Get store(s) by user ID' })
+  public async getStoreByUser(@Param('id') id: number) {
+    try {
+      const stores = await this._storeService.getStoreByUserId(id);
+
+      const result = stores.map((store: any) => {
+        const groupedOperationalHours = store.operational_hours.reduce(
+          (acc: any, item: any) => {
+            const day = item.days;
+            if (!acc[day]) {
+              acc[day] = {
+                days: day,
+                times: [],
+              };
+            }
+            acc[day].times.push({
+              openTime: item.open_time,
+              closeTime: item.close_time,
+            });
+            return acc;
+          },
+          {},
+        );
+
+        const user = store.user_has_stores[0]?.users;
+        const userBanks = user?.users_has_banks || [];
+
+        return {
+          id: store.id,
+          name: store.name,
+          email: user?.email,
+          phone_number: user?.phone,
+          business_type: store.business_type,
+          photo: store.photo,
+          address: store.address,
+          city: store.city,
+          postal_code: store.postal_code,
+          building: store.building,
+          created_at: formatDate(store.created_at),
+          updated_at: formatDate(store.updated_at),
+          operationalHours: Object.values(groupedOperationalHours),
+          userBanks: userBanks.map((bank: any) => ({
+            bankName: bank.banks?.name || null,
+            accountNumber: bank.account_number,
+            accountName: bank.accoun,
+          })),
+        };
+      });
+
+      return {
+        result: result.map(toCamelCase),
+      };
     } catch (error) {
       console.log(error);
       throw new HttpException(

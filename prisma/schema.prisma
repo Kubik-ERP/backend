@@ -532,6 +532,7 @@ model users {
   invoice         invoice[]
   user_has_stores user_has_stores[]
   roles           roles             @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
+  users_has_banks users_has_banks[]
 }
 
 model users_token {
@@ -632,6 +633,22 @@ model kitchen_queue {
   products     products     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_products_fk")
   stores       stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_stores_fk")
   variant      variant?     @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_variant_fk")
+}
+
+model banks {
+  id              String            @id(map: "banks_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String?           @db.VarChar(45)
+  users_has_banks users_has_banks[]
+}
+
+model users_has_banks {
+  id             String  @id(map: "users_has_banks_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  users_id       Int?
+  bank_id        String? @db.Uuid
+  account_number String? @db.VarChar(45)
+  account_name   String? @db.VarChar(45)
+  banks          banks?  @relation(fields: [bank_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_has_banks_banks_id_fk")
+  users          users?  @relation(fields: [users_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_has_banks_users_id_fk")
 }
 
 enum cash_drawer_type {
