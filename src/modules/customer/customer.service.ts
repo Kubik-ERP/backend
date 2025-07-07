@@ -128,9 +128,10 @@ export class CustomerService {
 
     return {
       data: customers,
-      total,
-      page,
-      lastPage: Math.ceil(total / limit),
+      total_data: total,
+      current_page: page,
+      page_size: limit,
+      total_pages: Math.ceil(total / limit),
     };
   }
 
@@ -210,7 +211,13 @@ export class CustomerService {
       last_visited: lastVisited,
       tags: customer.customers_has_tag.map((cht) => cht.tag),
       stores: customer.customer_has_stores.map((chs) => chs.stores),
-      invoices,
+      invoices: {
+        data: invoices,
+        total_data: totalSales,
+        current_page: page,
+        page_size: limit,
+        total_pages: Math.ceil(totalSales / limit),
+      },
     };
   }
 
