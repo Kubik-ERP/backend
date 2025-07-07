@@ -26,7 +26,11 @@ export class KitchenService {
 
   constructor(private readonly _prisma: PrismaService) {}
 
-  public async getKitchenQueuesList(request: GetListInvoiceDto) {
+  public async getKitchenQueuesList(
+    header: ICustomRequestHeaders,
+    request: GetListInvoiceDto,
+  ) {
+    const storeId = validateStoreId(header.store_id);
     const {
       page,
       pageSize,
@@ -62,6 +66,7 @@ export class KitchenService {
         order_type: { in: Array.isArray(orderType) ? orderType : [orderType] },
       }),
       ...(invoiceNumber && { invoice_number: { equals: invoiceNumber } }),
+      store_id: storeId,
     };
 
     const [rawItems, total] = await Promise.all([

@@ -21,12 +21,40 @@ export class KitchenController {
 
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
-  @Get('')
+  @Get('queue/customer')
   @ApiOperation({
     summary: 'Get Kitchen Queues List',
   })
-  public async getKitchenQueuesList(@Query() query: GetListInvoiceDto) {
-    const response = await this.kitchenService.getKitchenQueuesList(query);
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  public async getKitchenQueuesList(
+    @Req() req: ICustomRequestHeaders,
+    @Query() query: GetListInvoiceDto,
+  ) {
+    const response = await this.kitchenService.getKitchenQueuesList(req, query);
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @Get('queue/kitchen')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiOperation({
+    summary: 'Fetch kitchen queue list',
+  })
+  public async fetchKitchenQueueList(@Req() req: ICustomRequestHeaders) {
+    const response = await this.kitchenService.queueList(req);
     return {
       result: toCamelCase(response),
     };
@@ -42,25 +70,6 @@ export class KitchenController {
     const response = await this.kitchenService.ticketByInvoiceId({
       invoiceId,
     });
-    return {
-      result: toCamelCase(response),
-    };
-  }
-
-  @UseGuards(AuthenticationJWTGuard)
-  @ApiBearerAuth()
-  @Get('queue')
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @ApiOperation({
-    summary: 'Fetch kitchen queue list',
-  })
-  public async fetchKitchenQueueList(@Req() req: ICustomRequestHeaders) {
-    const response = await this.kitchenService.queueList(req);
     return {
       result: toCamelCase(response),
     };
