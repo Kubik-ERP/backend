@@ -161,12 +161,12 @@ export class StoresController {
     }
   }
 
-  // @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthenticationJWTGuard)
   @Put('/:id')
-  // @ApiBearerAuth()
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Update store by ID' })
   @ApiConsumes('multipart/form-data')
-  // @UseGuards(PinGuard)
+  @UseGuards(PinGuard)
   @ApiBody({
     description: 'Form data for creating a store (including file upload)',
     schema: {
@@ -235,7 +235,7 @@ export class StoresController {
         relativePath = `/${result.bucket}/${result.filename}`;
       }
 
-      await this._storeService.updateStore(id, 10, {
+      await this._storeService.updateStore(id, req.user.id, {
         ...body,
         photo: relativePath,
       });
@@ -365,7 +365,19 @@ export class StoresController {
     try {
       const stores = await this._storeService.getStoreByUserId(id);
 
-      const result = stores.map((store: any) => {
+      if (!stores.length) {
+        return {
+          result: {
+            stores: [],
+            userBanks: [],
+          },
+        };
+      }
+
+      const user = stores[0].user_has_stores[0]?.users;
+      const userBanks = user?.users_has_banks || [];
+
+      const storeResult = stores.map((store: any) => {
         const groupedOperationalHours = store.operational_hours.reduce(
           (acc: any, item: any) => {
             const day = item.days;
@@ -384,40 +396,37 @@ export class StoresController {
           {},
         );
 
-        const user = store.user_has_stores[0]?.users;
-        const userBanks = user?.users_has_banks || [];
-
         return {
           id: store.id,
           name: store.name,
           email: user?.email,
-          phone_number: user?.phone,
-          business_type: store.business_type,
+          phoneNumber: user?.phone,
+          businessType: store.business_type,
           photo: store.photo,
           address: store.address,
           city: store.city,
-          postal_code: store.postal_code,
+          postalCode: store.postal_code,
           building: store.building,
-          created_at: formatDate(store.created_at),
-          updated_at: formatDate(store.updated_at),
+          createdAt: formatDate(store.created_at),
+          updatedAt: formatDate(store.updated_at),
           operationalHours: Object.values(groupedOperationalHours),
-          userBanks: userBanks.map((bank: any) => ({
-            bankName: bank.banks?.name || null,
-            accountNumber: bank.account_number,
-            accountName: bank.accoun,
-          })),
         };
       });
 
       return {
-        result: result.map(toCamelCase),
+        result: {
+          stores: storeResult,
+          userBanks: userBanks.map((bank: any) => ({
+            bankName: bank.banks?.name || null,
+            accountNumber: bank.account_number,
+            accountName: bank.accoun ?? null,
+          })),
+        },
       };
     } catch (error) {
       console.log(error);
-      throw new HttpException(
-        'Internal Server Error',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
 }
