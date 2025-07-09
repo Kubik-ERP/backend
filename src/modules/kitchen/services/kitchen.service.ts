@@ -285,7 +285,7 @@ export class KitchenService {
         }
       }
     }
-    
+
     return groupedResult;
   }
 
