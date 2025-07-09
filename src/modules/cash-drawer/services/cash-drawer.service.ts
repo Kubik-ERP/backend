@@ -195,6 +195,7 @@ export class CashDrawerService {
           amount_in: amountIn,
           amount_out: amountOut,
           final_amount: updatedBalance,
+          notes: notes || '',
           created_by: userId,
           created_at: jakartaTime().toUnixInteger(),
         },
@@ -229,6 +230,14 @@ export class CashDrawerService {
 
     const [transactions, count] = await Promise.all([
       this.prisma.cash_drawer_transactions.findMany({
+        include: {
+          users: {
+            select: {
+              id: true,
+              fullname: true
+            }
+          }
+        },
         where,
         orderBy: { created_at: 'desc' },
         take: limit,
