@@ -377,6 +377,8 @@ export class InvoiceService {
       order_status: order_status.placed,
       store_id: storeId,
       complete_order_at: null,
+      payment_amount: null,
+      change_amount: null,
     };
 
     // create invoice with status unpaid
@@ -502,6 +504,8 @@ export class InvoiceService {
       order_status: order_status.placed,
       store_id: storeId,
       complete_order_at: null,
+      payment_amount: null,
+      change_amount: null,
     };
 
     // create invoice with status unpaid
