@@ -234,9 +234,9 @@ export class CashDrawerService {
           users: {
             select: {
               id: true,
-              fullname: true
-            }
-          }
+              fullname: true,
+            },
+          },
         },
         where,
         orderBy: { created_at: 'desc' },
@@ -249,8 +249,7 @@ export class CashDrawerService {
     return [transactions, count];
   }
 
-  async getDetailsCashDrawer(cashDrawerId: string)
-  {
+  async getDetailsCashDrawer(cashDrawerId: string) {
     // Logic to get the details of a specific cash drawer
     const cashDrawer = await this.prisma.cash_drawers.findUnique({
       where: { id: cashDrawerId },
