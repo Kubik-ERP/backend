@@ -386,6 +386,15 @@ export class InvoiceService {
 
     const calculation = await this.calculateTotal(request, invoiceId);
 
+    // return {
+    //   invoiceData,
+    //   invoiceId,
+    //   request,
+    //   calculation,
+    //   // header,
+    //   // request,
+    // };
+
     // update invoice
     await this.update(invoiceId, {
       subtotal: calculation.total,
@@ -394,6 +403,8 @@ export class InvoiceService {
       tax_amount: calculation.tax,
       service_charge_amount: calculation.serviceCharge,
       grand_total: calculation.grandTotal,
+      payment_amount: calculation.paymentAmount,
+      change_amount: calculation.changeAmount,
     });
 
     // insert the customer has invoice
@@ -768,6 +779,8 @@ export class InvoiceService {
     let serviceType = false;
     let taxId = '';
     let serviceChargeId = '';
+    let paymentAmount = 0;
+    let changeAmount = 0;
     const items = [];
 
     for (const item of request.products) {
@@ -910,6 +923,20 @@ export class InvoiceService {
       }
     }
 
+    // note: Calculate change_amount and payment_amount
+    if (request.paymentAmount) {
+      paymentAmount = request.paymentAmount;
+      if (paymentAmount < grandTotal) {
+        this.logger.error(`Payment amount is less than grand total`);
+        throw new BadRequestException(
+          `Payment amount is less than grand total`,
+        );
+      }
+      changeAmount = paymentAmount - grandTotal;
+    } else {
+      paymentAmount = grandTotal;
+    }
+
     return {
       total,
       discountTotal,
@@ -920,6 +947,8 @@ export class InvoiceService {
       serviceCharge: serviceAmount,
       serviceChargeInclude: serviceType,
       grandTotal,
+      paymentAmount,
+      changeAmount,
       items,
     };
   }
@@ -1097,6 +1126,8 @@ export class InvoiceService {
           tax_amount: invoice.tax_amount ?? null,
           service_charge_amount: invoice.service_charge_amount ?? null,
           grand_total: invoice.grand_total ?? null,
+          payment_amount: invoice.payment_amount ?? null,
+          change_amount: invoice.change_amount ?? null,
           cashier_id: invoice.cashier_id,
           invoice_number: invoice.invoice_number,
           order_status: invoice.order_status,

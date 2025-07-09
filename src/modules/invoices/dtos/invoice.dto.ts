@@ -309,4 +309,6 @@ export class InvoiceUpdateDto {
   grand_total?: number;
   order_status?: order_status;
   complete_order_at?: Date;
+  payment_amount?: number;
+  change_amount?: number;
 }
