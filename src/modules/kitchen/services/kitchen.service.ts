@@ -206,34 +206,63 @@ export class KitchenService {
     const orderStatus: order_status[] = [
       order_status.placed,
       order_status.in_progress,
+      order_status.completed,
     ];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
 
     // get value of kitchen queue by store id
     const queues: KitchenQueueWithRelations[] =
-      await this.findKitchenQueueByStoreId(storeId, orderStatus);
+      await this.findKitchenQueueByStoreId(storeId, orderStatus, {
+        dateFrom: today,
+        dateTo: endOfDay,
+      });
 
-    const grouped: Record<string, any> = {};
+    queues.sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
+
+    const groupedResult: any[] = [];
+    let lastGroupKey = '';
+    let currentGroup: any = null;
 
     for (const item of queues) {
-      const invoice_id = item.invoice_id;
+      const groupKey = `${item.invoice_id}-${new Date(item.created_at).getTime()}`;
 
-      if (!grouped[invoice_id]) {
-        grouped[invoice_id] = {
+      if (groupKey !== lastGroupKey) {
+        if (currentGroup && currentGroup.items.length > 0) {
+          const allCompleted = currentGroup.items.every(
+            (i: any) => i.products.order_status === order_status.completed,
+          );
+          if (!allCompleted) {
+            groupedResult.push(currentGroup);
+          }
+        }
+
+        currentGroup = {
           id: item.id,
           invoice_id: item.invoice_id,
           invoice_number: item.invoice?.invoice_number ?? '',
           created_at: item.created_at,
-          updated_at: item.updated_at,
+          updated_at: item.updated_at ?? null,
           store_id: item.store_id,
           table_code: item.invoice?.table_code ?? null,
           order_type: item.invoice?.order_type ?? '',
+          order_status: item.invoice?.order_status ?? '',
           customer_id: item.invoice?.customer_id ?? null,
           customer_name: item.customer?.name ?? '',
           items: [],
         };
+
+        lastGroupKey = groupKey;
       }
 
-      grouped[invoice_id].items.push({
+      currentGroup.items.push({
         products: {
           order_status: item.order_status,
           notes: item.notes ?? '',
@@ -245,9 +274,18 @@ export class KitchenService {
           },
         },
       });
-    }
 
-    return Object.values(grouped);
+      if (currentGroup && currentGroup.items.length > 0) {
+        const allCompleted = currentGroup.items.every(
+          (i: any) => i.products.order_status === order_status.completed,
+        );
+        if (!allCompleted) {
+          groupedResult.push(currentGroup);
+        }
+      }
+
+      return groupedResult;
+    }
   }
 
   public async upadateBulkQueueOrderStatus(
@@ -346,10 +384,21 @@ export class KitchenService {
   public async findKitchenQueueByStoreId(
     storeId: string,
     orderStatus: order_status[],
+    options?: {
+      dateFrom: Date;
+      dateTo: Date;
+    },
   ): Promise<kitchen_queue[]> {
     try {
       return await this._prisma.kitchen_queue.findMany({
-        where: { store_id: storeId, order_status: { in: orderStatus } },
+        where: {
+          store_id: storeId,
+          order_status: { in: orderStatus },
+          created_at: {
+            ...(options?.dateFrom && { gte: options.dateFrom }),
+            ...(options?.dateTo && { lte: options.dateTo }),
+          },
+        },
         include: {
           customer: {
             select: {
@@ -377,6 +426,7 @@ export class KitchenService {
               order_type: true,
               store_id: true,
               customer_id: true,
+              order_status: true,
             },
           },
         },
