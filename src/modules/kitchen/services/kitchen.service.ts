@@ -209,17 +209,18 @@ export class KitchenService {
       order_status.completed,
     ];
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const dateFrom = new Date();
+    dateFrom.setDate(dateFrom.getDate() - 1);
+    dateFrom.setHours(0, 0, 0, 0);
 
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
+    const dateTo = new Date();
+    dateTo.setHours(23, 59, 59, 999);
 
     // get value of kitchen queue by store id
     const queues: KitchenQueueWithRelations[] =
       await this.findKitchenQueueByStoreId(storeId, orderStatus, {
-        dateFrom: today,
-        dateTo: endOfDay,
+        dateFrom: dateFrom,
+        dateTo: dateTo,
       });
 
     queues.sort(
