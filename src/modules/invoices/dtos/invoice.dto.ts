@@ -43,7 +43,7 @@ export class GetListInvoiceDto {
   invoiceNumber: string;
 
   @ApiProperty({
-    description: 'Ordet type of the invoice',
+    description: 'Order type of the invoice',
     required: false,
     example: 'take_away',
     isArray: true,

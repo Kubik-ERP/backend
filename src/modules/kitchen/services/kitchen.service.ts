@@ -12,9 +12,10 @@ import {
 } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
-  KitchecQueueUpdateOrderStatusDto,
+  KitchenQueueUpdateOrderStatusDto,
   KitchenQueueAdd,
   KitchenQueueWithRelations,
+  KitchenBulkQueueUpdateOrderStatusDto,
 } from '../dtos/queue.dto';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/kitchen.dto';
 import { validateStoreId } from 'src/common/helpers/validators.helper';
@@ -132,14 +133,14 @@ export class KitchenService {
       id: queue.id,
       invoice_id: queue.invoice_id,
       product_id: queue.product_id,
-      variant_id: queue.variant_id ?? '',
+      variant_id: queue.variant_id || null,
       store_id: queue.store_id,
-      notes: queue.notes ?? null,
+      notes: queue.notes || null,
       order_status: queue.order_status as order_status,
       created_at: queue.created_at ?? new Date(),
       updated_at: queue.updated_at ?? new Date(),
-      table_code: queue.table_code,
-      customer_id: queue.customer_id,
+      table_code: queue.table_code || null,
+      customer_id: queue.customer_id || null,
       order_type: queue.order_type as order_type,
     }));
 
@@ -205,34 +206,64 @@ export class KitchenService {
     const orderStatus: order_status[] = [
       order_status.placed,
       order_status.in_progress,
+      order_status.completed,
     ];
+
+    const dateFrom = new Date();
+    dateFrom.setDate(dateFrom.getDate() - 1);
+    dateFrom.setHours(0, 0, 0, 0);
+
+    const dateTo = new Date();
+    dateTo.setHours(23, 59, 59, 999);
 
     // get value of kitchen queue by store id
     const queues: KitchenQueueWithRelations[] =
-      await this.findKitchenQueueByStoreId(storeId, orderStatus);
+      await this.findKitchenQueueByStoreId(storeId, orderStatus, {
+        dateFrom: dateFrom,
+        dateTo: dateTo,
+      });
 
-    const grouped: Record<string, any> = {};
+    queues.sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
+
+    const groupedResult: any[] = [];
+    let lastGroupKey = '';
+    let currentGroup: any = null;
 
     for (const item of queues) {
-      const invoice_id = item.invoice_id;
+      const groupKey = `${item.invoice_id}-${new Date(item.created_at).getTime()}`;
 
-      if (!grouped[invoice_id]) {
-        grouped[invoice_id] = {
+      if (groupKey !== lastGroupKey) {
+        if (currentGroup && currentGroup.items.length > 0) {
+          const allCompleted = currentGroup.items.every(
+            (i: any) => i.products.order_status === order_status.completed,
+          );
+          if (!allCompleted) {
+            groupedResult.push(currentGroup);
+          }
+        }
+
+        currentGroup = {
           id: item.id,
           invoice_id: item.invoice_id,
           invoice_number: item.invoice?.invoice_number ?? '',
           created_at: item.created_at,
-          updated_at: item.updated_at,
+          updated_at: item.updated_at ?? null,
           store_id: item.store_id,
           table_code: item.invoice?.table_code ?? null,
           order_type: item.invoice?.order_type ?? '',
+          order_status: item.invoice?.order_status ?? '',
           customer_id: item.invoice?.customer_id ?? null,
           customer_name: item.customer?.name ?? '',
           items: [],
         };
+
+        lastGroupKey = groupKey;
       }
 
-      grouped[invoice_id].items.push({
+      currentGroup.items.push({
         products: {
           order_status: item.order_status,
           notes: item.notes ?? '',
@@ -244,14 +275,52 @@ export class KitchenService {
           },
         },
       });
+
+      if (currentGroup && currentGroup.items.length > 0) {
+        const allCompleted = currentGroup.items.every(
+          (i: any) => i.products.order_status === order_status.completed,
+        );
+        if (!allCompleted) {
+          groupedResult.push(currentGroup);
+        }
+      }
+
+      return groupedResult;
+    }
+  }
+
+  public async upadateBulkQueueOrderStatus(
+    request: KitchenBulkQueueUpdateOrderStatusDto[],
+  ) {
+    // mapping the Ids in array
+    const ids = request.map((item) => item.queueId);
+
+    // find the existing Ids in DB
+    const existingRecords = await this.findManyKitchenQueueByIds(ids);
+
+    // checking the missing Ids
+    const existingIds = new Set(existingRecords.map((item) => item.id));
+    const missingIds = ids.filter((id) => !existingIds.has(id));
+    if (missingIds.length > 0) {
+      this.logger.error(
+        `The following queueIds were not found: ${missingIds.join(', ')}`,
+      );
+      throw new BadRequestException(
+        `The following queueIds were not found: ${missingIds.join(', ')}`,
+      );
     }
 
-    return Object.values(grouped);
+    // update bulk order status of kitchen queue
+    await this.updateManyKitchenQueueOrderStatusByIds(request);
+
+    return {
+      ids: existingRecords,
+    };
   }
 
   public async updateQueueOrderStatus(
     queueId: string,
-    request: KitchecQueueUpdateOrderStatusDto,
+    request: KitchenQueueUpdateOrderStatusDto,
   ) {
     // check the queue is exist
     const queue = await this.findKitchenQueueById(queueId);
@@ -280,8 +349,8 @@ export class KitchenService {
 
       return result.count; // total row inserted
     } catch (error) {
-      this.logger.error('Failed to create kitchen queues');
-      throw new BadRequestException('Failed to create kitchen queues', {
+      this.logger.error(`Failed to create many kitchen queues: ${error}`);
+      throw new BadRequestException('Failed to create many kitchen queues', {
         cause: new Error(),
         description: error.message,
       });
@@ -302,8 +371,8 @@ export class KitchenService {
       });
       return updated;
     } catch (error) {
-      this.logger.error('Failed to create kitchen queues');
-      throw new BadRequestException('Failed to create kitchen queues', {
+      this.logger.error('Failed to update kitchen queue');
+      throw new BadRequestException('Failed to update kitchen queue', {
         cause: new Error(),
         description: error.message,
       });
@@ -316,10 +385,21 @@ export class KitchenService {
   public async findKitchenQueueByStoreId(
     storeId: string,
     orderStatus: order_status[],
+    options?: {
+      dateFrom: Date;
+      dateTo: Date;
+    },
   ): Promise<kitchen_queue[]> {
     try {
       return await this._prisma.kitchen_queue.findMany({
-        where: { store_id: storeId, order_status: { in: orderStatus } },
+        where: {
+          store_id: storeId,
+          order_status: { in: orderStatus },
+          created_at: {
+            ...(options?.dateFrom && { gte: options.dateFrom }),
+            ...(options?.dateTo && { lte: options.dateTo }),
+          },
+        },
         include: {
           customer: {
             select: {
@@ -347,14 +427,15 @@ export class KitchenService {
               order_type: true,
               store_id: true,
               customer_id: true,
+              order_status: true,
             },
           },
         },
         orderBy: { created_at: 'asc' },
       });
     } catch (error) {
-      this.logger.error('Failed to create kitchen queues');
-      throw new BadRequestException('Failed to create kitchen queues', {
+      this.logger.error('Failed to find kitchen queues');
+      throw new BadRequestException('Failed to find kitchen queues', {
         cause: new Error(),
         description: error.message,
       });
@@ -370,11 +451,63 @@ export class KitchenService {
         where: { id: id },
       });
     } catch (error) {
+      this.logger.error('Failed to find kitchen queue by Id');
+      throw new BadRequestException('Failed to find kitchen queue by Id', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Get kitchen queues by Ids
+   */
+  public async findManyKitchenQueueByIds(
+    ids: string[],
+  ): Promise<{ id: string }[]> {
+    try {
+      const existingRecords = await this._prisma.kitchen_queue.findMany({
+        where: { id: { in: ids } },
+        select: { id: true },
+      });
+
+      return existingRecords;
+    } catch (error) {
       this.logger.error('Failed to create kitchen queues');
       throw new BadRequestException('Failed to create kitchen queues', {
         cause: new Error(),
         description: error.message,
       });
+    }
+  }
+
+  /**
+   * @description Update many order status of kitchen queue by Ids
+   */
+  public async updateManyKitchenQueueOrderStatusByIds(
+    request: KitchenBulkQueueUpdateOrderStatusDto[],
+  ) {
+    try {
+      await Promise.all(
+        request.map((item) =>
+          this._prisma.kitchen_queue.update({
+            where: { id: item.queueId },
+            data: {
+              order_status: item.orderStatus,
+              updated_at: new Date(),
+            },
+          }),
+        ),
+      );
+    } catch (error) {
+      this.logger.error('Failed to update kitchen queues order status');
+      throw new BadRequestException(
+        'Failed to update kitchen queues order status',
+        {
+          cause: new Error(),
+          description: error.message,
+        },
+      );
     }
   }
 }
