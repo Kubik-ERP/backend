@@ -460,7 +460,7 @@ export class KitchenService {
   }
 
   /**
-   * @description Get kitchen queue by Id
+   * @description Get kitchen queues by Ids
    */
   public async findManyKitchenQueueByIds(
     ids: string[],
@@ -482,7 +482,7 @@ export class KitchenService {
   }
 
   /**
-   * @description Get kitchen queue by Id
+   * @description Update many order status of kitchen queue by Ids
    */
   public async updateManyKitchenQueueOrderStatusByIds(
     request: KitchenBulkQueueUpdateOrderStatusDto[],
