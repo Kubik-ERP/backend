@@ -284,9 +284,9 @@ export class KitchenService {
           groupedResult.push(currentGroup);
         }
       }
-
-      return groupedResult;
     }
+    
+    return groupedResult;
   }
 
   public async upadateBulkQueueOrderStatus(
