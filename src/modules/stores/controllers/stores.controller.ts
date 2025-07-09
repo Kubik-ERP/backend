@@ -24,7 +24,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { CreateStoreDto } from '../dtos/request.dto';
+import { BusinessHoursDto, CreateStoreDto } from '../dtos/request.dto';
 import { StoresService } from '../services/stores.service';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import {
@@ -425,6 +425,74 @@ export class StoresController {
             accountName: bank.accoun ?? null,
           })),
         },
+      };
+    } catch (error) {
+      console.log(error);
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @Get(':id/operational-hours')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get operational hours by store ID' })
+  public async getOperationalHoursByStore(
+    @Param('id') storeId: string,
+  ): Promise<any> {
+    try {
+      const operationalHours =
+        await this._storeService.getOperationalHoursByStore(storeId);
+
+      const dayMap = [
+        'Sunday',
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+      ];
+      const formattedHours = operationalHours.map((item) => ({
+        day: item.day,
+        hours: item.hours.map((hour) => ({
+          openTime: hour.open,
+          closeTime: hour.close,
+        })),
+      }));
+
+      return { result: toCamelCase(formattedHours) };
+    } catch (error) {
+      console.log(error);
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @Put(':id/operational-hours')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update operational hours for store' })
+  @UseGuards(PinGuard)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  public async updateOperationalHours(
+    @Param('id') id: string,
+    @Req() req: ICustomRequestHeaders,
+    @Body() body: { businessHours: BusinessHoursDto[] },
+  ) {
+    try {
+      await this._storeService.updateOperationalHours(
+        id,
+        10,
+        body.businessHours,
+      );
+
+      return {
+        message: 'Operational hours updated successfully',
       };
     } catch (error) {
       console.log(error);

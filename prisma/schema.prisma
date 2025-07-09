@@ -33,10 +33,12 @@ model cash_drawer_transactions {
   cash_drawers_id String  @db.Uuid
   amount_out      BigInt
   type            Int
-  created_by      BigInt?
+  created_by      Int?
   created_at      BigInt?
   amount_in       Int?
   final_amount    Int?
+  notes           String? @db.VarChar
+  users           users?  @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawer_transactions_users_fk")
 }
 
 model cash_drawers {
@@ -516,23 +518,24 @@ model user_has_stores {
 }
 
 model users {
-  id              Int               @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
-  username        String?           @db.VarChar
-  email           String            @unique(map: "users_unique") @db.VarChar
-  password        String            @db.VarChar
-  phone           String            @default(dbgenerated("0")) @db.VarChar
-  ext             Int               @default(62)
-  created_at      BigInt?
-  updated_at      BigInt?
-  verified_at     BigInt?
-  deleted_at      BigInt?
-  pin             String?           @db.VarChar
-  fullname        String?           @db.VarChar
-  role_id         String            @db.Uuid
-  invoice         invoice[]
-  user_has_stores user_has_stores[]
-  roles           roles             @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
-  users_has_banks users_has_banks[]
+  id                       Int                        @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
+  username                 String?                    @db.VarChar
+  email                    String                     @unique(map: "users_unique") @db.VarChar
+  password                 String                     @db.VarChar
+  phone                    String                     @default(dbgenerated("0")) @db.VarChar
+  ext                      Int                        @default(62)
+  created_at               BigInt?
+  updated_at               BigInt?
+  verified_at              BigInt?
+  deleted_at               BigInt?
+  pin                      String?                    @db.VarChar
+  fullname                 String?                    @db.VarChar
+  role_id                  String                     @db.Uuid
+  cash_drawer_transactions cash_drawer_transactions[]
+  invoice                  invoice[]
+  user_has_stores          user_has_stores[]
+  roles                    roles                      @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
+  users_has_banks          users_has_banks[]
 }
 
 model users_token {

@@ -4,6 +4,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
 import { formatTime } from 'src/common/helpers/common.helpers';
 import { Prisma } from '@prisma/client';
+import { IHourSlot, IOperationalDay } from '../interfaces/stores.interface';
 
 @Injectable()
 export class StoresService {
@@ -201,6 +202,81 @@ export class StoresService {
       include: {
         operational_hours: true,
       },
+    });
+  }
+
+  public async getOperationalHoursByStore(
+    storeId: string,
+  ): Promise<IOperationalDay[]> {
+    const hours = await this.prisma.operational_hours.findMany({
+      where: { stores_id: storeId },
+      orderBy: { days: 'asc' },
+    });
+
+    const dayMap = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
+
+    const grouped: Record<number, IHourSlot[]> = {};
+
+    for (const item of hours) {
+      if (item.days === null || item.days === undefined) continue;
+
+      if (!grouped[item.days]) {
+        grouped[item.days] = [];
+      }
+
+      grouped[item.days].push({
+        open: item.open_time ?? 'Closed',
+        close: item.close_time ?? 'Closed',
+      });
+    }
+
+    const result: IOperationalDay[] = dayMap.map((dayName, dayIndex) => {
+      const slots = grouped[dayIndex];
+      return {
+        day: dayName,
+        hours:
+          slots && slots.length > 0
+            ? slots
+            : [{ open: 'Closed', close: 'Closed' }],
+      };
+    });
+
+    return result;
+  }
+
+  public async updateOperationalHours(
+    storeId: string,
+    userId: number,
+    businessHours: CreateStoreDto['businessHours'],
+  ): Promise<void> {
+    const isValid = await this.validateStore(storeId, userId);
+    if (!isValid) {
+      throw new BadRequestException('Unauthorized or store not found');
+    }
+
+    await this.prisma.$transaction(async (prisma) => {
+      await prisma.operational_hours.deleteMany({
+        where: { stores_id: storeId },
+      });
+
+      if (businessHours?.length) {
+        await prisma.operational_hours.createMany({
+          data: businessHours.map((bh) => ({
+            days: this.mapDayToNumber(bh.day),
+            open_time: formatTime(bh.openTime),
+            close_time: formatTime(bh.closeTime),
+            stores_id: storeId,
+          })),
+        });
+      }
     });
   }
 

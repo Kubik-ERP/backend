@@ -18,7 +18,7 @@ enum BusinessType {
   RETAIL = 'Retail',
 }
 
-class BusinessHoursDto {
+export class BusinessHoursDto {
   @ApiProperty({ example: 'Monday' })
   @IsString()
   @IsIn(
