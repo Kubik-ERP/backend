@@ -8,11 +8,19 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiHeader,
+  ApiOperation,
+} from '@nestjs/swagger';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { KitchenService } from '../services/kitchen.service';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
-import { KitchecQueueUpdateOrderStatusDto } from '../dtos/queue.dto';
+import {
+  KitchenBulkQueueUpdateOrderStatusDto,
+  KitchenQueueUpdateOrderStatusDto,
+} from '../dtos/queue.dto';
 import { GetListInvoiceDto } from '../dtos/kitchen.dto';
 
 @Controller('kitchen')
@@ -77,13 +85,32 @@ export class KitchenController {
 
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
+  @Put('queue')
+  @ApiOperation({
+    summary: 'Update bulk kitchen queue order status',
+  })
+  @ApiBody({
+    type: [KitchenBulkQueueUpdateOrderStatusDto],
+  })
+  public async updateBulkKitchenQueueOrderStatus(
+    @Body() request: KitchenBulkQueueUpdateOrderStatusDto[],
+  ) {
+    const response =
+      await this.kitchenService.upadateBulkQueueOrderStatus(request);
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Put('queue/:queueId')
   @ApiOperation({
     summary: 'Update kitchen queue order status',
   })
   public async updateKitchenQueueOrderStatus(
     @Param('queueId') queueId: string,
-    @Body() request: KitchecQueueUpdateOrderStatusDto,
+    @Body() request: KitchenQueueUpdateOrderStatusDto,
   ) {
     const response = await this.kitchenService.updateQueueOrderStatus(
       queueId,

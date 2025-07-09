@@ -1,15 +1,33 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { kitchen_queue, order_status, order_type } from '@prisma/client';
-import { IsEnum } from 'class-validator';
+import { IsEnum, IsString } from 'class-validator';
 
-export class KitchecQueueUpdateOrderStatusDto {
+export class KitchenBulkQueueUpdateOrderStatusDto {
+  @ApiProperty({
+    description: 'Kitchen queue Id',
+    required: true,
+    example: 'ba5ac071-1696-40cc-b33c-3684b2079f94',
+  })
+  @IsString()
+  queueId: string;
+
   @ApiProperty({
     description: 'Order status of the kitchen queue',
     required: true,
     example: 'completed',
   })
   @IsEnum(order_status, { each: true })
-  orderStatus?: order_status;
+  orderStatus: order_status;
+}
+
+export class KitchenQueueUpdateOrderStatusDto {
+  @ApiProperty({
+    description: 'Order status of the kitchen queue',
+    required: true,
+    example: 'completed',
+  })
+  @IsEnum(order_status, { each: true })
+  orderStatus: order_status;
 }
 
 export class KitchenQueueAdd {

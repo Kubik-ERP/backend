@@ -12,9 +12,10 @@ import {
 } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
-  KitchecQueueUpdateOrderStatusDto,
+  KitchenQueueUpdateOrderStatusDto,
   KitchenQueueAdd,
   KitchenQueueWithRelations,
+  KitchenBulkQueueUpdateOrderStatusDto,
 } from '../dtos/queue.dto';
 import { GetInvoiceDto, GetListInvoiceDto } from '../dtos/kitchen.dto';
 import { validateStoreId } from 'src/common/helpers/validators.helper';
@@ -249,9 +250,38 @@ export class KitchenService {
     return Object.values(grouped);
   }
 
+  public async upadateBulkQueueOrderStatus(
+    request: KitchenBulkQueueUpdateOrderStatusDto[],
+  ) {
+    // mapping the Ids in array
+    const ids = request.map((item) => item.queueId);
+
+    // find the existing Ids in DB
+    const existingRecords = await this.findManyKitchenQueueByIds(ids);
+
+    // checking the missing Ids
+    const existingIds = new Set(existingRecords.map((item) => item.id));
+    const missingIds = ids.filter((id) => !existingIds.has(id));
+    if (missingIds.length > 0) {
+      this.logger.error(
+        `The following queueIds were not found: ${missingIds.join(', ')}`,
+      );
+      throw new BadRequestException(
+        `The following queueIds were not found: ${missingIds.join(', ')}`,
+      );
+    }
+
+    // update bulk order status of kitchen queue
+    await this.updateManyKitchenQueueOrderStatusByIds(request);
+
+    return {
+      ids: existingRecords,
+    };
+  }
+
   public async updateQueueOrderStatus(
     queueId: string,
-    request: KitchecQueueUpdateOrderStatusDto,
+    request: KitchenQueueUpdateOrderStatusDto,
   ) {
     // check the queue is exist
     const queue = await this.findKitchenQueueById(queueId);
@@ -280,8 +310,8 @@ export class KitchenService {
 
       return result.count; // total row inserted
     } catch (error) {
-      this.logger.error(`Failed to create kitchen queues: ${error}`);
-      throw new BadRequestException('Failed to create kitchen queues', {
+      this.logger.error(`Failed to create many kitchen queues: ${error}`);
+      throw new BadRequestException('Failed to create many kitchen queues', {
         cause: new Error(),
         description: error.message,
       });
@@ -302,8 +332,8 @@ export class KitchenService {
       });
       return updated;
     } catch (error) {
-      this.logger.error('Failed to create kitchen queues');
-      throw new BadRequestException('Failed to create kitchen queues', {
+      this.logger.error('Failed to update kitchen queue');
+      throw new BadRequestException('Failed to update kitchen queue', {
         cause: new Error(),
         description: error.message,
       });
@@ -353,8 +383,8 @@ export class KitchenService {
         orderBy: { created_at: 'asc' },
       });
     } catch (error) {
-      this.logger.error('Failed to create kitchen queues');
-      throw new BadRequestException('Failed to create kitchen queues', {
+      this.logger.error('Failed to find kitchen queues');
+      throw new BadRequestException('Failed to find kitchen queues', {
         cause: new Error(),
         description: error.message,
       });
@@ -370,11 +400,63 @@ export class KitchenService {
         where: { id: id },
       });
     } catch (error) {
+      this.logger.error('Failed to find kitchen queue by Id');
+      throw new BadRequestException('Failed to find kitchen queue by Id', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Get kitchen queue by Id
+   */
+  public async findManyKitchenQueueByIds(
+    ids: string[],
+  ): Promise<{ id: string }[]> {
+    try {
+      const existingRecords = await this._prisma.kitchen_queue.findMany({
+        where: { id: { in: ids } },
+        select: { id: true },
+      });
+
+      return existingRecords;
+    } catch (error) {
       this.logger.error('Failed to create kitchen queues');
       throw new BadRequestException('Failed to create kitchen queues', {
         cause: new Error(),
         description: error.message,
       });
+    }
+  }
+
+  /**
+   * @description Get kitchen queue by Id
+   */
+  public async updateManyKitchenQueueOrderStatusByIds(
+    request: KitchenBulkQueueUpdateOrderStatusDto[],
+  ) {
+    try {
+      await Promise.all(
+        request.map((item) =>
+          this._prisma.kitchen_queue.update({
+            where: { id: item.queueId },
+            data: {
+              order_status: item.orderStatus,
+              updated_at: new Date(),
+            },
+          }),
+        ),
+      );
+    } catch (error) {
+      this.logger.error('Failed to update kitchen queues order status');
+      throw new BadRequestException(
+        'Failed to update kitchen queues order status',
+        {
+          cause: new Error(),
+          description: error.message,
+        },
+      );
     }
   }
 }
