@@ -144,7 +144,8 @@ export class CustomerService {
       search,
       payment_status,
       order_type,
-      created_at,
+      start_date,
+      end_date,
     } = query;
 
     const skip = (page - 1) * limit;
@@ -171,11 +172,21 @@ export class CustomerService {
     }
 
     if (payment_status) invoiceWhere.payment_status = payment_status;
-    if (order_type) invoiceWhere.order_type = order_type;
-    if (created_at) {
+    if (order_type && Array.isArray(order_type)) {
+      invoiceWhere.order_type = { in: order_type };
+    }
+    if (start_date && end_date) {
       invoiceWhere.created_at = {
-        gte: new Date(created_at),
-        lt: new Date(new Date(created_at).getTime() + 24 * 60 * 60 * 1000),
+        gte: new Date(start_date),
+        lte: new Date(end_date),
+      };
+    } else if (start_date) {
+      invoiceWhere.created_at = {
+        gte: new Date(start_date),
+      };
+    } else if (end_date) {
+      invoiceWhere.created_at = {
+        lte: new Date(end_date),
       };
     }
 
@@ -184,6 +195,9 @@ export class CustomerService {
       orderBy: { created_at: 'desc' },
       skip,
       take: limit,
+    });
+    const totalData = await this.prisma.invoice.count({
+      where: invoiceWhere,
     });
 
     const paidTotal = invoices
@@ -216,7 +230,7 @@ export class CustomerService {
       invoices: {
         data: invoices,
         meta: {
-          total_data: totalSales,
+          total_data: totalData,
           current_page: page,
           page_size: limit,
           total_pages: Math.ceil(totalSales / limit),
