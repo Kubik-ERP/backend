@@ -248,4 +248,26 @@ export class CashDrawerService {
 
     return [transactions, count];
   }
+
+  async getDetailsCashDrawer(cashDrawerId: string)
+  {
+    // Logic to get the details of a specific cash drawer
+    const cashDrawer = await this.prisma.cash_drawers.findUnique({
+      where: { id: cashDrawerId },
+      include: {
+        employees: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!cashDrawer) {
+      throw new BadRequestException('Cash drawer not found.');
+    }
+
+    return cashDrawer;
+  }
 }
