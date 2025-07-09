@@ -277,4 +277,25 @@ export class CashDrawerController {
       result: res,
     };
   }
+
+  @Get('details/:cashDrawerId')
+  @ApiParam({
+    name: 'cashDrawerId',
+    description: 'ID of the cash drawer to retrieve details for',
+  })
+  async getDetailsCashDrawer(@Param('cashDrawerId') cashDrawerId: string) {
+    // Logic to get the details of a specific cash drawer
+    const result = await this.service.getDetailsCashDrawer(cashDrawerId);
+    if (!result) {
+      return {
+        message: 'Cash drawer not found',
+        result: null,
+      };
+    }
+
+    return {
+      message: 'Cash drawer details retrieved successfully',
+      result: toCamelCase(result),
+    };
+  }
 }
