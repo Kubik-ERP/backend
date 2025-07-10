@@ -140,7 +140,7 @@ export class BankController {
       return {
         statusCode: HttpStatus.OK,
         message: 'User banks retrieved successfully',
-        result : toCamelCase(result),
+        result: toCamelCase(result),
       };
     } catch (error) {
       throw new HttpException(

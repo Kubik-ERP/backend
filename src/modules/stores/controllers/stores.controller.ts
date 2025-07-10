@@ -361,9 +361,9 @@ export class StoresController {
 
   @Get('user/:id')
   @ApiOperation({ summary: 'Get store(s) by user ID' })
-  // @UseGuards(AuthenticationJWTGuard)
-  // @ApiBearerAuth()
-  // @UseGuards(PinGuard)
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @UseGuards(PinGuard)
   public async getStoreByUser(@Param('id') id: number) {
     try {
       const result = await this._storeService.getStoreByUserId(id);

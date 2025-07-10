@@ -12,7 +12,6 @@ import { Transform, Type } from 'class-transformer';
 
 import { order_type } from '@prisma/client';
 
-
 export class QueryInvoiceDto {
   @IsOptional()
   @Type(() => Number)
