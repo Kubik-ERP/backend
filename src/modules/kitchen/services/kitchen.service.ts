@@ -467,11 +467,11 @@ export class KitchenService {
     ids: string[],
   ): Promise<kitchen_queue[]> {
     try {
-      const existingRecords = await this._prisma.kitchen_queue.findMany({
+      const result = await this._prisma.kitchen_queue.findMany({
         where: { id: { in: ids } },
       });
 
-      return existingRecords;
+      return result;
     } catch (error) {
       this.logger.error('Failed to create kitchen queues');
       throw new BadRequestException('Failed to create kitchen queues', {
