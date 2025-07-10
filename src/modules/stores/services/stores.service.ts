@@ -260,11 +260,11 @@ export class StoresService {
   }
 
   public async getOperationalHoursByStore(
-    storeId: string,
+    header: ICustomRequestHeaders,
   ): Promise<
     { day: string; hours: { openTime: string; closeTime: string }[] }[]
   > {
-    const hours = await this.fetchOperationalHours(storeId);
+    const hours = await this.fetchOperationalHours(header.store_id!);
 
     const dayMap = [
       'Sunday',
@@ -307,24 +307,25 @@ export class StoresService {
   }
 
   public async updateOperationalHours(
-    storeId: string,
+    header: ICustomRequestHeaders,
     userId: number,
     businessHours: CreateStoreDto['businessHours'],
   ): Promise<void> {
-    const isValid = await this.validateStore(storeId, userId);
+    const storeID = header.store_id;
+    const isValid = await this.validateStore(storeID!, userId);
     if (!isValid) {
       throw new BadRequestException('Unauthorized or store not found');
     }
 
     await this.prisma.$transaction(async (prisma) => {
-      await this.deleteOperationalHours(storeId, prisma);
+      await this.deleteOperationalHours(storeID!, prisma);
       if (businessHours?.length) {
         await prisma.operational_hours.createMany({
           data: businessHours.map((bh) => ({
             days: this.mapDayToNumber(bh.day),
             open_time: formatTime(bh.openTime),
             close_time: formatTime(bh.closeTime),
-            stores_id: storeId,
+            stores_id: storeID!,
           })),
         });
       }

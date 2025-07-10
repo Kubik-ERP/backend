@@ -21,6 +21,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiHeader,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
@@ -359,14 +360,14 @@ export class StoresController {
     }
   }
 
-  @Get('user/:id')
+  @Get('/getStoreByUser')
   @ApiOperation({ summary: 'Get store(s) by user ID' })
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @UseGuards(PinGuard)
-  public async getStoreByUser(@Param('id') id: number) {
+  public async getStoreByUser(@Req() req: ICustomRequestHeaders) {
     try {
-      const result = await this._storeService.getStoreByUserId(id);
+      const result = await this._storeService.getStoreByUserId(req.user.id);
 
       return {
         result,
@@ -381,15 +382,24 @@ export class StoresController {
   }
 
   @UseGuards(AuthenticationJWTGuard)
-  @Get(':id/operational-hours')
+  @Get('/operational-hours')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get operational hours by store ID' })
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiOperation({
+    summary: 'Fetch Operational Hours By Store',
+  })
   public async getOperationalHoursByStore(
-    @Param('id') storeId: string,
+    @Req() req: ICustomRequestHeaders,
   ): Promise<any> {
     try {
       const formattedHours =
-        await this._storeService.getOperationalHoursByStore(storeId);
+        await this._storeService.getOperationalHoursByStore(req);
       return { result: toCamelCase(formattedHours) };
     } catch (error) {
       console.error(error);
@@ -413,8 +423,8 @@ export class StoresController {
   ) {
     try {
       await this._storeService.updateOperationalHours(
-        id,
-        10,
+        req,
+        req.user.id,
         body.businessHours,
       );
 
