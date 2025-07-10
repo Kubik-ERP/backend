@@ -275,14 +275,14 @@ export class KitchenService {
           },
         },
       });
+    }
 
-      if (currentGroup && currentGroup.queues.length > 0) {
-        const allCompleted = currentGroup.queues.every(
-          (i: any) => i.product.order_status === order_status.completed,
-        );
-        if (!allCompleted) {
-          groupedResult.push(currentGroup);
-        }
+    if (currentGroup && currentGroup.queues.length > 0) {
+      const allCompleted = currentGroup.queues.every(
+        (i: any) => i.product.order_status === order_status.completed,
+      );
+      if (!allCompleted) {
+        groupedResult.push(currentGroup);
       }
     }
 
