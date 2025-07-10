@@ -110,7 +110,19 @@ export class CashDrawerService {
       this.prisma.cash_drawers.findMany({
         where,
         include: {
+          users: {
+            select: {
+              id: true,
+              fullname: true,
+            },
+          },
           employees: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          stores: {
             select: {
               id: true,
               name: true,
@@ -124,7 +136,12 @@ export class CashDrawerService {
       this.prisma.cash_drawers.count({ where }),
     ]);
 
-    return [cashDrawer, count];
+    const formatted = cashDrawer.map(({ users, ...rest }) => ({
+      ...rest,
+      closed_by_user: users,
+    }));
+
+    return [formatted, count];
   }
 
   async editCashDrawer(cashDrawerId: string, userId: number, balance: number) {
@@ -174,8 +191,7 @@ export class CashDrawerService {
       );
     }
 
-    const updatedBalance =
-      (cashDrawer.actual_balance || 0) + amountIn - amountOut;
+    const updatedBalance = cashDrawer.expected_balance + amountIn - amountOut;
 
     await this.prisma.$transaction(async (prisma) => {
       await prisma.cash_drawers.update({
@@ -260,6 +276,18 @@ export class CashDrawerService {
             name: true,
           },
         },
+        stores: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        users: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
       },
     });
 
@@ -267,6 +295,11 @@ export class CashDrawerService {
       throw new BadRequestException('Cash drawer not found.');
     }
 
-    return cashDrawer;
+    const data = {
+      ...cashDrawer,
+      closed_by_user: cashDrawer.users,
+    };
+    delete (data as any).users;
+    return data;
   }
 }
