@@ -40,6 +40,7 @@ export class KitchenService {
       createdAtTo,
       orderType,
       paymentStatus,
+      orderStatus,
     } = request;
 
     const createdAtFilter: Record<string, Date> = {};
@@ -65,6 +66,11 @@ export class KitchenService {
       }),
       ...(orderType && {
         order_type: { in: Array.isArray(orderType) ? orderType : [orderType] },
+      }),
+      ...(orderStatus && {
+        order_status: {
+          in: Array.isArray(orderStatus) ? orderStatus : [orderStatus],
+        },
       }),
       ...(invoiceNumber && { invoice_number: { equals: invoiceNumber } }),
       store_id: storeId,
