@@ -217,13 +217,13 @@ export class KitchenService {
     dateTo.setHours(23, 59, 59, 999);
 
     // get value of kitchen queue by store id
-    const queues: KitchenQueueWithRelations[] =
+    const KitchenQueues: KitchenQueueWithRelations[] =
       await this.findKitchenQueueByStoreId(storeId, orderStatus, {
         dateFrom: dateFrom,
         dateTo: dateTo,
       });
 
-    queues.sort(
+    KitchenQueues.sort(
       (a, b) =>
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     );
@@ -232,13 +232,13 @@ export class KitchenService {
     let lastGroupKey = '';
     let currentGroup: any = null;
 
-    for (const item of queues) {
+    for (const item of KitchenQueues) {
       const groupKey = `${item.invoice_id}-${new Date(item.created_at).getTime()}`;
 
       if (groupKey !== lastGroupKey) {
-        if (currentGroup && currentGroup.items.length > 0) {
-          const allCompleted = currentGroup.items.every(
-            (i: any) => i.products.order_status === order_status.completed,
+        if (currentGroup && currentGroup.queues.length > 0) {
+          const allCompleted = currentGroup.queues.every(
+            (i: any) => i.product.order_status === order_status.completed,
           );
           if (!allCompleted) {
             groupedResult.push(currentGroup);
@@ -246,7 +246,6 @@ export class KitchenService {
         }
 
         currentGroup = {
-          id: item.id,
           invoice_id: item.invoice_id,
           invoice_number: item.invoice?.invoice_number ?? '',
           created_at: item.created_at,
@@ -257,14 +256,15 @@ export class KitchenService {
           order_status: item.invoice?.order_status ?? '',
           customer_id: item.invoice?.customer_id ?? null,
           customer_name: item.customer?.name ?? '',
-          items: [],
+          queues: [],
         };
 
         lastGroupKey = groupKey;
       }
 
-      currentGroup.items.push({
-        products: {
+      currentGroup.queues.push({
+        id: item.id,
+        product: {
           order_status: item.order_status,
           notes: item.notes ?? '',
           id: item.products?.id ?? '',
@@ -276,9 +276,9 @@ export class KitchenService {
         },
       });
 
-      if (currentGroup && currentGroup.items.length > 0) {
-        const allCompleted = currentGroup.items.every(
-          (i: any) => i.products.order_status === order_status.completed,
+      if (currentGroup && currentGroup.queues.length > 0) {
+        const allCompleted = currentGroup.queues.every(
+          (i: any) => i.product.order_status === order_status.completed,
         );
         if (!allCompleted) {
           groupedResult.push(currentGroup);
@@ -313,9 +313,10 @@ export class KitchenService {
     // update bulk order status of kitchen queue
     await this.updateManyKitchenQueueOrderStatusByIds(request);
 
-    return {
-      ids: existingRecords,
-    };
+    // fetch the updated value
+    const updatedData = await this.findManyKitchenQueueByIds(ids);
+
+    return updatedData;
   }
 
   public async updateQueueOrderStatus(
@@ -464,14 +465,13 @@ export class KitchenService {
    */
   public async findManyKitchenQueueByIds(
     ids: string[],
-  ): Promise<{ id: string }[]> {
+  ): Promise<kitchen_queue[]> {
     try {
-      const existingRecords = await this._prisma.kitchen_queue.findMany({
+      const result = await this._prisma.kitchen_queue.findMany({
         where: { id: { in: ids } },
-        select: { id: true },
       });
 
-      return existingRecords;
+      return result;
     } catch (error) {
       this.logger.error('Failed to create kitchen queues');
       throw new BadRequestException('Failed to create kitchen queues', {
