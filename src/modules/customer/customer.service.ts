@@ -12,6 +12,7 @@ import { validate as isUUID } from 'uuid';
 import { customer as CustomerModel, point_type, Prisma } from '@prisma/client';
 import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
 import { QueryInvoiceDto } from './dto/query-invoice.dto';
+import { validateStoreId } from '../../common/helpers/validators.helper';
 
 @Injectable()
 export class CustomerService {
@@ -469,13 +470,25 @@ export class CustomerService {
     }
   }
 
-  async queueWaitingListOrder() {
+  async queueWaitingListOrder(header: ICustomRequestHeaders) {
+    const storeId = validateStoreId(header.store_id);
+    const today = new Date();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
     const invoices = await this.prisma.invoice.findMany({
       where: {
         order_type: 'dine_in',
+        store_id: storeId,
+        created_at: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
       },
       select: {
         id: true,
+        store_id: true,
         customer_id: true,
         customer: {
           select: {

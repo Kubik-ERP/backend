@@ -10,6 +10,7 @@ import {
   HttpStatus,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -17,7 +18,7 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerService } from './customer.service';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
-import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
 import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
 import { QueryInvoiceDto } from './dto/query-invoice.dto';
 
@@ -231,11 +232,17 @@ export class CustomersController {
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Get Customer Waiting List Orders',
+    summary: 'Get Customer Waiting List Orders (Only for today and dine-in)',
+  })
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
   })
   @Get('/waiting/list')
-  async waitingListOrders() {
-    const responses = await this.customersService.queueWaitingListOrder();
+  async waitingListOrders(@Req() req: ICustomRequestHeaders) {
+    const responses = await this.customersService.queueWaitingListOrder(req);
     return {
       result: toCamelCase(responses),
     };
