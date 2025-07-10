@@ -49,7 +49,7 @@ model cash_drawer_transactions {
 
 model cash_drawers {
   id               String            @id(map: "cash_drawers_pk") @db.Uuid
-  expected_balance Float?
+  expected_balance Float             @default(0)
   actual_balance   Float?
   status           cash_drawer_type?
   date             DateTime?         @db.Date
@@ -60,10 +60,11 @@ model cash_drawers {
   updated_at       BigInt?
   store_id         String?           @db.Uuid
   closed_at        BigInt?
-  closed_by        BigInt?
+  closed_by        Int?
   staff_id         String?           @db.Uuid
   employees        employees?        @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_employees_fk")
   stores           stores?           @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_stores_fk")
+  users            users?            @relation(fields: [closed_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_users_fk")
 }
 
 model categories {
@@ -571,6 +572,7 @@ model users {
   fullname                 String?                    @db.VarChar
   role_id                  String                     @db.Uuid
   cash_drawer_transactions cash_drawer_transactions[]
+  cash_drawers             cash_drawers[]
   invoice                  invoice[]
   user_has_stores          user_has_stores[]
   roles                    roles                      @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
