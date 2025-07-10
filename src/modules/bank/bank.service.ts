@@ -45,10 +45,18 @@ export class BankService {
   }
 
   async getUserBanks(userId: number) {
-    return await this.prisma.users_has_banks.findMany({
+    const rawBanks = await this.prisma.users_has_banks.findMany({
       where: { users_id: userId },
       include: { banks: true },
     });
+
+    return rawBanks.map((b) => ({
+      id: b.id,
+      bankId: b.bank_id,
+      bankName: b.banks?.name,
+      accountNumber: b.account_number,
+      accountName: b.account_name,
+    }));
   }
 
   async attachBankToUser(userId: number, dto: AttachUserBankDto) {

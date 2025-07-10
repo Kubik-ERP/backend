@@ -2,7 +2,7 @@ import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import { CreateStoreDto } from '../dtos/request.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
-import { formatTime } from 'src/common/helpers/common.helpers';
+import { formatDate, formatTime } from 'src/common/helpers/common.helpers';
 import { Prisma } from '@prisma/client';
 import { IHourSlot, IOperationalDay } from '../interfaces/stores.interface';
 
@@ -15,8 +15,6 @@ export class StoresService {
     userId: number,
   ): Promise<void> {
     await this.prisma.$transaction(async (prisma) => {
-      console.log('Data masuk ke service:', data);
-      console.log('Parsed businessHours:', data.businessHours);
       const store = await prisma.stores.create({
         data: {
           id: uuidv4(),
@@ -160,8 +158,8 @@ export class StoresService {
     });
   }
 
-  public async getStoreByUserId(userId: number): Promise<any> {
-    return this.prisma.stores.findMany({
+  public async getStoreByUserId(userId: number) {
+    const stores = await this.prisma.stores.findMany({
       where: {
         user_has_stores: {
           some: {
@@ -190,6 +188,62 @@ export class StoresService {
         },
       },
     });
+
+    if (!stores.length) {
+      return {
+        stores: [],
+        userBanks: [],
+      };
+    }
+
+    const user = stores[0].user_has_stores[0]?.users;
+    const userBanks = user?.users_has_banks || [];
+
+    const storeResult = stores.map((store) => {
+      const groupedOperationalHours = store.operational_hours.reduce(
+        (acc: any, item: any) => {
+          const day = item.days;
+          if (!acc[day]) {
+            acc[day] = {
+              days: day,
+              times: [],
+            };
+          }
+          acc[day].times.push({
+            openTime: item.open_time,
+            closeTime: item.close_time,
+          });
+          return acc;
+        },
+        {},
+      );
+
+      return {
+        id: store.id,
+        name: store.name,
+        email: user?.email,
+        phoneNumber: user?.phone,
+        businessType: store.business_type,
+        photo: store.photo,
+        address: store.address,
+        city: store.city,
+        postalCode: store.postal_code,
+        building: store.building,
+        createdAt: store.created_at ? formatDate(store.created_at) : null,
+        updatedAt: store.updated_at ? formatDate(store.updated_at) : null,
+
+        operationalHours: Object.values(groupedOperationalHours),
+      };
+    });
+
+    return {
+      stores: storeResult,
+      userBanks: userBanks.map((bank: any) => ({
+        bankName: bank.banks?.name || null,
+        accountNumber: bank.account_number,
+        accountName: bank.account_name ?? null,
+      })),
+    };
   }
 
   public async getAllStores(userId: number): Promise<any[]> {
@@ -207,11 +261,10 @@ export class StoresService {
 
   public async getOperationalHoursByStore(
     storeId: string,
-  ): Promise<IOperationalDay[]> {
-    const hours = await this.prisma.operational_hours.findMany({
-      where: { stores_id: storeId },
-      orderBy: { days: 'asc' },
-    });
+  ): Promise<
+    { day: string; hours: { openTime: string; closeTime: string }[] }[]
+  > {
+    const hours = await this.fetchOperationalHours(storeId);
 
     const dayMap = [
       'Sunday',
@@ -223,7 +276,8 @@ export class StoresService {
       'Saturday',
     ];
 
-    const grouped: Record<number, IHourSlot[]> = {};
+    const grouped: Record<number, { openTime: string; closeTime: string }[]> =
+      {};
 
     for (const item of hours) {
       if (item.days === null || item.days === undefined) continue;
@@ -233,19 +287,19 @@ export class StoresService {
       }
 
       grouped[item.days].push({
-        open: item.open_time ?? 'Closed',
-        close: item.close_time ?? 'Closed',
+        openTime: item.open_time ?? 'Closed',
+        closeTime: item.close_time ?? 'Closed',
       });
     }
 
-    const result: IOperationalDay[] = dayMap.map((dayName, dayIndex) => {
+    const result = dayMap.map((dayName, dayIndex) => {
       const slots = grouped[dayIndex];
       return {
         day: dayName,
         hours:
           slots && slots.length > 0
             ? slots
-            : [{ open: 'Closed', close: 'Closed' }],
+            : [{ openTime: 'Closed', closeTime: 'Closed' }],
       };
     });
 
@@ -263,10 +317,7 @@ export class StoresService {
     }
 
     await this.prisma.$transaction(async (prisma) => {
-      await prisma.operational_hours.deleteMany({
-        where: { stores_id: storeId },
-      });
-
+      await this.deleteOperationalHours(storeId, prisma);
       if (businessHours?.length) {
         await prisma.operational_hours.createMany({
           data: businessHours.map((bh) => ({
@@ -288,5 +339,21 @@ export class StoresService {
       where: { id: storeId, user_has_stores: { some: { user_id: userId } } },
     });
     return !!store;
+  }
+
+  private async fetchOperationalHours(storeId: string) {
+    return this.prisma.operational_hours.findMany({
+      where: { stores_id: storeId },
+      orderBy: { days: 'asc' },
+    });
+  }
+
+  private async deleteOperationalHours(
+    storeId: string,
+    prisma: Prisma.TransactionClient,
+  ): Promise<void> {
+    await prisma.operational_hours.deleteMany({
+      where: { stores_id: storeId },
+    });
   }
 }

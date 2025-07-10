@@ -8,13 +8,10 @@ import {
   ArrayNotEmpty,
   ArrayUnique,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
-enum OrderTypeEnum {
-  DINE_IN = 'dine_in',
-  TAKE_AWAY = 'take_away',
-  SELF_ORDER = 'self_order',
-}
+import { order_type } from '@prisma/client';
+
 
 export class QueryInvoiceDto {
   @IsOptional()
@@ -41,8 +38,9 @@ export class QueryInvoiceDto {
   @IsArray()
   @ArrayNotEmpty()
   @ArrayUnique()
-  @IsEnum(OrderTypeEnum, { each: true, message: 'Invalid order_type' })
-  order_type?: OrderTypeEnum[];
+  @IsEnum(order_type, { each: true, message: 'Invalid order_type' })
+  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
+  order_type?: order_type[];
 
   @IsOptional()
   @IsDateString()

@@ -361,70 +361,15 @@ export class StoresController {
 
   @Get('user/:id')
   @ApiOperation({ summary: 'Get store(s) by user ID' })
-  @UseGuards(AuthenticationJWTGuard)
-  @ApiBearerAuth()
-  @UseGuards(PinGuard)
+  // @UseGuards(AuthenticationJWTGuard)
+  // @ApiBearerAuth()
+  // @UseGuards(PinGuard)
   public async getStoreByUser(@Param('id') id: number) {
     try {
-      const stores = await this._storeService.getStoreByUserId(id);
-
-      if (!stores.length) {
-        return {
-          result: {
-            stores: [],
-            userBanks: [],
-          },
-        };
-      }
-
-      const user = stores[0].user_has_stores[0]?.users;
-      const userBanks = user?.users_has_banks || [];
-
-      const storeResult = stores.map((store: any) => {
-        const groupedOperationalHours = store.operational_hours.reduce(
-          (acc: any, item: any) => {
-            const day = item.days;
-            if (!acc[day]) {
-              acc[day] = {
-                days: day,
-                times: [],
-              };
-            }
-            acc[day].times.push({
-              openTime: item.open_time,
-              closeTime: item.close_time,
-            });
-            return acc;
-          },
-          {},
-        );
-
-        return {
-          id: store.id,
-          name: store.name,
-          email: user?.email,
-          phoneNumber: user?.phone,
-          businessType: store.business_type,
-          photo: store.photo,
-          address: store.address,
-          city: store.city,
-          postalCode: store.postal_code,
-          building: store.building,
-          createdAt: formatDate(store.created_at),
-          updatedAt: formatDate(store.updated_at),
-          operationalHours: Object.values(groupedOperationalHours),
-        };
-      });
+      const result = await this._storeService.getStoreByUserId(id);
 
       return {
-        result: {
-          stores: storeResult,
-          userBanks: userBanks.map((bank: any) => ({
-            bankName: bank.banks?.name || null,
-            accountNumber: bank.account_number,
-            accountName: bank.accoun ?? null,
-          })),
-        },
+        result,
       };
     } catch (error) {
       console.log(error);
@@ -443,29 +388,11 @@ export class StoresController {
     @Param('id') storeId: string,
   ): Promise<any> {
     try {
-      const operationalHours =
+      const formattedHours =
         await this._storeService.getOperationalHoursByStore(storeId);
-
-      const dayMap = [
-        'Sunday',
-        'Monday',
-        'Tuesday',
-        'Wednesday',
-        'Thursday',
-        'Friday',
-        'Saturday',
-      ];
-      const formattedHours = operationalHours.map((item) => ({
-        day: item.day,
-        hours: item.hours.map((hour) => ({
-          openTime: hour.open,
-          closeTime: hour.close,
-        })),
-      }));
-
       return { result: toCamelCase(formattedHours) };
     } catch (error) {
-      console.log(error);
+      console.error(error);
       throw new HttpException(
         'Internal Server Error',
         HttpStatus.INTERNAL_SERVER_ERROR,

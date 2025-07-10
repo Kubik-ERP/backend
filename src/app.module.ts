@@ -54,6 +54,7 @@ import { BankModule } from './modules/bank/bank.module';
 
     // Core Feature Modules
     AuthenticationModule,
+    BankModule,
     CashDrawerModule,
     CategoriesModule,
     ChargesModule,
@@ -69,7 +70,6 @@ import { BankModule } from './modules/bank/bank.module';
     UsersModule,
     TablesModule,
     TemplatesEmailModule,
-    BankModule,
   ],
   providers: [
     {

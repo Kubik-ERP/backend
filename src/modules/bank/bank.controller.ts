@@ -140,13 +140,7 @@ export class BankController {
       return {
         statusCode: HttpStatus.OK,
         message: 'User banks retrieved successfully',
-        result: result.map((b) => ({
-          id: b.id,
-          bankId: b.bank_id,
-          bankName: b.banks?.name,
-          accountNumber: b.account_number,
-          accountName: b.account_name,
-        })),
+        result : toCamelCase(result),
       };
     } catch (error) {
       throw new HttpException(
