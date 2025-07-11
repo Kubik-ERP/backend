@@ -351,6 +351,7 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
+    const now = new Date();
     const invoiceNumber = await this.generateInvoiceNumber(storeId);
     let kitchenQueue: KitchenQueueAdd[] = [];
 
@@ -363,8 +364,8 @@ export class InvoiceService {
       discount_amount: 0, // need to confirm
       order_type: request.orderType,
       subtotal: 0, // default value
-      created_at: new Date(),
-      update_at: new Date(),
+      created_at: now,
+      update_at: now,
       delete_at: null,
       paid_at: null,
       tax_id: null,
@@ -447,8 +448,8 @@ export class InvoiceService {
           store_id: storeId,
           customer_id: request.customerId,
           notes: detail.notes ?? '',
-          created_at: new Date(),
-          updated_at: new Date(),
+          created_at: now,
+          updated_at: now,
           table_code: request.tableCode,
         };
 
@@ -477,6 +478,7 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
+    const now = new Date();
     const invoiceNumber = await this.generateInvoiceNumber(storeId);
     const calculation = await this.calculateTotal(request);
     let kitchenQueue: KitchenQueueAdd[] = [];
@@ -490,8 +492,8 @@ export class InvoiceService {
       discount_amount: 0, // need to confirm
       order_type: request.orderType,
       subtotal: calculation.total,
-      created_at: new Date(),
-      update_at: new Date(),
+      created_at: now,
+      update_at: now,
       delete_at: null,
       paid_at: null,
       tax_id: null,
@@ -553,8 +555,8 @@ export class InvoiceService {
           store_id: storeId,
           customer_id: request.customerId,
           notes: detail.notes ?? '',
-          created_at: new Date(),
-          updated_at: new Date(),
+          created_at: now,
+          updated_at: now,
           table_code: request.tableCode,
         };
 
