@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { invoice_type, order_type } from '@prisma/client';
+import { invoice_type, order_type, order_status } from '@prisma/client';
 import {
   IsUUID,
   IsDate,
@@ -70,6 +70,16 @@ export class GetListInvoiceDto {
   @IsOptional()
   @IsEnum(invoice_type, { each: true })
   paymentStatus?: invoice_type[];
+
+  @ApiProperty({
+    description: 'Order Status of the invoice',
+    required: false,
+    example: 'Served',
+    isArray: true,
+  })
+  @IsOptional()
+  @IsEnum(order_status, { each: true })
+  orderStatus?: order_status[];
 
   @ApiProperty({
     description: 'Start time of the invoice created time',
