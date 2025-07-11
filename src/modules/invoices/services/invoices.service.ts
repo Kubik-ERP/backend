@@ -467,6 +467,9 @@ export class InvoiceService {
       calculation.grandTotal,
     );
 
+    // notify the FE
+    this._notificationHelper.notifyNewOrder(storeId);
+
     return response;
   }
 
@@ -573,6 +576,10 @@ export class InvoiceService {
     const result = {
       orderId: invoiceId,
     };
+
+    // notify the FE
+    this._notificationHelper.notifyNewOrder(storeId);
+
     return result;
   }
 
@@ -748,7 +755,6 @@ export class InvoiceService {
     };
 
     // notify the FE
-    this.logger.error(`Invoice '${requestCallback.order_id}' success`);
     this._notificationHelper.notifyPaymentSuccess(requestCallback.order_id);
 
     return {
