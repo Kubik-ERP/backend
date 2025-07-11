@@ -252,6 +252,7 @@ export class KitchenService {
         }
 
         currentGroup = {
+          queueReferenceId: item.id, // this is flagging for duration
           invoice_id: item.invoice_id,
           invoice_number: item.invoice?.invoice_number ?? '',
           created_at: item.created_at,
