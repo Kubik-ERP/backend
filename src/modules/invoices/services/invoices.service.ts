@@ -341,8 +341,13 @@ export class InvoiceService {
   ) {
     const storeId = validateStoreId(header.store_id);
 
-    const paymentProvider = this._paymentFactory.getProvider(request.provider);
-    if (!paymentProvider) {
+    await this.validatePaymentMethod(request.paymentMethodId);
+
+    const paymentProvider =
+      request.provider === 'cash'
+        ? undefined // use undefined for cash
+        : this._paymentFactory.getProvider(request.provider);
+    if (request.provider !== 'cash' && !paymentProvider) {
       this.logger.error(`Payment provider '${request.provider}' not found`);
       throw new NotFoundException(
         `Payment provider '${request.provider}' not found`,
@@ -385,15 +390,6 @@ export class InvoiceService {
     await this.create(invoiceData);
 
     const calculation = await this.calculateTotal(request, invoiceId);
-
-    // return {
-    //   invoiceData,
-    //   invoiceId,
-    //   request,
-    //   calculation,
-    //   // header,
-    //   // request,
-    // };
 
     // update invoice
     await this.update(invoiceId, {
@@ -470,14 +466,21 @@ export class InvoiceService {
     // create kitchen queue
     await this._kitchenQueue.createKitchenQueue(kitchenQueue);
 
-    const response = await this.initiatePaymentBasedOnMethod(
-      request.paymentMethodId,
-      paymentProvider,
-      invoiceId,
-      calculation.grandTotal,
-    );
-
-    return response;
+    if (request.provider !== 'cash') {
+      const response = await this.initiatePaymentBasedOnMethod(
+        request.paymentMethodId,
+        paymentProvider,
+        invoiceId,
+        calculation.grandTotal,
+      );
+      return response;
+    }
+    // note: response for cash payment
+    return {
+      paymentMethodId: request.paymentMethodId,
+      invoiceId: invoiceId,
+      grandTotal: calculation.grandTotal,
+    };
   }
 
   public async proceedCheckout(
@@ -593,9 +596,15 @@ export class InvoiceService {
       throw new BadRequestException(`Invoice status is not unpaid`);
     }
 
+    await this.validatePaymentMethod(request.paymentMethodId);
+
     // define payment method and provider
-    const paymentProvider = this._paymentFactory.getProvider(request.provider);
-    if (!paymentProvider) {
+    const paymentProvider =
+      request.provider === 'cash'
+        ? undefined // use undefined for cash
+        : this._paymentFactory.getProvider(request.provider);
+
+    if (request.provider !== 'cash' && !paymentProvider) {
       this.logger.error(`Payment provider '${request.provider}' not found`);
       throw new NotFoundException(
         `Payment provider '${request.provider}' not found`,
@@ -640,16 +649,23 @@ export class InvoiceService {
       service_charge_amount: calculation.serviceCharge,
       grand_total: calculation.grandTotal,
       payment_method_id: request.paymentMethodId,
+      payment_amount: calculation.paymentAmount,
+      change_amount: calculation.changeAmount,
     });
 
-    const response = await this.initiatePaymentBasedOnMethod(
-      request.paymentMethodId,
-      paymentProvider,
-      invoice.id,
-      calculation.grandTotal,
-    );
-
-    return response;
+    if (request.provider !== 'cash') {
+      const response = await this.initiatePaymentBasedOnMethod(
+        request.paymentMethodId,
+        paymentProvider,
+        invoice.id,
+        calculation.grandTotal,
+      );
+    }
+    return {
+      paymentMethodId: request.paymentMethodId,
+      invoiceId: invoice.id,
+      grandTotal: calculation.grandTotal,
+    };
   }
 
   public async handlePaymentCallback(
@@ -953,10 +969,23 @@ export class InvoiceService {
     };
   }
 
+  private async validatePaymentMethod(methodId: string) {
+    const paymentMethod = await this._prisma.payment_methods.findUnique({
+      where: { id: methodId },
+    });
+
+    if (!paymentMethod) {
+      this.logger.error(`Unsupported payment method: ${methodId}`);
+      throw new BadRequestException(`Unsupported payment method: ${methodId}`);
+    }
+
+    return paymentMethod;
+  }
+
   // Private function section
   private async initiatePaymentBasedOnMethod(
     methodId: string,
-    provider: PaymentGateway,
+    provider: PaymentGateway | undefined,
     orderId: string,
     amount: number,
   ): Promise<any> {
@@ -964,6 +993,16 @@ export class InvoiceService {
     const paymentMethod = await this._prisma.payment_methods.findUnique({
       where: { id: methodId },
     });
+
+    // If provider is undefined, assume cash and skip gateway initiation
+    if (!provider) {
+      return {
+        paymentMethodId: methodId,
+        invoiceId: orderId,
+        amount,
+        message: 'Cash payment does not require gateway initiation',
+      };
+    }
 
     switch (paymentMethod?.name) {
       case 'Snap':
