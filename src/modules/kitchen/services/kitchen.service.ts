@@ -25,7 +25,7 @@ import { formatDateCommon } from 'src/common/helpers/common.helpers';
 export class KitchenService {
   private readonly logger = new Logger(KitchenService.name);
 
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(private readonly _prisma: PrismaService) { }
 
   public async getKitchenQueuesList(
     header: ICustomRequestHeaders,
@@ -476,9 +476,30 @@ export class KitchenService {
     try {
       const result = await this._prisma.kitchen_queue.findMany({
         where: { id: { in: ids } },
+        include: {
+          products: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          variant: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
       });
 
-      return result;
+      const normalized = result.map((queue) => ({
+        ...queue,
+        variant_id: queue.variant_id ?? '',
+        notes: queue.notes ?? '',
+        variant: queue.variant ?? { id: '', name: '' },
+      }));
+
+      return normalized;
     } catch (error) {
       this.logger.error('Failed to create kitchen queues');
       throw new BadRequestException('Failed to create kitchen queues', {
