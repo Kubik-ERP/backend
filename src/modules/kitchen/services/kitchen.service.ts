@@ -252,6 +252,7 @@ export class KitchenService {
         }
 
         currentGroup = {
+          queueReferenceId: item.id, // this is flagging for duration
           invoice_id: item.invoice_id,
           invoice_number: item.invoice?.invoice_number ?? '',
           created_at: item.created_at,
@@ -281,14 +282,14 @@ export class KitchenService {
           },
         },
       });
+    }
 
-      if (currentGroup && currentGroup.queues.length > 0) {
-        const allCompleted = currentGroup.queues.every(
-          (i: any) => i.product.order_status === order_status.completed,
-        );
-        if (!allCompleted) {
-          groupedResult.push(currentGroup);
-        }
+    if (currentGroup && currentGroup.queues.length > 0) {
+      const allCompleted = currentGroup.queues.every(
+        (i: any) => i.product.order_status === order_status.completed,
+      );
+      if (!allCompleted) {
+        groupedResult.push(currentGroup);
       }
     }
 
@@ -475,9 +476,30 @@ export class KitchenService {
     try {
       const result = await this._prisma.kitchen_queue.findMany({
         where: { id: { in: ids } },
+        include: {
+          products: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          variant: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
       });
 
-      return result;
+      const normalized = result.map((queue) => ({
+        ...queue,
+        variant_id: queue.variant_id ?? '',
+        notes: queue.notes ?? '',
+        variant: queue.variant ?? { id: '', name: '' },
+      }));
+
+      return normalized;
     } catch (error) {
       this.logger.error('Failed to create kitchen queues');
       throw new BadRequestException('Failed to create kitchen queues', {

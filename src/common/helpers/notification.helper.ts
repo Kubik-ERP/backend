@@ -62,4 +62,12 @@ export class NotificationHelper
       message: 'Payment failed or was cancelled',
     });
   }
+
+  // notify new order for kitchen queue
+  notifyNewOrder(storeId: string) {
+    this.server.emit('new-order-incomming', {
+      storeId: storeId,
+      message: 'New order incomming please update the kitchen queue',
+    });
+  }
 }
