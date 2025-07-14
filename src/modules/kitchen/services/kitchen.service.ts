@@ -107,6 +107,7 @@ export class KitchenService {
     ]);
 
     const items = rawItems.map((item) => ({
+      invoiceId: item.id,
       orderNumber: item.invoice_number,
       purchaseDate: item.created_at ? formatDateCommon(item.created_at) : '',
       customer: item.customer?.name ?? '',
