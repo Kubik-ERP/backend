@@ -25,7 +25,7 @@ import { formatDateCommon } from 'src/common/helpers/common.helpers';
 export class KitchenService {
   private readonly logger = new Logger(KitchenService.name);
 
-  constructor(private readonly _prisma: PrismaService) { }
+  constructor(private readonly _prisma: PrismaService) {}
 
   public async getKitchenQueuesList(
     header: ICustomRequestHeaders,
