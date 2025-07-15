@@ -54,6 +54,8 @@ export class CashDrawerService {
         status: 'close',
         updated_by: userId,
         updated_at: jakartaTime().toUnixInteger(),
+        closed_at: jakartaTime().toUnixInteger(),
+        closed_by: userId,
       },
     });
     return cashDrawer;
