@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -17,35 +18,55 @@ import { Server, Socket } from 'socket.io';
 export class NotificationHelper
   implements OnGatewayConnection, OnGatewayDisconnect
 {
+  private readonly logger = new Logger(NotificationHelper.name);
+
   @WebSocketServer()
   server: Server;
 
   handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}`);
+    this.logger.log(`Client connected: ${client.id}`);
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`Client disconnected: ${client.id}`);
+    this.logger.log(`Client disconnected: ${client.id}`);
   }
 
-  // Client subscribe ke invoice tertentu
+  // Client subscribe to selected invoice
   @SubscribeMessage('subscribe-invoice')
   handleSubscribeInvoice(
     @MessageBody() orderId: string,
     @ConnectedSocket() client: Socket,
   ) {
     client.join(orderId);
-    console.log(`Client ${client.id} subscribed to invoice ${orderId}`);
+    this.logger.log(`Client ${client.id} subscribed to invoice ${orderId}`);
   }
 
-  // (opsional) unsubscribe
+  // (optional) unsubscribe
   @SubscribeMessage('unsubscribe-invoice')
   handleUnsubscribeInvoice(
     @MessageBody() orderId: string,
     @ConnectedSocket() client: Socket,
   ) {
     client.leave(orderId);
-    console.log(`Client ${client.id} unsubscribed from invoice ${orderId}`);
+    this.logger.log(`Client ${client.id} unsubscribed from invoice ${orderId}`);
+  }
+
+  @SubscribeMessage('subscribe-new-order')
+  handleSubscribeStore(
+    @MessageBody() storeId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    client.join(storeId);
+    this.logger.log(`Client ${client.id} subscribed to store ${storeId}`);
+  }
+
+  @SubscribeMessage('unsubscribe-new-order')
+  handleUnsubscribeStore(
+    @MessageBody() storeId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    client.leave(storeId);
+    this.logger.log(`Client ${client.id} unsubscribed from store ${storeId}`);
   }
 
   // Trigger ke specific invoice room
@@ -65,9 +86,9 @@ export class NotificationHelper
 
   // notify new order for kitchen queue
   notifyNewOrder(storeId: string) {
-    this.server.emit('new-order-incomming', {
+    this.server.to(storeId).emit('new-order-incoming', {
       storeId: storeId,
-      message: 'New order incomming please update the kitchen queue',
+      message: 'New order incoming please update the kitchen queue',
     });
   }
 }
