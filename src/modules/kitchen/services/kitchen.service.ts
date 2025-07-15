@@ -130,7 +130,10 @@ export class KitchenService {
     };
   }
 
-  public async createKitchenQueue(queues: KitchenQueueAdd[]) {
+  public async createKitchenQueue(
+    tx: Prisma.TransactionClient,
+    queues: KitchenQueueAdd[],
+  ) {
     if (!queues || queues.length === 0) {
       this.logger.warn('No kitchen queues to create');
       return 0;
@@ -151,7 +154,7 @@ export class KitchenService {
       order_type: queue.order_type as order_type,
     }));
 
-    return await this.createMany(kitchenQueues);
+    return await this.createMany(tx, kitchenQueues);
   }
 
   public async ticketByInvoiceId(request: GetInvoiceDto) {
@@ -350,9 +353,12 @@ export class KitchenService {
   /**
    * @description Create many kitchen queues
    */
-  public async createMany(kitchenQueues: kitchen_queue[]): Promise<number> {
+  public async createMany(
+    tx: Prisma.TransactionClient,
+    kitchenQueues: kitchen_queue[],
+  ): Promise<number> {
     try {
-      const result = await this._prisma.kitchen_queue.createMany({
+      const result = await tx.kitchen_queue.createMany({
         data: kitchenQueues,
       });
 
