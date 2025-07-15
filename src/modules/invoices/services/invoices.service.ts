@@ -354,6 +354,12 @@ export class InvoiceService {
       );
     }
 
+    if (request.provider == 'cash' && !request.paymentAmount) {
+      throw new BadRequestException(
+        'Payment method is cash, please fill the payment amount',
+      );
+    }
+
     // create invoice ID
     const invoiceId = uuidv4();
     const invoiceNumber = await this.generateInvoiceNumber(storeId);
@@ -940,7 +946,7 @@ export class InvoiceService {
     }
 
     // note: Calculate change_amount and payment_amount
-    if (request.paymentAmount) {
+    if (request.paymentAmount && request.provider == 'cash') {
       paymentAmount = request.paymentAmount;
       if (paymentAmount < grandTotal) {
         this.logger.error(`Payment amount is less than grand total`);

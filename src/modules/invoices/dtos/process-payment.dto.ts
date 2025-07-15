@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   IsUUID,
   ValidateNested,
@@ -107,6 +108,7 @@ export class ProceedInstantPaymentDto extends ProductListDto {
     required: false,
     example: 100000,
   })
+  @IsOptional()
   @IsNumber()
   public paymentAmount: number;
 }
@@ -177,4 +179,5 @@ export class CalculationEstimationDto extends ProductListDto {
   @IsString()
   public orderType: order_type;
   paymentAmount?: number;
+  provider?: string;
 }
