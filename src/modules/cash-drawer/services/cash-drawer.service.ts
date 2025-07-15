@@ -108,6 +108,10 @@ export class CashDrawerService {
       };
     }
 
+    if (query.type) {
+      where.type = query.type;
+    }
+
     const [cashDrawer, count] = await Promise.all([
       this.prisma.cash_drawers.findMany({
         where,
