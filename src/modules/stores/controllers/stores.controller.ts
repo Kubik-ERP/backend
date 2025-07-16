@@ -400,7 +400,12 @@ export class StoresController {
   ) {
     try {
       if (file) {
-        updateProfileDto.picture_url = `/public/images/${file.filename}`;
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+
+        updateProfileDto.picture_url = `/${result.bucket}/${result.filename}`;
       }
 
       const result = await this._storeService.updateProfile(
