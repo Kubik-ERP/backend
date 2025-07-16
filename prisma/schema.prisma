@@ -534,6 +534,7 @@ model users {
   pin                      String?                    @db.VarChar
   fullname                 String?                    @db.VarChar
   role_id                  String                     @db.Uuid
+  picture_url              String?                    @db.VarChar(45)
   cash_drawer_transactions cash_drawer_transactions[]
   cash_drawers             cash_drawers[]
   invoice                  invoice[]
@@ -643,18 +644,16 @@ model kitchen_queue {
 }
 
 model banks {
-  id              String            @id(map: "banks_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name            String?           @db.VarChar(45)
-  users_has_banks users_has_banks[]
+  id   String  @id(map: "banks_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name String? @db.VarChar(45)
 }
 
 model users_has_banks {
   id             String  @id(map: "users_has_banks_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   users_id       Int?
-  bank_id        String? @db.Uuid
+  bank_name      String? @db.VarChar(255)
   account_number String? @db.VarChar(45)
   account_name   String? @db.VarChar(45)
-  banks          banks?  @relation(fields: [bank_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_has_banks_banks_id_fk")
   users          users?  @relation(fields: [users_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_has_banks_users_id_fk")
 }
 

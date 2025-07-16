@@ -1,5 +1,5 @@
 import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
-import { CreateStoreDto } from '../dtos/request.dto';
+import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
 import { formatDate, formatTime } from 'src/common/helpers/common.helpers';
@@ -158,7 +158,9 @@ export class StoresService {
     });
   }
 
-  public async getStoreByUserId(userId: number) {
+  public async getStoreByUserId(header: ICustomRequestHeaders) {
+    const userId = header.user.id;
+
     const stores = await this.prisma.stores.findMany({
       where: {
         user_has_stores: {
@@ -177,11 +179,7 @@ export class StoresService {
           include: {
             users: {
               include: {
-                users_has_banks: {
-                  include: {
-                    banks: true,
-                  },
-                },
+                users_has_banks: true,
               },
             },
           },
@@ -257,6 +255,25 @@ export class StoresService {
         operational_hours: true,
       },
     });
+  }
+
+  public async updateProfile(userId: number, body: UpdateProfileDto) {
+    const user = await this.prisma.users.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        fullname: body.fullname,
+        email: body.email,
+        phone: body.phone,
+        picture_url: body.picture_url,
+      },
+    });
+
+    return {
+      message: 'Profile updated successfully.',
+      user,
+    };
   }
 
   public async getOperationalHoursByStore(

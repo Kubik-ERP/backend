@@ -109,3 +109,10 @@ export class CreateStoreDto {
   @IsString()
   photo?: string;
 }
+
+export class UpdateProfileDto {
+  fullname?: string;
+  email?: string;
+  phone?: string;
+  picture_url?: string;
+}

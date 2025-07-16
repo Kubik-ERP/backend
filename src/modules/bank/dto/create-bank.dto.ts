@@ -9,9 +9,9 @@ export class CreateBankDto {
 }
 
 export class AttachUserBankDto {
-  @ApiProperty({ example: 'uuid-bank-id' })
-  @IsUUID()
-  bankId: string;
+  @ApiProperty({ example: 'BCA' })
+  @IsString()
+  bankName: string;
 
   @ApiProperty({ example: '1234567890' })
   @IsString()
