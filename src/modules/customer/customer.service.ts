@@ -386,39 +386,42 @@ export class CustomerService {
         address: updateCustomerDto.address,
       };
 
-      if (updateCustomerDto.tags && updateCustomerDto.tags.length > 0) {
-        const tagsToConnectOrCreate = [];
-
-        for (const tag of updateCustomerDto.tags) {
-          if (!tag.id || tag.id === '') {
-            const newTag = await this.prisma.tag.create({
-              data: { name: tag.name },
-            });
-            tagsToConnectOrCreate.push({ tag_id: newTag.id });
-          } else {
-            tagsToConnectOrCreate.push({ tag_id: tag.id });
-          }
-        }
-
+      if (updateCustomerDto.tags !== undefined) {
         await this.prisma.customers_has_tag.deleteMany({
           where: { customer_id: id },
         });
 
-        customerData.customers_has_tag = {
-          create: tagsToConnectOrCreate,
-        };
+        if (updateCustomerDto.tags.length > 0) {
+          const tagsToConnectOrCreate = [];
+
+          for (const tag of updateCustomerDto.tags) {
+            if (!tag.id || tag.id === '') {
+              const newTag = await this.prisma.tag.create({
+                data: { name: tag.name },
+              });
+              tagsToConnectOrCreate.push({ tag_id: newTag.id });
+            } else {
+              tagsToConnectOrCreate.push({ tag_id: tag.id });
+            }
+          }
+
+          await this.prisma.customer.update({
+            where: { id },
+            data: {
+              customers_has_tag: {
+                create: tagsToConnectOrCreate,
+              },
+            },
+          });
+        }
       }
 
       const updatedCustomer = await this.prisma.customer.update({
         where: { id },
         data: customerData,
         include: {
-          customers_has_tag: {
-            include: { tag: true },
-          },
-          customer_has_stores: {
-            include: { stores: true },
-          },
+          customers_has_tag: { include: { tag: true } },
+          customer_has_stores: { include: { stores: true } },
         },
       });
 
