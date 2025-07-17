@@ -38,7 +38,6 @@ export class UpdateCustomerDto {
 
   @ApiPropertyOptional({ description: 'Email address' })
   @IsOptional()
-  @IsEmail()
   email?: string;
 
   @ApiPropertyOptional({ description: 'Customer address' })

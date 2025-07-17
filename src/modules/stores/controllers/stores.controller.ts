@@ -25,7 +25,11 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { BusinessHoursDto, CreateStoreDto } from '../dtos/request.dto';
+import {
+  BusinessHoursDto,
+  CreateStoreDto,
+  UpdateProfileDto,
+} from '../dtos/request.dto';
 import { StoresService } from '../services/stores.service';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import {
@@ -39,6 +43,7 @@ import { ImageUploadInterceptor } from 'src/common/interceptors/image-upload.int
 import { StorageService } from 'src/modules/storage-service/services/storage-service.service';
 import { PinGuard } from 'src/common/guards/authentication-pin.guard';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
+import { UpdateProductDto } from '../../products/dto/update-product.dto';
 
 @Controller('store')
 @ApiTags('Stores')
@@ -288,7 +293,7 @@ export class StoresController {
   }
 
   @UseGuards(AuthenticationJWTGuard)
-  @Get('/:id')
+  @Get('/store/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get store by ID' })
   public async getStoreById(@Param('id') id: string) {
@@ -360,14 +365,54 @@ export class StoresController {
     }
   }
 
-  @Get('/getStoreByUser')
+  @Get('/profile')
   @ApiOperation({ summary: 'Get store(s) by user ID' })
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @UseGuards(PinGuard)
   public async getStoreByUser(@Req() req: ICustomRequestHeaders) {
     try {
-      const result = await this._storeService.getStoreByUserId(req.user.id);
+      const userId = req.user.id;
+      const result = await this._storeService.getStoreByUserId(userId);
+
+      return {
+        result,
+      };
+    } catch (error) {
+      console.log(error);
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Put('/profile/:id')
+  @ApiOperation({ summary: 'Update Profile For User' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @UseGuards(PinGuard)
+  @UseInterceptors(ImageUploadInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  public async updateProfile(
+    @Param('id') id: number,
+    @Body() updateProfileDto: UpdateProfileDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    try {
+      if (file) {
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+
+        updateProfileDto.picture_url = result.filename;
+      }
+
+      const result = await this._storeService.updateProfile(
+        id,
+        updateProfileDto,
+      );
 
       return {
         result,
