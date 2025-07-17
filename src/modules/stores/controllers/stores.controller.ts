@@ -387,7 +387,7 @@ export class StoresController {
     }
   }
 
-  @Put('/updateProfile/:id')
+  @Put('/profile/:id')
   @ApiOperation({ summary: 'Update Profile For User' })
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
@@ -406,7 +406,7 @@ export class StoresController {
           file.originalname,
         );
 
-        updateProfileDto.picture_url = `/${result.bucket}/${result.filename}`;
+        updateProfileDto.picture_url = result.filename;
       }
 
       const result = await this._storeService.updateProfile(
