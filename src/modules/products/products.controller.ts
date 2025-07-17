@@ -42,7 +42,7 @@ export class ProductsController {
           file.buffer,
           file.originalname,
         );
-        relativePath = `/${result.bucket}/${result.filename}`;
+        relativePath = result.filename;
       }
       const newProducts = await this.productsService.create({
         ...createProductDto,

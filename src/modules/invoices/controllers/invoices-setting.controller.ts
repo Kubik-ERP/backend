@@ -56,7 +56,7 @@ export class InvoiceSettingController {
         file.buffer,
         file.originalname,
       );
-      relativePath = `/${result.bucket}/${result.filename}`;
+      relativePath = result.filename;
     }
     const validateStore = await this.storeService.validateStore(
       body.storeId,
