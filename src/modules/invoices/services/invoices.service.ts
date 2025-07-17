@@ -370,7 +370,8 @@ export class InvoiceService {
       payment_methods_id: request.paymentMethodId,
       customer_id: request.customerId,
       table_code: request.tableCode,
-      payment_status: invoice_type.unpaid,
+      payment_status:
+        request.provider === 'cash' ? invoice_type.paid : invoice_type.unpaid,
       discount_amount: 0, // need to confirm
       order_type: request.orderType,
       subtotal: 0, // default value
