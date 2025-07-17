@@ -146,7 +146,7 @@ export class StoresController {
           file.buffer,
           file.originalname,
         );
-        relativePath = `/${result.bucket}/${result.filename}`;
+        relativePath = result.filename;
       }
       //const relativePath = file ? `/public/images/${file.filename}` : undefined;
 
@@ -238,7 +238,7 @@ export class StoresController {
           file.buffer,
           file.originalname,
         );
-        relativePath = `/${result.bucket}/${result.filename}`;
+        relativePath = result.filename;
       }
 
       await this._storeService.updateStore(id, req.user.id, {
