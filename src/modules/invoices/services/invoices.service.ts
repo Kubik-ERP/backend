@@ -411,6 +411,8 @@ export class InvoiceService {
         tax_amount: calculation.tax,
         service_charge_amount: calculation.serviceCharge,
         grand_total: calculation.grandTotal,
+        payment_amount: calculation.paymentAmount,
+        change_amount: calculation.changeAmount,
       });
 
       // insert the customer has invoice
@@ -671,6 +673,8 @@ export class InvoiceService {
         service_charge_amount: calculation.serviceCharge,
         grand_total: calculation.grandTotal,
         payment_method_id: request.paymentMethodId,
+        payment_amount: calculation.paymentAmount,
+        change_amount: calculation.changeAmount,
       });
     });
 
