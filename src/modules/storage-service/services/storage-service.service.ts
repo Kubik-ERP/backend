@@ -1,46 +1,68 @@
+// src/storage/storage.service.ts
+import {
+  S3Client,
+  PutObjectCommand,
+  HeadBucketCommand,
+  CreateBucketCommand,
+} from '@aws-sdk/client-s3';
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { Client } from 'minio';
 import { extname } from 'path';
 
 @Injectable()
 export class StorageService {
-  private readonly client: Client;
+  private readonly s3: S3Client;
+  private readonly bucket: string;
 
   constructor() {
-    this.client = new Client({
-      endPoint: process.env.MINIO_HOST || 'minio',
-      port: parseInt(process.env.MINIO_PORT || '9000', 10),
-      useSSL: false,
-      accessKey: process.env.MINIO_ACCESS_KEY || 'admin',
-      secretKey: process.env.MINIO_SECRET_KEY || 'password123',
+    this.bucket = process.env.MINIO_BUCKET || 'kubik-pos-staging';
+
+    this.s3 = new S3Client({
+      region: 'auto', // wajib untuk R2
+      endpoint: `https://${process.env.MINIO_HOST}`, // contoh: <your_account_id>.r2.cloudflarestorage.com
+      credentials: {
+        accessKeyId: process.env.MINIO_ACCESS_KEY || '',
+        secretAccessKey: process.env.MINIO_SECRET_KEY || '',
+      },
     });
   }
 
-  async uploadImage(
-    buffer: Buffer,
-    originalname: string,
-    bucket = 'tes-buket',
-  ) {
+  async uploadImage(buffer: Buffer, originalname: string) {
     const ext = extname(originalname);
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
 
     try {
-      const exists = await this.client.bucketExists(bucket);
-      if (!exists) {
-        await this.client.makeBucket(bucket, 'us-east-1');
-      }
+      const res = await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: filename,
+          Body: buffer,
+          ContentType: this.getMimeType(ext),
+          ACL: 'public-read', // kalau perlu diakses publik
+        }),
+      );
 
-      await this.client.putObject(bucket, filename, buffer);
-      console.log(process.env.MINIO_PUBLIC_URL);
+      if (res.$metadata.httpStatusCode !== 200) {
+        throw new InternalServerErrorException(
+          'Failed to upload to R2: ' + res.$metadata.httpStatusCode,
+        );
+      }
 
       return {
         filename,
-        bucket,
+        bucket: this.bucket,
       };
     } catch (err) {
+      console.error(err);
       throw new InternalServerErrorException(
-        'Failed to upload to MinIO: ' + err.message,
+        'Failed to upload to R2: ' + err.message,
       );
     }
+  }
+
+  private getMimeType(ext: string): string {
+    if (ext === '.png') return 'image/png';
+    if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+    if (ext === '.gif') return 'image/gif';
+    return 'application/octet-stream';
   }
 }
