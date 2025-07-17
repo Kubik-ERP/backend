@@ -1,9 +1,10 @@
 import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
-import { CreateStoreDto } from '../dtos/request.dto';
+import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
-import { formatTime } from 'src/common/helpers/common.helpers';
+import { formatDate, formatTime } from 'src/common/helpers/common.helpers';
 import { Prisma } from '@prisma/client';
+import { IHourSlot, IOperationalDay } from '../interfaces/stores.interface';
 
 @Injectable()
 export class StoresService {
@@ -17,35 +18,33 @@ export class StoresService {
       const store = await prisma.stores.create({
         data: {
           id: uuidv4(),
-          name: data.storeName, // DTO pakai `storeName`
+          name: data.storeName,
           email: data.email,
-          phone_number: data.phoneNumber, // DTO pakai `phoneNumber`
-          business_type: data.businessType, // DTO pakai `businessType`
+          phone_number: data.phoneNumber,
+          business_type: data.businessType,
           photo: data.photo ?? null,
-          address: data.streetAddress, // DTO pakai `streetAddress`
+          address: data.streetAddress,
           city: data.city,
-          postal_code: data.postalCode, // DTO pakai `postalCode`
+          postal_code: data.postalCode,
           building: data.building,
           created_at: new Date(),
           updated_at: new Date(),
         },
       });
-
       await prisma.user_has_stores.create({
         data: {
-          user_id: userId, // Ganti dengan ID user yang login
-          store_id: store.id, // Ambil ID store yang baru dibuat
+          user_id: userId,
+          store_id: store.id,
         },
       });
-
-      // Insert Business Hours (Operational Hours)
-      if (data.businessHours?.length) {
+      const parsedBusinessHours = data.businessHours;
+      if (parsedBusinessHours?.length) {
         await prisma.operational_hours.createMany({
-          data: data.businessHours.map((bh) => ({
-            days: this.mapDayToNumber(bh.day), // Convert hari ke angka
+          data: parsedBusinessHours.map((bh) => ({
+            days: this.mapDayToNumber(bh.day),
             open_time: formatTime(bh.openTime),
             close_time: formatTime(bh.closeTime),
-            stores_id: store.id, // Ambil ID store yang baru dibuat
+            stores_id: store.id,
           })),
         });
       }
@@ -149,10 +148,98 @@ export class StoresService {
     return await this.prisma.stores.findUnique({
       where: { id: storeId },
       include: {
-        operational_hours: true,
+        operational_hours: {
+          orderBy: {
+            days: 'asc',
+          },
+        },
         user_has_stores: true,
       },
     });
+  }
+
+  public async getStoreByUserId(userId: number) {
+    const stores = await this.prisma.stores.findMany({
+      where: {
+        user_has_stores: {
+          some: {
+            user_id: userId,
+          },
+        },
+      },
+      include: {
+        operational_hours: {
+          orderBy: {
+            days: 'asc',
+          },
+        },
+        user_has_stores: {
+          include: {
+            users: {
+              include: {
+                users_has_banks: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!stores.length) {
+      return {
+        stores: [],
+        userBanks: [],
+      };
+    }
+
+    const user = stores[0].user_has_stores[0]?.users;
+    const userBanks = user?.users_has_banks || [];
+
+    const storeResult = stores.map((store) => {
+      const groupedOperationalHours = store.operational_hours.reduce(
+        (acc: any, item: any) => {
+          const day = item.days;
+          if (!acc[day]) {
+            acc[day] = {
+              days: day,
+              times: [],
+            };
+          }
+          acc[day].times.push({
+            openTime: item.open_time,
+            closeTime: item.close_time,
+          });
+          return acc;
+        },
+        {},
+      );
+
+      return {
+        id: store.id,
+        name: store.name,
+        email: user?.email,
+        phoneNumber: user?.phone,
+        businessType: store.business_type,
+        photo: store.photo,
+        address: store.address,
+        city: store.city,
+        postalCode: store.postal_code,
+        building: store.building,
+        createdAt: store.created_at ? formatDate(store.created_at) : null,
+        updatedAt: store.updated_at ? formatDate(store.updated_at) : null,
+
+        operationalHours: Object.values(groupedOperationalHours),
+      };
+    });
+
+    return {
+      stores: storeResult,
+      userBanks: userBanks.map((bank: any) => ({
+        bankName: bank.banks?.name || null,
+        accountNumber: bank.account_number,
+        accountName: bank.account_name ?? null,
+      })),
+    };
   }
 
   public async getAllStores(userId: number): Promise<any[]> {
@@ -168,6 +255,98 @@ export class StoresService {
     });
   }
 
+  public async updateProfile(userId: number, body: UpdateProfileDto) {
+    const user = await this.prisma.users.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        fullname: body.fullname,
+        email: body.email,
+        phone: body.phone,
+        picture_url: body.picture_url,
+      },
+    });
+
+    return {
+      message: 'Profile updated successfully.',
+      user,
+    };
+  }
+
+  public async getOperationalHoursByStore(
+    header: ICustomRequestHeaders,
+  ): Promise<
+    { day: string; hours: { openTime: string; closeTime: string }[] }[]
+  > {
+    const hours = await this.fetchOperationalHours(header.store_id!);
+
+    const dayMap = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
+
+    const grouped: Record<number, { openTime: string; closeTime: string }[]> =
+      {};
+
+    for (const item of hours) {
+      if (item.days === null || item.days === undefined) continue;
+
+      if (!grouped[item.days]) {
+        grouped[item.days] = [];
+      }
+
+      grouped[item.days].push({
+        openTime: item.open_time ?? 'Closed',
+        closeTime: item.close_time ?? 'Closed',
+      });
+    }
+
+    const result = dayMap.map((dayName, dayIndex) => {
+      const slots = grouped[dayIndex];
+      return {
+        day: dayName,
+        hours:
+          slots && slots.length > 0
+            ? slots
+            : [{ openTime: 'Closed', closeTime: 'Closed' }],
+      };
+    });
+
+    return result;
+  }
+
+  public async updateOperationalHours(
+    header: ICustomRequestHeaders,
+    userId: number,
+    businessHours: CreateStoreDto['businessHours'],
+  ): Promise<void> {
+    const storeID = header.store_id;
+    const isValid = await this.validateStore(storeID!, userId);
+    if (!isValid) {
+      throw new BadRequestException('Unauthorized or store not found');
+    }
+
+    await this.prisma.$transaction(async (prisma) => {
+      await this.deleteOperationalHours(storeID!, prisma);
+      if (businessHours?.length) {
+        await prisma.operational_hours.createMany({
+          data: businessHours.map((bh) => ({
+            days: this.mapDayToNumber(bh.day),
+            open_time: formatTime(bh.openTime),
+            close_time: formatTime(bh.closeTime),
+            stores_id: storeID!,
+          })),
+        });
+      }
+    });
+  }
+
   public async validateStore(
     storeId: string,
     userId: number,
@@ -176,5 +355,21 @@ export class StoresService {
       where: { id: storeId, user_has_stores: { some: { user_id: userId } } },
     });
     return !!store;
+  }
+
+  private async fetchOperationalHours(storeId: string) {
+    return this.prisma.operational_hours.findMany({
+      where: { stores_id: storeId },
+      orderBy: { days: 'asc' },
+    });
+  }
+
+  private async deleteOperationalHours(
+    storeId: string,
+    prisma: Prisma.TransactionClient,
+  ): Promise<void> {
+    await prisma.operational_hours.deleteMany({
+      where: { stores_id: storeId },
+    });
   }
 }

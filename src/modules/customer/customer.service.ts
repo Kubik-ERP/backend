@@ -12,6 +12,7 @@ import { validate as isUUID } from 'uuid';
 import { customer as CustomerModel, point_type, Prisma } from '@prisma/client';
 import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
 import { QueryInvoiceDto } from './dto/query-invoice.dto';
+import { validateStoreId } from '../../common/helpers/validators.helper';
 
 @Injectable()
 export class CustomerService {
@@ -128,9 +129,12 @@ export class CustomerService {
 
     return {
       data: customers,
-      total,
-      page,
-      lastPage: Math.ceil(total / limit),
+      meta: {
+        total_data: total,
+        current_page: page,
+        page_size: limit,
+        total_pages: Math.ceil(total / limit),
+      },
     };
   }
 
@@ -141,7 +145,8 @@ export class CustomerService {
       search,
       payment_status,
       order_type,
-      created_at,
+      start_date,
+      end_date,
     } = query;
 
     const skip = (page - 1) * limit;
@@ -168,11 +173,21 @@ export class CustomerService {
     }
 
     if (payment_status) invoiceWhere.payment_status = payment_status;
-    if (order_type) invoiceWhere.order_type = order_type;
-    if (created_at) {
+    if (order_type && Array.isArray(order_type)) {
+      invoiceWhere.order_type = { in: order_type };
+    }
+    if (start_date && end_date) {
       invoiceWhere.created_at = {
-        gte: new Date(created_at),
-        lt: new Date(new Date(created_at).getTime() + 24 * 60 * 60 * 1000),
+        gte: new Date(start_date),
+        lte: new Date(end_date),
+      };
+    } else if (start_date) {
+      invoiceWhere.created_at = {
+        gte: new Date(start_date),
+      };
+    } else if (end_date) {
+      invoiceWhere.created_at = {
+        lte: new Date(end_date),
       };
     }
 
@@ -181,6 +196,9 @@ export class CustomerService {
       orderBy: { created_at: 'desc' },
       skip,
       take: limit,
+    });
+    const totalData = await this.prisma.invoice.count({
+      where: invoiceWhere,
     });
 
     const paidTotal = invoices
@@ -210,7 +228,15 @@ export class CustomerService {
       last_visited: lastVisited,
       tags: customer.customers_has_tag.map((cht) => cht.tag),
       stores: customer.customer_has_stores.map((chs) => chs.stores),
-      invoices,
+      invoices: {
+        data: invoices,
+        meta: {
+          total_data: totalData,
+          current_page: page,
+          page_size: limit,
+          total_pages: Math.ceil(totalSales / limit),
+        },
+      },
     };
   }
 
@@ -360,39 +386,42 @@ export class CustomerService {
         address: updateCustomerDto.address,
       };
 
-      if (updateCustomerDto.tags && updateCustomerDto.tags.length > 0) {
-        const tagsToConnectOrCreate = [];
-
-        for (const tag of updateCustomerDto.tags) {
-          if (!tag.id || tag.id === '') {
-            const newTag = await this.prisma.tag.create({
-              data: { name: tag.name },
-            });
-            tagsToConnectOrCreate.push({ tag_id: newTag.id });
-          } else {
-            tagsToConnectOrCreate.push({ tag_id: tag.id });
-          }
-        }
-
+      if (updateCustomerDto.tags !== undefined) {
         await this.prisma.customers_has_tag.deleteMany({
           where: { customer_id: id },
         });
 
-        customerData.customers_has_tag = {
-          create: tagsToConnectOrCreate,
-        };
+        if (updateCustomerDto.tags.length > 0) {
+          const tagsToConnectOrCreate = [];
+
+          for (const tag of updateCustomerDto.tags) {
+            if (!tag.id || tag.id === '') {
+              const newTag = await this.prisma.tag.create({
+                data: { name: tag.name },
+              });
+              tagsToConnectOrCreate.push({ tag_id: newTag.id });
+            } else {
+              tagsToConnectOrCreate.push({ tag_id: tag.id });
+            }
+          }
+
+          await this.prisma.customer.update({
+            where: { id },
+            data: {
+              customers_has_tag: {
+                create: tagsToConnectOrCreate,
+              },
+            },
+          });
+        }
       }
 
       const updatedCustomer = await this.prisma.customer.update({
         where: { id },
         data: customerData,
         include: {
-          customers_has_tag: {
-            include: { tag: true },
-          },
-          customer_has_stores: {
-            include: { stores: true },
-          },
+          customers_has_tag: { include: { tag: true } },
+          customer_has_stores: { include: { stores: true } },
         },
       });
 
@@ -444,13 +473,25 @@ export class CustomerService {
     }
   }
 
-  async queueWaitingListOrder() {
+  async queueWaitingListOrder(header: ICustomRequestHeaders) {
+    const storeId = validateStoreId(header.store_id);
+    const today = new Date();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
     const invoices = await this.prisma.invoice.findMany({
       where: {
         order_type: 'dine_in',
+        store_id: storeId,
+        created_at: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
       },
       select: {
         id: true,
+        store_id: true,
         customer_id: true,
         customer: {
           select: {

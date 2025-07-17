@@ -4,8 +4,13 @@ import {
   IsString,
   IsEnum,
   IsDateString,
+  IsArray,
+  ArrayNotEmpty,
+  ArrayUnique,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+
+import { order_type } from '@prisma/client';
 
 export class QueryInvoiceDto {
   @IsOptional()
@@ -29,12 +34,18 @@ export class QueryInvoiceDto {
   payment_status?: 'unpaid' | 'paid' | 'partial';
 
   @IsOptional()
-  @IsEnum(['dine_in', 'take_away', 'self_order'], {
-    message: 'Invalid order_type',
-  })
-  order_type?: 'dine_in' | 'take_away' | 'self_order';
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayUnique()
+  @IsEnum(order_type, { each: true, message: 'Invalid order_type' })
+  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
+  order_type?: order_type[];
 
   @IsOptional()
   @IsDateString()
-  created_at?: string;
+  start_date?: string;
+
+  @IsOptional()
+  @IsDateString()
+  end_date?: string;
 }

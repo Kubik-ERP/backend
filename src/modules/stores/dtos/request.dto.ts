@@ -8,10 +8,9 @@ import {
   ValidateNested,
   IsIn,
   Matches,
-  Max,
   MaxLength,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 enum BusinessType {
@@ -19,8 +18,8 @@ enum BusinessType {
   RETAIL = 'Retail',
 }
 
-class BusinessHoursDto {
-  @ApiProperty()
+export class BusinessHoursDto {
+  @ApiProperty({ example: 'Monday' })
   @IsString()
   @IsIn(
     [
@@ -32,13 +31,11 @@ class BusinessHoursDto {
       'Saturday',
       'Sunday',
     ],
-    {
-      message: 'day must be a valid weekday in English',
-    },
+    { message: 'day must be a valid weekday in English' },
   )
   day: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '09:00:00' })
   @IsOptional()
   @IsString()
   @Matches(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/, {
@@ -46,7 +43,7 @@ class BusinessHoursDto {
   })
   openTime?: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '18:00:00' })
   @IsOptional()
   @IsString()
   @Matches(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/, {
@@ -56,53 +53,66 @@ class BusinessHoursDto {
 }
 
 export class CreateStoreDto {
-  @ApiProperty()
+  @ApiProperty({ example: 'My Store' })
   @IsString()
   @MaxLength(45)
   storeName: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'my@store.com' })
   @IsEmail()
   email: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '+628123456789' })
   @IsPhoneNumber('ID')
   phoneNumber: string;
 
-  @ApiProperty()
+  @ApiProperty({ enum: BusinessType })
   @IsEnum(BusinessType)
   businessType: BusinessType;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'Jl. Kemerdekaan 10' })
   @IsString()
   @MaxLength(255)
   streetAddress: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'Surabaya' })
   @IsString()
   @MaxLength(45)
   city: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '60236', required: false })
   @IsOptional()
   @IsString()
   @MaxLength(10)
   postalCode?: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'Ruko Blok B', required: false })
   @IsOptional()
   @IsString()
   @MaxLength(255)
   building?: string;
 
-  @ApiProperty({ type: BusinessHoursDto, isArray: true })
-  @IsArray()
+  @ApiProperty({
+    type: [BusinessHoursDto],
+    description:
+      'businessHour[0][day], businessHour[0][openTime], businessHour[0][closeTime]',
+  })
   @ValidateNested({ each: true })
   @Type(() => BusinessHoursDto)
   businessHours: BusinessHoursDto[];
 
-  @ApiProperty({ required: false })
+  @ApiProperty({
+    required: false,
+    description: 'Relative image path (optional)',
+  })
   @IsOptional()
   @IsString()
   photo?: string;
+}
+
+export class UpdateProfileDto {
+  fullname?: string;
+  email?: string;
+  phone?: string;
+  picture_url?: string;
 }

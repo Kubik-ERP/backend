@@ -40,7 +40,7 @@ export class CategoriesController {
         file.buffer,
         file.originalname,
       );
-      relativePath = `/${result.bucket}/${result.filename}`;
+      relativePath = result.filename;
     }
 
     try {

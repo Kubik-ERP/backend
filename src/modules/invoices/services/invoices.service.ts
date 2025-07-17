@@ -190,8 +190,10 @@ export class InvoiceService {
       updatePayload.complete_order_at = new Date();
     }
 
-    // update status
-    await this.update(invoiceId, updatePayload);
+    await this._prisma.$transaction(async (tx) => {
+      // update status
+      await this.update(tx, invoiceId, updatePayload);
+    });
 
     return {
       success: true,
@@ -362,7 +364,9 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
+    const now = new Date();
     const invoiceNumber = await this.generateInvoiceNumber(storeId);
+    let grandTotal: number = 0;
     let kitchenQueue: KitchenQueueAdd[] = [];
 
     const invoiceData = {
@@ -375,8 +379,8 @@ export class InvoiceService {
       discount_amount: 0, // need to confirm
       order_type: request.orderType,
       subtotal: 0, // default value
-      created_at: new Date(),
-      update_at: new Date(),
+      created_at: now,
+      update_at: now,
       delete_at: null,
       paid_at: null,
       tax_id: null,
@@ -393,86 +397,88 @@ export class InvoiceService {
       change_amount: null,
     };
 
-    // create invoice with status unpaid
-    await this.create(invoiceData);
-
     const calculation = await this.calculateTotal(request, invoiceId);
-
-    // update invoice
-    await this.update(invoiceId, {
-      subtotal: calculation.total,
-      tax_id: calculation.taxId,
-      service_charge_id: calculation.serviceChargeId,
-      tax_amount: calculation.tax,
-      service_charge_amount: calculation.serviceCharge,
-      grand_total: calculation.grandTotal,
-      payment_amount: calculation.paymentAmount,
-      change_amount: calculation.changeAmount,
-    });
-
-    // insert the customer has invoice
-    await this.createCustomerInvoice(invoiceId, request.customerId);
-
-    for (const detail of request.products) {
-      // find the price
-      let productPrice = 0,
-        variantPrice = 0;
-      const found = calculation.items.find(
-        (p) =>
-          p.productId === detail.productId && p.variantId === detail.variantId,
-      );
-      if (found) {
-        productPrice = found.productPrice;
-        variantPrice = found.variantPrice;
-      }
-
-      // validate product has variant
-      const validVariantId = await this.validateProductVariant(
-        detail.productId,
-        detail.variantId,
-      );
-
-      // create invoice detail ID
-      const invoiceDetailId = uuidv4();
-      const invoiceDetailData = {
-        id: invoiceDetailId,
-        invoice_id: invoiceId,
-        product_id: detail.productId,
-        product_price: productPrice,
-        notes: detail.notes,
-        order_type: request.orderType,
-        qty: detail.quantity,
-        variant_id: validVariantId,
-        variant_price: variantPrice,
-      };
-
+    grandTotal = calculation.grandTotal;
+    await this._prisma.$transaction(async (tx) => {
       // create invoice with status unpaid
-      await this.createInvoiceDetail(invoiceDetailData);
+      await this.create(tx, invoiceData);
 
-      // looping each quantity
-      for (let i = 0; i < detail.quantity; i++) {
-        const queue: KitchenQueueAdd = {
-          id: uuidv4(),
+      // update invoice
+      await this.update(tx, invoiceId, {
+        subtotal: calculation.total,
+        tax_id: calculation.taxId,
+        service_charge_id: calculation.serviceChargeId,
+        tax_amount: calculation.tax,
+        service_charge_amount: calculation.serviceCharge,
+        grand_total: calculation.grandTotal,
+      });
+
+      // insert the customer has invoice
+      await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+
+      for (const detail of request.products) {
+        // find the price
+        let productPrice = 0,
+          variantPrice = 0;
+        const found = calculation.items.find(
+          (p) =>
+            p.productId === detail.productId &&
+            p.variantId === detail.variantId,
+        );
+        if (found) {
+          productPrice = found.productPrice;
+          variantPrice = found.variantPrice;
+        }
+
+        // validate product has variant
+        const validVariantId = await this.validateProductVariant(
+          detail.productId,
+          detail.variantId,
+        );
+
+        // create invoice detail ID
+        const invoiceDetailId = uuidv4();
+        const invoiceDetailData = {
+          id: invoiceDetailId,
           invoice_id: invoiceId,
-          order_type: request.orderType,
-          order_status: order_status.placed,
           product_id: detail.productId,
-          variant_id: detail.variantId ?? null,
-          store_id: storeId,
-          customer_id: request.customerId,
-          notes: detail.notes ?? '',
-          created_at: new Date(),
-          updated_at: new Date(),
-          table_code: request.tableCode,
+          product_price: productPrice,
+          notes: detail.notes,
+          order_type: request.orderType,
+          qty: detail.quantity,
+          variant_id: validVariantId,
+          variant_price: variantPrice,
         };
 
-        kitchenQueue.push(queue);
+        // create invoice with status unpaid
+        await this.createInvoiceDetail(tx, invoiceDetailData);
+
+        // looping each quantity
+        for (let i = 0; i < detail.quantity; i++) {
+          const queue: KitchenQueueAdd = {
+            id: uuidv4(),
+            invoice_id: invoiceId,
+            order_type: request.orderType,
+            order_status: order_status.placed,
+            product_id: detail.productId,
+            variant_id: detail.variantId ?? null,
+            store_id: storeId,
+            customer_id: request.customerId,
+            notes: detail.notes ?? '',
+            created_at: now,
+            updated_at: now,
+            table_code: request.tableCode,
+          };
+
+          kitchenQueue.push(queue);
+        }
       }
-    }
 
-    // create kitchen queue
-    await this._kitchenQueue.createKitchenQueue(kitchenQueue);
-
+      // create kitchen queue
+      await this._kitchenQueue.createKitchenQueue(tx, kitchenQueue);
+    });
+    // notify the FE
+    this._notificationHelper.notifyNewOrder(storeId);
     if (request.provider !== 'cash') {
       const response = await this.initiatePaymentBasedOnMethod(
         request.paymentMethodId,
@@ -498,6 +504,7 @@ export class InvoiceService {
 
     // create invoice ID
     const invoiceId = uuidv4();
+    const now = new Date();
     const invoiceNumber = await this.generateInvoiceNumber(storeId);
     const calculation = await this.calculateTotal(request);
     let kitchenQueue: KitchenQueueAdd[] = [];
@@ -511,8 +518,8 @@ export class InvoiceService {
       discount_amount: 0, // need to confirm
       order_type: request.orderType,
       subtotal: calculation.total,
-      created_at: new Date(),
-      update_at: new Date(),
+      created_at: now,
+      update_at: now,
       delete_at: null,
       paid_at: null,
       tax_id: null,
@@ -529,69 +536,76 @@ export class InvoiceService {
       change_amount: null,
     };
 
-    // create invoice with status unpaid
-    await this.create(invoiceData);
-
-    request.products.forEach(async (detail) => {
-      // find the price
-      let productPrice = 0,
-        variantPrice = 0;
-      const found = calculation.items.find(
-        (p) =>
-          p.productId === detail.productId && p.variantId === detail.variantId,
-      );
-      if (found) {
-        productPrice = found.productPrice;
-        variantPrice = found.variantPrice;
-      }
-
-      // create invoice detail ID
-      const invoiceDetailId = uuidv4();
-      const invoiceDetailData = {
-        id: invoiceDetailId,
-        invoice_id: invoiceId,
-        product_id: detail.productId,
-        product_price: productPrice,
-        notes: detail.notes,
-        order_type: request.orderType,
-        qty: detail.quantity,
-        variant_id: detail.variantId,
-        variant_price: variantPrice,
-      };
-
+    await this._prisma.$transaction(async (tx) => {
       // create invoice with status unpaid
-      await this.createInvoiceDetail(invoiceDetailData);
+      await this.create(tx, invoiceData);
 
-      // looping each quantity
-      for (let i = 0; i < detail.quantity; i++) {
-        const queue: KitchenQueueAdd = {
-          id: uuidv4(),
+      request.products.forEach(async (detail) => {
+        // find the price
+        let productPrice = 0,
+          variantPrice = 0;
+        const found = calculation.items.find(
+          (p) =>
+            p.productId === detail.productId &&
+            p.variantId === detail.variantId,
+        );
+        if (found) {
+          productPrice = found.productPrice;
+          variantPrice = found.variantPrice;
+        }
+
+        // create invoice detail ID
+        const invoiceDetailId = uuidv4();
+        const invoiceDetailData = {
+          id: invoiceDetailId,
           invoice_id: invoiceId,
-          order_type: request.orderType,
-          order_status: order_status.placed,
           product_id: detail.productId,
-          variant_id: detail.variantId ?? null,
-          store_id: storeId,
-          customer_id: request.customerId,
-          notes: detail.notes ?? '',
-          created_at: new Date(),
-          updated_at: new Date(),
-          table_code: request.tableCode,
+          product_price: productPrice,
+          notes: detail.notes,
+          order_type: request.orderType,
+          qty: detail.quantity,
+          variant_id: detail.variantId,
+          variant_price: variantPrice,
         };
 
-        kitchenQueue.push(queue);
-      }
+        // create invoice with status unpaid
+        await this.createInvoiceDetail(tx, invoiceDetailData);
+
+        // looping each quantity
+        for (let i = 0; i < detail.quantity; i++) {
+          const queue: KitchenQueueAdd = {
+            id: uuidv4(),
+            invoice_id: invoiceId,
+            order_type: request.orderType,
+            order_status: order_status.placed,
+            product_id: detail.productId,
+            variant_id: detail.variantId ?? null,
+            store_id: storeId,
+            customer_id: request.customerId,
+            notes: detail.notes ?? '',
+            created_at: now,
+            updated_at: now,
+            table_code: request.tableCode,
+          };
+
+          kitchenQueue.push(queue);
+        }
+      });
+
+      // insert the customer has invoice
+      await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+
+      // create kitchen queue
+      await this._kitchenQueue.createKitchenQueue(tx, kitchenQueue);
     });
-
-    // insert the customer has invoice
-    await this.createCustomerInvoice(invoiceId, request.customerId);
-
-    // create kitchen queue
-    await this._kitchenQueue.createKitchenQueue(kitchenQueue);
 
     const result = {
       orderId: invoiceId,
     };
+
+    // notify the FE
+    this._notificationHelper.notifyNewOrder(storeId);
+
     return result;
   }
 
@@ -647,17 +661,17 @@ export class InvoiceService {
       invoice.id,
     );
 
-    // update invoice
-    await this.update(invoice.id, {
-      subtotal: calculation.total,
-      tax_id: calculation.taxId,
-      service_charge_id: calculation.serviceChargeId,
-      tax_amount: calculation.tax,
-      service_charge_amount: calculation.serviceCharge,
-      grand_total: calculation.grandTotal,
-      payment_method_id: request.paymentMethodId,
-      payment_amount: calculation.paymentAmount,
-      change_amount: calculation.changeAmount,
+    await this._prisma.$transaction(async (tx) => {
+      // update invoice
+      await this.update(tx, invoice.id, {
+        subtotal: calculation.total,
+        tax_id: calculation.taxId,
+        service_charge_id: calculation.serviceChargeId,
+        tax_amount: calculation.tax,
+        service_charge_amount: calculation.serviceCharge,
+        grand_total: calculation.grandTotal,
+        payment_method_id: request.paymentMethodId,
+      });
     });
 
     if (request.provider !== 'cash') {
@@ -780,7 +794,6 @@ export class InvoiceService {
     };
 
     // notify the FE
-    this.logger.error(`Invoice '${requestCallback.order_id}' success`);
     this._notificationHelper.notifyPaymentSuccess(requestCallback.order_id);
 
     return {
@@ -1151,9 +1164,12 @@ export class InvoiceService {
   /**
    * @description Create an invoice
    */
-  public async create(invoice: invoice): Promise<invoice> {
+  public async create(
+    tx: Prisma.TransactionClient,
+    invoice: invoice,
+  ): Promise<invoice> {
     try {
-      return await this._prisma.invoice.create({
+      return await tx.invoice.create({
         data: {
           id: invoice.id,
           payment_methods_id: invoice.payment_methods_id,
@@ -1190,7 +1206,11 @@ export class InvoiceService {
     }
   }
 
-  public async update(invoiceId: string, data: InvoiceUpdateDto) {
+  public async update(
+    tx: Prisma.TransactionClient,
+    invoiceId: string,
+    data: InvoiceUpdateDto,
+  ) {
     try {
       const {
         tax_id,
@@ -1229,7 +1249,7 @@ export class InvoiceService {
         };
       }
 
-      await this._prisma.invoice.update({
+      await tx.invoice.update({
         where: { id: invoiceId },
         data: updateData,
       });
@@ -1246,10 +1266,11 @@ export class InvoiceService {
    * @description Create an invoice details
    */
   public async createInvoiceDetail(
+    tx: Prisma.TransactionClient,
     invoiceDetail: invoice_details,
   ): Promise<invoice_details> {
     try {
-      return await this._prisma.invoice_details.create({
+      return await tx.invoice_details.create({
         data: {
           id: invoiceDetail.id,
           invoice_id: invoiceDetail.invoice_id,
@@ -1426,9 +1447,13 @@ export class InvoiceService {
   /**
    * @description Get invoice charge data
    */
-  public async createCustomerInvoice(invoiceId: string, customerId: string) {
+  public async createCustomerInvoice(
+    tx: Prisma.TransactionClient,
+    invoiceId: string,
+    customerId: string,
+  ) {
     try {
-      return await this._prisma.customers_has_invoices.create({
+      return await tx.customers_has_invoices.create({
         data: {
           invoices_id: invoiceId,
           customers_id: customerId,

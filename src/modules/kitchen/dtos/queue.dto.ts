@@ -54,6 +54,7 @@ export type KitchenQueueWithRelations = kitchen_queue & {
     order_type: string;
     order_status: string;
     customer_id: string | null;
+    notes: string | null;
   } | null;
   products?: { id: string; name: string } | null;
   variant?: { id: string; name: string } | null;

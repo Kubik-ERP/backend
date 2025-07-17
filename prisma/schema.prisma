@@ -7,12 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model banks {
-  id              String            @id(map: "banks_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name            String?           @db.VarChar(45)
-  users_has_banks users_has_banks[]
-}
-
 model business_owner {
   id                        String                      @id @db.Uuid
   name                      String?                     @db.VarChar(45)
@@ -49,7 +43,7 @@ model cash_drawer_transactions {
 
 model cash_drawers {
   id               String            @id(map: "cash_drawers_pk") @db.Uuid
-  expected_balance Float?
+  expected_balance Float             @default(0)
   actual_balance   Float?
   status           cash_drawer_type?
   date             DateTime?         @db.Date
@@ -60,10 +54,11 @@ model cash_drawers {
   updated_at       BigInt?
   store_id         String?           @db.Uuid
   closed_at        BigInt?
-  closed_by        BigInt?
+  closed_by        Int?
   staff_id         String?           @db.Uuid
   employees        employees?        @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_employees_fk")
   stores           stores?           @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_stores_fk")
+  users            users?            @relation(fields: [closed_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_users_fk")
 }
 
 model categories {
@@ -133,8 +128,8 @@ model customers_has_invoices {
   id           String   @id(map: "customers_has_invoices_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   customers_id String   @db.Uuid
   invoices_id  String   @db.Uuid
-  customer     customer @relation(fields: [customers_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_invoices_customer_id_fk")
-  invoice      invoice  @relation(fields: [invoices_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_has_invoices_invoice_id_fk")
+  customer     customer @relation(fields: [customers_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customers_has_invoices_customer")
+  invoice      invoice  @relation(fields: [invoices_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customers_has_invoices_invoice")
 }
 
 model customers_has_tag {
@@ -264,6 +259,7 @@ model invoice_details {
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model invoice_settings {
   id                             Int     @id(map: "invoice_settings_pk") @default(autoincrement())
   store_id                       String  @unique(map: "invoice_settings_unique") @db.Uuid
@@ -284,26 +280,6 @@ model invoice_settings {
   increment_by                   Int?
   reset_sequence                 String?
   starting_number                Int?
-}
-
-model kitchen_queue {
-  id           String       @id(map: "kitchen_queue_pk") @db.Uuid
-  invoice_id   String       @db.Uuid
-  product_id   String       @db.Uuid
-  variant_id   String?      @db.Uuid
-  order_status order_status
-  notes        String?      @db.VarChar(255)
-  created_at   DateTime     @db.Timestamp(6)
-  updated_at   DateTime?    @db.Timestamp(6)
-  store_id     String       @db.Uuid
-  table_code   String?      @db.VarChar
-  order_type   order_type
-  customer_id  String?      @db.Uuid
-  customer     customer?    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_customer_fk")
-  invoice      invoice      @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_invoice_fk")
-  products     products     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_products_fk")
-  stores       stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_stores_fk")
-  variant      variant?     @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_variant_fk")
 }
 
 model material {
@@ -530,18 +506,6 @@ model tag {
   customers_has_tag customers_has_tag[]
 }
 
-model trn_customer_points {
-  id          String      @id(map: "trn_customer_points_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  value       Int
-  customer_id String      @db.Uuid
-  invoice_id  String?     @db.Uuid
-  type        point_type?
-  expiry_date DateTime?   @db.Date
-  notes       String?     @db.VarChar(45)
-  customer    customer    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_customer_id_fk")
-  invoice     invoice?    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_invoice_id_fk")
-}
-
 model unit {
   id                String              @id @db.Uuid
   name              String?             @db.VarChar(45)
@@ -570,21 +534,13 @@ model users {
   pin                      String?                    @db.VarChar
   fullname                 String?                    @db.VarChar
   role_id                  String                     @db.Uuid
+  picture_url              String?                    @db.VarChar(45)
   cash_drawer_transactions cash_drawer_transactions[]
+  cash_drawers             cash_drawers[]
   invoice                  invoice[]
   user_has_stores          user_has_stores[]
   roles                    roles                      @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
   users_has_banks          users_has_banks[]
-}
-
-model users_has_banks {
-  id             String  @id(map: "users_has_banks_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  users_id       Int?
-  bank_id        String? @db.Uuid
-  account_number String? @db.VarChar(45)
-  account_name   String? @db.VarChar(45)
-  banks          banks?  @relation(fields: [bank_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_has_banks_banks_id_fk")
-  users          users?  @relation(fields: [users_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_has_banks_users_id_fk")
 }
 
 model users_token {
@@ -655,6 +611,52 @@ model voucher_has_products {
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
 }
 
+model trn_customer_points {
+  id          String      @id(map: "trn_customer_points_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  value       Int
+  customer_id String      @db.Uuid
+  invoice_id  String?     @db.Uuid
+  type        point_type?
+  expiry_date DateTime?   @db.Date
+  notes       String?     @db.VarChar(45)
+  customer    customer    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_customer_id_fk")
+  invoice     invoice?    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_invoice_id_fk")
+}
+
+model kitchen_queue {
+  id           String       @id(map: "kitchen_queue_pk") @db.Uuid
+  invoice_id   String       @db.Uuid
+  product_id   String       @db.Uuid
+  variant_id   String?      @db.Uuid
+  order_status order_status
+  notes        String?      @db.VarChar(255)
+  created_at   DateTime     @db.Timestamp(6)
+  updated_at   DateTime?    @db.Timestamp(6)
+  store_id     String       @db.Uuid
+  table_code   String?      @db.VarChar
+  order_type   order_type
+  customer_id  String?      @db.Uuid
+  customer     customer?    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_customer_fk")
+  invoice      invoice      @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_invoice_fk")
+  products     products     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_products_fk")
+  stores       stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_stores_fk")
+  variant      variant?     @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_variant_fk")
+}
+
+model banks {
+  id   String  @id(map: "banks_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name String? @db.VarChar(45)
+}
+
+model users_has_banks {
+  id             String  @id(map: "users_has_banks_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  users_id       Int?
+  bank_name      String? @db.VarChar(255)
+  account_number String? @db.VarChar(45)
+  account_name   String? @db.VarChar(45)
+  users          users?  @relation(fields: [users_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_has_banks_users_id_fk")
+}
+
 enum cash_drawer_type {
   open
   close
@@ -676,14 +678,6 @@ enum invoice_type {
   refund
 }
 
-enum order_status {
-  placed
-  in_progress
-  served
-  completed
-  cancelled
-}
-
 enum order_type {
   take_away
   dine_in
@@ -696,15 +690,23 @@ enum payment_type {
   overdue
 }
 
-enum point_type {
-  point_addition
-  point_deduction
-}
-
 enum transaction_type {
   sale
   cash_out
   cash_in
   opening_balance
   cash_refund
+}
+
+enum order_status {
+  placed
+  in_progress
+  served
+  completed
+  cancelled
+}
+
+enum point_type {
+  point_addition
+  point_deduction
 }
