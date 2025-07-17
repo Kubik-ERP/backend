@@ -74,25 +74,6 @@ export class BankController {
       throw new HttpException('Bank not found', HttpStatus.NOT_FOUND);
     }
   }
-
-  @Put('/:id')
-  @ApiOperation({ summary: 'Update bank by ID' })
-  async update(@Param('id') id: string, @Body() dto: UpdateBankDto) {
-    try {
-      const result = await this.bankService.update(id, dto);
-      return {
-        statusCode: HttpStatus.OK,
-        message: 'Bank updated successfully',
-        result: toCamelCase(result),
-      };
-    } catch (error) {
-      throw new HttpException(
-        'Failed to update bank',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
   @Delete('/:id')
   @HttpCode(204)
   @ApiOperation({ summary: 'Delete bank by ID' })

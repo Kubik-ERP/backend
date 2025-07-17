@@ -158,9 +158,7 @@ export class StoresService {
     });
   }
 
-  public async getStoreByUserId(header: ICustomRequestHeaders) {
-    const userId = header.user.id;
-
+  public async getStoreByUserId(userId: number) {
     const stores = await this.prisma.stores.findMany({
       where: {
         user_has_stores: {

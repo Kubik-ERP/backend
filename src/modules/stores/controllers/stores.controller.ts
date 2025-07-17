@@ -293,7 +293,7 @@ export class StoresController {
   }
 
   @UseGuards(AuthenticationJWTGuard)
-  // @Get('/:id')
+  @Get('/store/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get store by ID' })
   public async getStoreById(@Param('id') id: string) {
@@ -365,14 +365,15 @@ export class StoresController {
     }
   }
 
-  @Get('/getStoreByUser')
+  @Get('/profile')
   @ApiOperation({ summary: 'Get store(s) by user ID' })
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @UseGuards(PinGuard)
   public async getStoreByUser(@Req() req: ICustomRequestHeaders) {
     try {
-      const result = await this._storeService.getStoreByUserId(req);
+      const userId = req.user.id;
+      const result = await this._storeService.getStoreByUserId(userId);
 
       return {
         result,
