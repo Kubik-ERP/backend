@@ -31,7 +31,7 @@ export class StorageService {
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
 
     try {
-      const res =await this.s3.send(
+      const res = await this.s3.send(
         new PutObjectCommand({
           Bucket: this.bucket,
           Key: filename,
@@ -46,7 +46,7 @@ export class StorageService {
           'Failed to upload to R2: ' + res.$metadata.httpStatusCode,
         );
       }
-      
+
       return {
         filename,
         bucket: this.bucket,
