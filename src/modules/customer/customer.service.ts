@@ -94,10 +94,38 @@ export class CustomerService {
       this.prisma.customer.findMany({
         where: search
           ? {
-              name: {
-                contains: search,
-                mode: 'insensitive',
-              },
+              OR: [
+                {
+                  name: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  email: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  number: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  customers_has_tag: {
+                    some: {
+                      tag: {
+                        name: {
+                          contains: search,
+                          mode: 'insensitive',
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
             }
           : {},
         skip,
