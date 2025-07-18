@@ -343,11 +343,22 @@ export class InvoiceService {
   ) {
     const storeId = validateStoreId(header.store_id);
 
-    const paymentProvider = this._paymentFactory.getProvider(request.provider);
-    if (!paymentProvider) {
+    await this.validatePaymentMethod(request.paymentMethodId);
+
+    const paymentProvider =
+      request.provider === 'cash'
+        ? undefined // use undefined for cash
+        : this._paymentFactory.getProvider(request.provider);
+    if (request.provider !== 'cash' && !paymentProvider) {
       this.logger.error(`Payment provider '${request.provider}' not found`);
       throw new NotFoundException(
         `Payment provider '${request.provider}' not found`,
+      );
+    }
+
+    if (request.provider == 'cash' && !request.paymentAmount) {
+      throw new BadRequestException(
+        'Payment method is cash, please fill the payment amount',
       );
     }
 
@@ -363,7 +374,8 @@ export class InvoiceService {
       payment_methods_id: request.paymentMethodId,
       customer_id: request.customerId,
       table_code: request.tableCode,
-      payment_status: invoice_type.unpaid,
+      payment_status:
+        request.provider === 'cash' ? invoice_type.paid : invoice_type.unpaid,
       discount_amount: 0, // need to confirm
       order_type: request.orderType,
       subtotal: 0, // default value
@@ -385,12 +397,11 @@ export class InvoiceService {
       change_amount: null,
     };
 
+    const calculation = await this.calculateTotal(request, invoiceId);
+    grandTotal = calculation.grandTotal;
     await this._prisma.$transaction(async (tx) => {
       // create invoice with status unpaid
       await this.create(tx, invoiceData);
-
-      const calculation = await this.calculateTotal(request, invoiceId);
-      grandTotal = calculation.grandTotal;
 
       // update invoice
       await this.update(tx, invoiceId, {
@@ -400,6 +411,8 @@ export class InvoiceService {
         tax_amount: calculation.tax,
         service_charge_amount: calculation.serviceCharge,
         grand_total: calculation.grandTotal,
+        payment_amount: calculation.paymentAmount,
+        change_amount: calculation.changeAmount,
       });
 
       // insert the customer has invoice
@@ -466,18 +479,23 @@ export class InvoiceService {
       // create kitchen queue
       await this._kitchenQueue.createKitchenQueue(tx, kitchenQueue);
     });
-
-    const response = await this.initiatePaymentBasedOnMethod(
-      request.paymentMethodId,
-      paymentProvider,
-      invoiceId,
-      grandTotal,
-    );
-
     // notify the FE
     this._notificationHelper.notifyNewOrder(storeId);
-
-    return response;
+    if (request.provider !== 'cash') {
+      const response = await this.initiatePaymentBasedOnMethod(
+        request.paymentMethodId,
+        paymentProvider,
+        invoiceId,
+        calculation.grandTotal,
+      );
+      return response;
+    }
+    // note: response for cash payment
+    return {
+      paymentMethodId: request.paymentMethodId,
+      invoiceId: invoiceId,
+      grandTotal: calculation.grandTotal,
+    };
   }
 
   public async proceedCheckout(
@@ -601,9 +619,15 @@ export class InvoiceService {
       throw new BadRequestException(`Invoice status is not unpaid`);
     }
 
+    await this.validatePaymentMethod(request.paymentMethodId);
+
     // define payment method and provider
-    const paymentProvider = this._paymentFactory.getProvider(request.provider);
-    if (!paymentProvider) {
+    const paymentProvider =
+      request.provider === 'cash'
+        ? undefined // use undefined for cash
+        : this._paymentFactory.getProvider(request.provider);
+
+    if (request.provider !== 'cash' && !paymentProvider) {
       this.logger.error(`Payment provider '${request.provider}' not found`);
       throw new NotFoundException(
         `Payment provider '${request.provider}' not found`,
@@ -649,17 +673,24 @@ export class InvoiceService {
         service_charge_amount: calculation.serviceCharge,
         grand_total: calculation.grandTotal,
         payment_method_id: request.paymentMethodId,
+        payment_amount: calculation.paymentAmount,
+        change_amount: calculation.changeAmount,
       });
     });
 
-    const response = await this.initiatePaymentBasedOnMethod(
-      request.paymentMethodId,
-      paymentProvider,
-      invoice.id,
-      calculation.grandTotal,
-    );
-
-    return response;
+    if (request.provider !== 'cash') {
+      const response = await this.initiatePaymentBasedOnMethod(
+        request.paymentMethodId,
+        paymentProvider,
+        invoice.id,
+        calculation.grandTotal,
+      );
+    }
+    return {
+      paymentMethodId: request.paymentMethodId,
+      invoiceId: invoice.id,
+      grandTotal: calculation.grandTotal,
+    };
   }
 
   public async handlePaymentCallback(
@@ -788,6 +819,8 @@ export class InvoiceService {
     let serviceType = false;
     let taxId = '';
     let serviceChargeId = '';
+    let paymentAmount = 0;
+    let changeAmount = 0;
     const items = [];
 
     for (const item of request.products) {
@@ -930,6 +963,20 @@ export class InvoiceService {
       }
     }
 
+    // note: Calculate change_amount and payment_amount
+    if (request.paymentAmount && request.provider == 'cash') {
+      paymentAmount = request.paymentAmount;
+      if (paymentAmount < grandTotal) {
+        this.logger.error(`Payment amount is less than grand total`);
+        throw new BadRequestException(
+          `Payment amount is less than grand total`,
+        );
+      }
+      changeAmount = paymentAmount - grandTotal;
+    } else {
+      paymentAmount = grandTotal;
+    }
+
     return {
       total,
       discountTotal,
@@ -940,14 +987,29 @@ export class InvoiceService {
       serviceCharge: serviceAmount,
       serviceChargeInclude: serviceType,
       grandTotal,
+      paymentAmount,
+      changeAmount,
       items,
     };
+  }
+
+  private async validatePaymentMethod(methodId: string) {
+    const paymentMethod = await this._prisma.payment_methods.findUnique({
+      where: { id: methodId },
+    });
+
+    if (!paymentMethod) {
+      this.logger.error(`Unsupported payment method: ${methodId}`);
+      throw new BadRequestException(`Unsupported payment method: ${methodId}`);
+    }
+
+    return paymentMethod;
   }
 
   // Private function section
   private async initiatePaymentBasedOnMethod(
     methodId: string,
-    provider: PaymentGateway,
+    provider: PaymentGateway | undefined,
     orderId: string,
     amount: number,
   ): Promise<any> {
@@ -955,6 +1017,16 @@ export class InvoiceService {
     const paymentMethod = await this._prisma.payment_methods.findUnique({
       where: { id: methodId },
     });
+
+    // If provider is undefined, assume cash and skip gateway initiation
+    if (!provider) {
+      return {
+        paymentMethodId: methodId,
+        invoiceId: orderId,
+        amount,
+        message: 'Cash payment does not require gateway initiation',
+      };
+    }
 
     switch (paymentMethod?.name) {
       case 'Snap':
@@ -1117,9 +1189,11 @@ export class InvoiceService {
           paid_at: invoice.paid_at ?? null,
           tax_id: invoice.tax_id ?? null,
           service_charge_id: invoice.service_charge_id ?? null,
-          tax_amount: invoice.tax_amount ?? null,
-          service_charge_amount: invoice.service_charge_amount ?? null,
-          grand_total: invoice.grand_total ?? null,
+          tax_amount: invoice.tax_amount ?? 0,
+          service_charge_amount: invoice.service_charge_amount ?? 0,
+          grand_total: invoice.grand_total ?? 0,
+          payment_amount: invoice.payment_amount ?? 0,
+          change_amount: invoice.change_amount ?? 0,
           cashier_id: invoice.cashier_id,
           invoice_number: invoice.invoice_number,
           order_status: invoice.order_status,

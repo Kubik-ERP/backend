@@ -255,11 +255,13 @@
                       <table width="100%" style="font-size: 14px;">
                         <tr>
                           <td>Debit</td>
-                          <td align="right">Rp0</td>
+                          <td align="right">Rp <%= (payment_amount).toLocaleString('id-ID') %>
+                          </td>
                         </tr>
                         <tr>
                           <td>Kembali</td>
-                          <td align="right">Rp0</td>
+                          <td align="right">Rp <%= (change_amount).toLocaleString('id-ID') %>
+                          </td>
                         </tr>
                       </table>
 

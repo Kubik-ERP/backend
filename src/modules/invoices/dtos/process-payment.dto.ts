@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   IsUUID,
   ValidateNested,
@@ -101,6 +102,15 @@ export class ProceedInstantPaymentDto extends ProductListDto {
   })
   @IsString()
   public tableCode: string;
+
+  @ApiProperty({
+    description: 'Payment Amount',
+    required: false,
+    example: 100000,
+  })
+  @IsOptional()
+  @IsNumber()
+  public paymentAmount: number;
 }
 
 export class ProceedCheckoutInvoiceDto extends ProductListDto {
@@ -168,4 +178,6 @@ export class CalculationEstimationDto extends ProductListDto {
   })
   @IsString()
   public orderType: order_type;
+  paymentAmount?: number;
+  provider?: string;
 }

@@ -8,6 +8,8 @@ export interface CalculationResult {
   serviceCharge: number;
   serviceChargeInclude: boolean;
   grandTotal: number;
+  paymentAmount: number;
+  changeAmount: number;
   items: {
     productId: string;
     variantId?: string;
