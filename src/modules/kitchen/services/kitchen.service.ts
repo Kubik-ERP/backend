@@ -517,6 +517,29 @@ export class KitchenService {
   }
 
   /**
+   * @description Get kitchen queue by invoice Id
+   */
+  public async findKitchenQueueByInvoiceId(
+    invoiceId: string,
+  ): Promise<kitchen_queue[]> {
+    try {
+      return await this._prisma.kitchen_queue.findMany({
+        where: { invoice_id: invoiceId },
+        orderBy: { created_at: 'asc' },
+      });
+    } catch (error) {
+      this.logger.error('Failed to find kitchen queue by invoice Id');
+      throw new BadRequestException(
+        'Failed to find kitchen queue by invoice Id',
+        {
+          cause: new Error(),
+          description: error.message,
+        },
+      );
+    }
+  }
+
+  /**
    * @description Update many order status of kitchen queue by Ids
    */
   public async updateManyKitchenQueueOrderStatusByIds(

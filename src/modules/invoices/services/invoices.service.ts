@@ -17,6 +17,7 @@ import {
   invoice_type,
   order_status,
   order_type,
+  payment_type,
   Prisma,
 } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,6 +30,7 @@ import {
   ProceedInstantPaymentDto,
   ProceedPaymentDto,
   ProductDto,
+  UpsertInvoiceItemDto,
 } from '../dtos/process-payment.dto';
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
@@ -609,6 +611,31 @@ export class InvoiceService {
     this._notificationHelper.notifyNewOrder(storeId);
 
     return result;
+  }
+
+  public async processUpsertInvoiceItems(
+    invoiceId: string,
+    request: UpsertInvoiceItemDto,
+  ) {
+    // check the invoice if the invoice is paid return error
+    const invoice = await this.findInvoiceId(invoiceId);
+
+    if (invoice.payment_status === payment_type.paid) {
+      this.logger.error(
+        `Invoice payment status is paid, the invoice cannot be changed`,
+      );
+      throw new BadRequestException(
+        `Invoice payment status is paid, the invoice cannot be changed`,
+      );
+    }
+
+    // find the kitchen queue by invoice id
+    const kitchenQueues = this._kitchenQueue.findKitchenQueueByInvoiceId(
+      invoice.id,
+    );
+
+    // TODO: validate the data
+    // if the item in kitchen queue with status not placed, cannot be changed
   }
 
   public async proceedPayment(request: ProceedPaymentDto) {
