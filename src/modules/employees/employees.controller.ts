@@ -5,12 +5,13 @@ import {
   Body,
   Patch,
   Param,
-  Delete,
+  Delete, Query,
 } from '@nestjs/common';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { EmployeesService } from './employees.service';
+import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
 
 @Controller('employees')
 export class EmployeesController {
@@ -33,11 +34,10 @@ export class EmployeesController {
       };
     }
   }
-
   @Get()
-  async findAll() {
+  async findAll(@Query() query: FindAllEmployeeQueryDto) {
     try {
-      const employees = await this.employeesService.findAll();
+      const employees = await this.employeesService.findAll(query);
       return {
         statusCode: 200,
         message: 'Employees fetched successfully',
@@ -51,7 +51,6 @@ export class EmployeesController {
       };
     }
   }
-
   @Get(':id')
   async findOne(@Param('id') id: string) {
     try {

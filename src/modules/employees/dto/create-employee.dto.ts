@@ -52,6 +52,14 @@ export class CreateEmployeeDto {
   start_date?: string;
 
   @ApiPropertyOptional({
+    example: 'Cashier',
+    description: 'Staff title is optional',
+  })
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  @ApiPropertyOptional({
     example: '2025-12-31',
     description: 'Tanggal akhir bekerja (format YYYY-MM-DD)',
   })

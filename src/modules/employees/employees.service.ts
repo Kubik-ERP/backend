@@ -47,8 +47,60 @@ export class EmployeesService {
     }
   }
 
-  async findAll() {
-    return this.prisma.employees.findMany();
+  async findAll(query?: {
+    page?: number;
+    limit?: number;
+    title?: string;
+    permissions?: string[];
+  }) {
+    const page = query?.page ?? 1;
+    const limit = query?.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.employeesWhereInput = {};
+
+    if (query?.title) {
+      where.title = {
+        contains: query.title,
+        mode: 'insensitive',
+      };
+    }
+
+    if (query?.permissions && query.permissions.length > 0) {
+      where.employees_has_roles = {
+        some: {
+          roles: {
+            name: {
+              in: query.permissions,
+            },
+          },
+        },
+      };
+    }
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.employees.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          employees_has_roles: {
+            include: {
+              roles: true,
+            },
+          },
+        },
+      }),
+      this.prisma.employees.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findOne(id: string) {

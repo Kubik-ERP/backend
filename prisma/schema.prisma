@@ -150,6 +150,7 @@ model employees {
   start_date              DateTime?                 @db.Date
   end_date                DateTime?                 @db.Date
   gender                  gender?
+  title                   String?                   @db.VarChar(45)
   cash_drawers            cash_drawers[]
   employees_has_roles     employees_has_roles[]
   employees_shift         employees_shift[]

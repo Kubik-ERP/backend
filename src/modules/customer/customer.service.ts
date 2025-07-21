@@ -154,7 +154,6 @@ export class CustomerService {
           : {},
       }),
     ]);
-
     return {
       data: customers,
       meta: {
