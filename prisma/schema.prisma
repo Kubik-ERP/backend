@@ -150,6 +150,7 @@ model employees {
   start_date              DateTime?                 @db.Date
   end_date                DateTime?                 @db.Date
   gender                  gender?
+  title                   String?                   @db.VarChar(45)
   cash_drawers            cash_drawers[]
   employees_has_roles     employees_has_roles[]
   employees_shift         employees_shift[]
@@ -463,6 +464,7 @@ model stores {
   invoice                   invoice[]
   kitchen_queue             kitchen_queue[]
   operational_hours         operational_hours[]
+  store_floors              store_floors[]
   stores_has_employees      stores_has_employees[]
   stores_has_products       stores_has_products[]
   tables                    tables[]
@@ -657,6 +659,36 @@ model users_has_banks {
   users          users?  @relation(fields: [users_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_has_banks_users_id_fk")
 }
 
+model store_floors {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  uid          String         @db.Uuid
+  store_id     String         @db.Uuid
+  floor_name   String         @db.VarChar(255)
+  created_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  stores       stores         @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_store_floors_store")
+  store_tables store_tables[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model store_tables {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  uid               String       @db.Uuid
+  store_id          String       @db.Uuid
+  floor_id          String       @db.Uuid
+  name              String       @db.VarChar(255)
+  seats             Int
+  shape             table_shape
+  width             Int
+  height            Int
+  position_x        Int
+  position_y        Int
+  is_enable_qr_code Boolean      @default(false)
+  created_at        DateTime?    @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?    @default(now()) @db.Timestamptz(6)
+  store_floors      store_floors @relation(fields: [floor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
 enum cash_drawer_type {
   open
   close
@@ -709,4 +741,10 @@ enum order_status {
 enum point_type {
   point_addition
   point_deduction
+}
+
+enum table_shape {
+  SQUARE
+  RECTANGLE
+  ROUND
 }
