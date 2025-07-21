@@ -38,8 +38,13 @@ export class StoreTableController {
     @Headers('x-store-id') storeId: string,
     @Headers('x-user-id') userId: string,
   ) {
-    if (!storeId || !userId) throw new BadRequestException('x-store-id dan x-user-id wajib');
-    const result = await this.storeTableService.createConfiguration(dto, storeId, userId);
+    if (!storeId || !userId)
+      throw new BadRequestException('x-store-id dan x-user-id wajib');
+    const result = await this.storeTableService.createConfiguration(
+      dto,
+      storeId,
+      userId,
+    );
     return { message: 'Store tables created successfully', result };
   }
 
@@ -51,8 +56,14 @@ export class StoreTableController {
     @Headers('x-store-id') storeId: string,
     @Headers('x-user-id') userId: string,
   ) {
-    if (!storeId || !userId) throw new BadRequestException('x-store-id dan x-user-id wajib');
-    const result = await this.storeTableService.update(id, dto, storeId, userId);
+    if (!storeId || !userId)
+      throw new BadRequestException('x-store-id dan x-user-id wajib');
+    const result = await this.storeTableService.update(
+      id,
+      dto,
+      storeId,
+      userId,
+    );
     return { message: 'Store table updated successfully', result };
   }
 
