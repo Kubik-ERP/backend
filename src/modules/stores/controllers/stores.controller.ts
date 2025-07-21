@@ -347,7 +347,6 @@ export class StoresController {
   @UseGuards(AuthenticationJWTGuard)
   @Delete('/:id')
   @ApiBearerAuth()
-  @UseGuards(PinGuard)
   @ApiOperation({ summary: 'Delete store by ID' })
   public async deleteStore(
     @Req() req: ICustomRequestHeaders,
@@ -369,7 +368,6 @@ export class StoresController {
   @ApiOperation({ summary: 'Get store(s) by user ID' })
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
-  @UseGuards(PinGuard)
   public async getStoreByUser(@Req() req: ICustomRequestHeaders) {
     try {
       const userId = req.user.id;
@@ -391,7 +389,6 @@ export class StoresController {
   @ApiOperation({ summary: 'Update Profile For User' })
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
-  @UseGuards(PinGuard)
   @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiConsumes('multipart/form-data')
   public async updateProfile(
