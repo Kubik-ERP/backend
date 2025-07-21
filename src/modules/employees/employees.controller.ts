@@ -5,7 +5,8 @@ import {
   Body,
   Patch,
   Param,
-  Delete, Query,
+  Delete,
+  Query,
 } from '@nestjs/common';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';

@@ -27,6 +27,7 @@ export class EmployeesService {
         name: dto.name,
         email: dto.email,
         phone_number: dto.phone_number,
+        title: dto.title,
         profile_url: dto.profile_url,
         start_date: dto.start_date ? new Date(dto.start_date) : undefined,
         end_date: dto.end_date ? new Date(dto.end_date) : undefined,
