@@ -67,7 +67,7 @@ export class EmployeesService {
       };
     }
 
-    if (query?.permissions && query.permissions.length > 0) {
+    if (query?.permissions?.length) {
       where.employees_has_roles = {
         some: {
           roles: {
@@ -92,15 +92,19 @@ export class EmployeesService {
           },
         },
       }),
-      this.prisma.employees.count({ where }),
+      this.prisma.employees.count({
+        where,
+      }),
     ]);
 
     return {
       data,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 
