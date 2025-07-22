@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateAccountStoreConfigurationDto } from '../dtos/store-table.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -10,7 +14,7 @@ export class StoreTableService {
   async createConfiguration(
     dto: CreateAccountStoreConfigurationDto,
     storeId: string,
-    userId: string,
+    userId: number,
   ) {
     const result = [];
 
@@ -54,22 +58,18 @@ export class StoreTableService {
     floorId: string,
     dto: CreateAccountStoreConfigurationDto,
     storeId: string,
-    userId: string,
+    userId: number,
   ) {
-    // validasi floor exist
     const floor = await this.prisma.store_floors.findFirst({
-      where: { id: floorId, store_id: storeId },
+      where: { id: floorId, store_id: storeId, uid: userId },
     });
 
-    if (!floor) {
-      throw new Error('Floor tidak ditemukan');
-    }
+    if (!floor)
+      throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
 
-    // hanya boleh update satu konfigurasi (1 floor) per request
     const config = dto.configurations[0];
-    if (!config) throw new Error('Data konfigurasi kosong');
+    if (!config) throw new NotFoundException('Data konfigurasi kosong');
 
-    // update nama floor
     await this.prisma.store_floors.update({
       where: { id: floorId },
       data: {
@@ -77,12 +77,10 @@ export class StoreTableService {
       },
     });
 
-    // hapus semua meja lama
     await this.prisma.store_tables.deleteMany({
       where: { floor_id: floorId },
     });
 
-    // insert ulang semua meja baru
     if (config.tables?.length) {
       const tableData = config.tables.map((table) => ({
         id: uuidv4(),
@@ -105,25 +103,42 @@ export class StoreTableService {
     return { success: true, updatedFloorId: floorId };
   }
 
-  async findAll(storeId: string) {
+  async findAll(storeId: string, userId: number) {
     return this.prisma.store_floors.findMany({
-      where: { store_id: storeId },
+      where: { store_id: storeId, uid: userId },
       include: {
         store_tables: true,
       },
     });
   }
 
-  async findOne(id: string, storeId: string) {
-    return this.prisma.store_floors.findFirst({
-      where: { id, store_id: storeId },
+  async findOne(id: string, storeId: string, userId: number) {
+    const floor = await this.prisma.store_floors.findFirst({
+      where: { id, store_id: storeId, uid: userId },
       include: { store_tables: true },
     });
+
+    if (!floor)
+      throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
+    return floor;
   }
 
-  async delete(id: string, storeId: string) {
-    return this.prisma.store_floors.deleteMany({
-      where: { id, store_id: storeId },
+  async delete(id: string, storeId: string, userId: number) {
+    const floor = await this.prisma.store_floors.findFirst({
+      where: { id, store_id: storeId, uid: userId },
     });
+
+    if (!floor)
+      throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
+
+    await this.prisma.store_tables.deleteMany({
+      where: { floor_id: id },
+    });
+
+    await this.prisma.store_floors.delete({
+      where: { id },
+    });
+
+    return { success: true, deletedFloorId: id };
   }
 }
