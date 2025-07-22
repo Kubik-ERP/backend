@@ -29,6 +29,7 @@ import { TablesModule } from './modules/tables/tables.module';
 import { KitchenModule } from './modules/kitchen/kitchen.module';
 import { HeaderMiddleware } from './common/middleware/header-middleware';
 import { BankModule } from './modules/bank/bank.module';
+import { StoreTableModule } from './modules/store-table/store-table.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { BankModule } from './modules/bank/bank.module';
     UsersModule,
     TablesModule,
     TemplatesEmailModule,
+    StoreTableModule,
   ],
   providers: [
     {
