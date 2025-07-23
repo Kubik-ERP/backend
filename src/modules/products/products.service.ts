@@ -314,4 +314,25 @@ export class ProductsService {
       );
     }
   }
+
+  async getProduct(productId: string) {
+    const result = await this.prisma.products.findFirst({
+      where: { id: productId },
+      select: {
+        id: true,
+        name: true,
+        price: true,
+      },
+    });
+    if (!result) {
+      throw new BadRequestException(`Variant with id ${productId} not found`);
+    }
+
+    const safeResult = {
+      ...result,
+      price: result.price ?? 0,
+    };
+
+    return safeResult;
+  }
 }

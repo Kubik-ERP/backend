@@ -54,6 +54,7 @@ import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
 import { isUUID } from 'class-validator';
 import { validateStoreId } from 'src/common/helpers/validators.helper';
 import { VariantsService } from '../../variants/variants.service';
+import { ProductsService } from '../../products/products.service';
 
 @Injectable()
 export class InvoiceService {
@@ -67,6 +68,7 @@ export class InvoiceService {
     private readonly _notificationHelper: NotificationHelper,
     private readonly _mailService: MailService,
     private readonly _variantService: VariantsService,
+    private readonly _productService: ProductsService,
   ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
@@ -734,6 +736,8 @@ export class InvoiceService {
 
       finalProductPrice = productData.price ?? 0;
     }
+    const variant = await this._variantService.getVariant(product.variantId);
+    let variantPrice = variant?.price * product.quantity;
     const invoiceDetailData = {
       id: uuidv4(),
       invoice_id: invoice.id,
@@ -742,10 +746,9 @@ export class InvoiceService {
       notes: product.notes ?? null,
       qty: product.quantity,
       variant_id: product.variantId,
-      variant_price: product.variantPrice ?? 0,
+      variant_price: variantPrice ?? 0,
     };
     await this.createInvoiceDetail(tx, invoiceDetailData);
-    console.log(`products ${product}`);
 
     for (let i = 0; i < product.quantity; i++) {
       await this._kitchenQueue.createKitchenQueue(tx, [
@@ -772,8 +775,12 @@ export class InvoiceService {
     invoice: any,
     product: any,
   ) {
-    let total = await this.calculateProductTotal(
+    let variantTotal = await this.calculateProductVariantTotal(
       product.variantId,
+      product.quantity,
+    );
+    let productTotal = await this.calculateProductTotal(
+      product.productId,
       product.quantity,
     );
     await this.upsertInvoiceDetail(
@@ -781,7 +788,8 @@ export class InvoiceService {
       {
         qty: product.quantity,
         notes: product.notes ?? null,
-        total: total ?? 0,
+        productTotal: productTotal ?? 0,
+        variantTotal: variantTotal ?? 0,
       },
       {
         invoice_id: invoice.id,
@@ -802,13 +810,24 @@ export class InvoiceService {
   }
 
   // Helper to calculate total price (fetch variant price from DB)
-  private async calculateProductTotal(
+  private async calculateProductVariantTotal(
     variantId: string,
     qty: number,
   ): Promise<number> {
     if (variantId !== '') {
       const variant = await this._variantService.getVariant(variantId);
       return variant?.price * qty;
+    }
+    return 0;
+  }
+
+  private async calculateProductTotal(
+    productId: string,
+    qty: number,
+  ): Promise<number> {
+    if (productId !== '') {
+      const product = await this._productService.getProduct(productId);
+      return product?.price * qty;
     }
     return 0;
   }
@@ -1494,6 +1513,7 @@ export class InvoiceService {
           invoice_id: invoiceDetail.invoice_id,
           product_id: invoiceDetail.product_id,
           product_price: invoiceDetail.product_price,
+          variant_price: invoiceDetail.variant_price,
           notes: invoiceDetail.notes,
           qty: invoiceDetail.qty,
           variant_id:
@@ -1514,7 +1534,8 @@ export class InvoiceService {
     data: {
       qty: number;
       notes?: string | null;
-      total: number;
+      productTotal: number;
+      variantTotal: number;
     },
     where: {
       invoice_id: string;
@@ -1523,6 +1544,10 @@ export class InvoiceService {
     },
   ): Promise<invoice_details> {
     try {
+      const variantId =
+        !where.variant_id || where.variant_id.trim() === ''
+          ? null
+          : where.variant_id;
       const existing = await tx.invoice_details.findFirst({
         where: {
           invoice_id: where.invoice_id,
@@ -1530,20 +1555,24 @@ export class InvoiceService {
           variant_id: where.variant_id === '' ? null : where.variant_id,
         },
       });
+      if (existing) {
+        this.logger.log(
+          `Invoice detail already exists for invoice_id=${where.invoice_id}, product_id=${where.product_id}, variant_id=${variantId}`,
+        );
+        return existing;
+      }
       const invoiceId = uuidv4();
-      const variantId =
-        !where.variant_id || where.variant_id.trim() === ''
-          ? null
-          : where.variant_id;
+      const newDataInvoiceDetails = {
+        id: invoiceId,
+        invoice_id: where.invoice_id,
+        variant_id: variantId,
+        qty: data.qty,
+        notes: data.notes ?? null,
+        product_price: data.productTotal,
+        variant_price: data.variantTotal,
+      };
       return await tx.invoice_details.create({
-        data: {
-          id: invoiceId,
-          invoice_id: where.invoice_id,
-          variant_id: variantId,
-          qty: data.qty,
-          notes: data.notes ?? null,
-          product_price: data.total,
-        },
+        data: newDataInvoiceDetails,
       });
     } catch (error) {
       this.logger.error('Failed to upsert invoice detail', error.message);
