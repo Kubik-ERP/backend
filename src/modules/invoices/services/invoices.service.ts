@@ -620,7 +620,7 @@ export class InvoiceService {
     request: UpsertInvoiceItemDto,
   ) {
     // check the invoice if the invoice is paid return error
-    // 1️⃣ Ambil invoice
+    // 1️⃣ Fetch the invoice
     const invoice = await this.findInvoiceId(invoiceId);
 
     if (invoice.payment_status === payment_type.paid) {
@@ -633,18 +633,17 @@ export class InvoiceService {
     }
 
     // find the kitchen queue by invoice id
-    // 2️⃣ Ambil semua kitchenQueue berdasarkan invoiceId
+    // 2️⃣ Fetch all kitchenQueue items based on invoiceId
     const kitchenQueues = await this._kitchenQueue.findKitchenQueueByInvoiceId(
       invoice.id,
     );
 
     // if the item in kitchen queue with status not placed, cannot be changed
-    // Kalau belum ada kitchenQueue sama sekali → semua dianggap item baru
+    // If there are no kitchenQueue items at all → treat all as new items
     if (!kitchenQueues || kitchenQueues.length === 0) {
       this.logger.log(
         'No existing kitchen queue found, creating all new products...',
       );
-      console.log(request.products);
       for (const product of request.products) {
         console.log(product);
         await this.createInvoiceAndKitchenQueueItem(invoice, product);
@@ -654,7 +653,7 @@ export class InvoiceService {
       };
     }
 
-    // 3️⃣ Buat mapping kitchenQueue by variantId untuk mempermudah lookup
+    // 3️⃣ Create a mapping of kitchenQueue by variantId for easier lookup
     const kitchenQueueMap = new Map<string, any>();
     for (const queue of kitchenQueues) {
       if (queue.variant_id !== null) {
@@ -662,13 +661,13 @@ export class InvoiceService {
       }
     }
 
-    // 4️⃣ Loop semua products dari FE
+    // 4️⃣ Loop through all products from the frontend
     for (const feProduct of request.products) {
       const variantId = feProduct.variantId;
       const existingQueue = kitchenQueueMap.get(variantId);
 
       if (!existingQueue) {
-        // ✅ ITEM BARU (tidak ada di kitchen_queue → create baru)
+        // ✅ NEW ITEM (not found in kitchen_queue → create new)
         this.logger.log(
           `New product detected: ${variantId}, creating new queue...`,
         );
@@ -676,20 +675,20 @@ export class InvoiceService {
         continue;
       }
 
-      // ✅ ITEM SUDAH ADA, cek apakah ada perubahan quantity / notes
+      // ✅ EXISTING ITEM, check if there are changes in quantity / notes
       const isChanged =
         feProduct.quantity !== existingQueue.quantity ||
         feProduct.notes !== existingQueue.notes;
 
       if (!isChanged) {
-        // Tidak ada perubahan → skip
+        // No changes → skip
         this.logger.log(`No change for product ${variantId}, skipping...`);
         continue;
       }
 
-      // ✅ Ada perubahan → cek order_status
+      // ✅ Changes detected → check order_status
       if (existingQueue.order_status !== 'placed') {
-        // Jika status != 'placed', artinya sudah diproses dapur → tidak bisa diedit
+        // If status != 'placed', it means it has already been processed in the kitchen → cannot be edited
         this.logger.error(
           `Cannot edit product ${variantId} because order_status is ${existingQueue.order_status}`,
         );
@@ -698,21 +697,21 @@ export class InvoiceService {
         );
       }
 
-      // ✅ Jika masih 'placed', boleh diedit → update kitchen_queue & invoice_detail
+      // ✅ If still 'placed', it can be edited → update kitchen_queue & invoice_detail
       this.logger.log(`Updating existing product ${variantId}...`);
       await this.updateInvoiceAndKitchenQueueItem(invoice, feProduct);
     }
 
     // TODO: Apakah ini perlu?
-    // 5️⃣ (Optional) Cari item di kitchen_queue tapi tidak ada di payload FE → hapus?
-    // kalau perlu hapus, kita bisa cek seperti ini:
+    // 5️⃣ (Optional) Find items in kitchen_queue that are not in the FE payload → delete?
+    // If deletion is required, we can check like this:
     // const feVariantIds = request.products.map(p => p.variantId);
     // const toDelete = kitchenQueues.filter(q => !feVariantIds.includes(q.product_variant_id));
 
     return { message: 'Invoice products processed successfully' };
   }
 
-  // Helper untuk create invoice_detail + kitchen_queue
+  // Helper to create invoice_detail + kitchen_queue
   private async createInvoiceAndKitchenQueueItem(invoice: any, product: any) {
     await this._prisma.$transaction(async (tx) => {
       const invoiceDetailData = {
@@ -735,7 +734,7 @@ export class InvoiceService {
           product_id: product.productId,
           variant_id: product.variantId,
           notes: product.notes ?? null,
-          order_status: 'placed', // default status baru,
+          order_status: 'placed', // default new status
           created_at: new Date(),
           order_type: 'dine_in',
           store_id: invoice.store_id,
@@ -746,7 +745,7 @@ export class InvoiceService {
     });
   }
 
-  // Helper untuk update invoice_detail + kitchen_queue
+  // Helper to update invoice_detail + kitchen_queue
   private async updateInvoiceAndKitchenQueueItem(invoice: any, product: any) {
     const invoiceDetailData = await this._prisma.$transaction(async (tx) => {
       await this.upsertInvoiceDetail(
@@ -777,7 +776,7 @@ export class InvoiceService {
     });
   }
 
-  // Helper untuk hitung harga total (ambil harga variant dari DB)
+  // Helper to calculate total price (fetch variant price from DB)
   private async calculateProductTotal(
     variantId: string,
     qty: number,
