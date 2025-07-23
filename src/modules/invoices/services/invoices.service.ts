@@ -67,7 +67,7 @@ export class InvoiceService {
     private readonly _notificationHelper: NotificationHelper,
     private readonly _mailService: MailService,
     private readonly _variantService: VariantsService,
-  ) { }
+  ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
     const {
