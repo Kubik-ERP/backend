@@ -1530,28 +1530,16 @@ export class InvoiceService {
           variant_id: where.variant_id === '' ? null : where.variant_id,
         },
       });
-
-      if (existing) {
-        return await tx.invoice_details.update({
-          where: {
-            id_invoice_id: {
-              id: existing.id,
-              invoice_id: existing.invoice_id,
-            },
-          },
-          data: {
-            qty: data.qty,
-            notes: data.notes ?? null,
-            product_price: data.total,
-          },
-        });
-      }
-
+      const invoiceId = uuidv4();
+      const variantId =
+        !where.variant_id || where.variant_id.trim() === ''
+          ? null
+          : where.variant_id;
       return await tx.invoice_details.create({
         data: {
-          id: crypto.randomUUID(),
+          id: invoiceId,
           invoice_id: where.invoice_id,
-          variant_id: where.variant_id,
+          variant_id: variantId,
           qty: data.qty,
           notes: data.notes ?? null,
           product_price: data.total,
