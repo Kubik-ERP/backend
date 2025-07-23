@@ -656,20 +656,20 @@ export class InvoiceService {
       // 3️⃣ Create a mapping of kitchenQueue by variantId for easier lookup
       const kitchenQueueMap = new Map<string, any>();
       for (const queue of kitchenQueues) {
-        if (queue.variant_id !== null) {
-          kitchenQueueMap.set(queue.variant_id, queue);
+        if (queue.product_id !== null) {
+          kitchenQueueMap.set(queue.product_id, queue);
         }
       }
 
       // 4️⃣ Loop through all products from the frontend
       for (const feProduct of request.products) {
-        const variantId = feProduct.variantId;
-        const existingQueue = kitchenQueueMap.get(variantId);
+        const productId = feProduct.productId;
+        const existingQueue = kitchenQueueMap.get(productId);
 
         if (!existingQueue) {
           // ✅ NEW ITEM (not found in kitchen_queue → create new)
           this.logger.log(
-            `New product detected: ${variantId}, creating new queue...`,
+            `New product detected: ${productId}, creating new queue...`,
           );
           await this.createInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
           continue;
@@ -682,7 +682,7 @@ export class InvoiceService {
 
         if (!isChanged) {
           // No changes → skip
-          this.logger.log(`No change for product ${variantId}, skipping...`);
+          this.logger.log(`No change for product ${productId}, skipping...`);
           continue;
         }
 
@@ -690,15 +690,15 @@ export class InvoiceService {
         if (existingQueue.order_status !== 'placed') {
           // If status != 'placed', it means it has already been processed in the kitchen → cannot be edited
           this.logger.error(
-            `Cannot edit product ${variantId} because order_status is ${existingQueue.order_status}`,
+            `Cannot edit product ${productId} because order_status is ${existingQueue.order_status}`,
           );
           throw new BadRequestException(
-            `Product ${variantId} cannot be edited, order already in process (${existingQueue.order_status})`,
+            `Product ${productId} cannot be edited, order already in process (${existingQueue.order_status})`,
           );
         }
 
         // ✅ If still 'placed', it can be edited → update kitchen_queue & invoice_detail
-        this.logger.log(`Updating existing product ${variantId}...`);
+        this.logger.log(`Updating existing product ${productId}...`);
         await this.updateInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
       }
 
@@ -718,11 +718,27 @@ export class InvoiceService {
     invoice: any,
     product: any,
   ) {
+    let finalProductPrice = product.productPrice ?? null;
+
+    if (finalProductPrice === null) {
+      const productData = await this._prisma.products.findFirst({
+        where: { id: product.productId },
+        select: { price: true },
+      });
+
+      if (!productData) {
+        throw new BadRequestException(
+          `Product with id ${product.productId} not found`,
+        );
+      }
+
+      finalProductPrice = productData.price ?? 0;
+    }
     const invoiceDetailData = {
       id: uuidv4(),
       invoice_id: invoice.id,
       product_id: product.productId,
-      product_price: product.productPrice ?? 0,
+      product_price: finalProductPrice,
       notes: product.notes ?? null,
       qty: product.quantity,
       variant_id: product.variantId,
@@ -731,21 +747,23 @@ export class InvoiceService {
     await this.createInvoiceDetail(tx, invoiceDetailData);
     console.log(`products ${product}`);
 
-    await this._kitchenQueue.createKitchenQueue(tx, [
-      {
-        id: uuidv4(),
-        invoice_id: invoice.id,
-        product_id: product.productId,
-        variant_id: product.variantId,
-        notes: product.notes ?? null,
-        order_status: 'placed', // default new status
-        created_at: new Date(),
-        order_type: 'dine_in',
-        store_id: invoice.store_id,
-        table_code: invoice.table_code,
-        customer_id: invoice.customer_id,
-      },
-    ]);
+    for (let i = 0; i < product.quantity; i++) {
+      await this._kitchenQueue.createKitchenQueue(tx, [
+        {
+          id: uuidv4(),
+          invoice_id: invoice.id,
+          product_id: product.productId,
+          variant_id: product.variantId,
+          notes: product.notes ?? null,
+          order_status: 'placed', // default new status
+          created_at: new Date(),
+          order_type: 'dine_in',
+          store_id: invoice.store_id,
+          table_code: invoice.table_code,
+          customer_id: invoice.customer_id,
+        },
+      ]);
+    }
   }
 
   // Helper to update invoice_detail + kitchen_queue
@@ -754,18 +772,20 @@ export class InvoiceService {
     invoice: any,
     product: any,
   ) {
+    let total = await this.calculateProductTotal(
+      product.variantId,
+      product.quantity,
+    );
     await this.upsertInvoiceDetail(
       tx,
       {
         qty: product.quantity,
         notes: product.notes ?? null,
-        total: await this.calculateProductTotal(
-          product.variantId,
-          product.quantity,
-        ),
+        total: total ?? 0,
       },
       {
         invoice_id: invoice.id,
+        product_id: product.productId,
         variant_id: product.variantId,
       },
     );
@@ -786,10 +806,11 @@ export class InvoiceService {
     variantId: string,
     qty: number,
   ): Promise<number> {
-    const variant = await this._variantService.getVariant(variantId);
-    if (!variant)
-      throw new BadRequestException(`Variant ${variantId} not found`);
-    return (variant.price ?? 0) * qty;
+    if (variantId !== '') {
+      const variant = await this._variantService.getVariant(variantId);
+      return variant?.price * qty;
+    }
+    return 0;
   }
 
   public async proceedPayment(request: ProceedPaymentDto) {
@@ -1497,6 +1518,7 @@ export class InvoiceService {
     },
     where: {
       invoice_id: string;
+      product_id: string;
       variant_id: string;
     },
   ): Promise<invoice_details> {
@@ -1504,7 +1526,8 @@ export class InvoiceService {
       const existing = await tx.invoice_details.findFirst({
         where: {
           invoice_id: where.invoice_id,
-          variant_id: where.variant_id,
+          product_id: where.product_id,
+          variant_id: where.variant_id === '' ? null : where.variant_id,
         },
       });
 

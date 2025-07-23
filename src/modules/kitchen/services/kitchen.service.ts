@@ -409,7 +409,8 @@ export class KitchenService {
       const existing = await tx.kitchen_queue.findFirst({
         where: {
           invoice_id: where.invoice_id,
-          variant_id: where.product_variant_id,
+          variant_id:
+            where.product_variant_id === '' ? null : where.product_variant_id,
         },
       });
 
@@ -566,6 +567,26 @@ export class KitchenService {
     try {
       return await this._prisma.kitchen_queue.findMany({
         where: { invoice_id: invoiceId },
+        orderBy: { created_at: 'asc' },
+      });
+    } catch (error) {
+      this.logger.error('Failed to find kitchen queue by invoice Id');
+      throw new BadRequestException(
+        'Failed to find kitchen queue by invoice Id',
+        {
+          cause: new Error(),
+          description: error.message,
+        },
+      );
+    }
+  }
+  public async findKitchenQueueByInvoiceIdProductId(
+    invoiceId: string,
+    productId: string,
+  ): Promise<kitchen_queue[]> {
+    try {
+      return await this._prisma.kitchen_queue.findMany({
+        where: { invoice_id: invoiceId, product_id: productId },
         orderBy: { created_at: 'asc' },
       });
     } catch (error) {

@@ -68,7 +68,7 @@ export class VariantsService {
   }
 
   async getVariant(variantId: string) {
-    return await this.prisma.variant.findUnique({
+    const result = await this.prisma.variant.findFirst({
       where: { id: variantId },
       select: {
         id: true,
@@ -76,6 +76,16 @@ export class VariantsService {
         price: true,
       },
     });
+    if (!result) {
+      throw new BadRequestException(`Variant with id ${variantId} not found`);
+    }
+
+    const safeResult = {
+      ...result,
+      price: result.price ?? 0,
+    };
+
+    return safeResult;
   }
 
   async update(
