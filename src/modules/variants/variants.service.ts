@@ -67,6 +67,17 @@ export class VariantsService {
     });
   }
 
+  async getVariant(variantId: string) {
+    return await this.prisma.variant.findUnique({
+      where: { id: variantId },
+      select: {
+        id: true,
+        name: true,
+        price: true,
+      },
+    });
+  }
+
   async update(
     id: string,
     updateVariantDto: UpdateVariantDto,

@@ -53,6 +53,7 @@ import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
 import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
 import { isUUID } from 'class-validator';
 import { validateStoreId } from 'src/common/helpers/validators.helper';
+import { VariantsService } from '../../variants/variants.service';
 
 @Injectable()
 export class InvoiceService {
@@ -65,6 +66,7 @@ export class InvoiceService {
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
     private readonly _mailService: MailService,
+    private readonly _variantService: VariantsService,
   ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
@@ -345,7 +347,7 @@ export class InvoiceService {
   ) {
     const storeId = validateStoreId(header.store_id);
 
-    await this.validatePaymentMethod(request.paymentMethodId);
+    await this.validatePaymentMethod(request.paymentMethodId, request.provider);
 
     const paymentProvider =
       request.provider === 'cash'
@@ -618,6 +620,7 @@ export class InvoiceService {
     request: UpsertInvoiceItemDto,
   ) {
     // check the invoice if the invoice is paid return error
+    // 1️⃣ Ambil invoice
     const invoice = await this.findInvoiceId(invoiceId);
 
     if (invoice.payment_status === payment_type.paid) {
@@ -630,12 +633,159 @@ export class InvoiceService {
     }
 
     // find the kitchen queue by invoice id
-    const kitchenQueues = this._kitchenQueue.findKitchenQueueByInvoiceId(
+    // 2️⃣ Ambil semua kitchenQueue berdasarkan invoiceId
+    const kitchenQueues = await this._kitchenQueue.findKitchenQueueByInvoiceId(
       invoice.id,
     );
 
-    // TODO: validate the data
     // if the item in kitchen queue with status not placed, cannot be changed
+    // Kalau belum ada kitchenQueue sama sekali → semua dianggap item baru
+    if (!kitchenQueues || kitchenQueues.length === 0) {
+      this.logger.log(
+        'No existing kitchen queue found, creating all new products...',
+      );
+      console.log(request.products);
+      for (const product of request.products) {
+        console.log(product);
+        await this.createInvoiceAndKitchenQueueItem(invoice, product);
+      }
+      return {
+        message: 'All products created successfully (no existing queue)',
+      };
+    }
+
+    // 3️⃣ Buat mapping kitchenQueue by variantId untuk mempermudah lookup
+    const kitchenQueueMap = new Map<string, any>();
+    for (const queue of kitchenQueues) {
+      if (queue.variant_id !== null) {
+        kitchenQueueMap.set(queue.variant_id, queue);
+      }
+    }
+
+    // 4️⃣ Loop semua products dari FE
+    for (const feProduct of request.products) {
+      const variantId = feProduct.variantId;
+      const existingQueue = kitchenQueueMap.get(variantId);
+
+      if (!existingQueue) {
+        // ✅ ITEM BARU (tidak ada di kitchen_queue → create baru)
+        this.logger.log(
+          `New product detected: ${variantId}, creating new queue...`,
+        );
+        await this.createInvoiceAndKitchenQueueItem(invoice, feProduct);
+        continue;
+      }
+
+      // ✅ ITEM SUDAH ADA, cek apakah ada perubahan quantity / notes
+      const isChanged =
+        feProduct.quantity !== existingQueue.quantity ||
+        feProduct.notes !== existingQueue.notes;
+
+      if (!isChanged) {
+        // Tidak ada perubahan → skip
+        this.logger.log(`No change for product ${variantId}, skipping...`);
+        continue;
+      }
+
+      // ✅ Ada perubahan → cek order_status
+      if (existingQueue.order_status !== 'placed') {
+        // Jika status != 'placed', artinya sudah diproses dapur → tidak bisa diedit
+        this.logger.error(
+          `Cannot edit product ${variantId} because order_status is ${existingQueue.order_status}`,
+        );
+        throw new BadRequestException(
+          `Product ${variantId} cannot be edited, order already in process (${existingQueue.order_status})`,
+        );
+      }
+
+      // ✅ Jika masih 'placed', boleh diedit → update kitchen_queue & invoice_detail
+      this.logger.log(`Updating existing product ${variantId}...`);
+      await this.updateInvoiceAndKitchenQueueItem(invoice, feProduct);
+    }
+
+    // TODO: Apakah ini perlu?
+    // 5️⃣ (Optional) Cari item di kitchen_queue tapi tidak ada di payload FE → hapus?
+    // kalau perlu hapus, kita bisa cek seperti ini:
+    // const feVariantIds = request.products.map(p => p.variantId);
+    // const toDelete = kitchenQueues.filter(q => !feVariantIds.includes(q.product_variant_id));
+
+    return { message: 'Invoice products processed successfully' };
+  }
+
+  // Helper untuk create invoice_detail + kitchen_queue
+  private async createInvoiceAndKitchenQueueItem(invoice: any, product: any) {
+    await this._prisma.$transaction(async (tx) => {
+      const invoiceDetailData = {
+        id: uuidv4(),
+        invoice_id: invoice.id,
+        product_id: product.productId,
+        product_price: product.productPrice ?? 0,
+        notes: product.notes ?? null,
+        qty: product.quantity,
+        variant_id: product.variantId,
+        variant_price: product.variantPrice ?? 0,
+      };
+      await this.createInvoiceDetail(tx, invoiceDetailData);
+      console.log(`products ${product}`);
+
+      await this._kitchenQueue.createKitchenQueue(tx, [
+        {
+          id: uuidv4(),
+          invoice_id: invoice.id,
+          product_id: product.productId,
+          variant_id: product.variantId,
+          notes: product.notes ?? null,
+          order_status: 'placed', // default status baru,
+          created_at: new Date(),
+          order_type: 'dine_in',
+          store_id: invoice.store_id,
+          table_code: invoice.table_code,
+          customer_id: invoice.customer_id,
+        },
+      ]);
+    });
+  }
+
+  // Helper untuk update invoice_detail + kitchen_queue
+  private async updateInvoiceAndKitchenQueueItem(invoice: any, product: any) {
+    const invoiceDetailData = await this._prisma.$transaction(async (tx) => {
+      await this.upsertInvoiceDetail(
+        tx,
+        {
+          qty: product.quantity,
+          notes: product.notes ?? null,
+          total: await this.calculateProductTotal(
+            product.variantId,
+            product.quantity,
+          ),
+        },
+        {
+          invoice_id: invoice.id,
+          variant_id: product.variantId,
+        },
+      );
+      await this._kitchenQueue.updateKitchenQueue(
+        tx,
+        {
+          notes: product.notes ?? null,
+        },
+        {
+          invoice_id: invoice.id,
+          product_variant_id: product.variantId,
+        },
+      );
+    });
+  }
+
+  // Helper untuk hitung harga total (ambil harga variant dari DB)
+  private async calculateProductTotal(
+    variantId: string,
+    qty: number,
+  ): Promise<number> {
+    const variant = await this._variantService.getVariant(variantId);
+    if (!variant)
+      throw new BadRequestException(`Variant ${variantId} not found`);
+    return (variant.price ?? 0) * qty;
   }
 
   public async proceedPayment(request: ProceedPaymentDto) {
@@ -646,7 +796,7 @@ export class InvoiceService {
       throw new BadRequestException(`Invoice status is not unpaid`);
     }
 
-    await this.validatePaymentMethod(request.paymentMethodId);
+    await this.validatePaymentMethod(request.paymentMethodId, request.provider);
 
     // define payment method and provider
     const paymentProvider =
@@ -858,7 +1008,9 @@ export class InvoiceService {
 
       if (!product) {
         this.logger.error(`Product with ID ${item.productId} not found`);
-        throw new Error(`Product with ID ${item.productId} not found`);
+        throw new NotFoundException(
+          `Product with ID ${item.productId} not found`,
+        );
       }
 
       // using the discounted price to proceed calculation
@@ -1020,14 +1172,24 @@ export class InvoiceService {
     };
   }
 
-  private async validatePaymentMethod(methodId: string) {
-    const paymentMethod = await this._prisma.payment_methods.findUnique({
-      where: { id: methodId },
+  private async validatePaymentMethod(methodId: string, provider: string) {
+    const paymentMethod = await this._prisma.payment_methods.findFirst({
+      where: {
+        id: methodId,
+        name: {
+          contains: provider,
+          mode: 'insensitive',
+        },
+      },
     });
 
     if (!paymentMethod) {
-      this.logger.error(`Unsupported payment method: ${methodId}`);
-      throw new BadRequestException(`Unsupported payment method: ${methodId}`);
+      this.logger.error(
+        `Unsupported payment method: ${methodId} with payment name ${provider}`,
+      );
+      throw new BadRequestException(
+        `Unsupported payment method: ${methodId} with payment name ${provider}`,
+      );
     }
 
     return paymentMethod;
@@ -1316,6 +1478,61 @@ export class InvoiceService {
     } catch (error) {
       this.logger.error('Failed to create invoice detail');
       throw new BadRequestException('Failed to create invoice detail', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  public async upsertInvoiceDetail(
+    tx: Prisma.TransactionClient,
+    data: {
+      qty: number;
+      notes?: string | null;
+      total: number;
+    },
+    where: {
+      invoice_id: string;
+      variant_id: string;
+    },
+  ): Promise<invoice_details> {
+    try {
+      const existing = await tx.invoice_details.findFirst({
+        where: {
+          invoice_id: where.invoice_id,
+          variant_id: where.variant_id,
+        },
+      });
+
+      if (existing) {
+        return await tx.invoice_details.update({
+          where: {
+            id_invoice_id: {
+              id: existing.id,
+              invoice_id: existing.invoice_id,
+            },
+          },
+          data: {
+            qty: data.qty,
+            notes: data.notes ?? null,
+            product_price: data.total,
+          },
+        });
+      }
+
+      return await tx.invoice_details.create({
+        data: {
+          id: crypto.randomUUID(),
+          invoice_id: where.invoice_id,
+          variant_id: where.variant_id,
+          qty: data.qty,
+          notes: data.notes ?? null,
+          product_price: data.total,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to upsert invoice detail', error.message);
+      throw new BadRequestException('Failed to upsert invoice detail', {
         cause: new Error(),
         description: error.message,
       });

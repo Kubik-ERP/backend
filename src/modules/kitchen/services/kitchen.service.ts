@@ -394,6 +394,47 @@ export class KitchenService {
     }
   }
 
+  public async updateKitchenQueue(
+    tx: Prisma.TransactionClient,
+    data: {
+      notes?: string | null;
+    },
+    where: {
+      invoice_id: string;
+      product_variant_id: string;
+    },
+  ) {
+    try {
+      // 1️⃣ Cari dulu queue yang match
+      const existing = await tx.kitchen_queue.findFirst({
+        where: {
+          invoice_id: where.invoice_id,
+          variant_id: where.product_variant_id,
+        },
+      });
+
+      if (!existing) {
+        throw new BadRequestException(
+          `KitchenQueue not found for invoice_id=${where.invoice_id}, variant_id=${where.product_variant_id}`,
+        );
+      }
+
+      // 2️⃣ Update pakai primary key id (atau composite key sesuai schema)
+      return await tx.kitchen_queue.update({
+        where: { id: existing.id },
+        data: {
+          notes: data.notes ?? null,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to update kitchen queue', error.message);
+      throw new BadRequestException('Failed to update kitchen queue', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
   /**
    * @description Get kitchen queues by store id
    */
