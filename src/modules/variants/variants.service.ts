@@ -76,6 +76,7 @@ export class VariantsService {
         price: true,
       },
     });
+
     if (!result) {
       throw new BadRequestException(`Variant with id ${variantId} not found`);
     }

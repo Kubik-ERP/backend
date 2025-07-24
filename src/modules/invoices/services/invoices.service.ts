@@ -621,95 +621,100 @@ export class InvoiceService {
     invoiceId: string,
     request: UpsertInvoiceItemDto,
   ) {
-    await this._prisma.$transaction(async (tx) => {
-      // check the invoice if the invoice is paid return error
-      // 1️⃣ Fetch the invoice
-      const invoice = await this.findInvoiceId(invoiceId);
+    await this._prisma.$transaction(
+      async (tx) => {
+        // check the invoice if the invoice is paid return error
+        // 1️⃣ Fetch the invoice
+        const invoice = await this.findInvoiceId(invoiceId);
 
-      if (invoice.payment_status === payment_type.paid) {
-        this.logger.error(
-          `Invoice payment status is paid, the invoice cannot be changed`,
-        );
-        throw new BadRequestException(
-          `Invoice payment status is paid, the invoice cannot be changed`,
-        );
-      }
-
-      // find the kitchen queue by invoice id
-      // 2️⃣ Fetch all kitchenQueue items based on invoiceId
-      const kitchenQueues =
-        await this._kitchenQueue.findKitchenQueueByInvoiceId(invoice.id);
-
-      // if the item in kitchen queue with status not placed, cannot be changed
-      // If there are no kitchenQueue items at all → treat all as new items
-      if (!kitchenQueues || kitchenQueues.length === 0) {
-        this.logger.log(
-          'No existing kitchen queue found, creating all new products...',
-        );
-        for (const product of request.products) {
-          console.log(product);
-          await this.createInvoiceAndKitchenQueueItem(tx, invoice, product);
-        }
-        return {
-          message: 'All products created successfully (no existing queue)',
-        };
-      }
-
-      // 3️⃣ Create a mapping of kitchenQueue by variantId for easier lookup
-      const kitchenQueueMap = new Map<string, any>();
-      for (const queue of kitchenQueues) {
-        if (queue.product_id !== null) {
-          kitchenQueueMap.set(queue.product_id, queue);
-        }
-      }
-
-      // 4️⃣ Loop through all products from the frontend
-      for (const feProduct of request.products) {
-        const productId = feProduct.productId;
-        const existingQueue = kitchenQueueMap.get(productId);
-
-        if (!existingQueue) {
-          // ✅ NEW ITEM (not found in kitchen_queue → create new)
-          this.logger.log(
-            `New product detected: ${productId}, creating new queue...`,
-          );
-          await this.createInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
-          continue;
-        }
-
-        // ✅ EXISTING ITEM, check if there are changes in quantity / notes
-        const isChanged =
-          feProduct.quantity !== existingQueue.quantity ||
-          feProduct.notes !== existingQueue.notes;
-
-        if (!isChanged) {
-          // No changes → skip
-          this.logger.log(`No change for product ${productId}, skipping...`);
-          continue;
-        }
-
-        // ✅ Changes detected → check order_status
-        if (existingQueue.order_status !== 'placed') {
-          // If status != 'placed', it means it has already been processed in the kitchen → cannot be edited
+        if (invoice.payment_status === payment_type.paid) {
           this.logger.error(
-            `Cannot edit product ${productId} because order_status is ${existingQueue.order_status}`,
+            `Invoice payment status is paid, the invoice cannot be changed`,
           );
           throw new BadRequestException(
-            `Product ${productId} cannot be edited, order already in process (${existingQueue.order_status})`,
+            `Invoice payment status is paid, the invoice cannot be changed`,
           );
         }
 
-        // ✅ If still 'placed', it can be edited → update kitchen_queue & invoice_detail
-        this.logger.log(`Updating existing product ${productId}...`);
-        await this.updateInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
-      }
+        // find the kitchen queue by invoice id
+        // 2️⃣ Fetch all kitchenQueue items based on invoiceId
+        const kitchenQueues =
+          await this._kitchenQueue.findKitchenQueueByInvoiceId(invoice.id);
 
-      // TODO: Apakah ini perlu?
-      // 5️⃣ (Optional) Find items in kitchen_queue that are not in the FE payload → delete?
-      // If deletion is required, we can check like this:
-      // const feVariantIds = request.products.map(p => p.variantId);
-      // const toDelete = kitchenQueues.filter(q => !feVariantIds.includes(q.product_variant_id));
-    });
+        // if the item in kitchen queue with status not placed, cannot be changed
+        // If there are no kitchenQueue items at all → treat all as new items
+        if (!kitchenQueues || kitchenQueues.length === 0) {
+          this.logger.log(
+            'No existing kitchen queue found, creating all new products...',
+          );
+          for (const product of request.products) {
+            console.log(product);
+            await this.createInvoiceAndKitchenQueueItem(tx, invoice, product);
+          }
+          return {
+            message: 'All products created successfully (no existing queue)',
+          };
+        }
+
+        // 3️⃣ Create a mapping of kitchenQueue by variantId for easier lookup
+        const kitchenQueueMap = new Map<string, any>();
+        for (const queue of kitchenQueues) {
+          if (queue.product_id !== null) {
+            kitchenQueueMap.set(queue.product_id, queue);
+          }
+        }
+
+        // 4️⃣ Loop through all products from the frontend
+        for (const feProduct of request.products) {
+          const productId = feProduct.productId;
+          const existingQueue = kitchenQueueMap.get(productId);
+
+          if (!existingQueue) {
+            // ✅ NEW ITEM (not found in kitchen_queue → create new)
+            this.logger.log(
+              `New product detected: ${productId}, creating new queue...`,
+            );
+            await this.createInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
+            continue;
+          }
+
+          // ✅ EXISTING ITEM, check if there are changes in quantity / notes
+          const isChanged =
+            feProduct.quantity !== existingQueue.quantity ||
+            feProduct.notes !== existingQueue.notes;
+
+          if (!isChanged) {
+            // No changes → skip
+            this.logger.log(`No change for product ${productId}, skipping...`);
+            continue;
+          }
+
+          // ✅ Changes detected → check order_status
+          if (existingQueue.order_status !== 'placed') {
+            // If status != 'placed', it means it has already been processed in the kitchen → cannot be edited
+            this.logger.error(
+              `Cannot edit product ${productId} because order_status is ${existingQueue.order_status}`,
+            );
+            throw new BadRequestException(
+              `Product ${productId} cannot be edited, order already in process (${existingQueue.order_status})`,
+            );
+          }
+
+          // ✅ If still 'placed', it can be edited → update kitchen_queue & invoice_detail
+          this.logger.log(`Updating existing product ${productId}...`);
+          await this.updateInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
+        }
+
+        // TODO: Apakah ini perlu?
+        // 5️⃣ (Optional) Find items in kitchen_queue that are not in the FE payload → delete?
+        // If deletion is required, we can check like this:
+        // const feVariantIds = request.products.map(p => p.variantId);
+        // const toDelete = kitchenQueues.filter(q => !feVariantIds.includes(q.product_variant_id));
+      },
+      {
+        timeout: 300_000, // contoh 30 detik
+      },
+    );
 
     return { message: 'Invoice products processed successfully' };
   }
@@ -717,37 +722,45 @@ export class InvoiceService {
   // Helper to create invoice_detail + kitchen_queue
   private async createInvoiceAndKitchenQueueItem(
     tx: Prisma.TransactionClient,
-    invoice: any,
-    product: any,
+    invoice: invoice,
+    product: ProductDto,
   ) {
-    let finalProductPrice = product.productPrice ?? null;
+    let productPrice = 0;
+    let variantPrice = 0;
 
-    if (finalProductPrice === null) {
-      const productData = await this._prisma.products.findFirst({
-        where: { id: product.productId },
-        select: { price: true },
-      });
+    const productData = await this._prisma.products.findFirst({
+      where: { id: product.productId },
+      select: { price: true, discount_price: true },
+    });
 
-      if (!productData) {
-        throw new BadRequestException(
-          `Product with id ${product.productId} not found`,
-        );
-      }
-
-      finalProductPrice = productData.price ?? 0;
+    if (!productData) {
+      throw new BadRequestException(
+        `Product with id ${product.productId} not found`,
+      );
     }
-    const variant = await this._variantService.getVariant(product.variantId);
-    let variantPrice = variant?.price * product.quantity;
+
+    if (productData.discount_price == 0) {
+      productPrice = productData.price ?? 0;
+    } else {
+      productPrice = productData.discount_price ?? 0;
+    }
+
+    if (product.variantId !== '') {
+      const variant = await this._variantService.getVariant(product.variantId);
+      variantPrice = variant?.price;
+    }
+
     const invoiceDetailData = {
       id: uuidv4(),
       invoice_id: invoice.id,
       product_id: product.productId,
-      product_price: finalProductPrice,
+      product_price: productPrice,
       notes: product.notes ?? null,
       qty: product.quantity,
-      variant_id: product.variantId,
+      variant_id: product.variantId ?? null,
       variant_price: variantPrice ?? 0,
     };
+
     await this.createInvoiceDetail(tx, invoiceDetailData);
 
     for (let i = 0; i < product.quantity; i++) {
@@ -761,8 +774,8 @@ export class InvoiceService {
           order_status: 'placed', // default new status
           created_at: new Date(),
           order_type: 'dine_in',
-          store_id: invoice.store_id,
-          table_code: invoice.table_code,
+          store_id: invoice.store_id ?? '',
+          table_code: invoice.table_code ?? '',
           customer_id: invoice.customer_id,
         },
       ]);
@@ -779,10 +792,13 @@ export class InvoiceService {
       product.variantId,
       product.quantity,
     );
+
     let productTotal = await this.calculateProductTotal(
       product.productId,
       product.quantity,
     );
+
+    // update invoice detail
     await this.upsertInvoiceDetail(
       tx,
       {
@@ -797,6 +813,8 @@ export class InvoiceService {
         variant_id: product.variantId,
       },
     );
+
+    // update kitchen queue
     await this._kitchenQueue.updateKitchenQueue(
       tx,
       {
@@ -818,6 +836,7 @@ export class InvoiceService {
       const variant = await this._variantService.getVariant(variantId);
       return variant?.price * qty;
     }
+
     return 0;
   }
 
@@ -827,8 +846,15 @@ export class InvoiceService {
   ): Promise<number> {
     if (productId !== '') {
       const product = await this._productService.getProduct(productId);
+
+      // use the discounted price
+      if (product.discount_price !== 0) {
+        return product?.discount_price * qty;
+      }
+
       return product?.price * qty;
     }
+
     return 0;
   }
 
@@ -1545,22 +1571,24 @@ export class InvoiceService {
   ): Promise<invoice_details> {
     try {
       const variantId =
-        !where.variant_id || where.variant_id.trim() === ''
-          ? null
-          : where.variant_id;
+        where.variant_id === '' || !where.variant_id ? null : where.variant_id;
+
       const existing = await tx.invoice_details.findFirst({
         where: {
           invoice_id: where.invoice_id,
           product_id: where.product_id,
-          variant_id: where.variant_id === '' ? null : where.variant_id,
+          variant_id: variantId,
         },
       });
+
       if (existing) {
         this.logger.log(
           `Invoice detail already exists for invoice_id=${where.invoice_id}, product_id=${where.product_id}, variant_id=${variantId}`,
         );
+
         return existing;
       }
+
       const invoiceId = uuidv4();
       const newDataInvoiceDetails = {
         id: invoiceId,
@@ -1571,6 +1599,7 @@ export class InvoiceService {
         product_price: data.productTotal,
         variant_price: data.variantTotal,
       };
+
       return await tx.invoice_details.create({
         data: newDataInvoiceDetails,
       });

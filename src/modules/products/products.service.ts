@@ -322,6 +322,7 @@ export class ProductsService {
         id: true,
         name: true,
         price: true,
+        discount_price: true,
       },
     });
     if (!result) {
@@ -331,6 +332,7 @@ export class ProductsService {
     const safeResult = {
       ...result,
       price: result.price ?? 0,
+      discount_price: result.discount_price ?? 0,
     };
 
     return safeResult;
