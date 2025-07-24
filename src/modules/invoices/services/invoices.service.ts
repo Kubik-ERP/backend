@@ -771,9 +771,9 @@ export class InvoiceService {
           product_id: product.productId,
           variant_id: product.variantId,
           notes: product.notes ?? null,
-          order_status: 'placed', // default new status
+          order_status: order_status.placed,
           created_at: new Date(),
-          order_type: 'dine_in',
+          order_type: invoice.order_type ?? order_type.dine_in, // dine_in order type is more often
           store_id: invoice.store_id ?? '',
           table_code: invoice.table_code ?? '',
           customer_id: invoice.customer_id,
