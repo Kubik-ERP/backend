@@ -7,20 +7,46 @@ import {
   Param,
   Delete,
   Query,
+  UploadedFile,
+  UseInterceptors,
+  UseGuards,
 } from '@nestjs/common';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { EmployeesService } from './employees.service';
 import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
+import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
+import { ApiBearerAuth, ApiConsumes, ApiOperation } from '@nestjs/swagger';
+import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
+import { StoresService } from '../stores/services/stores.service';
+import { StorageService } from '../storage-service/services/storage-service.service';
 
 @Controller('employees')
 export class EmployeesController {
-  constructor(private readonly employeesService: EmployeesService) {}
+  constructor(
+    private readonly employeesService: EmployeesService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Post()
-  async create(@Body() createEmployeeDto: CreateEmployeeDto) {
+  @UseInterceptors(ImageUploadInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Create Employee' })
+  @ApiBearerAuth()
+  async create(
+    @Body() createEmployeeDto: CreateEmployeeDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
     try {
+      if (file) {
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+
+        createEmployeeDto.profile_url = result.filename;
+      }
       const newEmployee = await this.employeesService.create(createEmployeeDto);
       return {
         statusCode: 201,
@@ -35,6 +61,7 @@ export class EmployeesController {
       };
     }
   }
+
   @Get()
   async findAll(@Query() query: FindAllEmployeeQueryDto) {
     try {
@@ -52,6 +79,7 @@ export class EmployeesController {
       };
     }
   }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     try {

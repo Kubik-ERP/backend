@@ -6,6 +6,7 @@ import {
 } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { gender, Prisma } from '@prisma/client';
+import { isUUID } from 'class-validator';
 
 @Injectable()
 export class EmployeesService {
@@ -131,6 +132,12 @@ export class EmployeesService {
 
   async remove(id: string) {
     await this.findOne(id);
+
+    await this.prisma.employees_has_roles.deleteMany({
+      where: {
+        staffs_id: id,
+      },
+    });
 
     return this.prisma.employees.delete({
       where: { id },
