@@ -159,20 +159,25 @@ export class StoresService {
   }
 
   public async getStoreByUserId(userId: number) {
-    // Ambil user, bank, dan toko sekaligus
-    const userWithStores = await this.prisma.users.findUnique({
-      where: { id: userId },
+    const stores = await this.prisma.stores.findMany({
+      where: {
+        user_has_stores: {
+          some: {
+            user_id: userId,
+          },
+        },
+      },
       include: {
-        users_has_banks: true,
+        operational_hours: {
+          orderBy: {
+            days: 'asc',
+          },
+        },
         user_has_stores: {
           include: {
-            stores: {
+            users: {
               include: {
-                operational_hours: {
-                  orderBy: {
-                    days: 'asc',
-                  },
-                },
+                users_has_banks: true,
               },
             },
           },
@@ -180,24 +185,17 @@ export class StoresService {
       },
     });
 
-    if (!userWithStores) {
+    if (!stores.length) {
       return {
-        user: null,
         stores: [],
+        userBanks: [],
       };
     }
 
-    // Format bank data
-    const userBanks = userWithStores.users_has_banks.map((bank) => ({
-      bankName: bank.bank_name || null,
-      accountNumber: bank.account_number,
-      accountName: bank.account_name || null,
-    }));
+    const user = stores[0].user_has_stores[0]?.users;
+    const userBanks = user?.users_has_banks || [];
 
-    // Format store data
-    const stores = userWithStores.user_has_stores.map((userStore) => {
-      const store = userStore.stores;
-
+    const storeResult = stores.map((store) => {
       const groupedOperationalHours = store.operational_hours.reduce(
         (acc: any, item: any) => {
           const day = item.days;
@@ -219,6 +217,8 @@ export class StoresService {
       return {
         id: store.id,
         name: store.name,
+        email: user?.email,
+        phoneNumber: user?.phone,
         businessType: store.business_type,
         photo: store.photo,
         address: store.address,
@@ -227,22 +227,18 @@ export class StoresService {
         building: store.building,
         createdAt: store.created_at ? formatDate(store.created_at) : null,
         updatedAt: store.updated_at ? formatDate(store.updated_at) : null,
+
         operationalHours: Object.values(groupedOperationalHours),
       };
     });
 
-    const user = {
-      id: userWithStores.id,
-      name: userWithStores.fullname,
-      email: userWithStores.email,
-      phone: userWithStores.phone,
-      image: userWithStores.picture_url,
-      banks: userBanks,
-    };
-
     return {
-      user,
-      stores,
+      stores: storeResult,
+      userBanks: userBanks.map((bank: any) => ({
+        bankName: bank.banks?.name || null,
+        accountNumber: bank.account_number,
+        accountName: bank.account_name ?? null,
+      })),
     };
   }
 
@@ -268,21 +264,13 @@ export class StoresService {
         fullname: body.fullname,
         email: body.email,
         phone: body.phone,
-        picture_url: body.image,
+        picture_url: body.picture_url,
       },
     });
 
-    const userSafe = {
-      ...user,
-      verified_at: user.verified_at?.toString(),
-      created_at: user.created_at?.toString(),
-      updated_at: user.updated_at?.toString(),
-      deleted_at: user.deleted_at?.toString(),
-    };
-
     return {
       message: 'Profile updated successfully.',
-      data: userSafe,
+      user,
     };
   }
 
