@@ -168,7 +168,7 @@ export class StoresController {
   }
 
   @UseGuards(AuthenticationJWTGuard)
-  @Put('/:id')
+  @Put('store/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update store by ID' })
   @ApiConsumes('multipart/form-data')
@@ -385,29 +385,31 @@ export class StoresController {
     }
   }
 
-  @Put('/profile/:id')
+  @Put('/profile')
   @ApiOperation({ summary: 'Update Profile For User' })
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiConsumes('multipart/form-data')
   public async updateProfile(
-    @Param('id') id: number,
+    @Req() req: ICustomRequestHeaders,
     @Body() updateProfileDto: UpdateProfileDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     try {
+      const userId = req.user.id;
+      console.log('user id ' + userId);
       if (file) {
         const result = await this.storageService.uploadImage(
           file.buffer,
           file.originalname,
         );
 
-        updateProfileDto.picture_url = result.filename;
+        updateProfileDto.image = result.filename;
       }
 
       const result = await this._storeService.updateProfile(
-        id,
+        userId,
         updateProfileDto,
       );
 
@@ -456,7 +458,6 @@ export class StoresController {
   @Put(':id/operational-hours')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update operational hours for store' })
-  @UseGuards(PinGuard)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   public async updateOperationalHours(
     @Param('id') id: string,
