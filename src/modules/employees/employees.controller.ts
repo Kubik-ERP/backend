@@ -10,6 +10,7 @@ import {
   UploadedFile,
   UseInterceptors,
   UseGuards,
+  Put,
 } from '@nestjs/common';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -45,7 +46,7 @@ export class EmployeesController {
           file.originalname,
         );
 
-        createEmployeeDto.profile_url = result.filename;
+        createEmployeeDto.profilePicture = result.filename;
       }
       const newEmployee = await this.employeesService.create(createEmployeeDto);
       return {
@@ -98,12 +99,25 @@ export class EmployeesController {
     }
   }
 
-  @Patch(':id')
+  @Put(':id')
+  @UseInterceptors(ImageUploadInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Create Employee' })
+  @ApiBearerAuth()
   async update(
     @Param('id') id: string,
     @Body() updateEmployeeDto: UpdateEmployeeDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     try {
+      if (file) {
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+
+        updateEmployeeDto.profilePicture = result.filename;
+      }
       const updatedEmployee = await this.employeesService.update(
         id,
         updateEmployeeDto,
