@@ -1,138 +1,87 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import {
-  IsArray,
+  IsString,
+  IsOptional,
+  IsEmail,
   IsDateString,
   IsEnum,
-  IsNumber,
-  IsOptional,
-  IsString,
-  ValidateNested,
+  IsArray,
+  IsNotEmpty,
 } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { gender } from '@prisma/client';
 
-export class SocialMediaDto {
-  @ApiProperty({ example: 'Instagram' })
-  @IsString()
-  name: string;
-
-  @ApiProperty({ example: '@budi_santoso' })
-  @IsString()
-  account: string;
-}
-
-export class ShiftDto {
-  @ApiProperty({ example: 'Monday' })
-  @IsString()
-  day: string;
-
-  @ApiProperty({ example: '08:00' })
-  @IsString()
-  start_time: string;
-
-  @ApiProperty({ example: '17:00' })
-  @IsString()
-  end_time: string;
-}
-
-export class ProductCommissionDto {
-  @ApiProperty({ example: 'product-uuid' })
-  @IsString()
-  product_id: string;
-
-  @ApiProperty({ example: 10000 })
-  @Type(() => Number)
-  @IsNumber()
-  amount: number;
-
-  @ApiProperty({ example: true })
-  @Type(() => Boolean)
-  is_percent: boolean;
-}
-
-export class VoucherCommissionDto {
-  @ApiProperty({ example: 'voucher-uuid' })
-  @IsString()
-  voucher_id: string;
-
-  @ApiProperty({ example: 5000 })
-  @Type(() => Number)
-  @IsNumber()
-  amount: number;
-
-  @ApiProperty({ example: false })
-  @Type(() => Boolean)
-  is_percent: boolean;
-}
-
-export class CommissionDto {
-  @ApiProperty({ type: [ProductCommissionDto] })
-  @ValidateNested({ each: true })
-  @Type(() => ProductCommissionDto)
-  productComission: ProductCommissionDto[];
-
-  @ApiProperty({ type: [VoucherCommissionDto] })
-  @ValidateNested({ each: true })
-  @Type(() => VoucherCommissionDto)
-  voucherCommission: VoucherCommissionDto[];
-}
-
 export class CreateEmployeeDto {
-  @ApiProperty({ example: 'Budi Santoso' })
+  @ApiPropertyOptional({
+    example: 'John Doe',
+    description: 'Nama karyawan',
+  })
+  @IsOptional()
   @IsString()
-  name: string;
+  name?: string;
 
-  @ApiProperty({ example: 'budi.santoso@example.com' })
+  @ApiPropertyOptional({
+    example: 'john.doe@example.com',
+    description: 'Email karyawan',
+  })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({
+    example: '+6281234567890',
+    description: 'Nomor telepon karyawan',
+  })
+  @IsOptional()
   @IsString()
-  email: string;
+  phone_number?: string;
 
-  @ApiProperty({ example: '+62' })
+  @ApiPropertyOptional({
+    example: 'https://example.com/profile.jpg',
+    description: 'URL foto profil karyawan',
+  })
+  @IsOptional()
   @IsString()
-  phoneCode: string;
+  profile_url?: string;
 
-  @ApiProperty({ example: '81234567890' })
-  @IsString()
-  phoneNumber: string;
-
-  @ApiProperty({ example: '2024-02-01T00:00:00.000Z' })
+  @ApiPropertyOptional({
+    example: '2024-01-01',
+    description: 'Tanggal mulai bekerja (format YYYY-MM-DD)',
+  })
+  @IsOptional()
   @IsDateString()
-  startDate: string;
+  start_date?: string;
 
-  @ApiProperty({ example: '2026-01-31T00:00:00.000Z' })
+  @ApiPropertyOptional({
+    example: '2025-12-31',
+    description: 'Tanggal akhir bekerja (format YYYY-MM-DD)',
+  })
+  @IsOptional()
   @IsDateString()
-  endDate: string;
+  end_date?: string;
 
-  @ApiProperty({ enum: gender, example: 'MALE' })
+  @ApiPropertyOptional({
+    example: 'M/F',
+    description: 'Jenis kelamin (male / female)',
+  })
+  @ApiPropertyOptional({ example: 'male', enum: gender })
+  @IsOptional()
+  @IsEnum(gender)
+  gender?: gender;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({})
+  roles?: string[];
+}
+
+export class CreateEmployeeHasRoleDto {
+  @ApiProperty({ example: 1, description: 'ID of the staff/employee' })
+  @IsNotEmpty()
   @IsString()
-  gender: gender;
+  staffs_id: string;
 
-  @ApiProperty({ example: 'Warehouse Staff' })
+  @ApiProperty({ example: 2, description: 'ID of the role' })
+  @IsNotEmpty()
   @IsString()
-  title: string;
-
-  @ApiProperty({ example: 'SUPERVISOR' })
-  @IsString()
-  permission: string;
-
-  @ApiProperty({ type: [SocialMediaDto], required: false })
-  @ValidateNested({ each: true })
-  @Type(() => SocialMediaDto)
-  @IsOptional()
-  socialMedia?: SocialMediaDto[];
-
-  @ApiProperty({ type: [ShiftDto], required: false })
-  @ValidateNested({ each: true })
-  @Type(() => ShiftDto)
-  @IsOptional()
-  shift?: ShiftDto[];
-
-  @ApiProperty({ type: CommissionDto, required: false })
-  @ValidateNested()
-  @Type(() => CommissionDto)
-  @IsOptional()
-  comissions?: CommissionDto;
-
-  @ApiProperty({ example: 'https://example.com/image.jpg', required: false })
-  @IsOptional()
-  profilePicture?: string;
+  roles_id: string;
 }
