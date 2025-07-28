@@ -168,7 +168,7 @@ export class StoresController {
   }
 
   @UseGuards(AuthenticationJWTGuard)
-  @Put('manage/:id')
+  @Put('/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update store by ID' })
   @ApiConsumes('multipart/form-data')
@@ -385,30 +385,29 @@ export class StoresController {
     }
   }
 
-  @Put('/profile')
+  @Put('/profile/:id')
   @ApiOperation({ summary: 'Update Profile For User' })
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiConsumes('multipart/form-data')
   public async updateProfile(
-    @Req() req: ICustomRequestHeaders,
+    @Param('id') id: number,
     @Body() updateProfileDto: UpdateProfileDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     try {
-      const userId = req.user.id;
       if (file) {
         const result = await this.storageService.uploadImage(
           file.buffer,
           file.originalname,
         );
 
-        updateProfileDto.image = result.filename;
+        updateProfileDto.picture_url = result.filename;
       }
 
       const result = await this._storeService.updateProfile(
-        userId,
+        id,
         updateProfileDto,
       );
 
@@ -416,6 +415,7 @@ export class StoresController {
         result,
       };
     } catch (error) {
+      console.log(error);
       throw new HttpException(
         'Internal Server Error',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -456,6 +456,7 @@ export class StoresController {
   @Put(':id/operational-hours')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update operational hours for store' })
+  @UseGuards(PinGuard)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   public async updateOperationalHours(
     @Param('id') id: string,

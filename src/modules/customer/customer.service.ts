@@ -90,46 +90,44 @@ export class CustomerService {
   }) {
     const skip = (page - 1) * limit;
 
-    const searchCondition = search
-      ? {
-          OR: [
-            {
-              name: {
-                contains: search,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
-            {
-              email: {
-                contains: search,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
-            {
-              number: {
-                contains: search,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
-            {
-              customers_has_tag: {
-                some: {
-                  tag: {
-                    name: {
-                      contains: search,
-                      mode: Prisma.QueryMode.insensitive,
+    const [customers, total] = await Promise.all([
+      this.prisma.customer.findMany({
+        where: search
+          ? {
+              OR: [
+                {
+                  name: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  email: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  number: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  customers_has_tag: {
+                    some: {
+                      tag: {
+                        name: {
+                          contains: search,
+                          mode: 'insensitive',
+                        },
+                      },
                     },
                   },
                 },
-              },
-            },
-          ],
-        }
-      : {};
-
-    const [customers, total] = await Promise.all([
-      this.prisma.customer.findMany({
-        where: searchCondition,
+              ],
+            }
+          : {},
         skip,
         take: limit,
         include: {
@@ -146,17 +144,24 @@ export class CustomerService {
         },
       }),
       this.prisma.customer.count({
-        where: searchCondition,
+        where: search
+          ? {
+              name: {
+                contains: search,
+                mode: 'insensitive',
+              },
+            }
+          : {},
       }),
     ]);
 
     return {
       data: customers,
       meta: {
-        totalData: total,
-        currentPage: page,
-        pageSize: limit,
-        totalPages: Math.ceil(total / limit),
+        total_data: total,
+        current_page: page,
+        page_size: limit,
+        total_pages: Math.ceil(total / limit),
       },
     };
   }
