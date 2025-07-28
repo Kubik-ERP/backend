@@ -623,127 +623,173 @@ export class InvoiceService {
   ) {
     await this._prisma.$transaction(
       async (tx) => {
-        // check the invoice if the invoice is paid return error
-        // 1️⃣ Fetch the invoice
+        // 1️⃣ Retrieve the invoice record and ensure it is not already paid
         const invoice = await this.findInvoiceId(invoiceId);
 
         if (invoice.payment_status === payment_type.paid) {
-          this.logger.error(
-            `Invoice payment status is paid, the invoice cannot be changed`,
-          );
           throw new BadRequestException(
             `Invoice payment status is paid, the invoice cannot be changed`,
           );
         }
 
-        // find the kitchen queue by invoice id
-        // 2️⃣ Fetch all kitchenQueue items based on invoiceId
+        // 2️⃣ Get all existing kitchen queue entries associated with the invoice
         const kitchenQueues =
           await this._kitchenQueue.findKitchenQueueByInvoiceId(invoice.id);
 
-        // if the item in kitchen queue with status not placed, cannot be changed
-        // If there are no kitchenQueue items at all → treat all as new items
-        if (!kitchenQueues || kitchenQueues.length === 0) {
-          this.logger.log(
-            'No existing kitchen queue found, creating all new products...',
-          );
-          for (const product of request.products) {
-            await this.createInvoiceAndKitchenQueueItem(tx, invoice, product);
-          }
-          return {
-            message: 'All products created successfully (no existing queue)',
-          };
-        }
-
-        // 3️⃣ Create a mapping of kitchenQueue by variantId for easier lookup
-        const kitchenQueueMap = new Map<string, any>();
-        for (const queue of kitchenQueues) {
-          if (queue.product_id !== null) {
-            kitchenQueueMap.set(queue.product_id, queue);
-          }
-        }
-
+        // 3️⃣ Get a list of product IDs from frontend payload
         const feProductIds = request.products.map((p) => p.productId);
 
-        // 4️⃣ Loop through all products from the frontend
+        // 4️⃣ Iterate through each product in the payload
         for (const feProduct of request.products) {
           const productId = feProduct.productId;
-          const existingQueue = kitchenQueueMap.get(productId);
 
-          if (!existingQueue) {
-            // ✅ NEW ITEM (not found in kitchen_queue → create new)
-            this.logger.log(
-              `New product detected: ${productId}, creating new queue...`,
-            );
+          // Group all queues related to the current product
+          const existingQueues = kitchenQueues.filter(
+            (q) => q.product_id === productId,
+          );
+
+          // Split into editable and locked queues based on order_status
+          const editableQueues = existingQueues.filter(
+            (q) => q.order_status === order_status.placed,
+          );
+          const lockedQueues = existingQueues.filter(
+            (q) => q.order_status !== order_status.placed,
+          );
+
+          // 5️⃣ Determine if there is any change from frontend input
+          const currentQty = editableQueues.length + lockedQueues.length;
+          const isChanged =
+            feProduct.quantity !== currentQty ||
+            feProduct.notes !==
+              (editableQueues[0]?.notes ?? lockedQueues[0]?.notes ?? '');
+
+          // 6️⃣ If the product is completely new (not in queue), create it
+          if (existingQueues.length === 0) {
+            this.logger.log(`Creating new product ${productId}`);
             await this.createInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
             continue;
           }
 
-          // ✅ EXISTING ITEM, check if there are changes in quantity / notes
-          const isChanged =
-            feProduct.quantity !== existingQueue.quantity ||
-            feProduct.notes !== existingQueue.notes;
-
+          // 7️⃣ If no changes detected, skip to next product
           if (!isChanged) {
-            // No changes → skip
             this.logger.log(`No change for product ${productId}, skipping...`);
             continue;
           }
 
-          // ✅ Changes detected → check order_status
-          if (existingQueue.order_status !== 'placed') {
-            // If status != 'placed', it means it has already been processed in the kitchen → cannot be edited
+          // 8️⃣ Update invoice_details entry with new quantity and notes
+          await tx.invoice_details.updateMany({
+            where: {
+              invoice_id: invoice.id,
+              product_id: productId,
+            },
+            data: {
+              qty: feProduct.quantity,
+              notes: feProduct.notes,
+            },
+          });
+
+          const desiredQty = feProduct.quantity;
+          const lockedQty = lockedQueues.length;
+          const editableQty = editableQueues.length;
+
+          // 9️⃣ Prevent reduction below locked/in-progress quantity
+          if (desiredQty < lockedQty) {
             this.logger.error(
-              `Cannot edit product ${productId} because order_status is ${existingQueue.order_status}`,
+              `Cannot reduce quantity of product ${productId} below ${lockedQty} due to existing processed items`,
             );
             throw new BadRequestException(
-              `Product ${productId} cannot be edited, order already in process (${existingQueue.order_status})`,
+              `Cannot reduce quantity of product ${productId} below items already in progress (${lockedQty})`,
             );
           }
 
-          // ✅ If still 'placed', it can be edited → update kitchen_queue & invoice_detail
-          this.logger.log(`Updating existing product ${productId}...`);
-          await this.updateInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
+          const allowedEdit = desiredQty - lockedQty;
 
-          // delete item when it is no longer exist
-          const toDelete = kitchenQueues.filter(
-            (queue) => !feProductIds.includes(queue.product_id),
-          );
+          // 🔟 If more queue entries needed, create additional 'placed' rows
 
-          this.logger.log(`Removing data ${toDelete}`);
-          for (const item of toDelete) {
-            if (item.order_status !== order_status.placed) {
-              this.logger.warn(
-                `Skipping deletion for product ${item.product_id} due to order_status = ${item.order_status}`,
-              );
-              continue;
+          if (allowedEdit > editableQueues.length) {
+            const toAdd = allowedEdit - editableQueues.length;
+            this.logger.log(`Adding ${toAdd} queue(s) for ${productId}`);
+            for (let i = 0; i < toAdd; i++) {
+              await tx.kitchen_queue.create({
+                data: {
+                  id: uuidv4(),
+                  invoice_id: invoice.id,
+                  product_id: productId,
+                  variant_id: feProduct.variantId || null,
+                  order_status: order_status.placed,
+                  notes: feProduct.notes ?? null,
+                  created_at: new Date(),
+                  store_id: invoice.store_id!,
+                  order_type: invoice.order_type!,
+                },
+              });
             }
-
-            this.logger.log(`Deleting product ${item.product_id}...`);
-            await tx.kitchen_queue.deleteMany({
-              where: {
-                invoice_id: item.invoice_id,
-                product_id: item.product_id,
-              },
-            });
-
-            await tx.invoice_details.deleteMany({
-              where: { invoice_id: invoice.id, product_id: item.product_id },
-            });
+          }
+          // 1️⃣1️⃣ If fewer queue entries needed, delete some 'placed' ones
+          else if (allowedEdit < editableQueues.length) {
+            const toDelete = editableQueues.slice(
+              0,
+              editableQueues.length - allowedEdit,
+            );
+            this.logger.log(
+              `Removing ${toDelete.length} queue(s) for ${productId}`,
+            );
+            for (const item of toDelete) {
+              await tx.kitchen_queue.delete({
+                where: { id: item.id },
+              });
+            }
           }
         }
 
-        // TODO: Apakah ini perlu?
-        // 5️⃣ (Optional) Find items in kitchen_queue that are not in the FE payload → delete?
-        // If deletion is required, we can check like this:
-        // const feVariantIds = request.products.map(p => p.variantId);
-        // const toDelete = kitchenQueues.filter(q => !feVariantIds.includes(q.product_variant_id));
+        // 1️⃣2️⃣ Handle deletion of products that were removed from frontend payload
+        const toDeleteProductIds = kitchenQueues
+          .map((q) => q.product_id)
+          .filter((pid) => !feProductIds.includes(pid));
+
+        const uniqueToDelete = [...new Set(toDeleteProductIds)];
+
+        for (const productId of uniqueToDelete) {
+          const productQueues = kitchenQueues.filter(
+            (q) => q.product_id === productId,
+          );
+
+          // 🔒 Do not allow deletion if any queue has been processed
+          const hasInProgress = productQueues.some(
+            (q) => q.order_status !== order_status.placed,
+          );
+
+          if (hasInProgress) {
+            this.logger.warn(
+              `Skipping deletion for product ${productId} due to existing in_progress queue`,
+            );
+            throw new BadRequestException(
+              `Product ${productId} cannot be deleted, already in process.`,
+            );
+          }
+
+          this.logger.log(`Deleting product ${productId}...`);
+          await tx.kitchen_queue.deleteMany({
+            where: {
+              invoice_id: invoice.id,
+              product_id: productId,
+            },
+          });
+
+          await tx.invoice_details.deleteMany({
+            where: {
+              invoice_id: invoice.id,
+              product_id: productId,
+            },
+          });
+        }
       },
       {
-        timeout: 300_000, // contoh 30 detik
+        timeout: 300_000,
       },
     );
 
+    // ✅ All operations successful
     return { message: 'Invoice products processed successfully' };
   }
 
@@ -813,8 +859,8 @@ export class InvoiceService {
   // Helper to update invoice_detail + kitchen_queue
   private async updateInvoiceAndKitchenQueueItem(
     tx: Prisma.TransactionClient,
-    invoice: any,
-    product: any,
+    invoice: invoice,
+    product: ProductDto,
   ) {
     let variantTotal = await this.calculateProductVariantTotal(
       product.variantId,
