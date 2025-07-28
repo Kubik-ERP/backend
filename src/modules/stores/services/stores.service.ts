@@ -159,25 +159,19 @@ export class StoresService {
   }
 
   public async getStoreByUserId(userId: number) {
-    const stores = await this.prisma.stores.findMany({
-      where: {
-        user_has_stores: {
-          some: {
-            user_id: userId,
-          },
-        },
-      },
+    const userWithStores = await this.prisma.users.findUnique({
+      where: { id: userId },
       include: {
-        operational_hours: {
-          orderBy: {
-            days: 'asc',
-          },
-        },
+        users_has_banks: true,
         user_has_stores: {
           include: {
-            users: {
+            stores: {
               include: {
-                users_has_banks: true,
+                operational_hours: {
+                  orderBy: {
+                    days: 'asc',
+                  },
+                },
               },
             },
           },
@@ -185,17 +179,23 @@ export class StoresService {
       },
     });
 
-    if (!stores.length) {
+    if (!userWithStores) {
       return {
+        user: null,
         stores: [],
-        userBanks: [],
       };
     }
 
-    const user = stores[0].user_has_stores[0]?.users;
-    const userBanks = user?.users_has_banks || [];
+    const userBanks = userWithStores.users_has_banks.map((bank) => ({
+      bankName: bank.bank_name || null,
+      bank_id: bank.id,
+      accountNumber: bank.account_number,
+      accountName: bank.account_name || null,
+    }));
 
-    const storeResult = stores.map((store) => {
+    const stores = userWithStores.user_has_stores.map((userStore) => {
+      const store = userStore.stores;
+
       const groupedOperationalHours = store.operational_hours.reduce(
         (acc: any, item: any) => {
           const day = item.days;
@@ -217,8 +217,6 @@ export class StoresService {
       return {
         id: store.id,
         name: store.name,
-        email: user?.email,
-        phoneNumber: user?.phone,
         businessType: store.business_type,
         photo: store.photo,
         address: store.address,
@@ -227,18 +225,22 @@ export class StoresService {
         building: store.building,
         createdAt: store.created_at ? formatDate(store.created_at) : null,
         updatedAt: store.updated_at ? formatDate(store.updated_at) : null,
-
         operationalHours: Object.values(groupedOperationalHours),
       };
     });
 
+    const user = {
+      id: userWithStores.id,
+      name: userWithStores.fullname,
+      email: userWithStores.email,
+      phone: userWithStores.phone,
+      image: userWithStores.picture_url,
+      banks: userBanks,
+    };
+
     return {
-      stores: storeResult,
-      userBanks: userBanks.map((bank: any) => ({
-        bankName: bank.banks?.name || null,
-        accountNumber: bank.account_number,
-        accountName: bank.account_name ?? null,
-      })),
+      user,
+      stores,
     };
   }
 
@@ -264,13 +266,21 @@ export class StoresService {
         fullname: body.fullname,
         email: body.email,
         phone: body.phone,
-        picture_url: body.picture_url,
+        picture_url: body.image,
       },
     });
 
+    const userSafe = {
+      ...user,
+      verified_at: user.verified_at?.toString(),
+      created_at: user.created_at?.toString(),
+      updated_at: user.updated_at?.toString(),
+      deleted_at: user.deleted_at?.toString(),
+    };
+
     return {
       message: 'Profile updated successfully.',
-      user,
+      data: userSafe,
     };
   }
 
