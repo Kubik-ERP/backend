@@ -111,7 +111,6 @@ export class EmployeesService {
         }
       }
 
-      // Voucher Commissions
       if (
         Array.isArray(comissions.voucherCommission) &&
         comissions.voucherCommission.length > 0
@@ -181,23 +180,22 @@ export class EmployeesService {
       };
     }
 
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.employees.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          employees_has_roles: { include: { roles: true } },
-          employees_has_social_media: true,
-          employees_shift: true,
-          product_commissions: true,
-          voucher_commissions: true,
-        },
-      }),
-      this.prisma.employees.count({
-        where,
-      }),
-    ]);
+    const data = await this.prisma.employees.findMany({
+      where,
+      skip,
+      take: limit,
+      include: {
+        employees_has_roles: { include: { roles: true } },
+        employees_has_social_media: true,
+        employees_shift: true,
+        product_commissions: true,
+        voucher_commissions: true,
+      },
+    });
+
+    const total = await this.prisma.employees.count({
+      where,
+    });
 
     return {
       data,

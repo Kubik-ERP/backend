@@ -41,7 +41,10 @@ export class ShiftDto {
 }
 
 export class ProductCommissionDto {
-  @ApiProperty({ example: 'product-uuid', required: false })
+  @ApiProperty({
+    example: '6c3e1a9e-6a3d-4b3d-bb1a-77b90b57c5d7',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   product_id?: string;
@@ -59,7 +62,10 @@ export class ProductCommissionDto {
 }
 
 export class VoucherCommissionDto {
-  @ApiProperty({ example: 'voucher-uuid', required: false })
+  @ApiProperty({
+    example: '6c3e1a9e-6a3d-4b3d-bb1a-77b90b57c5d7',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   voucher_id?: string;

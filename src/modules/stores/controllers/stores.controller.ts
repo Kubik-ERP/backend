@@ -168,7 +168,7 @@ export class StoresController {
   }
 
   @UseGuards(AuthenticationJWTGuard)
-  @Put('store/:id')
+  @Put('manage/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update store by ID' })
   @ApiConsumes('multipart/form-data')
@@ -398,7 +398,6 @@ export class StoresController {
   ) {
     try {
       const userId = req.user.id;
-      console.log('user id ' + userId);
       if (file) {
         const result = await this.storageService.uploadImage(
           file.buffer,
@@ -417,7 +416,6 @@ export class StoresController {
         result,
       };
     } catch (error) {
-      console.log(error);
       throw new HttpException(
         'Internal Server Error',
         HttpStatus.INTERNAL_SERVER_ERROR,

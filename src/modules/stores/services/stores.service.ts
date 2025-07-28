@@ -159,7 +159,6 @@ export class StoresService {
   }
 
   public async getStoreByUserId(userId: number) {
-    // Ambil user, bank, dan toko sekaligus
     const userWithStores = await this.prisma.users.findUnique({
       where: { id: userId },
       include: {
@@ -187,14 +186,13 @@ export class StoresService {
       };
     }
 
-    // Format bank data
     const userBanks = userWithStores.users_has_banks.map((bank) => ({
       bankName: bank.bank_name || null,
+      bank_id: bank.id,
       accountNumber: bank.account_number,
       accountName: bank.account_name || null,
     }));
 
-    // Format store data
     const stores = userWithStores.user_has_stores.map((userStore) => {
       const store = userStore.stores;
 

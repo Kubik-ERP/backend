@@ -78,6 +78,7 @@ export class CustomerService {
       );
     }
   }
+
   async findAll({
     page = 1,
     limit = 10,
@@ -155,7 +156,7 @@ export class CustomerService {
         totalData: total,
         currentPage: page,
         pageSize: limit,
-        totalPages: total > 0 ? Math.ceil(total / limit) : 0,
+        totalPages: Math.ceil(total / limit),
       },
     };
   }
