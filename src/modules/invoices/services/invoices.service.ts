@@ -69,7 +69,7 @@ export class InvoiceService {
     private readonly _mailService: MailService,
     private readonly _variantService: VariantsService,
     private readonly _productService: ProductsService,
-  ) { }
+  ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
     const {
@@ -721,7 +721,10 @@ export class InvoiceService {
 
             this.logger.log(`Deleting product ${item.product_id}...`);
             await tx.kitchen_queue.deleteMany({
-              where: { invoice_id: item.invoice_id, product_id: item.product_id },
+              where: {
+                invoice_id: item.invoice_id,
+                product_id: item.product_id,
+              },
             });
 
             await tx.invoice_details.deleteMany({
