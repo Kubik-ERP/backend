@@ -12,7 +12,6 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
-import { ApiPropertyOptional } from '@nestjs/swagger';
 
 enum BusinessType {
   RESTAURANT = 'Restaurant',
@@ -112,23 +111,8 @@ export class CreateStoreDto {
 }
 
 export class UpdateProfileDto {
-  @ApiPropertyOptional({
-    example: 'John Doe',
-    description: 'Full name of the user',
-  })
   fullname?: string;
-
-  @ApiPropertyOptional({
-    example: 'john@example.com',
-    description: 'Email address of the user',
-  })
   email?: string;
-
-  @ApiPropertyOptional({
-    example: '+6281234567890',
-    description: 'Phone number of the user',
-  })
   phone?: string;
-
-  image?: string;
+  picture_url?: string;
 }

@@ -20,6 +20,7 @@ import { StoresModule } from './modules/stores/stores.module';
 import KeyvRedis, { createKeyv } from '@keyv/redis';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { ShiftModule } from './modules/shift/shift.module';
 import Keyv from 'keyv';
 import { CustomerModule } from './modules/customer/customer.module';
 import { ChargesModule } from './modules/charges/charges.module';
@@ -65,6 +66,7 @@ import { StoreTableModule } from './modules/store-table/store-table.module';
     PaymentMethodModule,
     ProductsModule,
     RolesModule,
+    ShiftModule,
     StoresModule,
     UsersModule,
     TablesModule,
