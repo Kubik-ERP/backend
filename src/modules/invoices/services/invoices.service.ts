@@ -69,7 +69,7 @@ export class InvoiceService {
     private readonly _mailService: MailService,
     private readonly _variantService: VariantsService,
     private readonly _productService: ProductsService,
-  ) {}
+  ) { }
 
   public async getInvoices(request: GetListInvoiceDto) {
     const {
@@ -648,7 +648,6 @@ export class InvoiceService {
             'No existing kitchen queue found, creating all new products...',
           );
           for (const product of request.products) {
-            console.log(product);
             await this.createInvoiceAndKitchenQueueItem(tx, invoice, product);
           }
           return {
@@ -663,6 +662,8 @@ export class InvoiceService {
             kitchenQueueMap.set(queue.product_id, queue);
           }
         }
+
+        const feProductIds = request.products.map((p) => p.productId);
 
         // 4️⃣ Loop through all products from the frontend
         for (const feProduct of request.products) {
@@ -703,6 +704,30 @@ export class InvoiceService {
           // ✅ If still 'placed', it can be edited → update kitchen_queue & invoice_detail
           this.logger.log(`Updating existing product ${productId}...`);
           await this.updateInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
+
+          // delete item when it is no longer exist
+          const toDelete = kitchenQueues.filter(
+            (queue) => !feProductIds.includes(queue.product_id),
+          );
+
+          this.logger.log(`Removing data ${toDelete}`);
+          for (const item of toDelete) {
+            if (item.order_status !== order_status.placed) {
+              this.logger.warn(
+                `Skipping deletion for product ${item.product_id} due to order_status = ${item.order_status}`,
+              );
+              continue;
+            }
+
+            this.logger.log(`Deleting product ${item.product_id}...`);
+            await tx.kitchen_queue.deleteMany({
+              where: { invoice_id: item.invoice_id, product_id: item.product_id },
+            });
+
+            await tx.invoice_details.deleteMany({
+              where: { invoice_id: invoice.id, product_id: item.product_id },
+            });
+          }
         }
 
         // TODO: Apakah ini perlu?
