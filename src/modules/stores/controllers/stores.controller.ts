@@ -131,7 +131,6 @@ export class StoresController {
     },
   })
   @ApiConsumes('multipart/form-data')
-  @UseGuards(PinGuard)
   @UseInterceptors(ImageUploadInterceptor('file'))
   @UsePipes(new ValidationPipe({ transform: true }))
   public async createStore(
@@ -147,16 +146,17 @@ export class StoresController {
           file.originalname,
         );
         relativePath = result.filename;
+        console.log(relativePath);
       }
       //const relativePath = file ? `/public/images/${file.filename}` : undefined;
 
-      await this._storeService.createStore(
+      const createdStore = await this._storeService.createStore(
         { ...body, photo: relativePath },
         req.user.id,
       );
-
       return {
         message: 'Store created successfully',
+        data: createdStore,
       };
     } catch (error) {
       console.log(error);

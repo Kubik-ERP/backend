@@ -10,6 +10,8 @@ import {
   Delete,
   UseInterceptors,
   UploadedFile,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -17,9 +19,10 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { Query } from '@nestjs/common';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { FindAllProductsQueryDto } from './dto/find-product.dto';
-import { ApiConsumes } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiHeader } from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import { StorageService } from '../storage-service/services/storage-service.service';
+import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
 
 @Controller('products')
 export class ProductsController {
@@ -28,10 +31,19 @@ export class ProductsController {
     private readonly storageService: StorageService,
   ) {}
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(ImageUploadInterceptor('image'))
   @Post()
   async create(
+    @Req() req: ICustomRequestHeaders,
     @Body() createProductDto: CreateProductDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
@@ -44,10 +56,13 @@ export class ProductsController {
         );
         relativePath = result.filename;
       }
-      const newProducts = await this.productsService.create({
-        ...createProductDto,
-        image: relativePath || '',
-      });
+      const newProducts = await this.productsService.create(
+        {
+          ...createProductDto,
+          image: relativePath || '',
+        },
+        req,
+      );
 
       return {
         statusCode: 201,
@@ -63,14 +78,28 @@ export class ProductsController {
     }
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Get()
-  async findAll(@Query() query: FindAllProductsQueryDto) {
+  async findAll(
+    @Query() query: FindAllProductsQueryDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
     try {
-      const result = await this.productsService.findAll({
-        page: Number(query.page),
-        limit: Number(query.limit),
-        search: query.search,
-      });
+      const result = await this.productsService.findAll(
+        {
+          page: Number(query.page),
+          limit: Number(query.limit),
+          search: query.search,
+        },
+        req,
+      );
       return {
         statusCode: 200,
         message: 'Success',

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -8,7 +12,7 @@ import { gender, Prisma } from '@prisma/client';
 export class EmployeesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateEmployeeDto) {
+  async create(dto: CreateEmployeeDto, header: ICustomRequestHeaders) {
     const {
       name,
       email,
@@ -24,6 +28,12 @@ export class EmployeesService {
       shift,
       comissions,
     } = dto;
+
+    const store_id = header.store_id;
+
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
 
     const existingEmployee = await this.prisma.employees.findUnique({
       where: { email },
@@ -48,6 +58,13 @@ export class EmployeesService {
     });
 
     const employeeId = employee.id;
+
+    await this.prisma.stores_has_employees.create({
+      data: {
+        employees_id: employeeId,
+        stores_id: store_id,
+      },
+    });
 
     // Social media
     if (socialMedia && socialMedia.length > 0) {
@@ -146,37 +163,71 @@ export class EmployeesService {
     };
   }
 
-  async findAll(query?: {
-    page?: number;
-    limit?: number;
-    name?: string;
-    title?: string;
-    permissions?: string;
-  }) {
-    const page = query?.page ?? 1;
-    const limit = query?.limit ?? 10;
+  async findAll(
+    query: {
+      page?: number;
+      limit?: number;
+      name?: string;
+      title?: string;
+      permission?: string[];
+    } = {},
+    header: ICustomRequestHeaders,
+  ) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
+    const store_id = header.store_id;
 
-    const where: Prisma.employeesWhereInput = {};
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+    const where: Prisma.employeesWhereInput = {
+      stores_has_employees: {
+        some: {
+          stores_id: store_id,
+        },
+      },
+    };
 
-    if (query?.title) {
+    if (query.name) {
+      where.OR = [
+        {
+          name: {
+            contains: query.name,
+            mode: 'insensitive',
+          },
+        },
+        {
+          title: {
+            contains: query.name,
+            mode: 'insensitive',
+          },
+        },
+        {
+          email: {
+            contains: query.name,
+            mode: 'insensitive',
+          },
+        },
+        {
+          phone_number: {
+            contains: query.name,
+            mode: 'insensitive',
+          },
+        },
+      ];
+    }
+
+    if (query.title) {
       where.title = {
         contains: query.title,
         mode: 'insensitive',
       };
     }
 
-    if (query?.permissions) {
+    if (query.permission && query.permission.length > 0) {
       where.permission = {
-        contains: query.permissions,
-        mode: 'insensitive',
-      };
-    }
-
-    if (query?.name) {
-      where.name = {
-        contains: query.name,
-        mode: 'insensitive',
+        in: query.permission,
       };
     }
 
@@ -190,12 +241,11 @@ export class EmployeesService {
         employees_shift: true,
         product_commissions: true,
         voucher_commissions: true,
+        stores_has_employees: true,
       },
     });
 
-    const total = await this.prisma.employees.count({
-      where,
-    });
+    const total = await this.prisma.employees.count({ where });
 
     return {
       data,

@@ -26,10 +26,24 @@ import { QueryInvoiceDto } from './dto/query-invoice.dto';
 export class CustomersController {
   constructor(private readonly customersService: CustomerService) {}
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Post()
-  async create(@Body() createCustomerDto: CreateCustomerDto) {
+  async create(
+    @Body() createCustomerDto: CreateCustomerDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
     try {
-      const newCustomer = await this.customersService.create(createCustomerDto);
+      const newCustomer = await this.customersService.create(
+        createCustomerDto,
+        req,
+      );
       return {
         statusCode: 201,
         message: 'Customer created successfully',
@@ -44,18 +58,30 @@ export class CustomersController {
     }
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Get()
   async findAll(
+    @Req() req: ICustomRequestHeaders,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
   ) {
     try {
-      const customers = await this.customersService.findAll({
-        page: page ? Number(page) : 1,
-        limit: limit ? Number(limit) : 10,
-        search,
-      });
+      const customers = await this.customersService.findAll(
+        {
+          page: page ? Number(page) : 1,
+          limit: limit ? Number(limit) : 10,
+          search,
+        },
+        req,
+      );
 
       return {
         statusCode: 200,
