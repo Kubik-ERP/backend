@@ -252,7 +252,6 @@ export class ProductsService {
         }
       }
 
-
       const updatedProduct = await this.prisma.products.update({
         where: { id },
         data: {
@@ -280,6 +279,7 @@ export class ProductsService {
         });
       }
 
+      // Update variants: hapus semua -> buat ulang
       if (updateProductDto.variants?.length) {
         await this.prisma.variant_has_products.deleteMany({
           where: { products_id: id },
