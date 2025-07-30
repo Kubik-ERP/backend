@@ -14,6 +14,7 @@ import { StorageServiceModule } from '../storage-service/storage-service.module'
 import { TemplatesEmailModule } from '../templates-email/templates-email.module';
 import { KitchenModule } from '../kitchen/kitchen.module';
 import { KitchenService } from '../kitchen/services/kitchen.service';
+import { CashDrawerService } from '../cash-drawer/services/cash-drawer.service';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { KitchenService } from '../kitchen/services/kitchen.service';
     ChargesService,
     StoresService,
     KitchenService,
+    CashDrawerService,
   ],
   controllers: [InvoiceSettingController, InvoiceController],
   exports: [
@@ -40,6 +42,7 @@ import { KitchenService } from '../kitchen/services/kitchen.service';
     NotificationHelper,
     PaymentLogsService,
     ChargesService,
+    CashDrawerService,
   ],
 })
-export class InvoicesModule {}
+export class InvoicesModule { }

@@ -169,11 +169,20 @@ export class InvoiceController {
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @Post('process/payment')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @ApiOperation({
     summary: 'Pay the unpaid invoice',
   })
-  public async processPayment(@Body() body: ProceedPaymentDto) {
-    const response = await this.invoiceService.proceedPayment(body);
+  public async processPayment(
+    @Req() req: ICustomRequestHeaders,
+    @Body() body: ProceedPaymentDto,
+  ) {
+    const response = await this.invoiceService.proceedPayment(req, body);
     return {
       result: toCamelCase(response),
     };

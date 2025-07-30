@@ -7,6 +7,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
 import { CashDrawerQueryDto } from '../dtos/cash-drawer.dto';
+import { cash_drawer_type } from '@prisma/client';
 
 @Injectable()
 export class CashDrawerService {
@@ -66,6 +67,7 @@ export class CashDrawerService {
     const cashDrawer = await this.prisma.cash_drawers.findFirst({
       where: {
         store_id: storeId, // Optional store ID
+        status: cash_drawer_type.open,
         created_at: {
           gte: jakartaTime().startOf('day').toUnixInteger(), // Greater than or equal to (Lebih besar atau sama dengan)
           lte: jakartaTime().endOf('day').toUnixInteger(), // Less than or equal to (Lebih kecil atau sama dengan)

@@ -10,6 +10,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import {
+  cash_drawer_type,
   charge_type,
   invoice,
   invoice_charges,
@@ -51,6 +52,7 @@ import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
 import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
 import { isUUID } from 'class-validator';
 import { validateStoreId } from 'src/common/helpers/validators.helper';
+import { CashDrawerService } from 'src/modules/cash-drawer/services/cash-drawer.service';
 
 @Injectable()
 export class InvoiceService {
@@ -58,12 +60,13 @@ export class InvoiceService {
 
   constructor(
     private readonly _prisma: PrismaService,
+    private readonly _cashDrawer: CashDrawerService,
     private readonly _charge: ChargesService,
     private readonly _kitchenQueue: KitchenService,
+    private readonly _mailService: MailService,
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
-    private readonly _mailService: MailService,
-  ) {}
+  ) { }
 
   public async getInvoices(request: GetListInvoiceDto) {
     const {
@@ -410,7 +413,7 @@ export class InvoiceService {
         service_charge_id: calculation.serviceChargeId,
         tax_amount: calculation.tax,
         service_charge_amount: calculation.serviceCharge,
-        grand_total: calculation.grandTotal,
+        grand_total: grandTotal,
         payment_amount: calculation.paymentAmount,
         change_amount: calculation.changeAmount,
       });
@@ -486,15 +489,35 @@ export class InvoiceService {
         request.paymentMethodId,
         paymentProvider,
         invoiceId,
-        calculation.grandTotal,
+        grandTotal,
       );
       return response;
     }
+
     // note: response for cash payment
+    // get opened cash drawer
+    const cashDrawer = await this._cashDrawer.getCashDrawerStatus(storeId);
+    if (!cashDrawer) {
+      this.logger.error(`Cash Drawer with store id ${storeId} is closed`);
+      throw new NotFoundException(
+        `Cash Drawer with store id ${storeId} is closed`,
+      );
+    }
+
+    // add cash drawer transaction
+    await this._cashDrawer.addCashDrawerTransaction(
+      cashDrawer?.id,
+      calculation.paymentAmount,
+      calculation.changeAmount,
+      2,
+      '', // notes still empty
+      header.user.id,
+    );
+
     return {
       paymentMethodId: request.paymentMethodId,
       invoiceId: invoiceId,
-      grandTotal: calculation.grandTotal,
+      grandTotal: grandTotal,
     };
   }
 
@@ -611,7 +634,12 @@ export class InvoiceService {
     return result;
   }
 
-  public async proceedPayment(request: ProceedPaymentDto) {
+  public async proceedPayment(
+    header: ICustomRequestHeaders,
+    request: ProceedPaymentDto,
+  ) {
+    const storeId = validateStoreId(header.store_id);
+
     // Check the invoice is unpaid
     const invoice = await this.findInvoiceId(request.invoiceId);
     if (invoice.payment_status !== invoice_type.unpaid) {
@@ -679,13 +707,33 @@ export class InvoiceService {
     });
 
     if (request.provider !== 'cash') {
-      const response = await this.initiatePaymentBasedOnMethod(
+      await this.initiatePaymentBasedOnMethod(
         request.paymentMethodId,
         paymentProvider,
         invoice.id,
         calculation.grandTotal,
       );
     }
+
+    // get opened cash drawer
+    const cashDrawer = await this._cashDrawer.getCashDrawerStatus(storeId);
+    if (cashDrawer?.status === cash_drawer_type.close) {
+      this.logger.error(`Cash Drawer with store id ${storeId} is closed`);
+      throw new NotFoundException(
+        `Cash Drawer with store id ${storeId} is closed`,
+      );
+    }
+
+    // add cash drawer transaction
+    await this._cashDrawer.addCashDrawerTransaction(
+      cashDrawer?.id,
+      calculation.paymentAmount,
+      calculation.changeAmount,
+      2,
+      '', // notes still empty
+      header.user.id,
+    );
+
     return {
       paymentMethodId: request.paymentMethodId,
       invoiceId: invoice.id,
