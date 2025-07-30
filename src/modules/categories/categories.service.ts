@@ -220,6 +220,7 @@ export class CategoriesService {
           category: updateCategoryDto.category || existingCategory.category,
           description:
             updateCategoryDto.description || existingCategory.description,
+          picture_url: updateCategoryDto.image,
         },
       });
 
