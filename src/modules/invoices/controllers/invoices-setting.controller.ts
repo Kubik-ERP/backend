@@ -57,9 +57,9 @@ export class InvoiceSettingController {
         file.originalname,
       );
       relativePath = result.filename;
-      body.companyLogo = relativePath
+      body.companyLogo = relativePath;
     }
-    
+
     const validateStore = await this.storeService.validateStore(
       body.storeId,
       req.id,
