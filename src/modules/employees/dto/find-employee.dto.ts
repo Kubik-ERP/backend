@@ -23,7 +23,7 @@ export class FindAllEmployeeQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  name?: string;
+  search?: string;
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()

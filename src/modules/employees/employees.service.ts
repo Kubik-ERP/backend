@@ -167,7 +167,7 @@ export class EmployeesService {
     query: {
       page?: number;
       limit?: number;
-      name?: string;
+      search?: string;
       title?: string;
       permission?: string[];
     } = {},
@@ -189,29 +189,29 @@ export class EmployeesService {
       },
     };
 
-    if (query.name) {
+    if (query.search) {
       where.OR = [
         {
           name: {
-            contains: query.name,
+            contains: query.search,
             mode: 'insensitive',
           },
         },
         {
           title: {
-            contains: query.name,
+            contains: query.search,
             mode: 'insensitive',
           },
         },
         {
           email: {
-            contains: query.name,
+            contains: query.search,
             mode: 'insensitive',
           },
         },
         {
           phone_number: {
-            contains: query.name,
+            contains: query.search,
             mode: 'insensitive',
           },
         },
