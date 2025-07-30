@@ -15,9 +15,17 @@ import { error } from 'console';
 @Injectable()
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
-  async create(createCategoryDto: CreateCategoryDto & { image: string }) {
-    const { category, description, image } = createCategoryDto;
 
+  async create(
+    createCategoryDto: CreateCategoryDto & { image: string },
+    header: ICustomRequestHeaders,
+  ) {
+    const { category, description, image } = createCategoryDto;
+    const store_id = header.store_id;
+
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
     const existingCategory = await this.prisma.categories.findFirst({
       where: { category },
     });
@@ -40,39 +48,61 @@ export class CategoriesService {
       },
     });
 
+    await this.prisma.store_has_categories.create({
+      data: {
+        stores_id: store_id,
+        categories_id: newCategory.id,
+      },
+    });
+
     return newCategory;
   }
 
-  async findAll({
-    page = 1,
-    limit = 10,
-    search = '',
-  }: {
-    page?: number;
-    limit?: number;
-    search?: string;
-  }) {
+  async findAll(
+    {
+      page = 1,
+      limit = 10,
+      search = '',
+    }: {
+      page?: number;
+      limit?: number;
+      search?: string;
+    },
+    header: ICustomRequestHeaders,
+  ) {
     const skip = (page - 1) * limit;
+    const store_id = header.store_id;
 
-    const [categories, total] = await Promise.all([
-      this.prisma.categories.findMany({
-        where: search
-          ? {
-              category: {
-                contains: search,
-                mode: 'insensitive',
-              },
-            }
-          : {},
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+    const [storeCategories, total] = await Promise.all([
+      this.prisma.store_has_categories.findMany({
+        where: {
+          stores_id: store_id,
+          categories: search
+            ? {
+                category: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
+              }
+            : {},
+        },
         skip,
+        take: limit,
         include: {
-          categories_has_products: {
+          categories: {
             include: {
-              products: {
+              categories_has_products: {
                 include: {
-                  variant_has_products: {
+                  products: {
                     include: {
-                      variant: true,
+                      variant_has_products: {
+                        include: {
+                          variant: true,
+                        },
+                      },
                     },
                   },
                 },
@@ -80,20 +110,22 @@ export class CategoriesService {
             },
           },
         },
-        take: limit,
       }),
-      this.prisma.categories.count({
-        where: search
-          ? {
-              category: {
-                contains: search,
-                mode: 'insensitive',
-              },
-            }
-          : {},
+      this.prisma.store_has_categories.count({
+        where: {
+          stores_id: store_id,
+          categories: search
+            ? {
+                category: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
+              }
+            : {},
+        },
       }),
     ]);
-
+    const categories = storeCategories.map((item) => item.categories);
     return {
       categories,
       total,
