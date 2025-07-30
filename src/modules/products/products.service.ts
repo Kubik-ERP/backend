@@ -240,7 +240,6 @@ export class ProductsService {
         throw new NotFoundException('Product not found');
       }
 
-      // Cek duplikasi nama
       if (updateProductDto.name) {
         const duplicateProduct = await this.prisma.products.findFirst({
           where: {
@@ -252,6 +251,7 @@ export class ProductsService {
           throw new BadRequestException('Product name must be unique');
         }
       }
+
 
       const updatedProduct = await this.prisma.products.update({
         where: { id },
@@ -280,7 +280,6 @@ export class ProductsService {
         });
       }
 
-      // Update variants: hapus semua -> buat ulang
       if (updateProductDto.variants?.length) {
         await this.prisma.variant_has_products.deleteMany({
           where: { products_id: id },
