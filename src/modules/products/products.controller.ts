@@ -154,7 +154,12 @@ export class ProductsController {
   ) {
     try {
       if (file) {
-        updateProductDto.image = `/public/images/${file.filename}`;
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+
+        updateProductDto.image = result.filename;
       }
 
       const updatedProduct = await this.productsService.update(
