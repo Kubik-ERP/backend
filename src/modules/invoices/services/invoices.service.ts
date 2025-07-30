@@ -641,6 +641,11 @@ export class InvoiceService {
 
         // 4️⃣ Iterate through each product in the payload
         for (const feProduct of request.products) {
+          // note: Check for product variant
+          const validVariantId = await this.validateProductVariant(
+            feProduct.productId,
+            feProduct.variantId,
+          );
           const productId = feProduct.productId;
 
           // Group all queues related to the current product
@@ -663,6 +668,13 @@ export class InvoiceService {
             feProduct.notes !==
               (editableQueues[0]?.notes ?? lockedQueues[0]?.notes ?? '');
 
+          // Check if variant has changed
+          const variantChanged =
+            validVariantId !==
+            (editableQueues[0]?.variant_id ??
+              lockedQueues[0]?.variant_id ??
+              null);
+
           // 6️⃣ If the product is completely new (not in queue), create it
           if (existingQueues.length === 0) {
             this.logger.log(`Creating new product ${productId}`);
@@ -671,8 +683,51 @@ export class InvoiceService {
           }
 
           // 7️⃣ If no changes detected, skip to next product
-          if (!isChanged) {
+          if (!isChanged && !variantChanged) {
             this.logger.log(`No change for product ${productId}, skipping...`);
+            continue;
+          }
+
+          // Allow updating variantId only when all queues are still 'placed'
+          if (!isChanged && variantChanged) {
+            const allPlaced = existingQueues.every(
+              (q) => q.order_status === order_status.placed,
+            );
+
+            if (!allPlaced) {
+              this.logger.warn(
+                `Cannot update variant for product ${productId} because one or more items are already in process`,
+              );
+              throw new BadRequestException(
+                `Cannot update variant for product ${productId}, already in process.`,
+              );
+            }
+
+            this.logger.log(
+              `Updating variant for product ${productId} to ${validVariantId}`,
+            );
+
+            await tx.kitchen_queue.updateMany({
+              where: {
+                invoice_id: invoice.id,
+                product_id: productId,
+                order_status: order_status.placed,
+              },
+              data: {
+                variant_id: validVariantId,
+              },
+            });
+
+            await tx.invoice_details.updateMany({
+              where: {
+                invoice_id: invoice.id,
+                product_id: productId,
+              },
+              data: {
+                variant_id: validVariantId,
+              },
+            });
+
             continue;
           }
 
@@ -715,7 +770,7 @@ export class InvoiceService {
                   id: uuidv4(),
                   invoice_id: invoice.id,
                   product_id: productId,
-                  variant_id: feProduct.variantId || null,
+                  variant_id: validVariantId || null,
                   order_status: order_status.placed,
                   notes: feProduct.notes ?? null,
                   created_at: new Date(),
