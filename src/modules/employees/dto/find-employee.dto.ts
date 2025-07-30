@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsNumber, IsString, IsArray } from 'class-validator';
-import { Type } from 'class-transformer';
+
+import { Transform, Type } from 'class-transformer';
 
 export class FindAllEmployeeQueryDto {
   @ApiPropertyOptional()
@@ -24,8 +25,10 @@ export class FindAllEmployeeQueryDto {
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: [String] })
   @IsOptional()
-  @IsString()
-  permission?: string;
+  @IsArray()
+  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
+  @IsString({ each: true })
+  permission?: string[];
 }

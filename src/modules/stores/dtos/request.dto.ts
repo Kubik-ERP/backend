@@ -130,5 +130,7 @@ export class UpdateProfileDto {
   })
   phone?: string;
 
+  @ApiProperty({ example: 'https://example.com/image.jpg', required: false })
+  @IsOptional()
   image?: string;
 }

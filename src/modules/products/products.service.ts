@@ -15,9 +15,18 @@ import { validate as isUUID } from 'uuid';
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createProductDto: CreateProductDto): Promise<ProductModel> {
+  async create(
+    createProductDto: CreateProductDto,
+    header: ICustomRequestHeaders,
+  ): Promise<ProductModel> {
     let discountValue: number | undefined = 0;
     try {
+      const store_id = header.store_id;
+
+      if (!store_id) {
+        throw new BadRequestException('store_id is required');
+      }
+
       const existingProduct = await this.prisma.products.findFirst({
         where: { name: createProductDto.name },
       });
@@ -37,6 +46,13 @@ export class ProductsService {
           discount_price: discountValue,
           picture_url: createProductDto.image,
           is_percent: createProductDto.is_percent,
+        },
+      });
+
+      await this.prisma.stores_has_products.create({
+        data: {
+          stores_id: store_id,
+          products_id: createdProduct.id,
         },
       });
 
@@ -90,19 +106,35 @@ export class ProductsService {
     }
   }
 
-  async findAll({
-    page = 1,
-    limit = 10,
-    search = '',
-  }: {
-    page?: number;
-    limit?: number;
-    search?: string;
-  }) {
+  async findAll(
+    {
+      page = 1,
+      limit = 10,
+      search = '',
+    }: {
+      page?: number;
+      limit?: number;
+      search?: string;
+    },
+    header: ICustomRequestHeaders,
+  ) {
     const skip = (page - 1) * limit;
+    const store_id = header.store_id;
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
 
+    const whereCondition = {
+      store_id,
+      ...(search && {
+        name: {
+          contains: search,
+          mode: 'insensitive',
+        },
+      }),
+    };
     const query = this.prisma.products.findMany({
-      where: search
+      where: whereCondition
         ? {
             name: {
               contains: search,

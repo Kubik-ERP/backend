@@ -11,14 +11,17 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
-import { ApiConsumes } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiHeader } from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import { StorageService } from '../storage-service/services/storage-service.service';
+import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
 
 @Controller('categories')
 export class CategoriesController {
@@ -27,11 +30,20 @@ export class CategoriesController {
     private readonly storageService: StorageService,
   ) {}
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(ImageUploadInterceptor('image'))
   @Post()
   async create(
     @Body() createCategoryDto: CreateCategoryDto,
+    @Req() req: ICustomRequestHeaders,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     let relativePath = '';
@@ -44,10 +56,13 @@ export class CategoriesController {
     }
 
     try {
-      const newCategory = await this.categoriesService.create({
-        ...createCategoryDto,
-        image: relativePath || '',
-      });
+      const newCategory = await this.categoriesService.create(
+        {
+          ...createCategoryDto,
+          image: relativePath || '',
+        },
+        req,
+      );
 
       return {
         statusCode: 201,
@@ -63,18 +78,30 @@ export class CategoriesController {
     }
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Get()
   async findAll(
+    @Req() req: ICustomRequestHeaders,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('search') search?: string,
   ) {
     try {
-      const result = await this.categoriesService.findAll({
-        page,
-        limit,
-        search,
-      });
+      const result = await this.categoriesService.findAll(
+        {
+          page,
+          limit,
+          search,
+        },
+        req,
+      );
       return {
         statusCode: 200,
         message: 'Success',

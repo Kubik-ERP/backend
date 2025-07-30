@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   UseGuards,
   Put,
+  Req,
 } from '@nestjs/common';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -18,7 +19,12 @@ import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { EmployeesService } from './employees.service';
 import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
-import { ApiBearerAuth, ApiConsumes, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiHeader,
+  ApiOperation,
+} from '@nestjs/swagger';
 import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
 import { StoresService } from '../stores/services/stores.service';
 import { StorageService } from '../storage-service/services/storage-service.service';
@@ -35,7 +41,15 @@ export class EmployeesController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create Employee' })
   @ApiBearerAuth()
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   async create(
+    @Req() req: ICustomRequestHeaders,
     @Body() createEmployeeDto: CreateEmployeeDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
@@ -48,7 +62,10 @@ export class EmployeesController {
 
         createEmployeeDto.profilePicture = result.filename;
       }
-      const newEmployee = await this.employeesService.create(createEmployeeDto);
+      const newEmployee = await this.employeesService.create(
+        createEmployeeDto,
+        req,
+      );
       return {
         statusCode: 201,
         message: 'Employee created successfully',
@@ -63,10 +80,21 @@ export class EmployeesController {
     }
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Get()
-  async findAll(@Query() query: FindAllEmployeeQueryDto) {
+  async findAll(
+    @Query() query: FindAllEmployeeQueryDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
     try {
-      const employees = await this.employeesService.findAll(query);
+      const employees = await this.employeesService.findAll(query, req);
       return {
         statusCode: 200,
         message: 'Employees fetched successfully',
