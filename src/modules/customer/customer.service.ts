@@ -18,7 +18,15 @@ import { validateStoreId } from '../../common/helpers/validators.helper';
 export class CustomerService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createCustomerDto: CreateCustomerDto) {
+  async create(
+    createCustomerDto: CreateCustomerDto,
+    header: ICustomRequestHeaders,
+  ) {
+    const store_id = header.store_id;
+
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
     try {
       const customerData: any = {
         name: createCustomerDto.name,
@@ -70,6 +78,13 @@ export class CustomerService {
         },
       });
 
+      await this.prisma.customer_has_stores.create({
+        data: {
+          stores_id: store_id,
+          customer_id: newCustomer.id,
+        },
+      });
+
       return newCustomer;
     } catch (error) {
       throw new HttpException(
@@ -79,61 +94,88 @@ export class CustomerService {
     }
   }
 
-  async findAll({
-    page = 1,
-    limit = 10,
-    search,
-  }: {
-    page?: number;
-    limit?: number;
-    search?: string;
-  }) {
+  async findAll(
+    {
+      page = 1,
+      limit = 10,
+      search,
+    }: {
+      page?: number;
+      limit?: number;
+      search?: string;
+    },
+    header: ICustomRequestHeaders,
+  ) {
     const skip = (page - 1) * limit;
+    const store_id = header.store_id;
+
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
+    const searchCondition: Prisma.customerWhereInput = search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+            { number: { contains: search, mode: 'insensitive' } },
+            {
+              customers_has_tag: {
+                some: {
+                  tag: {
+                    name: {
+                      contains: search,
+                      mode: 'insensitive',
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        }
+      : {};
+
+    const whereCondition: Prisma.customerWhereInput = {
+      AND: [
+        searchCondition,
+        {
+          customer_has_stores: {
+            some: {
+              stores: {
+                id: store_id,
+              },
+            },
+          },
+        },
+      ],
+    };
 
     const [customers, total] = await Promise.all([
       this.prisma.customer.findMany({
-        where: search
-          ? {
-              name: {
-                contains: search,
-                mode: 'insensitive',
-              },
-            }
-          : {},
+        where: whereCondition,
         skip,
         take: limit,
         include: {
           customers_has_tag: {
-            include: {
-              tag: true,
-            },
+            include: { tag: true },
           },
           customer_has_stores: {
-            include: {
-              stores: true,
-            },
+            include: { stores: true },
           },
         },
       }),
       this.prisma.customer.count({
-        where: search
-          ? {
-              name: {
-                contains: search,
-                mode: 'insensitive',
-              },
-            }
-          : {},
+        where: whereCondition,
       }),
     ]);
 
     return {
       data: customers,
       meta: {
-        total_data: total,
-        current_page: page,
-        page_size: limit,
-        total_pages: Math.ceil(total / limit),
+        totalData: total,
+        currentPage: page,
+        pageSize: limit,
+        totalPages: Math.ceil(total / limit),
       },
     };
   }

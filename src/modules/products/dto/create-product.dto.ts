@@ -7,7 +7,7 @@ import {
   IsArray,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { CreateVariantDto } from '../../variants/dto/create-variant.dto';
 import { SimpleCategoryDto } from './simple-category.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -60,14 +60,14 @@ export class CreateProductDto {
     description: 'Nilai diskon (misal 25)',
   })
   discount_value?: number;
-  @Type(() => Boolean)
   @IsOptional()
   @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
   @ApiPropertyOptional({
     name: 'is_percent',
     type: 'boolean',
-    example: 'true / false',
-    description: 'penggunakan nilai dari discount value',
+    example: true,
+    description: 'penggunaan nilai dari discount value',
   })
   is_percent?: boolean;
 

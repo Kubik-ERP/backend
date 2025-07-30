@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
 import {
-  CreateEmployeeDto,
-  CreateEmployeeHasRoleDto,
-} from './dto/create-employee.dto';
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { gender, Prisma } from '@prisma/client';
 
@@ -11,49 +12,262 @@ import { gender, Prisma } from '@prisma/client';
 export class EmployeesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateEmployeeDto) {
-    const existing = await this.prisma.employees.findFirst({
-      where: {
-        email: dto.email,
-      },
-    });
+  async create(dto: CreateEmployeeDto, header: ICustomRequestHeaders) {
+    const {
+      name,
+      email,
+      profilePicture,
+      phoneCode,
+      phoneNumber,
+      startDate,
+      endDate,
+      gender,
+      title,
+      permission,
+      socialMedia,
+      shift,
+      comissions,
+    } = dto;
 
-    if (existing) {
-      return existing;
+    const store_id = header.store_id;
+
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
     }
 
+    const existingEmployee = await this.prisma.employees.findUnique({
+      where: { email },
+    });
+
+    if (existingEmployee) {
+      throw new Error(`Email "${email}" is already in use.`);
+    }
     const employee = await this.prisma.employees.create({
       data: {
-        name: dto.name,
-        email: dto.email,
-        phone_number: dto.phone_number,
-        profile_url: dto.profile_url,
-        start_date: dto.start_date ? new Date(dto.start_date) : undefined,
-        end_date: dto.end_date ? new Date(dto.end_date) : undefined,
-        gender: dto.gender as gender,
+        name,
+        email,
+        profile_url: profilePicture,
+        phone_code: phoneCode,
+        phone_number: phoneNumber,
+        start_date: startDate,
+        end_date: endDate,
+        gender,
+        title,
+        permission,
       },
     });
 
-    if (dto.roles && dto.roles.length > 0) {
-      for (const roleId of dto.roles) {
-        const relationDto: CreateEmployeeHasRoleDto = {
-          staffs_id: employee.id,
-          roles_id: roleId,
-        };
-        await this.prisma.employees_has_roles.create({
-          data: relationDto,
-        });
+    const employeeId = employee.id;
+
+    await this.prisma.stores_has_employees.create({
+      data: {
+        employees_id: employeeId,
+        stores_id: store_id,
+      },
+    });
+
+    // Social media
+    if (socialMedia && socialMedia.length > 0) {
+      for (const sm of socialMedia) {
+        if (!sm.name || !sm.account) continue;
+
+        try {
+          await this.prisma.employees_has_social_media.create({
+            data: {
+              employees_id: employeeId,
+              media_name: sm.name,
+              account_name: sm.account,
+            },
+          });
+        } catch (err) {
+          console.error(`Failed to insert social media for ${sm.name}:`, err);
+        }
       }
     }
+
+    // Shift
+    if (Array.isArray(shift)) {
+      const shiftData = shift.map((s) => ({
+        employees_id: employeeId,
+        days: s.day,
+        start_time: s.start_time,
+        end_time: s.end_time,
+      }));
+
+      await this.prisma.employees_shift.createMany({
+        data: shiftData,
+      });
+    }
+
+    // Commissions
+    const insertedProductCommissions = [];
+    const insertedVoucherCommissions = [];
+
+    if (comissions) {
+      // Product Commissions
+      if (
+        Array.isArray(comissions.productComission) &&
+        comissions.productComission.length > 0
+      ) {
+        for (const pc of comissions.productComission) {
+          if (!pc.product_id || pc.amount === undefined) continue;
+
+          try {
+            const result = await this.prisma.product_commissions.create({
+              data: {
+                employees_id: employeeId,
+                is_percent: pc.is_percent ?? false,
+                products_id: pc.product_id,
+                amount: pc.amount ?? 0,
+              },
+            });
+            insertedProductCommissions.push(result);
+          } catch (error) {
+            console.error(`Failed to insert product commission:`, error);
+          }
+        }
+      }
+
+      if (
+        Array.isArray(comissions.voucherCommission) &&
+        comissions.voucherCommission.length > 0
+      ) {
+        for (const vc of comissions.voucherCommission) {
+          if (!vc.voucher_id || vc.amount === undefined) continue;
+
+          try {
+            const result = await this.prisma.voucher_commissions.create({
+              data: {
+                employees_id: employeeId,
+                is_percent: vc.is_percent ?? false,
+                voucher_id: vc.voucher_id,
+                amount: vc.amount ?? 0,
+              },
+            });
+            insertedVoucherCommissions.push(result);
+          } catch (error) {
+            console.error(`Failed to insert voucher commission:`, error);
+          }
+        }
+      }
+    }
+
+    return {
+      message: 'Employee created successfully',
+      data: {
+        employee,
+        shift,
+        productCommissions: insertedProductCommissions,
+        voucherCommissions: insertedVoucherCommissions,
+      },
+    };
   }
 
-  async findAll() {
-    return this.prisma.employees.findMany();
+  async findAll(
+    query: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      title?: string;
+      permission?: string[];
+    } = {},
+    header: ICustomRequestHeaders,
+  ) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
+    const store_id = header.store_id;
+
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+    const where: Prisma.employeesWhereInput = {
+      stores_has_employees: {
+        some: {
+          stores_id: store_id,
+        },
+      },
+    };
+
+    if (query.search) {
+      where.OR = [
+        {
+          name: {
+            contains: query.search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          title: {
+            contains: query.search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          email: {
+            contains: query.search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          phone_number: {
+            contains: query.search,
+            mode: 'insensitive',
+          },
+        },
+      ];
+    }
+
+    if (query.title) {
+      where.title = {
+        contains: query.title,
+        mode: 'insensitive',
+      };
+    }
+
+    if (query.permission && query.permission.length > 0) {
+      where.permission = {
+        in: query.permission,
+      };
+    }
+
+    const data = await this.prisma.employees.findMany({
+      where,
+      skip,
+      take: limit,
+      include: {
+        employees_has_roles: { include: { roles: true } },
+        employees_has_social_media: true,
+        employees_shift: true,
+        product_commissions: true,
+        voucher_commissions: true,
+        stores_has_employees: true,
+      },
+    });
+
+    const total = await this.prisma.employees.count({ where });
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: string) {
     const employee = await this.prisma.employees.findUnique({
       where: { id },
+      include: {
+        employees_has_roles: { include: { roles: true } },
+        employees_has_social_media: true,
+        employees_shift: true,
+        product_commissions: true,
+        voucher_commissions: true,
+      },
     });
 
     if (!employee) {
@@ -64,12 +278,113 @@ export class EmployeesService {
   }
 
   async update(id: string, dto: UpdateEmployeeDto) {
-    await this.findOne(id);
+    const {
+      name,
+      email,
+      profilePicture,
+      phoneCode,
+      phoneNumber,
+      startDate,
+      endDate,
+      gender,
+      title,
+      permission,
+      socialMedia,
+      shift,
+      comissions,
+    } = dto;
 
-    return this.prisma.employees.update({
+    const existing = await this.prisma.employees.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Employee with ID ${id} not found`);
+    }
+
+    const updatedEmployee = await this.prisma.employees.update({
       where: { id },
-      data: dto,
+      data: {
+        name,
+        email,
+        profile_url: profilePicture,
+        phone_code: phoneCode,
+        phone_number: phoneNumber,
+        start_date: startDate ? new Date(startDate) : undefined,
+        end_date: endDate ? new Date(endDate) : undefined,
+        gender,
+        title,
+        permission,
+      },
     });
+
+    await this.prisma.employees_has_social_media.deleteMany({
+      where: { employees_id: id },
+    });
+    if (Array.isArray(socialMedia)) {
+      for (const sm of socialMedia) {
+        if (!sm.name || !sm.account) continue;
+        await this.prisma.employees_has_social_media.create({
+          data: {
+            employees_id: id,
+            media_name: sm.name,
+            account_name: sm.account,
+          },
+        });
+      }
+    }
+
+    await this.prisma.employees_shift.deleteMany({
+      where: { employees_id: id },
+    });
+    if (Array.isArray(shift)) {
+      const shiftData = shift.map((s) => ({
+        employees_id: id,
+        days: s.day,
+        start_time: s.start_time,
+        end_time: s.end_time,
+      }));
+
+      await this.prisma.employees_shift.createMany({
+        data: shiftData,
+      });
+    }
+
+    await this.prisma.product_commissions.deleteMany({
+      where: { employees_id: id },
+    });
+    await this.prisma.voucher_commissions.deleteMany({
+      where: { employees_id: id },
+    });
+
+    if (comissions) {
+      if (Array.isArray(comissions.productComission)) {
+        for (const pc of comissions.productComission) {
+          if (!pc.product_id || pc.amount === undefined) continue;
+          await this.prisma.product_commissions.create({
+            data: {
+              employees_id: id,
+              is_percent: pc.is_percent ?? false,
+              products_id: pc.product_id,
+              amount: pc.amount ?? 0,
+            },
+          });
+        }
+      }
+
+      if (Array.isArray(comissions.voucherCommission)) {
+        for (const vc of comissions.voucherCommission) {
+          if (!vc.voucher_id || vc.amount === undefined) continue;
+          await this.prisma.voucher_commissions.create({
+            data: {
+              employees_id: id,
+              is_percent: vc.is_percent ?? false,
+              voucher_id: vc.voucher_id,
+              amount: vc.amount ?? 0,
+            },
+          });
+        }
+      }
+    }
+
+    return updatedEmployee;
   }
 
   async remove(id: string) {

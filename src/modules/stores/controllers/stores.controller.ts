@@ -131,7 +131,6 @@ export class StoresController {
     },
   })
   @ApiConsumes('multipart/form-data')
-  @UseGuards(PinGuard)
   @UseInterceptors(ImageUploadInterceptor('file'))
   @UsePipes(new ValidationPipe({ transform: true }))
   public async createStore(
@@ -147,16 +146,17 @@ export class StoresController {
           file.originalname,
         );
         relativePath = result.filename;
+        console.log(relativePath);
       }
       //const relativePath = file ? `/public/images/${file.filename}` : undefined;
 
-      await this._storeService.createStore(
+      const createdStore = await this._storeService.createStore(
         { ...body, photo: relativePath },
         req.user.id,
       );
-
       return {
         message: 'Store created successfully',
+        data: createdStore,
       };
     } catch (error) {
       console.log(error);
@@ -168,7 +168,7 @@ export class StoresController {
   }
 
   @UseGuards(AuthenticationJWTGuard)
-  @Put('/:id')
+  @Put('manage/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update store by ID' })
   @ApiConsumes('multipart/form-data')
@@ -347,7 +347,6 @@ export class StoresController {
   @UseGuards(AuthenticationJWTGuard)
   @Delete('/:id')
   @ApiBearerAuth()
-  @UseGuards(PinGuard)
   @ApiOperation({ summary: 'Delete store by ID' })
   public async deleteStore(
     @Req() req: ICustomRequestHeaders,
@@ -369,7 +368,6 @@ export class StoresController {
   @ApiOperation({ summary: 'Get store(s) by user ID' })
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
-  @UseGuards(PinGuard)
   public async getStoreByUser(@Req() req: ICustomRequestHeaders) {
     try {
       const userId = req.user.id;
@@ -387,30 +385,30 @@ export class StoresController {
     }
   }
 
-  @Put('/profile/:id')
+  @Put('/profile')
   @ApiOperation({ summary: 'Update Profile For User' })
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
-  @UseGuards(PinGuard)
   @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiConsumes('multipart/form-data')
   public async updateProfile(
-    @Param('id') id: number,
+    @Req() req: ICustomRequestHeaders,
     @Body() updateProfileDto: UpdateProfileDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     try {
+      const userId = req.user.id;
       if (file) {
         const result = await this.storageService.uploadImage(
           file.buffer,
           file.originalname,
         );
 
-        updateProfileDto.picture_url = result.filename;
+        updateProfileDto.image = result.filename;
       }
 
       const result = await this._storeService.updateProfile(
-        id,
+        userId,
         updateProfileDto,
       );
 
@@ -418,7 +416,6 @@ export class StoresController {
         result,
       };
     } catch (error) {
-      console.log(error);
       throw new HttpException(
         'Internal Server Error',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -459,7 +456,6 @@ export class StoresController {
   @Put(':id/operational-hours')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update operational hours for store' })
-  @UseGuards(PinGuard)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   public async updateOperationalHours(
     @Param('id') id: string,

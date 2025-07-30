@@ -67,6 +67,7 @@ model categories {
   description             String?                   @db.VarChar(45)
   picture_url             String?                   @db.VarChar(45)
   categories_has_products categories_has_products[]
+  store_has_categories    store_has_categories[]
 }
 
 model categories_has_products {
@@ -116,8 +117,8 @@ model customer {
 model customer_has_stores {
   customer_id String   @db.Uuid
   stores_id   String   @db.Uuid
-  customer    customer @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer_has_stores_customer1")
-  stores      stores   @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer_has_stores_stores1")
+  customer    customer @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_customer_has_stores_customer1")
+  stores      stores   @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_customer_has_stores_stores1")
 
   @@id([customer_id, stores_id])
   @@index([customer_id], map: "fk_customer_has_stores_customer1_idx")
@@ -142,21 +143,25 @@ model customers_has_tag {
 }
 
 model employees {
-  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                    String?                   @db.VarChar(45)
-  email                   String?                   @unique @db.VarChar(45)
-  phone_number            String?                   @db.VarChar(45)
-  profile_url             String?                   @db.VarChar(45)
-  start_date              DateTime?                 @db.Date
-  end_date                DateTime?                 @db.Date
-  gender                  gender?
-  cash_drawers            cash_drawers[]
-  employees_has_roles     employees_has_roles[]
-  employees_shift         employees_shift[]
-  platforms_has_employees platforms_has_employees[]
-  product_commissions     product_commissions[]
-  stores_has_employees    stores_has_employees[]
-  voucher_commissions     voucher_commissions[]
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                       String?                      @db.VarChar(45)
+  email                      String?                      @unique @db.VarChar(45)
+  phone_number               String?                      @db.VarChar(45)
+  profile_url                String?                      @db.VarChar(45)
+  start_date                 DateTime?                    @db.Date
+  end_date                   DateTime?                    @db.Date
+  gender                     gender?
+  title                      String?                      @db.VarChar(45)
+  phone_code                 String?                      @db.VarChar(45)
+  permission                 String?                      @db.VarChar(45)
+  cash_drawers               cash_drawers[]
+  employees_has_roles        employees_has_roles[]
+  employees_has_social_media employees_has_social_media[]
+  employees_shift            employees_shift[]
+  platforms_has_employees    platforms_has_employees[]
+  product_commissions        product_commissions[]
+  stores_has_employees       stores_has_employees[]
+  voucher_commissions        voucher_commissions[]
 }
 
 model employees_has_roles {
@@ -172,11 +177,11 @@ model employees_has_roles {
 
 model employees_shift {
   id           String    @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  start_time   DateTime? @db.Time(6)
-  end_time     DateTime? @db.Time(6)
-  days         Int?
+  start_time   String?   @db.VarChar(45)
+  end_time     String?   @db.VarChar(45)
+  days         String?   @db.VarChar(45)
   employees_id String    @db.Uuid
-  employees    employees @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_employees_shift_employees1")
+  employees    employees @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_employees_shift_employees1")
 
   @@id([id, employees_id])
   @@index([employees_id], map: "fk_employees_shift_employees1_idx")
@@ -374,10 +379,10 @@ model product_commissions {
   products_id  String    @db.Uuid
   is_percent   Boolean?
   amount       Float?
-  employees    employees @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_employees_has_items_employees1")
-  products     products  @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_employees_has_items_items1")
+  id           String    @id(map: "product_commissions_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employees    employees @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_employees_has_items_employees1")
+  products     products  @relation(fields: [products_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_employees_has_items_items1")
 
-  @@id([employees_id, products_id])
   @@index([employees_id], map: "fk_employees_has_items_employees1_idx")
   @@index([products_id], map: "fk_employees_has_items_items1_idx")
 }
@@ -463,6 +468,8 @@ model stores {
   invoice                   invoice[]
   kitchen_queue             kitchen_queue[]
   operational_hours         operational_hours[]
+  store_floors              store_floors[]
+  store_has_categories      store_has_categories[]
   stores_has_employees      stores_has_employees[]
   stores_has_products       stores_has_products[]
   tables                    tables[]
@@ -472,8 +479,8 @@ model stores {
 model stores_has_employees {
   stores_id    String    @db.Uuid
   employees_id String    @db.Uuid
-  employees    employees @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stores_has_employees_employees1")
-  stores       stores    @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stores_has_employees_stores1")
+  employees    employees @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stores_has_employees_employees1")
+  stores       stores    @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stores_has_employees_stores1")
 
   @@id([stores_id, employees_id])
   @@index([employees_id], map: "fk_stores_has_employees_employees1_idx")
@@ -483,8 +490,8 @@ model stores_has_employees {
 model stores_has_products {
   stores_id   String   @db.Uuid
   products_id String   @db.Uuid
-  products    products @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stores_has_products_products1")
-  stores      stores   @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stores_has_products_stores1")
+  products    products @relation(fields: [products_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stores_has_products_products1")
+  stores      stores   @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stores_has_products_stores1")
 
   @@id([stores_id, products_id])
   @@index([products_id], map: "fk_stores_has_products_products1_idx")
@@ -574,7 +581,7 @@ model variant_has_products {
 }
 
 model voucher {
-  id                   String                 @id @db.Uuid
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                 String?                @db.VarChar(45)
   amount               Float?
   min_price            Float?
@@ -592,10 +599,10 @@ model voucher_commissions {
   employees_id String    @db.Uuid
   amount       Float?
   is_percent   Boolean?
-  employees    employees @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_voucher_has_employees_employees1")
-  voucher      voucher   @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_voucher_has_employees_voucher1")
+  id           String    @id(map: "voucher_commissions_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employees    employees @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_voucher_has_employees_employees1")
+  voucher      voucher   @relation(fields: [voucher_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_voucher_has_employees_voucher1")
 
-  @@id([voucher_id, employees_id])
   @@index([employees_id], map: "fk_voucher_has_employees_employees1_idx")
   @@index([voucher_id], map: "fk_voucher_has_employees_voucher1_idx")
 }
@@ -657,6 +664,52 @@ model users_has_banks {
   users          users?  @relation(fields: [users_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_has_banks_users_id_fk")
 }
 
+model store_floors {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  uid          BigInt
+  store_id     String         @db.Uuid
+  floor_name   String         @db.VarChar(255)
+  created_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  stores       stores         @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_store_floors_store")
+  store_tables store_tables[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model store_tables {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  uid               BigInt
+  store_id          String       @db.Uuid
+  floor_id          String       @db.Uuid
+  name              String       @db.VarChar(255)
+  seats             Int
+  shape             table_shape
+  width             Int
+  height            Int
+  position_x        Int
+  position_y        Int
+  is_enable_qr_code Boolean      @default(false)
+  created_at        DateTime?    @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?    @default(now()) @db.Timestamptz(6)
+  store_floors      store_floors @relation(fields: [floor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model employees_has_social_media {
+  id           String     @id(map: "employees_has_social_media_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  media_name   String?    @db.VarChar(45)
+  account_name String?    @db.VarChar(45)
+  employees_id String?    @db.Uuid
+  employees    employees? @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "employees_has_social_media_employees_id_fk")
+}
+
+model store_has_categories {
+  id            String      @id(map: "store_has_categories_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categories_id String?     @db.Uuid
+  stores_id     String?     @db.Uuid
+  categories    categories? @relation(fields: [categories_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_categories_categories_id_fk")
+  stores        stores?     @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_categories_stores_id_fk")
+}
+
 enum cash_drawer_type {
   open
   close
@@ -709,4 +762,10 @@ enum order_status {
 enum point_type {
   point_addition
   point_deduction
+}
+
+enum table_shape {
+  SQUARE
+  RECTANGLE
+  ROUND
 }

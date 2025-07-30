@@ -15,9 +15,18 @@ import { validate as isUUID } from 'uuid';
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createProductDto: CreateProductDto): Promise<ProductModel> {
+  async create(
+    createProductDto: CreateProductDto,
+    header: ICustomRequestHeaders,
+  ): Promise<ProductModel> {
     let discountValue: number | undefined = 0;
     try {
+      const store_id = header.store_id;
+
+      if (!store_id) {
+        throw new BadRequestException('store_id is required');
+      }
+
       const existingProduct = await this.prisma.products.findFirst({
         where: { name: createProductDto.name },
       });
@@ -37,6 +46,13 @@ export class ProductsService {
           discount_price: discountValue,
           picture_url: createProductDto.image,
           is_percent: createProductDto.is_percent,
+        },
+      });
+
+      await this.prisma.stores_has_products.create({
+        data: {
+          stores_id: store_id,
+          products_id: createdProduct.id,
         },
       });
 
@@ -90,54 +106,72 @@ export class ProductsService {
     }
   }
 
-  async findAll({
-    page = 1,
-    limit = 10,
-    search = '',
-  }: {
-    page?: number;
-    limit?: number;
-    search?: string;
-  }) {
+  async findAll(
+    {
+      page = 1,
+      limit = 10,
+      search = '',
+      category_id = [],
+    }: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      category_id?: string[];
+    },
+    header: ICustomRequestHeaders,
+  ) {
     const skip = (page - 1) * limit;
+    const store_id = header.store_id;
 
-    const query = this.prisma.products.findMany({
-      where: search
-        ? {
-            name: {
-              contains: search,
-              mode: 'insensitive',
-            },
-          }
-        : {},
-      skip,
-      take: limit,
-      include: {
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
+    const whereCondition: any = {
+      ...(search && {
+        name: {
+          contains: search,
+          mode: 'insensitive',
+        },
+      }),
+      ...(category_id.length > 0 && {
         categories_has_products: {
-          include: {
-            categories: true,
+          some: {
+            categoriesId: {
+              in: category_id,
+            },
           },
         },
-        variant_has_products: {
-          include: {
-            variant: true,
-          },
+      }),
+      stores_has_products: {
+        some: {
+          stores_id: store_id,
         },
       },
-    });
+    };
 
-    const count = this.prisma.products.count({
-      where: search
-        ? {
-            name: {
-              contains: search,
-              mode: 'insensitive',
+    const [products, total] = await Promise.all([
+      this.prisma.products.findMany({
+        where: whereCondition,
+        skip,
+        take: limit,
+        include: {
+          categories_has_products: {
+            include: {
+              categories: true,
             },
-          }
-        : {},
-    });
-
-    const [products, total] = await Promise.all([query, count]);
+          },
+          variant_has_products: {
+            include: {
+              variant: true,
+            },
+          },
+        },
+      }),
+      this.prisma.products.count({
+        where: whereCondition,
+      }),
+    ]);
 
     return {
       products,
@@ -206,7 +240,6 @@ export class ProductsService {
         throw new NotFoundException('Product not found');
       }
 
-      // Cek duplikasi nama
       if (updateProductDto.name) {
         const duplicateProduct = await this.prisma.products.findFirst({
           where: {
