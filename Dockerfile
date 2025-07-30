@@ -17,7 +17,7 @@ COPY . .
 RUN ls -la prisma
 
 # # Jalankan perintah Prisma
-# RUN npm run db:pull && npm run db:generate
+RUN npm run db:pull && npm run db:generate
 
 # Build aplikasi
 RUN npm run build
