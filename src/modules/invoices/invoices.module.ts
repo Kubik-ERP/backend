@@ -45,4 +45,4 @@ import { CashDrawerService } from '../cash-drawer/services/cash-drawer.service';
     CashDrawerService,
   ],
 })
-export class InvoicesModule { }
+export class InvoicesModule {}
