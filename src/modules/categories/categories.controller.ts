@@ -164,7 +164,6 @@ export class CategoriesController {
         );
 
         updateCategoryDto.image = result.filename;
-        console.log('result image' + result.filename);
       }
       const updatedCategory = await this.categoriesService.update(
         id,
