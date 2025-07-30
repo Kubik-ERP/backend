@@ -97,6 +97,7 @@ export class ProductsController {
           page: Number(query.page),
           limit: Number(query.limit),
           search: query.search,
+          category_id: query.category_id ?? [],
         },
         req,
       );

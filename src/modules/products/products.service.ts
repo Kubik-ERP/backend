@@ -111,65 +111,67 @@ export class ProductsService {
       page = 1,
       limit = 10,
       search = '',
+      category_id = [],
     }: {
       page?: number;
       limit?: number;
       search?: string;
+      category_id?: string[];
     },
     header: ICustomRequestHeaders,
   ) {
     const skip = (page - 1) * limit;
     const store_id = header.store_id;
+
     if (!store_id) {
       throw new BadRequestException('store_id is required');
     }
 
-    const whereCondition = {
-      store_id,
+    const whereCondition: any = {
       ...(search && {
         name: {
           contains: search,
           mode: 'insensitive',
         },
       }),
-    };
-    const query = this.prisma.products.findMany({
-      where: whereCondition
-        ? {
-            name: {
-              contains: search,
-              mode: 'insensitive',
-            },
-          }
-        : {},
-      skip,
-      take: limit,
-      include: {
+      ...(category_id.length > 0 && {
         categories_has_products: {
-          include: {
-            categories: true,
+          some: {
+            categoriesId: {
+              in: category_id,
+            },
           },
         },
-        variant_has_products: {
-          include: {
-            variant: true,
-          },
+      }),
+      stores_has_products: {
+        some: {
+          stores_id: store_id,
         },
       },
-    });
+    };
 
-    const count = this.prisma.products.count({
-      where: search
-        ? {
-            name: {
-              contains: search,
-              mode: 'insensitive',
+    const [products, total] = await Promise.all([
+      this.prisma.products.findMany({
+        where: whereCondition,
+        skip,
+        take: limit,
+        include: {
+          categories_has_products: {
+            include: {
+              categories: true,
             },
-          }
-        : {},
-    });
-
-    const [products, total] = await Promise.all([query, count]);
+          },
+          variant_has_products: {
+            include: {
+              variant: true,
+            },
+          },
+        },
+      }),
+      this.prisma.products.count({
+        where: whereCondition,
+      }),
+    ]);
 
     return {
       products,
