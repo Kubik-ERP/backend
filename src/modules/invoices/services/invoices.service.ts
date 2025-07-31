@@ -618,9 +618,11 @@ export class InvoiceService {
   }
 
   public async processUpsertInvoiceItems(
+    header: ICustomRequestHeaders,
     invoiceId: string,
     request: UpsertInvoiceItemDto,
   ) {
+    const storeId = validateStoreId(header.store_id);
     await this._prisma.$transaction(
       async (tx) => {
         // Retrieve the invoice record and ensure it is not already paid
@@ -843,6 +845,9 @@ export class InvoiceService {
         timeout: 300_000,
       },
     );
+
+    // notify the FE
+    this._notificationHelper.notifyNewOrder(storeId);
 
     // All operations successful
     return { message: 'Invoice products processed successfully' };

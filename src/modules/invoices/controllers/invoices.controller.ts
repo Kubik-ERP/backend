@@ -170,14 +170,22 @@ export class InvoiceController {
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @Put(':invoiceId')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @ApiOperation({
     summary: 'Update the invoice items',
   })
   public async upsertInvoiceItems(
+    @Req() req: ICustomRequestHeaders,
     @Param('invoiceId') invoiceId: string,
     @Body() body: UpsertInvoiceItemDto,
   ) {
     const response = await this.invoiceService.processUpsertInvoiceItems(
+      req,
       invoiceId,
       body,
     );
