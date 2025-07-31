@@ -32,10 +32,12 @@ import { GenerateInvoiceNumberResponseDto } from '../dtos/GenerateInvoiceNumberR
 import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
 // Enum
 import { EmailTemplateType } from '../../../enum/EmailTemplateType-enum';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Controller('invoice')
 export class InvoiceController {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly invoiceService: InvoiceService,
     private readonly templatesEmailService: TemplatesEmailService,
   ) {}
@@ -223,10 +225,11 @@ export class InvoiceController {
   public async calculateEstimation(
     @Body() requestData: CalculationEstimationDto,
   ) {
-    const result = await this.invoiceService.calculateTotal(requestData);
-
-    return {
-      result,
-    };
+    await this.prisma.$transaction(async (tx) => {
+      const result = await this.invoiceService.calculateTotal(tx, requestData);
+      return {
+        result,
+      };
+    });
   }
 }
