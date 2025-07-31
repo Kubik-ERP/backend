@@ -126,9 +126,6 @@ export class ProductsService {
     if (!store_id) {
       throw new BadRequestException('store_id is required');
     }
-    for (const id of category_id) {
-      console.log('Kategori ID:', id);
-    }
 
     const whereCondition: any = {
       ...(search && {
