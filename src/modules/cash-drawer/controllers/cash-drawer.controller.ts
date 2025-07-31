@@ -35,6 +35,8 @@ import {
 import { formatPaginatedResult } from 'src/common/helpers/pagination.helpers';
 
 @Controller('cash-drawer')
+@UseGuards(AuthenticationJWTGuard)
+@ApiBearerAuth()
 export class CashDrawerController {
   // Controller methods will be defined here in the future
   // For example, you might have methods for opening, closing, and checking the status of the cash drawer
@@ -44,9 +46,7 @@ export class CashDrawerController {
     private readonly userService: UsersService,
   ) {}
 
-  @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get Cash Drawer List' })
   @Get('list/:storeId')
   @ApiParam({
@@ -81,9 +81,7 @@ export class CashDrawerController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get Today Status' })
   @Get('status/:storeId')
   @ApiParam({
@@ -112,9 +110,7 @@ export class CashDrawerController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create store',
     description:
@@ -154,9 +150,7 @@ export class CashDrawerController {
   }
 
   @Put('edit/:cashDrawerId')
-  @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Edit cash drawer details' })
   @ApiParam({
     name: 'cashDrawerId',
@@ -185,9 +179,7 @@ export class CashDrawerController {
   }
 
   //Implement the addTransaction method to handle adding transactions to the cash drawer
-  @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
-  @ApiBearerAuth()
   @ApiParam({
     name: 'type',
     enum: ['in', 'out'],
@@ -228,9 +220,7 @@ export class CashDrawerController {
     return { message: 'Transaction added successfully' };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
   @HttpCode(200)
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Close cash drawer',
     description: 'Close Case Drawer',
@@ -297,5 +287,26 @@ export class CashDrawerController {
       message: 'Cash drawer details retrieved successfully',
       result: toCamelCase(result),
     };
+  }
+
+  @Get('transaction/summary')
+  @ApiParam({
+    name: 'cashDrawerId',
+    description: 'ID of the cash drawer'
+  })
+  async getCashdrawerTransSummary(@Param('cashDrawerId') cashDrawerId: string) {
+    const result = {
+      points: 0,
+      debits: 0,
+      wallet: 0,
+      sales: 0,
+      cashIn: 0,
+      cashOut: 0
+    }
+
+    return {
+      message: 'Cash drawer summary data retrieved successfully',
+      result: toCamelCase(result)
+    }
   }
 }
