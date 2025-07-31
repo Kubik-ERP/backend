@@ -15,6 +15,8 @@ import { TemplatesEmailModule } from '../templates-email/templates-email.module'
 import { KitchenModule } from '../kitchen/kitchen.module';
 import { KitchenService } from '../kitchen/services/kitchen.service';
 import { CashDrawerService } from '../cash-drawer/services/cash-drawer.service';
+import { VariantsService } from '../variants/variants.service';
+import { ProductsService } from '../products/products.service';
 
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { CashDrawerService } from '../cash-drawer/services/cash-drawer.service';
     StoresService,
     KitchenService,
     CashDrawerService,
+    VariantsService,
+    ProductsService,
   ],
   controllers: [InvoiceSettingController, InvoiceController],
   exports: [

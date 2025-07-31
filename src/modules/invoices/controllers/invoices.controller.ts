@@ -15,6 +15,7 @@ import {
   ProceedCheckoutInvoiceDto,
   ProceedInstantPaymentDto,
   ProceedPaymentDto,
+  UpsertInvoiceItemDto,
 } from '../dtos/process-payment.dto';
 import {
   PaymentCallbackCoreDto,
@@ -163,6 +164,34 @@ export class InvoiceController {
     @Body() body: ProceedCheckoutInvoiceDto,
   ) {
     const response = await this.invoiceService.proceedCheckout(req, body);
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @Put(':invoiceId')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiOperation({
+    summary: 'Update the invoice items',
+  })
+  public async upsertInvoiceItems(
+    @Req() req: ICustomRequestHeaders,
+    @Param('invoiceId') invoiceId: string,
+    @Body() body: UpsertInvoiceItemDto,
+  ) {
+    const response = await this.invoiceService.processUpsertInvoiceItems(
+      req,
+      invoiceId,
+      body,
+    );
+
     return {
       result: toCamelCase(response),
     };

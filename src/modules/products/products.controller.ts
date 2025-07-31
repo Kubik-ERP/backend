@@ -97,6 +97,7 @@ export class ProductsController {
           page: Number(query.page),
           limit: Number(query.limit),
           search: query.search,
+          category_id: query.category_id ?? [],
         },
         req,
       );
@@ -154,7 +155,12 @@ export class ProductsController {
   ) {
     try {
       if (file) {
-        updateProductDto.image = `/public/images/${file.filename}`;
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+
+        updateProductDto.image = result.filename;
       }
 
       const updatedProduct = await this.productsService.update(

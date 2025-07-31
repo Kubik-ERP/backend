@@ -394,6 +394,48 @@ export class KitchenService {
     }
   }
 
+  public async updateKitchenQueue(
+    tx: Prisma.TransactionClient,
+    data: {
+      notes?: string | null;
+    },
+    where: {
+      invoice_id: string;
+      product_variant_id: string;
+    },
+  ) {
+    try {
+      // Cari dulu queue yang match
+      const existing = await tx.kitchen_queue.findFirst({
+        where: {
+          invoice_id: where.invoice_id,
+          variant_id:
+            where.product_variant_id === '' ? null : where.product_variant_id,
+        },
+      });
+
+      if (!existing) {
+        throw new BadRequestException(
+          `KitchenQueue not found for invoice_id=${where.invoice_id}, variant_id=${where.product_variant_id}`,
+        );
+      }
+
+      // Update pakai primary key id (atau composite key sesuai schema)
+      return await tx.kitchen_queue.update({
+        where: { id: existing.id },
+        data: {
+          notes: data.notes ?? null,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to update kitchen queue', error.message);
+      throw new BadRequestException('Failed to update kitchen queue', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
   /**
    * @description Get kitchen queues by store id
    */
@@ -513,6 +555,49 @@ export class KitchenService {
         cause: new Error(),
         description: error.message,
       });
+    }
+  }
+
+  /**
+   * @description Get kitchen queue by invoice Id
+   */
+  public async findKitchenQueueByInvoiceId(
+    invoiceId: string,
+  ): Promise<kitchen_queue[]> {
+    try {
+      return await this._prisma.kitchen_queue.findMany({
+        where: { invoice_id: invoiceId },
+        orderBy: { created_at: 'asc' },
+      });
+    } catch (error) {
+      this.logger.error('Failed to find kitchen queue by invoice Id');
+      throw new BadRequestException(
+        'Failed to find kitchen queue by invoice Id',
+        {
+          cause: new Error(),
+          description: error.message,
+        },
+      );
+    }
+  }
+  public async findKitchenQueueByInvoiceIdProductId(
+    invoiceId: string,
+    productId: string,
+  ): Promise<kitchen_queue[]> {
+    try {
+      return await this._prisma.kitchen_queue.findMany({
+        where: { invoice_id: invoiceId, product_id: productId },
+        orderBy: { created_at: 'asc' },
+      });
+    } catch (error) {
+      this.logger.error('Failed to find kitchen queue by invoice Id');
+      throw new BadRequestException(
+        'Failed to find kitchen queue by invoice Id',
+        {
+          cause: new Error(),
+          description: error.message,
+        },
+      );
     }
   }
 
