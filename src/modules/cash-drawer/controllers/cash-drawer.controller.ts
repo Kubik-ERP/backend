@@ -292,7 +292,7 @@ export class CashDrawerController {
   @Get('transaction/summary')
   @ApiParam({
     name: 'cashDrawerId',
-    description: 'ID of the cash drawer'
+    description: 'ID of the cash drawer',
   })
   async getCashdrawerTransSummary(@Param('cashDrawerId') cashDrawerId: string) {
     const result = {
@@ -301,12 +301,12 @@ export class CashDrawerController {
       wallet: 0,
       sales: 0,
       cashIn: 0,
-      cashOut: 0
-    }
+      cashOut: 0,
+    };
 
     return {
       message: 'Cash drawer summary data retrieved successfully',
-      result: toCamelCase(result)
-    }
+      result: toCamelCase(result),
+    };
   }
 }
