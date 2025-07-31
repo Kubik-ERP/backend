@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import {
+  formatDate,
   getEndOfDay,
   getStartOfDay,
   jakartaTime,
@@ -309,5 +310,85 @@ export class CashDrawerService {
     };
     delete (data as any).users;
     return data;
+  }
+
+  async getCashDrawerTransactionsSummary(cashDrawerId: string): Promise<any> {
+    // Logic to get the summary of cash drawer transactions
+    const cashDrawer = await this.prisma.cash_drawers.findUnique({
+      where: { id: cashDrawerId },
+    });
+
+    const transactions = await this.prisma.cash_drawer_transactions.groupBy({
+      by: ['type'],
+      where: {
+        cash_drawers_id: cashDrawerId,
+      },
+      _sum: {
+        amount_in: true,
+        amount_out: true,
+      },
+    });
+
+    if (!transactions || transactions.length === 0) {
+      return false;
+    }
+
+    const { amountIn, amountOut, sales } = transactions.reduce(
+      (acc, transaction) => {
+        if (![0, 2, 5].includes(transaction.type)) {
+          acc.amountIn += transaction._sum.amount_in || 0;
+          acc.amountOut += Number(transaction._sum.amount_out || 0);
+        }
+        if (transaction.type === 4) {
+          const amountIn = Number(transaction._sum.amount_in ?? 0);
+          const amountOut = Number(transaction._sum.amount_out ?? 0);
+          acc.sales += amountIn - amountOut;
+        }
+        return acc;
+      },
+      { amountIn: 0, amountOut: 0, sales: 0 },
+    );
+
+    const createdAt = new Date(Number(cashDrawer!.created_at));
+    const closedAt = new Date(Number(cashDrawer!.closed_at));
+
+    const other = await this.prisma.payment_methods.findMany({
+      include: {
+        invoice: {
+          select: {
+            payment_amount: true,
+          },
+          where: {
+            created_at: {
+              gte: createdAt,
+              lte: closedAt,
+            },
+          },
+        },
+      },
+    });
+    const result = other.reduce(
+      (acc: Record<string, number>, item) => {
+        const key = item.name?.toLowerCase();
+        const total = item.invoice.reduce(
+          (sum, inv) => sum + (inv.payment_amount || 0),
+          0,
+        );
+        if (key !== undefined) {
+          acc[key] = total;
+        }
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    console.log('other', result);
+
+    return {
+      ...result,
+      cashIn: amountIn,
+      cashOut: amountOut,
+      sales: sales,
+    };
   }
 }

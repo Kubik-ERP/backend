@@ -44,7 +44,7 @@ export class CashDrawerController {
   constructor(
     private readonly service: CashDrawerService,
     private readonly userService: UsersService,
-  ) {}
+  ) { }
 
   @HttpCode(200)
   @ApiOperation({ summary: 'Get Cash Drawer List' })
@@ -289,19 +289,27 @@ export class CashDrawerController {
     };
   }
 
-  @Get('transaction/summary')
+  @Get('transaction/summary/:cashDrawerId')
   @ApiParam({
     name: 'cashDrawerId',
     description: 'ID of the cash drawer',
   })
   async getCashdrawerTransSummary(@Param('cashDrawerId') cashDrawerId: string) {
+    const res =await this.service.getCashDrawerTransactionsSummary(cashDrawerId);
+    if (!res) {
+      return {
+        message: 'No transactions found for this cash drawer',
+        result: null,
+      };
+    }
+
     const result = {
-      points: 0,
-      debits: 0,
-      wallet: 0,
-      sales: 0,
-      cashIn: 0,
-      cashOut: 0,
+      points: res.points || 0,
+      debits: res.debit || 0,
+      wallet: res.qris || 0,
+      sales: res.sales || 0,
+      cashIn: res.cashIn || 0,
+      cashOut: res.cashOut || 0,
     };
 
     return {
