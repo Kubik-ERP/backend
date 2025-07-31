@@ -14,6 +14,8 @@ import { StorageServiceModule } from '../storage-service/storage-service.module'
 import { TemplatesEmailModule } from '../templates-email/templates-email.module';
 import { KitchenModule } from '../kitchen/kitchen.module';
 import { KitchenService } from '../kitchen/services/kitchen.service';
+import { VariantsService } from '../variants/variants.service';
+import { ProductsService } from '../products/products.service';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { KitchenService } from '../kitchen/services/kitchen.service';
     ChargesService,
     StoresService,
     KitchenService,
+    VariantsService,
+    ProductsService,
   ],
   controllers: [InvoiceSettingController, InvoiceController],
   exports: [

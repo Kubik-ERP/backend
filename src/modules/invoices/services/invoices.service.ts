@@ -17,6 +17,7 @@ import {
   invoice_type,
   order_status,
   order_type,
+  payment_type,
   Prisma,
 } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,6 +30,7 @@ import {
   ProceedInstantPaymentDto,
   ProceedPaymentDto,
   ProductDto,
+  UpsertInvoiceItemDto,
 } from '../dtos/process-payment.dto';
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
@@ -51,6 +53,8 @@ import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
 import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
 import { isUUID } from 'class-validator';
 import { validateStoreId } from 'src/common/helpers/validators.helper';
+import { VariantsService } from '../../variants/variants.service';
+import { ProductsService } from '../../products/products.service';
 
 @Injectable()
 export class InvoiceService {
@@ -63,6 +67,8 @@ export class InvoiceService {
     private readonly _paymentFactory: PaymentFactory,
     private readonly _notificationHelper: NotificationHelper,
     private readonly _mailService: MailService,
+    private readonly _variantService: VariantsService,
+    private readonly _productService: ProductsService,
   ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
@@ -343,7 +349,7 @@ export class InvoiceService {
   ) {
     const storeId = validateStoreId(header.store_id);
 
-    await this.validatePaymentMethod(request.paymentMethodId);
+    await this.validatePaymentMethod(request.paymentMethodId, request.provider);
 
     const paymentProvider =
       request.provider === 'cash'
@@ -611,6 +617,381 @@ export class InvoiceService {
     return result;
   }
 
+  public async processUpsertInvoiceItems(
+    header: ICustomRequestHeaders,
+    invoiceId: string,
+    request: UpsertInvoiceItemDto,
+  ) {
+    const storeId = validateStoreId(header.store_id);
+    await this._prisma.$transaction(
+      async (tx) => {
+        // Retrieve the invoice record and ensure it is not already paid
+        const invoice = await this.findInvoiceId(invoiceId);
+
+        if (invoice.payment_status === payment_type.paid) {
+          throw new BadRequestException(
+            `Invoice payment status is paid, the invoice cannot be changed`,
+          );
+        }
+
+        // Get all existing kitchen queue entries associated with the invoice
+        const kitchenQueues =
+          await this._kitchenQueue.findKitchenQueueByInvoiceId(invoice.id);
+
+        // Get a list of product IDs from frontend payload
+        const feProductIds = request.products.map((p) => p.productId);
+
+        // Iterate through each product in the payload
+        for (const feProduct of request.products) {
+          // note: Check for product variant
+          const validVariantId = await this.validateProductVariant(
+            feProduct.productId,
+            feProduct.variantId,
+          );
+          const productId = feProduct.productId;
+
+          // Group all queues related to the current product
+          const existingQueues = kitchenQueues.filter(
+            (q) => q.product_id === productId,
+          );
+
+          // Split into editable and locked queues based on order_status
+          const editableQueues = existingQueues.filter(
+            (q) => q.order_status === order_status.placed,
+          );
+          const lockedQueues = existingQueues.filter(
+            (q) => q.order_status !== order_status.placed,
+          );
+
+          // Determine if there is any change from frontend input
+          const currentQty = editableQueues.length + lockedQueues.length;
+          const isChanged =
+            feProduct.quantity !== currentQty ||
+            feProduct.notes !==
+              (editableQueues[0]?.notes ?? lockedQueues[0]?.notes ?? '');
+
+          // Check if variant has changed
+          const variantChanged =
+            validVariantId !==
+            (editableQueues[0]?.variant_id ??
+              lockedQueues[0]?.variant_id ??
+              null);
+
+          // If the product is completely new (not in queue), create it
+          if (existingQueues.length === 0) {
+            this.logger.log(`Creating new product ${productId}`);
+            await this.createInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
+            continue;
+          }
+
+          // If no changes detected, skip to next product
+          if (!isChanged && !variantChanged) {
+            this.logger.log(`No change for product ${productId}, skipping...`);
+            continue;
+          }
+
+          // Allow updating variantId only when all queues are still 'placed'
+          if (!isChanged && variantChanged) {
+            const allPlaced = existingQueues.every(
+              (q) => q.order_status === order_status.placed,
+            );
+
+            if (!allPlaced) {
+              this.logger.warn(
+                `Cannot update variant for product ${productId} because one or more items are already in process`,
+              );
+              throw new BadRequestException(
+                `Cannot update variant for product ${productId}, already in process.`,
+              );
+            }
+
+            this.logger.log(
+              `Updating variant for product ${productId} to ${validVariantId}`,
+            );
+
+            await tx.kitchen_queue.updateMany({
+              where: {
+                invoice_id: invoice.id,
+                product_id: productId,
+                order_status: order_status.placed,
+              },
+              data: {
+                variant_id: validVariantId,
+              },
+            });
+
+            await tx.invoice_details.updateMany({
+              where: {
+                invoice_id: invoice.id,
+                product_id: productId,
+              },
+              data: {
+                variant_id: validVariantId,
+              },
+            });
+
+            continue;
+          }
+
+          // Update invoice_details entry with new quantity and notes
+          await tx.invoice_details.updateMany({
+            where: {
+              invoice_id: invoice.id,
+              product_id: productId,
+            },
+            data: {
+              qty: feProduct.quantity,
+              notes: feProduct.notes,
+            },
+          });
+
+          const desiredQty = feProduct.quantity;
+          const lockedQty = lockedQueues.length;
+          const editableQty = editableQueues.length;
+
+          // Prevent reduction below locked/in-progress quantity
+          if (desiredQty < lockedQty) {
+            this.logger.error(
+              `Cannot reduce quantity of product ${productId} below ${lockedQty} due to existing processed items`,
+            );
+            throw new BadRequestException(
+              `Cannot reduce quantity of product ${productId} below items already in progress (${lockedQty})`,
+            );
+          }
+
+          const allowedEdit = desiredQty - lockedQty;
+
+          // If more queue entries needed, create additional 'placed' rows
+
+          if (allowedEdit > editableQueues.length) {
+            const toAdd = allowedEdit - editableQueues.length;
+            this.logger.log(`Adding ${toAdd} queue(s) for ${productId}`);
+            for (let i = 0; i < toAdd; i++) {
+              await tx.kitchen_queue.create({
+                data: {
+                  id: uuidv4(),
+                  invoice_id: invoice.id,
+                  product_id: productId,
+                  variant_id: validVariantId || null,
+                  order_status: order_status.placed,
+                  notes: feProduct.notes ?? null,
+                  created_at: new Date(),
+                  store_id: invoice.store_id!,
+                  order_type: invoice.order_type!,
+                },
+              });
+            }
+          }
+          // If fewer queue entries needed, delete some 'placed' ones
+          else if (allowedEdit < editableQueues.length) {
+            const toDelete = editableQueues.slice(
+              0,
+              editableQueues.length - allowedEdit,
+            );
+            this.logger.log(
+              `Removing ${toDelete.length} queue(s) for ${productId}`,
+            );
+            for (const item of toDelete) {
+              await tx.kitchen_queue.delete({
+                where: { id: item.id },
+              });
+            }
+          }
+        }
+
+        // Handle deletion of products that were removed from frontend payload
+        const toDeleteProductIds = kitchenQueues
+          .map((q) => q.product_id)
+          .filter((pid) => !feProductIds.includes(pid));
+
+        const uniqueToDelete = [...new Set(toDeleteProductIds)];
+
+        for (const productId of uniqueToDelete) {
+          const productQueues = kitchenQueues.filter(
+            (q) => q.product_id === productId,
+          );
+
+          // Do not allow deletion if any queue has been processed
+          const hasInProgress = productQueues.some(
+            (q) => q.order_status !== order_status.placed,
+          );
+
+          if (hasInProgress) {
+            this.logger.warn(
+              `Skipping deletion for product ${productId} due to existing in_progress queue`,
+            );
+            throw new BadRequestException(
+              `Product ${productId} cannot be deleted, already in process.`,
+            );
+          }
+
+          this.logger.log(`Deleting product ${productId}...`);
+          await tx.kitchen_queue.deleteMany({
+            where: {
+              invoice_id: invoice.id,
+              product_id: productId,
+            },
+          });
+
+          await tx.invoice_details.deleteMany({
+            where: {
+              invoice_id: invoice.id,
+              product_id: productId,
+            },
+          });
+        }
+      },
+      {
+        timeout: 300_000,
+      },
+    );
+
+    // notify the FE
+    this._notificationHelper.notifyNewOrder(storeId);
+
+    // All operations successful
+    return { message: 'Invoice products processed successfully' };
+  }
+
+  // Helper to create invoice_detail + kitchen_queue
+  private async createInvoiceAndKitchenQueueItem(
+    tx: Prisma.TransactionClient,
+    invoice: invoice,
+    product: ProductDto,
+  ) {
+    let productPrice = 0;
+    let variantPrice = 0;
+
+    const productData = await this._prisma.products.findFirst({
+      where: { id: product.productId },
+      select: { price: true, discount_price: true },
+    });
+
+    if (!productData) {
+      throw new BadRequestException(
+        `Product with id ${product.productId} not found`,
+      );
+    }
+
+    if (productData.discount_price == 0) {
+      productPrice = productData.price ?? 0;
+    } else {
+      productPrice = productData.discount_price ?? 0;
+    }
+
+    if (product.variantId !== '') {
+      const variant = await this._variantService.getVariant(product.variantId);
+      variantPrice = variant?.price;
+    }
+
+    const invoiceDetailData = {
+      id: uuidv4(),
+      invoice_id: invoice.id,
+      product_id: product.productId,
+      product_price: productPrice,
+      notes: product.notes ?? null,
+      qty: product.quantity,
+      variant_id: product.variantId ?? null,
+      variant_price: variantPrice ?? 0,
+    };
+
+    await this.createInvoiceDetail(tx, invoiceDetailData);
+
+    for (let i = 0; i < product.quantity; i++) {
+      await this._kitchenQueue.createKitchenQueue(tx, [
+        {
+          id: uuidv4(),
+          invoice_id: invoice.id,
+          product_id: product.productId,
+          variant_id: product.variantId,
+          notes: product.notes ?? null,
+          order_status: order_status.placed,
+          created_at: new Date(),
+          order_type: invoice.order_type ?? order_type.dine_in, // dine_in order type is more often
+          store_id: invoice.store_id ?? '',
+          table_code: invoice.table_code ?? '',
+          customer_id: invoice.customer_id,
+        },
+      ]);
+    }
+  }
+
+  // Helper to update invoice_detail + kitchen_queue
+  private async updateInvoiceAndKitchenQueueItem(
+    tx: Prisma.TransactionClient,
+    invoice: invoice,
+    product: ProductDto,
+  ) {
+    let variantTotal = await this.calculateProductVariantTotal(
+      product.variantId,
+      product.quantity,
+    );
+
+    let productTotal = await this.calculateProductTotal(
+      product.productId,
+      product.quantity,
+    );
+
+    // update invoice detail
+    await this.upsertInvoiceDetail(
+      tx,
+      {
+        qty: product.quantity,
+        notes: product.notes ?? null,
+        productTotal: productTotal ?? 0,
+        variantTotal: variantTotal ?? 0,
+      },
+      {
+        invoice_id: invoice.id,
+        product_id: product.productId,
+        variant_id: product.variantId,
+      },
+    );
+
+    // update kitchen queue
+    await this._kitchenQueue.updateKitchenQueue(
+      tx,
+      {
+        notes: product.notes ?? null,
+      },
+      {
+        invoice_id: invoice.id,
+        product_variant_id: product.variantId,
+      },
+    );
+  }
+
+  // Helper to calculate total price (fetch variant price from DB)
+  private async calculateProductVariantTotal(
+    variantId: string,
+    qty: number,
+  ): Promise<number> {
+    if (variantId !== '') {
+      const variant = await this._variantService.getVariant(variantId);
+      return variant?.price * qty;
+    }
+
+    return 0;
+  }
+
+  private async calculateProductTotal(
+    productId: string,
+    qty: number,
+  ): Promise<number> {
+    if (productId !== '') {
+      const product = await this._productService.getProduct(productId);
+
+      // use the discounted price
+      if (product.discount_price !== 0) {
+        return product?.discount_price * qty;
+      }
+
+      return product?.price * qty;
+    }
+
+    return 0;
+  }
+
   public async proceedPayment(request: ProceedPaymentDto) {
     // Check the invoice is unpaid
     const invoice = await this.findInvoiceId(request.invoiceId);
@@ -619,7 +1000,7 @@ export class InvoiceService {
       throw new BadRequestException(`Invoice status is not unpaid`);
     }
 
-    await this.validatePaymentMethod(request.paymentMethodId);
+    await this.validatePaymentMethod(request.paymentMethodId, request.provider);
 
     // define payment method and provider
     const paymentProvider =
@@ -831,7 +1212,9 @@ export class InvoiceService {
 
       if (!product) {
         this.logger.error(`Product with ID ${item.productId} not found`);
-        throw new Error(`Product with ID ${item.productId} not found`);
+        throw new NotFoundException(
+          `Product with ID ${item.productId} not found`,
+        );
       }
 
       // using the discounted price to proceed calculation
@@ -993,14 +1376,24 @@ export class InvoiceService {
     };
   }
 
-  private async validatePaymentMethod(methodId: string) {
-    const paymentMethod = await this._prisma.payment_methods.findUnique({
-      where: { id: methodId },
+  private async validatePaymentMethod(methodId: string, provider: string) {
+    const paymentMethod = await this._prisma.payment_methods.findFirst({
+      where: {
+        id: methodId,
+        name: {
+          contains: provider,
+          mode: 'insensitive',
+        },
+      },
     });
 
     if (!paymentMethod) {
-      this.logger.error(`Unsupported payment method: ${methodId}`);
-      throw new BadRequestException(`Unsupported payment method: ${methodId}`);
+      this.logger.error(
+        `Unsupported payment method: ${methodId} with payment name ${provider}`,
+      );
+      throw new BadRequestException(
+        `Unsupported payment method: ${methodId} with payment name ${provider}`,
+      );
     }
 
     return paymentMethod;
@@ -1280,6 +1673,7 @@ export class InvoiceService {
           invoice_id: invoiceDetail.invoice_id,
           product_id: invoiceDetail.product_id,
           product_price: invoiceDetail.product_price,
+          variant_price: invoiceDetail.variant_price,
           notes: invoiceDetail.notes,
           qty: invoiceDetail.qty,
           variant_id:
@@ -1289,6 +1683,63 @@ export class InvoiceService {
     } catch (error) {
       this.logger.error('Failed to create invoice detail');
       throw new BadRequestException('Failed to create invoice detail', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  public async upsertInvoiceDetail(
+    tx: Prisma.TransactionClient,
+    data: {
+      qty: number;
+      notes?: string | null;
+      productTotal: number;
+      variantTotal: number;
+    },
+    where: {
+      invoice_id: string;
+      product_id: string;
+      variant_id: string;
+    },
+  ): Promise<invoice_details> {
+    try {
+      const variantId =
+        where.variant_id === '' || !where.variant_id ? null : where.variant_id;
+
+      const existing = await tx.invoice_details.findFirst({
+        where: {
+          invoice_id: where.invoice_id,
+          product_id: where.product_id,
+          variant_id: variantId,
+        },
+      });
+
+      if (existing) {
+        this.logger.log(
+          `Invoice detail already exists for invoice_id=${where.invoice_id}, product_id=${where.product_id}, variant_id=${variantId}`,
+        );
+
+        return existing;
+      }
+
+      const invoiceId = uuidv4();
+      const newDataInvoiceDetails = {
+        id: invoiceId,
+        invoice_id: where.invoice_id,
+        variant_id: variantId,
+        qty: data.qty,
+        notes: data.notes ?? null,
+        product_price: data.productTotal,
+        variant_price: data.variantTotal,
+      };
+
+      return await tx.invoice_details.create({
+        data: newDataInvoiceDetails,
+      });
+    } catch (error) {
+      this.logger.error('Failed to upsert invoice detail', error.message);
+      throw new BadRequestException('Failed to upsert invoice detail', {
         cause: new Error(),
         description: error.message,
       });

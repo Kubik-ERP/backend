@@ -170,6 +170,8 @@ export class ProceedPaymentDto {
   public paymentMethodId: string;
 }
 
+export class UpsertInvoiceItemDto extends ProductListDto {}
+
 export class CalculationEstimationDto extends ProductListDto {
   @ApiProperty({
     description: 'Type of the order',
