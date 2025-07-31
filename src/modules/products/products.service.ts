@@ -137,7 +137,7 @@ export class ProductsService {
       ...(category_id.length > 0 && {
         categories_has_products: {
           some: {
-            categoriesId: {
+            categories_id: {
               in: category_id,
             },
           },
