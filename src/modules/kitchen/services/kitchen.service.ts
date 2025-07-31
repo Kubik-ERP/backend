@@ -405,7 +405,7 @@ export class KitchenService {
     },
   ) {
     try {
-      // 1️⃣ Cari dulu queue yang match
+      // Cari dulu queue yang match
       const existing = await tx.kitchen_queue.findFirst({
         where: {
           invoice_id: where.invoice_id,
@@ -420,7 +420,7 @@ export class KitchenService {
         );
       }
 
-      // 2️⃣ Update pakai primary key id (atau composite key sesuai schema)
+      // Update pakai primary key id (atau composite key sesuai schema)
       return await tx.kitchen_queue.update({
         where: { id: existing.id },
         data: {
