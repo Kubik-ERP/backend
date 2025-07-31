@@ -33,10 +33,12 @@ import { GenerateInvoiceNumberResponseDto } from '../dtos/GenerateInvoiceNumberR
 import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
 // Enum
 import { EmailTemplateType } from '../../../enum/EmailTemplateType-enum';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Controller('invoice')
 export class InvoiceController {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly invoiceService: InvoiceService,
     private readonly templatesEmailService: TemplatesEmailService,
   ) {}
@@ -198,11 +200,20 @@ export class InvoiceController {
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @Post('process/payment')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @ApiOperation({
     summary: 'Pay the unpaid invoice',
   })
-  public async processPayment(@Body() body: ProceedPaymentDto) {
-    const response = await this.invoiceService.proceedPayment(body);
+  public async processPayment(
+    @Req() req: ICustomRequestHeaders,
+    @Body() body: ProceedPaymentDto,
+  ) {
+    const response = await this.invoiceService.proceedPayment(req, body);
     return {
       result: toCamelCase(response),
     };
@@ -243,10 +254,11 @@ export class InvoiceController {
   public async calculateEstimation(
     @Body() requestData: CalculationEstimationDto,
   ) {
-    const result = await this.invoiceService.calculateTotal(requestData);
-
-    return {
-      result,
-    };
+    await this.prisma.$transaction(async (tx) => {
+      const result = await this.invoiceService.calculateTotal(tx, requestData);
+      return {
+        result,
+      };
+    });
   }
 }

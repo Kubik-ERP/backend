@@ -14,6 +14,7 @@ import { StorageServiceModule } from '../storage-service/storage-service.module'
 import { TemplatesEmailModule } from '../templates-email/templates-email.module';
 import { KitchenModule } from '../kitchen/kitchen.module';
 import { KitchenService } from '../kitchen/services/kitchen.service';
+import { CashDrawerService } from '../cash-drawer/services/cash-drawer.service';
 import { VariantsService } from '../variants/variants.service';
 import { ProductsService } from '../products/products.service';
 
@@ -34,6 +35,7 @@ import { ProductsService } from '../products/products.service';
     ChargesService,
     StoresService,
     KitchenService,
+    CashDrawerService,
     VariantsService,
     ProductsService,
   ],
@@ -44,6 +46,7 @@ import { ProductsService } from '../products/products.service';
     NotificationHelper,
     PaymentLogsService,
     ChargesService,
+    CashDrawerService,
   ],
 })
 export class InvoicesModule {}
