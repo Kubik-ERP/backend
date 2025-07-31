@@ -254,11 +254,13 @@ export class InvoiceController {
   public async calculateEstimation(
     @Body() requestData: CalculationEstimationDto,
   ) {
+    let result;
     await this.prisma.$transaction(async (tx) => {
-      const result = await this.invoiceService.calculateTotal(tx, requestData);
-      return {
-        result,
-      };
+      result = await this.invoiceService.calculateTotal(tx, requestData);
     });
+
+    return {
+      result,
+    };
   }
 }
