@@ -409,12 +409,12 @@ export class InvoiceService {
           change_amount: null,
         };
 
+        // create invoice with status unpaid
+        await this.create(tx, invoiceData);
+
         // calculate the grand total
         const calculation = await this.calculateTotal(tx, request, invoiceId);
         grandTotal = calculation.grandTotal;
-
-        // create invoice with status unpaid
-        await this.create(tx, invoiceData);
 
         // update invoice
         await this.update(tx, invoiceId, {
@@ -515,7 +515,7 @@ export class InvoiceService {
           );
         }
       },
-      { timeout: 300_000 },
+      { timeout: 500_000 },
     );
 
     // notify the FE
@@ -1566,6 +1566,7 @@ export class InvoiceService {
   ) {
     // update insert data of invoice charge
     const invoiceCharge = await this.getInvoiceChargeById(
+      tx,
       request.invoice_id,
       request.charge_id,
     );
@@ -1890,9 +1891,13 @@ export class InvoiceService {
   /**
    * @description Get invoice charge data
    */
-  public async getInvoiceChargeById(invoiceId: string, chargeId: string) {
+  public async getInvoiceChargeById(
+    tx: Prisma.TransactionClient,
+    invoiceId: string,
+    chargeId: string,
+  ) {
     try {
-      return await this._prisma.invoice_charges.findFirst({
+      return await tx.invoice_charges.findFirst({
         where: { invoice_id: invoiceId, charge_id: chargeId },
       });
     } catch (error) {
