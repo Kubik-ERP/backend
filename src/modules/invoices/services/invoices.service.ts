@@ -685,7 +685,9 @@ export class InvoiceService {
 
           // Group all queues related to the current product
           const existingQueues = kitchenQueues.filter(
-            (q) => q.product_id === productId,
+            (q) =>
+              q.product_id === productId &&
+              (q.variant_id ?? null) === (validVariantId ?? null),
           );
 
           // Split into editable and locked queues based on order_status
@@ -832,6 +834,27 @@ export class InvoiceService {
           }
         }
 
+        // List productId + variantId pairs from DB
+        const dbProductPairs = kitchenQueues.map((q) => ({
+          productId: q.product_id,
+          variantId: q.variant_id ?? null,
+        }));
+
+        // Create a list of pairs from the frontend
+        const feProductPairs = request.products.map((p) => ({
+          productId: p.productId,
+          variantId: p.variantId?.trim() === '' ? null : p.variantId,
+        }));
+
+        const toDeletePairs = dbProductPairs.filter(
+          (dbItem) =>
+            !feProductPairs.some(
+              (feItem) =>
+                feItem.productId === dbItem.productId &&
+                (feItem.variantId ?? null) === (dbItem.variantId ?? null),
+            ),
+        );
+
         // Handle deletion of products that were removed from frontend payload
         const toDeleteProductIds = kitchenQueues
           .map((q) => q.product_id)
@@ -839,9 +862,13 @@ export class InvoiceService {
 
         const uniqueToDelete = [...new Set(toDeleteProductIds)];
 
-        for (const productId of uniqueToDelete) {
+        for (const pair of toDeletePairs) {
+          const { productId, variantId } = pair;
+
           const productQueues = kitchenQueues.filter(
-            (q) => q.product_id === productId,
+            (q) =>
+              q.product_id === productId &&
+              (q.variant_id ?? null) === (variantId ?? null),
           );
 
           // Do not allow deletion if any queue has been processed
@@ -863,6 +890,7 @@ export class InvoiceService {
             where: {
               invoice_id: invoice.id,
               product_id: productId,
+              variant_id: variantId,
             },
           });
 
@@ -870,6 +898,7 @@ export class InvoiceService {
             where: {
               invoice_id: invoice.id,
               product_id: productId,
+              variant_id: variantId,
             },
           });
         }
