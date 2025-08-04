@@ -172,7 +172,7 @@ export class VouchersService {
         data: {
           // voucher data
           ...toSnakeCase(rest),
-          stores_id: store_id,
+          store_id: store_id,
           updated_at: new Date(),
 
           // voucher has products data

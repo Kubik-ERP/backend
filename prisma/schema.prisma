@@ -544,7 +544,7 @@ model stores {
   stores_has_products       stores_has_products[]
   tables                    tables[]
   user_has_stores           user_has_stores[]
-  voucher                   voucher?
+  voucher                   voucher[]
 }
 
 model stores_has_employees {
@@ -686,7 +686,7 @@ model voucher {
   created_at           DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
   updated_at           DateTime?              @db.Timestamp(6)
   store_id             String                 @db.Uuid
-  stores               stores                 @relation(fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "voucher_stores_fk")
+  stores               stores                 @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "voucher_stores_fk")
   voucher_commissions  voucher_commissions[]
   voucher_has_products voucher_has_products[]
 }
