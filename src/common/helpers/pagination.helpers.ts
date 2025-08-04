@@ -44,3 +44,25 @@ export const formatPaginatedResult = <T>(
     },
   };
 };
+
+/**
+ * Get total pages
+ *
+ * @param total - Total items
+ * @param pageSize - Item per page
+ * @returns Total pages
+ */
+export const getTotalPages = (total: number, pageSize: number) => {
+  return Math.ceil(total / pageSize);
+};
+
+/**
+ * Get offset
+ *
+ * @param page - Current page
+ * @param pageSize - Item per page
+ * @returns Offset
+ */
+export const getOffset = (page: number, pageSize: number) => {
+  return (page - 1) * pageSize;
+};
