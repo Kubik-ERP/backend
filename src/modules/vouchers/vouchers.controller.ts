@@ -9,6 +9,7 @@ import {
   Req,
   Put,
   Delete,
+  BadRequestException,
 } from '@nestjs/common';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { VouchersService } from './vouchers.service';
@@ -31,9 +32,12 @@ export class VouchersController {
   })
   @ApiBearerAuth()
   @Get()
-  async findAll(@Query() query: VouchersListDto) {
+  async findAll(
+    @Query() query: VouchersListDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
     try {
-      const vouchers = await this.vouchersService.findAll(query);
+      const vouchers = await this.vouchersService.findAll(query, req);
       return {
         statusCode: 200,
         message: 'Vouchers fetched successfully',
@@ -60,7 +64,7 @@ export class VouchersController {
   @Get(':id')
   async findOne(@Req() req: ICustomRequestHeaders, @Param('id') id: string) {
     try {
-      const voucher = await this.vouchersService.findOne(id);
+      const voucher = await this.vouchersService.findOne(id, req);
       return {
         statusCode: 200,
         message: 'Voucher fetched successfully',
@@ -89,7 +93,7 @@ export class VouchersController {
     @Req() req: ICustomRequestHeaders,
     @Body() createVoucherDto: CreateVoucherDto,
   ) {
-    const newVoucher = await this.vouchersService.create(createVoucherDto);
+    const newVoucher = await this.vouchersService.create(createVoucherDto, req);
 
     return {
       statusCode: 201,
@@ -116,6 +120,7 @@ export class VouchersController {
     const updatedVoucher = await this.vouchersService.update(
       id,
       updateVoucherDto,
+      req,
     );
 
     return {
@@ -135,9 +140,9 @@ export class VouchersController {
     required: true,
     schema: { type: 'string' },
   })
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string, @Req() req: ICustomRequestHeaders) {
     try {
-      await this.vouchersService.remove(id);
+      await this.vouchersService.remove(id, req);
       return {
         statusCode: 200,
         message: 'Voucher deleted successfully',

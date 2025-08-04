@@ -33,6 +33,10 @@ export function camelToSnake(str: string): string {
   return str.replace(/([A-Z])/g, '_$1').toLowerCase();
 }
 
+function isDateString(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export function toSnakeCase(obj: any): any {
   if (Array.isArray(obj)) {
     return obj.map((v) => toSnakeCase(v));
@@ -43,7 +47,9 @@ export function toSnakeCase(obj: any): any {
         const value = obj[key];
 
         if (value instanceof Date) {
-          acc[snakeKey] = value.toISOString();
+          acc[snakeKey] = value;
+        } else if (typeof value === 'string' && isDateString(value)) {
+          acc[snakeKey] = new Date(value);
         } else if (typeof value === 'bigint') {
           acc[snakeKey] = parseFloat(value.toString());
         } else if (value instanceof Number) {

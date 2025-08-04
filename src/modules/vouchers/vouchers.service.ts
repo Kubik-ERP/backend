@@ -7,7 +7,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { VouchersListDto } from './dto/vouchers-list.dto';
 import { Prisma } from '@prisma/client';
 import { getStatus } from './vouchers.util';
-import { IVoucher } from './interfaces/vouchers.interface';
 import {
   camelToSnake,
   toSnakeCase,
@@ -23,7 +22,13 @@ import {
 export class VouchersService {
   constructor(private readonly _prisma: PrismaService) {}
 
-  async findAll(query: VouchersListDto) {
+  async findAll(query: VouchersListDto, header: ICustomRequestHeaders) {
+    // --- Memastikan store_id ada di header
+    const store_id = header.store_id;
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
     // --- Filter
     const createdAtFilter: Record<string, Date> = {};
     if (query.startDate) {
@@ -38,6 +43,9 @@ export class VouchersService {
       ...(Object.keys(createdAtFilter).length > 0 && {
         created_at: createdAtFilter,
       }),
+
+      // filter by store_id
+      store_id: store_id,
     };
 
     // --- Order By
@@ -61,9 +69,17 @@ export class VouchersService {
 
     const [items, total] = await Promise.all([
       this._prisma.voucher.findMany({
+        where: filters,
         skip: getOffset(query.page, query.pageSize),
         take: query.pageSize,
         orderBy: orderBy,
+        include: {
+          voucher_has_products: {
+            include: {
+              products: true,
+            },
+          },
+        },
       }),
       this._prisma.voucher.count({
         where: filters,
@@ -71,7 +87,7 @@ export class VouchersService {
     ]);
 
     // --- Add status to items
-    const vouchers = items.map((item: IVoucher) => ({
+    const vouchers = items.map((item) => ({
       ...item,
       status: getStatus(item),
     }));
@@ -87,9 +103,16 @@ export class VouchersService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, header: ICustomRequestHeaders) {
+    // --- Memastikan store_id ada di header
+    const store_id = header.store_id;
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
+    // --- Cari voucher berdasarkan id dan store_id
     const voucher = await this._prisma.voucher.findUnique({
-      where: { id },
+      where: { id, store_id },
       include: {
         voucher_has_products: {
           include: {
@@ -99,6 +122,7 @@ export class VouchersService {
       },
     });
 
+    // --- Jika voucher tidak ditemukan, throw error
     if (!voucher) {
       throw new NotFoundException(`Voucher with ID ${id} not found`);
     }
@@ -106,19 +130,49 @@ export class VouchersService {
     return voucher;
   }
 
-  async create(dto: CreateVoucherDto) {
+  async create(dto: CreateVoucherDto, header: ICustomRequestHeaders) {
+    // --- Memastikan store_id ada di header
+    const store_id = header.store_id;
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
     const { hasProducts, ...rest } = dto;
 
+    // Assign ke semua product di store
     if (hasProducts?.type === 'all') {
-      const products = await this._prisma.products.findMany();
-      hasProducts.products = products.map((product) => product.id);
+      // Get semua product yang ada di store
+      const storeProducts = await this._prisma.stores_has_products.findMany({
+        where: { stores_id: store_id },
+        select: { products_id: true },
+      });
+      hasProducts.products = storeProducts.map(
+        (product) => product.products_id,
+      );
+    }
+    // Spesifik product
+    else if (hasProducts?.products?.length) {
+      // Verify semua product yang dikirim client ada di store
+      const storeProductsCount = await this._prisma.stores_has_products.count({
+        where: {
+          stores_id: store_id,
+          products_id: { in: hasProducts.products },
+        },
+      });
+
+      if (storeProductsCount !== hasProducts.products.length) {
+        throw new BadRequestException(
+          'Some products do not belong to this store',
+        );
+      }
     }
 
     try {
-      const voucher = await this._prisma.voucher.create({
+      const voucherCreated = await this._prisma.voucher.create({
         data: {
           // voucher data
           ...toSnakeCase(rest),
+          stores_id: store_id,
           updated_at: new Date(),
 
           // voucher has products data
@@ -143,7 +197,7 @@ export class VouchersService {
         },
       });
 
-      return voucher;
+      return voucherCreated;
     } catch (error) {
       if (error.code === 'P2002') {
         throw new BadRequestException(`Duplicate promo code ${dto.promoCode}`);
@@ -154,8 +208,32 @@ export class VouchersService {
     }
   }
 
-  async update(id: string, dto: UpdateVoucherDto) {
+  async update(
+    id: string,
+    dto: UpdateVoucherDto,
+    header: ICustomRequestHeaders,
+  ) {
+    // --- Memastikan store_id ada di header
+    const store_id = header.store_id;
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
     const { hasProducts, ...rest } = dto;
+
+    // --- Verify voucher yang dikirim client ada di store
+    const existingVoucher = await this._prisma.voucher.findFirst({
+      where: {
+        id,
+        store_id,
+      },
+    });
+
+    if (!existingVoucher) {
+      throw new BadRequestException(
+        'Voucher not found or does not belong to this store',
+      );
+    }
 
     let removedProducts: string[] = [];
 
@@ -164,17 +242,43 @@ export class VouchersService {
       // Ambil list product_id yang sudah ada di DB
       const dbVoucherHasProducts =
         await this._prisma.voucher_has_products.findMany({
-          where: { voucher_id: id },
+          where: {
+            voucher_id: id,
+            products: {
+              stores_has_products: {
+                some: {
+                  stores_id: store_id,
+                },
+              },
+            },
+          },
           select: { products_id: true },
         });
 
       // Jika client mengirim hasProducts.type = 'all'
       // Semua product akan di-assign ke voucher
       if (hasProducts?.type === 'all') {
-        const products = await this._prisma.products.findMany({
-          select: { id: true },
+        const storeProducts = await this._prisma.stores_has_products.findMany({
+          where: { stores_id: store_id },
+          select: { products_id: true },
         });
-        hasProducts.products = products.map((product) => product.id);
+        hasProducts.products = storeProducts.map(
+          (product) => product.products_id,
+        );
+      } else if (hasProducts?.products?.length) {
+        // Verify semua product yang dikirim client ada di store
+        const storeProducts = await this._prisma.stores_has_products.findMany({
+          where: {
+            stores_id: store_id,
+            products_id: { in: hasProducts.products },
+          },
+        });
+
+        if (storeProducts.length !== hasProducts.products.length) {
+          throw new BadRequestException(
+            'Some products do not belong to this store',
+          );
+        }
       }
 
       // Melakukan komparasi untuk mengetahui product yang di unassign
@@ -186,13 +290,20 @@ export class VouchersService {
     }
 
     try {
-      this._prisma.$transaction(async (tx) => {
+      const updatedVoucher = await this._prisma.$transaction(async (tx) => {
         // Update voucher data
-        const voucher = await tx.voucher.update({
+        const updatedVoucherWithRelations = await tx.voucher.update({
           where: { id },
           data: {
             ...toSnakeCase(rest),
             updated_at: new Date(),
+          },
+          include: {
+            voucher_has_products: {
+              include: {
+                products: true,
+              },
+            },
           },
         });
 
@@ -230,8 +341,10 @@ export class VouchersService {
           }
         }
 
-        return voucher;
+        return updatedVoucherWithRelations;
       });
+
+      return updatedVoucher;
     } catch (error) {
       if (error.code === 'P2002') {
         throw new BadRequestException(`Duplicate promo code ${dto.promoCode}`);
@@ -242,10 +355,16 @@ export class VouchersService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string, header: ICustomRequestHeaders) {
+    // --- Memastikan store_id ada di header
+    const store_id = header.store_id;
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
     await this._prisma.$transaction(async (tx) => {
       const voucher = await tx.voucher.findUnique({
-        where: { id },
+        where: { id, store_id },
       });
 
       if (!voucher) {
