@@ -11,8 +11,13 @@ export class PaymentMethodService {
   /**
    * @description Find all payment method
    */
-  public async findAllPaymentMethod() {
+  public async findAllPaymentMethod(isSelfOrder = false) {
     return await this._prisma.payment_methods.findMany({
+      where: {
+        ...(isSelfOrder && {
+          name: { in: ['Pay at Cashier', 'QRIS'] },
+        }),
+      },
       orderBy: { sort_no: 'asc' },
     });
   }
