@@ -21,7 +21,7 @@ import {
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CreateSupplierDto, UpdateSupplierDto, GetSuppliersDto } from '../dtos';
 
-@ApiTags('suppliers')
+@ApiTags('Suppliers')
 @Controller('suppliers')
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
