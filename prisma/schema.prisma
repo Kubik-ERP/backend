@@ -715,6 +715,25 @@ model voucher_has_products {
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
 }
 
+model master_suppliers {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplier_name             String
+  contact_person            String
+  phone_number              String    @db.VarChar(20)
+  email                     String?   @unique(map: "idx_master_suppliers_email_unique")
+  address                   String?
+  bank_name                 String?
+  bank_account_number       String?   @db.VarChar(50)
+  bank_account_name         String?
+  tax_identification_number String?   @db.VarChar(50)
+  created_at                DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([contact_person], map: "idx_master_suppliers_contact_person")
+  @@index([phone_number], map: "idx_master_suppliers_phone_number")
+  @@index([supplier_name], map: "idx_master_suppliers_supplier_name")
+}
+
 enum cash_drawer_type {
   open
   close
