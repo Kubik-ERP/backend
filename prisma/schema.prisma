@@ -673,22 +673,23 @@ model variant_has_products {
 }
 
 model voucher {
-  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                 String                 @db.VarChar(45)
-  amount               Float                  @default(0)
-  min_price            Float                  @default(0)
-  max_price            Float                  @default(0)
-  promo_code           String                 @unique @db.VarChar(45)
-  start_period         DateTime               @db.Date
-  end_period           DateTime               @db.Date
-  quota                Int                    @default(0)
-  is_percent           Boolean                @default(false)
-  created_at           DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  updated_at           DateTime?              @db.Timestamp(6)
-  store_id             String                 @db.Uuid
-  stores               stores                 @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "voucher_stores_fk")
-  voucher_commissions  voucher_commissions[]
-  voucher_has_products voucher_has_products[]
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String                 @db.VarChar(45)
+  amount                Float                  @default(0)
+  min_price             Float                  @default(0)
+  max_price             Float                  @default(0)
+  promo_code            String                 @unique @db.VarChar(45)
+  start_period          DateTime               @db.Date
+  end_period            DateTime               @db.Date
+  quota                 Int                    @default(0)
+  is_percent            Boolean                @default(false)
+  created_at            DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at            DateTime?              @db.Timestamp(6)
+  store_id              String                 @db.Uuid
+  is_apply_all_products Boolean                @default(false)
+  stores                stores                 @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "voucher_stores_fk")
+  voucher_commissions   voucher_commissions[]
+  voucher_has_products  voucher_has_products[]
 }
 
 model voucher_commissions {
