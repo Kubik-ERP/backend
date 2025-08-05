@@ -18,10 +18,50 @@ import {
   getTotalPages,
 } from 'src/common/helpers/pagination.helpers';
 import { parseDDMMYYYY } from 'src/common/helpers/common.helpers';
+import { VouchersActiveDto } from './dto/vouchers-active';
 
 @Injectable()
 export class VouchersService {
   constructor(private readonly _prisma: PrismaService) {}
+
+  async findActive(query: VouchersActiveDto, header: ICustomRequestHeaders) {
+    // --- Memastikan store_id ada di header
+    const store_id = header.store_id;
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
+    // --- Filter
+    const filters: Prisma.voucherWhereInput = {
+      // search by name or promo code
+      ...(query.search?.length > 0 && {
+        OR: [
+          { name: { contains: query.search, mode: 'insensitive' } },
+          { promo_code: { contains: query.search, mode: 'insensitive' } },
+        ],
+      }),
+
+      // active voucher
+      start_period: {
+        lte: new Date(),
+      },
+      end_period: {
+        gte: new Date(),
+      },
+
+      // filter by store_id
+      store_id: store_id,
+    };
+
+    const vouchers = await this._prisma.voucher.findMany({
+      where: filters,
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    return vouchers;
+  }
 
   async findAll(query: VouchersListDto, header: ICustomRequestHeaders) {
     // --- Memastikan store_id ada di header
