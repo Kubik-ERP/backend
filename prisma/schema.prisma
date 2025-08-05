@@ -519,32 +519,33 @@ model store_tables {
 }
 
 model stores {
-  id                        String                      @id @db.Uuid
-  name                      String?                     @db.VarChar(45)
-  address                   String?                     @db.VarChar(255)
-  phone_number              String?                     @db.VarChar(45)
-  photo                     String?                     @db.VarChar(45)
-  city                      String?                     @db.VarChar(45)
-  postal_code               String?                     @db.VarChar(45)
-  building                  String?                     @db.VarChar(45)
-  email                     String                      @db.VarChar(255)
-  business_type             String                      @db.VarChar(50)
-  created_at                DateTime?                   @default(now()) @db.Timestamp(6)
-  updated_at                DateTime?                   @default(now()) @db.Timestamp(6)
-  business_owner_has_stores business_owner_has_stores[]
-  cash_drawers              cash_drawers[]
-  customer_has_stores       customer_has_stores[]
-  floor                     floor[]
-  invoice                   invoice[]
-  kitchen_queue             kitchen_queue[]
-  operational_hours         operational_hours[]
-  store_floors              store_floors[]
-  store_has_categories      store_has_categories[]
-  stores_has_employees      stores_has_employees[]
-  stores_has_products       stores_has_products[]
-  tables                    tables[]
-  user_has_stores           user_has_stores[]
-  voucher                   voucher[]
+  id                          String                        @id @db.Uuid
+  name                        String?                       @db.VarChar(45)
+  address                     String?                       @db.VarChar(255)
+  phone_number                String?                       @db.VarChar(45)
+  photo                       String?                       @db.VarChar(45)
+  city                        String?                       @db.VarChar(45)
+  postal_code                 String?                       @db.VarChar(45)
+  building                    String?                       @db.VarChar(45)
+  email                       String                        @db.VarChar(255)
+  business_type               String                        @db.VarChar(50)
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  business_owner_has_stores   business_owner_has_stores[]
+  cash_drawers                cash_drawers[]
+  customer_has_stores         customer_has_stores[]
+  floor                       floor[]
+  invoice                     invoice[]
+  kitchen_queue               kitchen_queue[]
+  operational_hours           operational_hours[]
+  store_floors                store_floors[]
+  store_has_categories        store_has_categories[]
+  stores_has_employees        stores_has_employees[]
+  stores_has_master_suppliers stores_has_master_suppliers[]
+  stores_has_products         stores_has_products[]
+  tables                      tables[]
+  user_has_stores             user_has_stores[]
+  voucher                     voucher[]
 }
 
 model stores_has_employees {
@@ -716,22 +717,31 @@ model voucher_has_products {
 }
 
 model master_suppliers {
-  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  supplier_name             String
-  contact_person            String
-  phone_number              String    @db.VarChar(20)
-  email                     String?   @unique(map: "idx_master_suppliers_email_unique")
-  address                   String?
-  bank_name                 String?
-  bank_account_number       String?   @db.VarChar(50)
-  bank_account_name         String?
-  tax_identification_number String?   @db.VarChar(50)
-  created_at                DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at                DateTime? @default(now()) @db.Timestamptz(6)
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplier_name               String
+  contact_person              String
+  phone_number                String                        @db.VarChar(20)
+  email                       String?                       @unique(map: "idx_master_suppliers_email_unique")
+  address                     String?
+  bank_name                   String?
+  bank_account_number         String?                       @db.VarChar(50)
+  bank_account_name           String?
+  tax_identification_number   String?                       @db.VarChar(50)
+  created_at                  DateTime?                     @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamptz(6)
+  stores_has_master_suppliers stores_has_master_suppliers[]
 
   @@index([contact_person], map: "idx_master_suppliers_contact_person")
   @@index([phone_number], map: "idx_master_suppliers_phone_number")
   @@index([supplier_name], map: "idx_master_suppliers_supplier_name")
+}
+
+model stores_has_master_suppliers {
+  id                  String            @id(map: "store_has_master_suppliers_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stores_id           String?           @db.Uuid
+  master_suppliers_id String?           @db.Uuid
+  master_suppliers    master_suppliers? @relation(fields: [master_suppliers_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_master_suppliers_master_suppliers_id_fk")
+  stores              stores?           @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_master_suppliers_stores_id_fk")
 }
 
 enum cash_drawer_type {
