@@ -15,6 +15,7 @@ import { validate as isUUID } from 'uuid';
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
+  // TODO(rekomendasi): baiknya di bungkus ke dalam db transaction agar bisa rollback jika ada yang gagal
   async create(
     createProductDto: CreateProductDto,
     header: ICustomRequestHeaders,
@@ -95,6 +96,21 @@ export class ProductsService {
             },
           },
         },
+      });
+
+      // Apply product ke voucher yang diterapkan untuk semua product
+      // memiliki is_apply_all_products = true
+      const vouchers = await this.prisma.voucher.findMany({
+        where: {
+          is_apply_all_products: true,
+          store_id: store_id,
+        },
+      });
+      await this.prisma.voucher_has_products.createMany({
+        data: vouchers.map((voucher) => ({
+          voucher_id: voucher.id,
+          products_id: createdProduct.id,
+        })),
       });
 
       return productWithCategories!;
