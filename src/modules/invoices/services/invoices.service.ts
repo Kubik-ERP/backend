@@ -683,7 +683,6 @@ export class InvoiceService {
         // Get a list of product IDs from frontend payload
         const feProductIds = request.products.map((p) => p.productId);
 
-        // time
         const now = new Date();
 
         // Iterate through each product in the payload
