@@ -1,14 +1,14 @@
+import { Transform, Type } from 'class-transformer';
 import {
-  IsOptional,
-  IsInt,
-  IsString,
-  IsEnum,
-  IsDateString,
-  IsArray,
   ArrayNotEmpty,
   ArrayUnique,
+  IsArray,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
 } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
 
 import { order_type } from '@prisma/client';
 
@@ -26,6 +26,14 @@ export class QueryInvoiceDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsString()
+  orderBy?: string;
+
+  @IsOptional()
+  @IsString()
+  orderDirection?: 'asc' | 'desc';
 
   @IsOptional()
   @IsEnum(['unpaid', 'paid', 'partial'], {

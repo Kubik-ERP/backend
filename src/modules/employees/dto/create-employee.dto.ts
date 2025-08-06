@@ -1,26 +1,23 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { gender } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
-  IsArray,
-  IsDateString,
+  IsDate,
   IsEnum,
   IsNumber,
   IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
-import { gender } from '@prisma/client';
 
 export class SocialMediaDto {
   @ApiProperty({ example: 'Instagram', required: false })
-  @IsOptional()
   @IsString()
-  name?: string;
+  name: string;
 
   @ApiProperty({ example: '@budi_santoso', required: false })
-  @IsOptional()
   @IsString()
-  account?: string;
+  account: string;
 }
 
 export class ShiftDto {
@@ -117,19 +114,22 @@ export class CreateEmployeeDto {
   @IsString()
   phoneNumber?: string;
 
-  @ApiProperty({ example: '2024-02-01T00:00:00.000Z', required: false })
+  @ApiProperty({ example: '2024-02-01', required: false })
   @IsOptional()
-  @IsDateString()
-  startDate?: string;
+  @IsDate()
+  @Type(() => Date)
+  startDate?: Date;
 
-  @ApiProperty({ example: '2026-01-31T00:00:00.000Z', required: false })
+  @ApiProperty({ example: '2026-01-31', required: false })
   @IsOptional()
-  @IsDateString()
-  endDate?: string;
+  @IsDate()
+  @Type(() => Date)
+  endDate?: Date;
 
   @ApiProperty({ enum: gender, example: 'MALE', required: false })
   @IsOptional()
   @IsString()
+  @IsEnum(gender)
   gender?: gender;
 
   @ApiProperty({ example: 'Warehouse Staff', required: false })
