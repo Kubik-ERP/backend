@@ -51,6 +51,20 @@ export class VouchersService {
 
       // filter by store_id
       store_id: store_id,
+
+      // OR condition for product filter or apply all
+      OR: [
+        {
+          voucher_has_products: {
+            some: {
+              products_id: { in: query.productIds },
+            },
+          },
+        },
+        {
+          is_apply_all_products: true,
+        },
+      ],
     };
 
     const vouchers = await this._prisma.voucher.findMany({
