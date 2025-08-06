@@ -931,7 +931,13 @@ export class InvoiceService {
     return { message: 'Invoice products processed successfully' };
   }
 
-  // Helper to create invoice_detail + kitchen_queue
+  /**
+   * Helper method to create invoice_detail and kitchen_queue items for a product
+   * @param tx - Prisma transaction client for ensuring data consistency
+   * @param invoice - The invoice record to associate the items with
+   * @param product - Product information including quantity, notes, and variant details
+   * @param now - Consistent timestamp to ensure all related records have the same creation time
+   */
   private async createInvoiceAndKitchenQueueItem(
     tx: Prisma.TransactionClient,
     invoice: invoice,
