@@ -1,17 +1,27 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsNumber, IsString, IsArray } from 'class-validator';
+import {
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 import { Transform, Type } from 'class-transformer';
 
 export class FindAllEmployeeQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
+  @Min(1)
   @Type(() => Number)
   @IsNumber()
-  page?: number;
+  page?: number = 1;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Min(1)
+  @Max(100)
   @Type(() => Number)
   @IsNumber()
   limit?: number;
@@ -20,6 +30,7 @@ export class FindAllEmployeeQueryDto {
   @IsOptional()
   @IsString()
   title?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -31,4 +42,14 @@ export class FindAllEmployeeQueryDto {
   @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
   @IsString({ each: true })
   permission?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  orderBy?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  orderDirection?: 'asc' | 'desc';
 }

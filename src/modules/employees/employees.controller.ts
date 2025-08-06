@@ -1,24 +1,17 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
-  Query,
-  UploadedFile,
-  UseInterceptors,
-  UseGuards,
+  Get,
+  Param,
+  Post,
   Put,
+  Query,
   Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { CreateEmployeeDto } from './dto/create-employee.dto';
-import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { toCamelCase } from '../../common/helpers/object-transformer.helper';
-import { EmployeesService } from './employees.service';
-import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
-import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import {
   ApiBearerAuth,
   ApiConsumes,
@@ -26,8 +19,13 @@ import {
   ApiOperation,
 } from '@nestjs/swagger';
 import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
-import { StoresService } from '../stores/services/stores.service';
+import { toCamelCase } from '../../common/helpers/object-transformer.helper';
+import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import { StorageService } from '../storage-service/services/storage-service.service';
+import { CreateEmployeeDto } from './dto/create-employee.dto';
+import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
+import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { EmployeesService } from './employees.service';
 
 @Controller('employees')
 export class EmployeesController {
@@ -53,31 +51,15 @@ export class EmployeesController {
     @Body() createEmployeeDto: CreateEmployeeDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    try {
-      if (file) {
-        const result = await this.storageService.uploadImage(
-          file.buffer,
-          file.originalname,
-        );
-
-        createEmployeeDto.profilePicture = result.filename;
-      }
-      const newEmployee = await this.employeesService.create(
-        createEmployeeDto,
-        req,
-      );
-      return {
-        statusCode: 201,
-        message: 'Employee created successfully',
-        result: toCamelCase(newEmployee),
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: error.message,
-        result: null,
-      };
-    }
+    const employee = await this.employeesService.create(
+      createEmployeeDto,
+      req,
+      file,
+    );
+    return {
+      message: 'Employee created successfully',
+      result: toCamelCase(employee),
+    };
   }
 
   @UseGuards(AuthenticationJWTGuard)
@@ -93,38 +75,20 @@ export class EmployeesController {
     @Query() query: FindAllEmployeeQueryDto,
     @Req() req: ICustomRequestHeaders,
   ) {
-    try {
-      const employees = await this.employeesService.findAll(query, req);
-      return {
-        statusCode: 200,
-        message: 'Employees fetched successfully',
-        result: toCamelCase(employees),
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: error.message,
-        result: null,
-      };
-    }
+    const data = await this.employeesService.findAll(query, req);
+    return {
+      message: 'Employees fetched successfully',
+      result: toCamelCase(data),
+    };
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    try {
-      const employee = await this.employeesService.findOne(id);
-      return {
-        statusCode: 200,
-        message: 'Employee fetched successfully',
-        result: toCamelCase(employee),
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: error.message,
-        result: null,
-      };
-    }
+    const employee = await this.employeesService.findOne(id);
+    return {
+      message: 'Employee fetched successfully',
+      result: toCamelCase(employee),
+    };
   }
 
   @Put(':id')
@@ -137,48 +101,23 @@ export class EmployeesController {
     @Body() updateEmployeeDto: UpdateEmployeeDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    try {
-      if (file) {
-        const result = await this.storageService.uploadImage(
-          file.buffer,
-          file.originalname,
-        );
-
-        updateEmployeeDto.profilePicture = result.filename;
-      }
-      const updatedEmployee = await this.employeesService.update(
-        id,
-        updateEmployeeDto,
-      );
-      return {
-        statusCode: 200,
-        message: 'Employee updated successfully',
-        result: toCamelCase(updatedEmployee),
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: error.message,
-        result: null,
-      };
-    }
+    const updatedEmployee = await this.employeesService.update(
+      id,
+      updateEmployeeDto,
+      file,
+    );
+    return {
+      message: 'Employee updated successfully',
+      result: toCamelCase(updatedEmployee),
+    };
   }
 
   @Delete(':id')
   async remove(@Param('id') id: string) {
-    try {
-      await this.employeesService.remove(id);
-      return {
-        statusCode: 200,
-        message: 'Employee deleted successfully',
-        result: null,
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: error.message,
-        result: null,
-      };
-    }
+    await this.employeesService.remove(id);
+    return {
+      message: 'Employee deleted successfully',
+      result: null,
+    };
   }
 }

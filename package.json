@@ -67,6 +67,7 @@
     "qrcode": "^1.5.4",
     "reflect-metadata": "latest",
     "rxjs": "latest",
+    "sharp": "^0.34.3",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "speakeasy": "^2.0.0",
