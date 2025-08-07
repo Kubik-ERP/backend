@@ -894,11 +894,18 @@ export class InvoiceService {
           );
 
           if (hasInProgress) {
+            // Get product name for better error message
+            const product = await tx.products.findUnique({
+              where: { id: productId },
+              select: { name: true },
+            });
+            const productName = product?.name || productId;
+
             this.logger.warn(
-              `Skipping deletion for product ${productId} due to existing in_progress queue`,
+              `Skipping deletion for product ${productName} due to existing in_progress queue`,
             );
             throw new BadRequestException(
-              `Product ${productId} cannot be deleted, already in process.`,
+              `Product ${productName} cannot be deleted, already in process.`,
             );
           }
 
