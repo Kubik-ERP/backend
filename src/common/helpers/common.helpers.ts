@@ -53,3 +53,7 @@ export const parseDDMMYYYY = (dateStr: string): Date => {
   const [day, month, year] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day); // month is 0-based
 };
+
+export const percentageToAmount = (percentage: number, total: number) => {
+  return total * (percentage / 100);
+};
