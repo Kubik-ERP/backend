@@ -241,6 +241,7 @@ model invoice {
   users                                      users?                   @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
   invoice_charges                            invoice_charges[]
   invoice_details                            invoice_details[]
+  invoice_has_vouchers                       invoice_has_vouchers?
   kitchen_queue                              kitchen_queue[]
   trn_customer_points                        trn_customer_points[]
 
@@ -426,9 +427,11 @@ model products {
   discount_price          Float?
   picture_url             String?                   @db.VarChar(45)
   is_percent              Boolean?                  @default(false)
+  benefit_free_items      benefit_free_items[]
   categories_has_products categories_has_products[]
   invoice_details         invoice_details[]
   kitchen_queue           kitchen_queue[]
+  loyalty_product_item    loyalty_product_item[]
   product_commissions     product_commissions[]
   recipe                  recipe[]
   stores_has_products     stores_has_products[]
@@ -537,6 +540,7 @@ model stores {
   floor                       floor[]
   invoice                     invoice[]
   kitchen_queue               kitchen_queue[]
+  loyalty_point_settings      loyalty_point_settings[]
   operational_hours           operational_hours[]
   store_floors                store_floors[]
   store_has_categories        store_has_categories[]
@@ -688,6 +692,7 @@ model voucher {
   updated_at            DateTime?              @db.Timestamp(6)
   store_id              String                 @db.Uuid
   is_apply_all_products Boolean                @default(false)
+  invoice_has_vouchers  invoice_has_vouchers[]
   stores                stores                 @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "voucher_stores_fk")
   voucher_commissions   voucher_commissions[]
   voucher_has_products  voucher_has_products[]
@@ -743,6 +748,74 @@ model stores_has_master_suppliers {
   master_suppliers_id String?           @db.Uuid
   master_suppliers    master_suppliers? @relation(fields: [master_suppliers_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_master_suppliers_master_suppliers_id_fk")
   stores              stores?           @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_master_suppliers_stores_id_fk")
+}
+
+model benefit_free_items {
+  id                       String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  loyalty_point_benefit_id String                 @db.Uuid
+  product_id               String                 @db.Uuid
+  quantity                 Int?                   @default(1)
+  created_at               DateTime?              @default(now()) @db.Timestamp(6)
+  updated_at               DateTime?              @default(now()) @db.Timestamp(6)
+  loyalty_points_benefit   loyalty_points_benefit @relation(fields: [loyalty_point_benefit_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "benefit_free_items_loyalty_points_benefit_fk")
+  products                 products               @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "benefit_free_items_products_fk")
+}
+
+model invoice_has_vouchers {
+  id         String  @id @db.Uuid
+  voucher_id String  @db.Uuid
+  invoice_id String  @unique(map: "invoice_has_vouchers_invoice_unique") @db.Uuid
+  min_price  Float   @default(0)
+  invoice    invoice @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_has_vouchers_invoice_fk")
+  voucher    voucher @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_has_vouchers_voucher_fk")
+
+  @@index([voucher_id])
+}
+
+model loyalty_point_settings {
+  id                                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  spend_based                            Boolean?                 @default(false)
+  minimum_transaction                    Int?                     @default(0)
+  points_per_transaction                 Int?                     @default(0)
+  spend_based_points_expiry_days         Int?                     @default(0)
+  spend_based_points_apply_multiple      Boolean?                 @default(false)
+  spend_based_get_points_on_redemption   Boolean?                 @default(false)
+  product_based                          Boolean?                 @default(false)
+  product_based_points_expiry_days       Int?                     @default(0)
+  product_based_points_apply_multiple    Boolean?                 @default(false)
+  product_based_get_points_on_redemption Boolean?                 @default(false)
+  created_at                             DateTime?                @default(now()) @db.Timestamp(6)
+  updated_at                             DateTime?                @default(now()) @db.Timestamp(6)
+  storesId                               String?                  @db.Uuid
+  stores                                 stores?                  @relation(fields: [storesId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyalty_point_settings_stores_fk")
+  loyalty_points_benefit                 loyalty_points_benefit[]
+  loyalty_product_item                   loyalty_product_item[]
+}
+
+model loyalty_product_item {
+  id                       String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  loyalty_point_setting_id String                 @db.Uuid
+  product_id               String                 @db.Uuid
+  points                   Int?                   @default(0)
+  minimum_transaction      Int?                   @default(1)
+  created_at               DateTime?              @default(now()) @db.Timestamp(6)
+  updated_at               DateTime?              @default(now()) @db.Timestamp(6)
+  loyalty_point_settings   loyalty_point_settings @relation(fields: [loyalty_point_setting_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyalty_product_item_loyalty_point_settings_fk")
+  products                 products               @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyalty_product_item_products_fk")
+}
+
+model loyalty_points_benefit {
+  id                       String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  loyalty_point_setting_id String                 @db.Uuid
+  type                     benefit_type
+  benefit_name             String?                @db.VarChar(45)
+  points_needs             Int?                   @default(0)
+  discount_value           Int?                   @default(0)
+  is_percent               Boolean?               @default(false)
+  created_at               DateTime?              @default(now()) @db.Timestamp(6)
+  updated_at               DateTime?              @default(now()) @db.Timestamp(6)
+  benefit_free_items       benefit_free_items[]
+  loyalty_point_settings   loyalty_point_settings @relation(fields: [loyalty_point_setting_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyalty_points_benefit_loyalty_point_settings_fk")
 }
 
 enum cash_drawer_type {
@@ -809,4 +882,9 @@ enum voucher_status {
   active
   expired
   upcoming
+}
+
+enum benefit_type {
+  free_items
+  discount
 }
