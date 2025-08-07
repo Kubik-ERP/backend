@@ -33,14 +33,6 @@ export class VouchersService {
 
     // --- Filter
     const filters: Prisma.voucherWhereInput = {
-      // search by name or promo code
-      ...(query.search?.length > 0 && {
-        OR: [
-          { name: { contains: query.search, mode: 'insensitive' } },
-          { promo_code: { contains: query.search, mode: 'insensitive' } },
-        ],
-      }),
-
       // active voucher
       start_period: {
         lte: new Date(),
@@ -52,17 +44,30 @@ export class VouchersService {
       // filter by store_id
       store_id: store_id,
 
-      // OR condition for product filter or apply all
-      OR: [
+      AND: [
         {
-          voucher_has_products: {
-            some: {
-              products_id: { in: query.productIds },
-            },
-          },
+          // search by name or promo code
+          ...(query.search?.length > 0 && {
+            OR: [
+              { name: { contains: query.search, mode: 'insensitive' } },
+              { promo_code: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }),
         },
         {
-          is_apply_all_products: true,
+          // OR condition for product filter or apply all
+          OR: [
+            {
+              voucher_has_products: {
+                some: {
+                  products_id: { in: query.productIds },
+                },
+              },
+            },
+            {
+              is_apply_all_products: true,
+            },
+          ],
         },
       ],
     };
