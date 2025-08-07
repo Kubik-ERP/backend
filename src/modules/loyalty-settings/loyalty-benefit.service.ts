@@ -6,7 +6,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { LoyaltyProductItemQueryDto } from './dto/loyalty-product-items-query.dto';
-import { UpdateLoyaltySettingDto } from './dto/update-loyalty-setting.dto';
+import { UpdateBenefitDto } from './dto/update-benefit.dto';
 
 @Injectable()
 export class LoyaltyBenefitService {
@@ -132,74 +132,58 @@ export class LoyaltyBenefitService {
     return `This action returns a #${id} loyaltySetting`;
   }
 
-  async update(id: string, updateLoyaltySettingDto: UpdateLoyaltySettingDto) {
-    const existingSetting = await this.prisma.loyalty_point_settings.findUnique(
+  async update(id: string, updateBenefitDto: UpdateBenefitDto) {
+    console.log('Update Benefit DTO:', updateBenefitDto);
+    const existingBenefit = await this.prisma.loyalty_points_benefit.findUnique(
       {
         where: { id },
       },
     );
-    if (!existingSetting) {
-      throw new NotFoundException('Loyalty setting not found');
+    if (!existingBenefit) {
+      throw new NotFoundException('Loyalty benefit not found');
     }
-    const loyaltySetting = await this.prisma.loyalty_point_settings.update({
+    if (existingBenefit.type === 'free_items' && updateBenefitDto.items) {
+      try {
+        console.log(
+          'Deleting existing item benefits for benefit ID:',
+          existingBenefit.id,
+        );
+        await this.prisma.benefit_free_items.deleteMany({
+          where: { loyalty_point_benefit_id: existingBenefit.id },
+        });
+        const itemBenefits = updateBenefitDto.items.map((item) => ({
+          loyalty_point_benefit_id: existingBenefit.id,
+          product_id: item.productId,
+          quantity: item.quantity,
+        }));
+        await this.prisma.benefit_free_items.createMany({
+          data: itemBenefits,
+        });
+      } catch (error) {
+        console.error('Error deleting existing item benefits:', error);
+        throw new BadRequestException('Error updating loyalty point items');
+      }
+    }
+    const updatedBenefit = await this.prisma.loyalty_points_benefit.update({
       where: { id },
       data: {
-        spend_based:
-          updateLoyaltySettingDto.spend_based ?? existingSetting.spend_based,
-        minimum_transaction:
-          updateLoyaltySettingDto.spend_based_min_transaction ??
-          existingSetting.minimum_transaction,
-        points_per_transaction:
-          updateLoyaltySettingDto.spend_based_point_earned ??
-          existingSetting.points_per_transaction,
-        spend_based_points_expiry_days:
-          updateLoyaltySettingDto.spend_based_expiration ??
-          existingSetting.spend_based_points_expiry_days,
-        spend_based_points_apply_multiple:
-          updateLoyaltySettingDto.spend_based_apply_multiple ??
-          existingSetting.spend_based_points_apply_multiple,
-        spend_based_get_points_on_redemption:
-          updateLoyaltySettingDto.spend_based_earn_when_redeem ??
-          existingSetting.spend_based_get_points_on_redemption,
-        product_based:
-          updateLoyaltySettingDto.product_based ??
-          existingSetting.product_based,
-        product_based_get_points_on_redemption:
-          updateLoyaltySettingDto.product_based_earn_when_redeem ??
-          existingSetting.product_based_get_points_on_redemption,
-        product_based_points_apply_multiple:
-          updateLoyaltySettingDto.product_based_apply_multiple ??
-          existingSetting.product_based_points_apply_multiple,
-        product_based_points_expiry_days:
-          updateLoyaltySettingDto.product_based_expiration ??
-          existingSetting.product_based_points_expiry_days,
+        discount_value:
+          updateBenefitDto.value || existingBenefit.discount_value,
+        is_percent: updateBenefitDto.isPercent || existingBenefit.is_percent,
+        benefit_name:
+          updateBenefitDto.benefitName || existingBenefit.benefit_name,
+        points_needs:
+          updateBenefitDto.pointNeeds || existingBenefit.points_needs,
+      },
+      include: {
+        benefit_free_items: {
+          include: {
+            products: true,
+          },
+        },
       },
     });
-
-    if (
-      updateLoyaltySettingDto.product_based_items &&
-      updateLoyaltySettingDto.product_based_items.length > 0
-    ) {
-      const productItems = updateLoyaltySettingDto.product_based_items.map(
-        (item) => ({
-          loyalty_point_setting_id: loyaltySetting.id,
-          product_id: item.product_id,
-          points: item.points_earned,
-          minimum_transaction: item.minimum_purchase,
-        }),
-      );
-      await this.prisma.loyalty_product_item.deleteMany({
-        where: { loyalty_point_setting_id: loyaltySetting.id },
-      });
-      await this.prisma.loyalty_product_item.createMany({
-        data: productItems,
-      });
-    }
-
-    return {
-      loyaltySetting,
-      productItems: updateLoyaltySettingDto.product_based_items || [],
-    };
+    return updatedBenefit;
   }
 
   remove(id: number) {

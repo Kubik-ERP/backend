@@ -15,7 +15,7 @@ import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.gua
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { LoyaltyProductItemQueryDto } from './dto/loyalty-product-items-query.dto';
-import { UpdateLoyaltySettingDto } from './dto/update-loyalty-setting.dto';
+import { UpdateBenefitDto } from './dto/update-benefit.dto';
 import { LoyaltyBenefitService } from './loyalty-benefit.service';
 
 @Controller('loyalty-benefit')
@@ -72,12 +72,9 @@ export class LoyaltyBenefitController {
   @Patch(':id')
   async update(
     @Param('id') id: string,
-    @Body() updateLoyaltySettingDto: UpdateLoyaltySettingDto,
+    @Body() updateBenefitDto: UpdateBenefitDto,
   ) {
-    const data = await this.loyaltyBenefitService.update(
-      id,
-      updateLoyaltySettingDto,
-    );
+    const data = await this.loyaltyBenefitService.update(id, updateBenefitDto);
     return {
       message: 'Loyalty setting updated successfully',
       result: toCamelCase(data),
