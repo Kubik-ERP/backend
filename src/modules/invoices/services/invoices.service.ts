@@ -56,6 +56,7 @@ import { validateStoreId } from 'src/common/helpers/validators.helper';
 import { CashDrawerService } from 'src/modules/cash-drawer/services/cash-drawer.service';
 import { VariantsService } from '../../variants/variants.service';
 import { ProductsService } from '../../products/products.service';
+import { percentageToAmount } from 'src/common/helpers/common.helpers';
 
 @Injectable()
 export class InvoiceService {
@@ -1382,6 +1383,81 @@ export class InvoiceService {
       });
     }
 
+    // --- apply voucher
+    let voucherAmount = 0;
+    if (request?.voucherId) {
+      // check valid voucher
+      const voucher = await this._prisma.voucher.findUnique({
+        where: {
+          id: request.voucherId,
+
+          // memastikan voucher berlaku untuk salah satu product yang di checkout
+          voucher_has_products: {
+            some: {
+              products_id: {
+                in: request.products.map((product) => product.productId),
+              },
+            },
+          },
+        },
+      });
+
+      // check voucher is exist
+      if (!voucher) {
+        this.logger.error(`Voucher with ID ${request.voucherId} not found`);
+        throw new NotFoundException(
+          `Voucher with ID ${request.voucherId} not found`,
+        );
+      }
+      // check voucher is active
+      const isVoucherActive =
+        voucher.start_period <= new Date() && voucher.end_period >= new Date();
+      if (!isVoucherActive) {
+        this.logger.error(`Voucher with ID ${request.voucherId} is not active`);
+        throw new BadRequestException(
+          `Voucher with ID ${request.voucherId} is not active`,
+        );
+      }
+
+      // check subTotal is valid
+      const isSubTotalValid = voucher.min_price <= total;
+      if (!isSubTotalValid) {
+        this.logger.error(`Voucher with ID ${request.voucherId} is not valid`);
+        throw new BadRequestException(
+          `Voucher with ID ${request.voucherId} is not valid`,
+        );
+      }
+
+      // check voucher is max usage
+      const voucherUsage = await this._prisma.invoice_has_vouchers.count({
+        where: {
+          voucher_id: voucher.id,
+        },
+      });
+
+      if (voucherUsage >= voucher.quota) {
+        this.logger.error(`Voucher with ID ${request.voucherId} is max usage`);
+        throw new BadRequestException(
+          `Voucher with ID ${request.voucherId} is max usage`,
+        );
+      }
+
+      // Voucher amount
+      voucherAmount = voucher.is_percent
+        ? percentageToAmount(voucher.amount, total)
+        : voucher.amount;
+      // choose the lowest between voucher amount and max discount price
+      if (voucher.max_price) {
+        voucherAmount =
+          voucherAmount > voucher.max_price ? voucher.max_price : voucherAmount;
+      }
+
+      // apply voucher amount
+      total -= voucherAmount;
+    }
+
+    // --- end apply voucher
+
     // applied tax and service
     // bacause tax and service only set one term, this part
     // might be need to be change if the business change
@@ -1493,6 +1569,7 @@ export class InvoiceService {
       paymentAmount,
       changeAmount,
       items,
+      voucherAmount,
     };
   }
 

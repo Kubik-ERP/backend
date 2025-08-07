@@ -72,9 +72,24 @@ export class VouchersService {
       orderBy: {
         name: 'asc',
       },
+      include: {
+        invoice_has_vouchers: true,
+      },
     });
 
-    return vouchers;
+    return (
+      vouchers
+        // Hide voucher yang kuotanya habis
+        .filter(
+          ({ invoice_has_vouchers, ...voucher }) =>
+            invoice_has_vouchers.length < voucher.quota,
+        )
+        // menambahkan field remaining_quota
+        .map(({ invoice_has_vouchers, ...voucher }) => ({
+          ...voucher,
+          remaining_quota: voucher.quota - invoice_has_vouchers.length,
+        }))
+    );
   }
 
   async findAll(query: VouchersListDto, header: ICustomRequestHeaders) {

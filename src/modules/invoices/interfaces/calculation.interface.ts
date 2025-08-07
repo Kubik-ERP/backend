@@ -19,4 +19,5 @@ export interface CalculationResult {
     qty: number;
     subtotal: number;
   }[];
+  voucherAmount: number;
 }

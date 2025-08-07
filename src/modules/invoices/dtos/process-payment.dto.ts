@@ -182,4 +182,12 @@ export class CalculationEstimationDto extends ProductListDto {
   public orderType: order_type;
   paymentAmount?: number;
   provider?: string;
+  @ApiProperty({
+    description: 'Voucher ID that applied to the order (optional)',
+    required: false,
+    example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
+  })
+  @IsString()
+  @IsOptional()
+  public voucherId?: string;
 }
