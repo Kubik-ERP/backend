@@ -354,6 +354,15 @@ export class InvoiceService {
 
     await this.validatePaymentMethod(request.paymentMethodId, request.provider);
 
+    if (
+      request.orderType !== order_type.take_away &&
+      !request.tableCode?.trim()
+    ) {
+      throw new BadRequestException(
+        'Table code is mandatory because order type is not take away',
+      );
+    }
+
     const paymentProvider =
       request.provider === 'cash'
         ? undefined // use undefined for cash
@@ -675,6 +684,8 @@ export class InvoiceService {
         // Get a list of product IDs from frontend payload
         const feProductIds = request.products.map((p) => p.productId);
 
+        const now = new Date();
+
         // Iterate through each product in the payload
         for (const feProduct of request.products) {
           // note: Check for product variant
@@ -716,7 +727,12 @@ export class InvoiceService {
           // If the product is completely new (not in queue), create it
           if (existingQueues.length === 0) {
             this.logger.log(`Creating new product ${productId}`);
-            await this.createInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
+            await this.createInvoiceAndKitchenQueueItem(
+              tx,
+              invoice,
+              feProduct,
+              now,
+            );
             continue;
           }
 
@@ -916,11 +932,18 @@ export class InvoiceService {
     return { message: 'Invoice products processed successfully' };
   }
 
-  // Helper to create invoice_detail + kitchen_queue
+  /**
+   * Helper method to create invoice_detail and kitchen_queue items for a product
+   * @param tx - Prisma transaction client for ensuring data consistency
+   * @param invoice - The invoice record to associate the items with
+   * @param product - Product information including quantity, notes, and variant details
+   * @param now - Consistent timestamp to ensure all related records have the same creation time
+   */
   private async createInvoiceAndKitchenQueueItem(
     tx: Prisma.TransactionClient,
     invoice: invoice,
     product: ProductDto,
+    now: Date,
   ) {
     let productPrice = 0;
     let variantPrice = 0;
@@ -969,7 +992,8 @@ export class InvoiceService {
           variant_id: product.variantId,
           notes: product.notes ?? null,
           order_status: order_status.placed,
-          created_at: new Date(),
+          created_at: now,
+          updated_at: now,
           order_type: invoice.order_type ?? order_type.dine_in, // dine_in order type is more often
           store_id: invoice.store_id ?? '',
           table_code: invoice.table_code ?? '',
@@ -1553,10 +1577,6 @@ export class InvoiceService {
     const paymentMethod = await this._prisma.payment_methods.findFirst({
       where: {
         id: methodId,
-        name: {
-          contains: provider,
-          mode: 'insensitive',
-        },
       },
     });
 
