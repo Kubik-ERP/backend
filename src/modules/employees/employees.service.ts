@@ -3,20 +3,28 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { StorageService } from '../storage-service/services/storage-service.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
+import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { gender, Prisma } from '@prisma/client';
 
 @Injectable()
 export class EmployeesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storageService: StorageService,
+  ) {}
 
-  async create(dto: CreateEmployeeDto, header: ICustomRequestHeaders) {
+  async create(
+    dto: CreateEmployeeDto,
+    header: ICustomRequestHeaders,
+    file?: Express.Multer.File,
+  ) {
     const {
       name,
       email,
-      profilePicture,
       phoneCode,
       phoneNumber,
       startDate,
@@ -28,8 +36,17 @@ export class EmployeesService {
       shift,
       comissions,
     } = dto;
-
     const store_id = header.store_id;
+    let profilePicture = null;
+
+    if (file) {
+      const result = await this.storageService.uploadImage(
+        file.buffer,
+        file.originalname,
+      );
+
+      profilePicture = result.filename;
+    }
 
     if (!store_id) {
       throw new BadRequestException('store_id is required');
@@ -40,7 +57,7 @@ export class EmployeesService {
     });
 
     if (existingEmployee) {
-      throw new Error(`Email "${email}" is already in use.`);
+      throw new BadRequestException(`Email "${email}" is already in use.`);
     }
     const employee = await this.prisma.employees.create({
       data: {
@@ -67,22 +84,32 @@ export class EmployeesService {
     });
 
     // Social media
-    if (socialMedia && socialMedia.length > 0) {
-      for (const sm of socialMedia) {
-        if (!sm.name || !sm.account) continue;
-
-        try {
-          await this.prisma.employees_has_social_media.create({
-            data: {
-              employees_id: employeeId,
-              media_name: sm.name,
-              account_name: sm.account,
-            },
-          });
-        } catch (err) {
-          console.error(`Failed to insert social media for ${sm.name}:`, err);
-        }
+    try {
+      if (socialMedia && socialMedia.length > 0) {
+        const socialMediaData = socialMedia.map((sm) => ({
+          employees_id: employeeId,
+          media_name: sm.name,
+          account_name: sm.account,
+        }));
+        await this.prisma.employees_has_social_media.createMany({
+          data: socialMediaData,
+        });
       }
+    } catch (error) {
+      console.error('Error inserting social media:', error);
+    }
+
+    if (shift && shift.length > 0) {
+      shift.map((s) => {
+        return this.prisma.employees_shift.create({
+          data: {
+            employees_id: employeeId,
+            days: s.day,
+            start_time: s.start_time,
+            end_time: s.end_time,
+          },
+        });
+      });
     }
 
     // Shift
@@ -153,107 +180,123 @@ export class EmployeesService {
     }
 
     return {
-      message: 'Employee created successfully',
-      data: {
-        employee,
-        shift,
-        productCommissions: insertedProductCommissions,
-        voucherCommissions: insertedVoucherCommissions,
-      },
+      employee: employee,
+      socialMedia,
+      shift,
+      productCommissions: insertedProductCommissions,
+      voucherCommissions: insertedVoucherCommissions,
     };
   }
 
-  async findAll(
-    query: {
-      page?: number;
-      limit?: number;
-      search?: string;
-      title?: string;
-      permission?: string[];
-    } = {},
-    header: ICustomRequestHeaders,
-  ) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+  async findAll(query: FindAllEmployeeQueryDto, header: ICustomRequestHeaders) {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      title,
+      permission,
+      orderBy,
+      orderDirection,
+    } = query;
     const skip = (page - 1) * limit;
     const store_id = header.store_id;
 
     if (!store_id) {
       throw new BadRequestException('store_id is required');
     }
-    const where: Prisma.employeesWhereInput = {
+
+    const conditions: Prisma.employeesWhereInput[] = [];
+    let orderByClause = {};
+    if (orderBy) {
+      orderByClause = {
+        [orderBy]: orderDirection || 'asc',
+      };
+    }
+
+    conditions.push({
       stores_has_employees: {
         some: {
           stores_id: store_id,
         },
       },
-    };
-
-    if (query.search) {
-      where.OR = [
-        {
-          name: {
-            contains: query.search,
-            mode: 'insensitive',
-          },
-        },
-        {
-          title: {
-            contains: query.search,
-            mode: 'insensitive',
-          },
-        },
-        {
-          email: {
-            contains: query.search,
-            mode: 'insensitive',
-          },
-        },
-        {
-          phone_number: {
-            contains: query.search,
-            mode: 'insensitive',
-          },
-        },
-      ];
-    }
-
-    if (query.title) {
-      where.title = {
-        contains: query.title,
-        mode: 'insensitive',
-      };
-    }
-
-    if (query.permission && query.permission.length > 0) {
-      where.permission = {
-        in: query.permission,
-      };
-    }
-
-    const data = await this.prisma.employees.findMany({
-      where,
-      skip,
-      take: limit,
-      include: {
-        employees_has_roles: { include: { roles: true } },
-        employees_has_social_media: true,
-        employees_shift: true,
-        product_commissions: true,
-        voucher_commissions: true,
-        stores_has_employees: true,
-      },
     });
 
-    const total = await this.prisma.employees.count({ where });
+    if (search) {
+      conditions.push({
+        OR: [
+          {
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            title: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            email: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            phone_number: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+        ],
+      });
+    }
+
+    if (title) {
+      conditions.push({
+        title: {
+          contains: title,
+          mode: 'insensitive',
+        },
+      });
+    }
+
+    if (permission && permission.length > 0) {
+      conditions.push({
+        permission: {
+          in: permission,
+        },
+      });
+    }
+    const whereClause: Prisma.employeesWhereInput =
+      conditions.length > 0 ? { AND: conditions } : {};
+
+    const [totalItems, employees] = await this.prisma.$transaction([
+      this.prisma.employees.count({ where: whereClause }),
+      this.prisma.employees.findMany({
+        where: whereClause,
+        skip: skip,
+        take: limit,
+        orderBy: orderByClause,
+        include: {
+          employees_has_roles: { include: { roles: true } },
+          employees_has_social_media: true,
+          employees_shift: true,
+          product_commissions: true,
+          voucher_commissions: true,
+          stores_has_employees: true,
+        },
+      }),
+    ]);
+    const totalPages = Math.ceil(totalItems / limit);
 
     return {
-      data,
+      employees,
       meta: {
-        total,
+        total: totalItems,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages,
       },
     };
   }
@@ -277,11 +320,10 @@ export class EmployeesService {
     return employee;
   }
 
-  async update(id: string, dto: UpdateEmployeeDto) {
+  async update(id: string, dto: UpdateEmployeeDto, file?: Express.Multer.File) {
     const {
       name,
       email,
-      profilePicture,
       phoneCode,
       phoneNumber,
       startDate,
@@ -293,10 +335,18 @@ export class EmployeesService {
       shift,
       comissions,
     } = dto;
-
     const existing = await this.prisma.employees.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Employee with ID ${id} not found`);
+    }
+    let profilePicture = existing.profile_url;
+    if (file) {
+      const result = await this.storageService.uploadImage(
+        file.buffer,
+        file.originalname,
+      );
+
+      profilePicture = result.filename;
     }
 
     const updatedEmployee = await this.prisma.employees.update({
@@ -320,7 +370,6 @@ export class EmployeesService {
     });
     if (Array.isArray(socialMedia)) {
       for (const sm of socialMedia) {
-        if (!sm.name || !sm.account) continue;
         await this.prisma.employees_has_social_media.create({
           data: {
             employees_id: id,

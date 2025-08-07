@@ -17,10 +17,65 @@ import {
   getOffset,
   getTotalPages,
 } from 'src/common/helpers/pagination.helpers';
+import { parseDDMMYYYY } from 'src/common/helpers/common.helpers';
+import { VouchersActiveDto } from './dto/vouchers-active';
 
 @Injectable()
 export class VouchersService {
   constructor(private readonly _prisma: PrismaService) {}
+
+  async findActive(query: VouchersActiveDto, header: ICustomRequestHeaders) {
+    // --- Memastikan store_id ada di header
+    const store_id = header.store_id;
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
+    // --- Filter
+    const filters: Prisma.voucherWhereInput = {
+      // search by name or promo code
+      ...(query.search?.length > 0 && {
+        OR: [
+          { name: { contains: query.search, mode: 'insensitive' } },
+          { promo_code: { contains: query.search, mode: 'insensitive' } },
+        ],
+      }),
+
+      // active voucher
+      start_period: {
+        lte: new Date(),
+      },
+      end_period: {
+        gte: new Date(),
+      },
+
+      // filter by store_id
+      store_id: store_id,
+
+      // OR condition for product filter or apply all
+      OR: [
+        {
+          voucher_has_products: {
+            some: {
+              products_id: { in: query.productIds },
+            },
+          },
+        },
+        {
+          is_apply_all_products: true,
+        },
+      ],
+    };
+
+    const vouchers = await this._prisma.voucher.findMany({
+      where: filters,
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    return vouchers;
+  }
 
   async findAll(query: VouchersListDto, header: ICustomRequestHeaders) {
     // --- Memastikan store_id ada di header
@@ -29,23 +84,25 @@ export class VouchersService {
       throw new BadRequestException('store_id is required');
     }
 
-    // --- Filter
-    const createdAtFilter: Record<string, Date> = {};
-    if (query.startDate) {
-      createdAtFilter.gte = new Date(query.startDate);
-    }
-    if (query.endDate) {
-      createdAtFilter.lte = new Date(query.endDate);
+    // --- Filter range active voucher
+    const activeVoucherFilter: Prisma.voucherWhereInput = {};
+    if (query.startDate || query.endDate) {
+      const start = query.startDate
+        ? parseDDMMYYYY(query.startDate)
+        : undefined;
+      const end = query.endDate ? parseDDMMYYYY(query.endDate) : undefined;
+
+      activeVoucherFilter.AND = [
+        // Start period before or same as end filter date
+        ...(end ? [{ start_period: { lte: end } }] : []),
+        // End period after or same as start filter date
+        ...(start ? [{ end_period: { gte: start } }] : []),
+      ];
     }
 
     const filters: Prisma.voucherWhereInput = {
-      // filter range by created at
-      ...(Object.keys(createdAtFilter).length > 0 && {
-        created_at: createdAtFilter,
-      }),
-
-      // filter by store_id
-      store_id: store_id,
+      ...activeVoucherFilter,
+      store_id,
     };
 
     // --- Order By
@@ -73,13 +130,6 @@ export class VouchersService {
         skip: getOffset(query.page, query.pageSize),
         take: query.pageSize,
         orderBy: orderBy,
-        include: {
-          voucher_has_products: {
-            include: {
-              products: true,
-            },
-          },
-        },
       }),
       this._prisma.voucher.count({
         where: filters,
@@ -113,13 +163,6 @@ export class VouchersService {
     // --- Cari voucher berdasarkan id dan store_id
     const voucher = await this._prisma.voucher.findUnique({
       where: { id, store_id },
-      include: {
-        voucher_has_products: {
-          include: {
-            products: true,
-          },
-        },
-      },
     });
 
     // --- Jika voucher tidak ditemukan, throw error
@@ -127,7 +170,20 @@ export class VouchersService {
       throw new NotFoundException(`Voucher with ID ${id} not found`);
     }
 
-    return voucher;
+    let voucher_has_products: any[] = [];
+    if (!voucher.is_apply_all_products) {
+      voucher_has_products = await this._prisma.voucher_has_products.findMany({
+        where: { voucher_id: voucher.id },
+        include: {
+          products: true,
+        },
+      });
+    }
+
+    return {
+      ...voucher,
+      voucher_has_products,
+    };
   }
 
   async create(dto: CreateVoucherDto, header: ICustomRequestHeaders) {
@@ -172,6 +228,7 @@ export class VouchersService {
         data: {
           // voucher data
           ...toSnakeCase(rest),
+          is_apply_all_products: hasProducts?.type === 'all',
           store_id: store_id,
           updated_at: new Date(),
 
@@ -186,18 +243,25 @@ export class VouchersService {
             },
           }),
         },
+      });
 
-        // return with voucher has products, products data
-        include: {
-          voucher_has_products: {
+      // return dengan voucher_has_products jika voucher apply ke spesifik product
+      let voucher_has_products: any[] = [];
+      if (!voucherCreated.is_apply_all_products) {
+        voucher_has_products = await this._prisma.voucher_has_products.findMany(
+          {
+            where: { voucher_id: voucherCreated.id },
             include: {
               products: true,
             },
           },
-        },
-      });
+        );
+      }
 
-      return voucherCreated;
+      return {
+        ...voucherCreated,
+        voucher_has_products,
+      };
     } catch (error) {
       if (error.code === 'P2002') {
         throw new BadRequestException(`Duplicate promo code ${dto.promoCode}`);
@@ -292,10 +356,11 @@ export class VouchersService {
     try {
       const updatedVoucher = await this._prisma.$transaction(async (tx) => {
         // Update voucher data
-        const updatedVoucherWithRelations = await tx.voucher.update({
+        const voucherUpdated = await tx.voucher.update({
           where: { id },
           data: {
             ...toSnakeCase(rest),
+            is_apply_all_products: hasProducts?.type === 'all',
             updated_at: new Date(),
           },
           include: {
@@ -341,7 +406,21 @@ export class VouchersService {
           }
         }
 
-        return updatedVoucherWithRelations;
+        // return dengan voucher_has_products jika voucher apply ke spesifik product
+        let voucher_has_products: any[] = [];
+        if (!voucherUpdated.is_apply_all_products) {
+          voucher_has_products = await tx.voucher_has_products.findMany({
+            where: { voucher_id: voucherUpdated.id },
+            include: {
+              products: true,
+            },
+          });
+        }
+
+        return {
+          ...voucherUpdated,
+          voucher_has_products,
+        };
       });
 
       return updatedVoucher;

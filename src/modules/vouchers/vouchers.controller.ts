@@ -18,9 +18,40 @@ import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.g
 import { VouchersListDto } from './dto/vouchers-list.dto';
 import { CreateVoucherDto } from './dto/create-voucher.dto';
 import { UpdateVoucherDto } from './dto/update-voucher.dto';
+import { VouchersActiveDto } from './dto/vouchers-active';
 @Controller('vouchers')
 export class VouchersController {
   constructor(private readonly vouchersService: VouchersService) {}
+
+  @ApiOperation({ summary: 'Get active vouchers' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('active')
+  async findActive(
+    @Query() query: VouchersActiveDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    try {
+      const vouchers = await this.vouchersService.findActive(query, req);
+      return {
+        statusCode: 200,
+        message: 'Vouchers fetched successfully',
+        result: toCamelCase(vouchers),
+      };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        message: error.message,
+        result: null,
+      };
+    }
+  }
 
   @ApiOperation({ summary: 'Get all vouchers' })
   @UseGuards(AuthenticationJWTGuard)

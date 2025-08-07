@@ -10,7 +10,10 @@ import {
   IsString,
   IsUUID,
   Min,
+  Max,
   ValidateNested,
+  ValidateIf,
+  IsBoolean,
 } from 'class-validator';
 
 class HasProductsDto {
@@ -19,7 +22,7 @@ class HasProductsDto {
 
   @IsArray()
   @IsUUID(undefined, { each: true })
-  products: string[];
+  products: string[] = [];
 }
 
 export class CreateVoucherDto {
@@ -42,6 +45,8 @@ export class CreateVoucherDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @ValidateIf((o) => o.isPercent === true)
+  @Max(100, { message: 'Amount cannot be more than 100%' })
   amount?: number;
 
   @ApiProperty({ example: 10000, required: false })
@@ -76,6 +81,7 @@ export class CreateVoucherDto {
   quota?: number;
 
   @ApiProperty({ example: false, required: false })
+  @IsBoolean()
   @Type(() => Boolean)
   isPercent: boolean = false;
 

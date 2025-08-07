@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  ParseBoolPipe,
   Post,
   Put,
   Query,
@@ -13,7 +14,7 @@ import { CreatePaymentMethodDto } from '../dtos/payment-method.dto';
 import { payment_methods } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
-import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 
 @Controller('payment/method')
@@ -69,8 +70,19 @@ export class PaymentMethodController {
   @ApiOperation({
     summary: 'Get list of the payment methods',
   })
-  public async paymentMethodList() {
-    const response = await this.paymentMethodService.findAllPaymentMethod();
+  @ApiQuery({
+    name: 'isSelfOrder',
+    required: false,
+    description: 'Filter for self-order payment methods',
+    type: Boolean,
+    example: false,
+  })
+  public async paymentMethodList(
+    @Query('isSelfOrder', new ParseBoolPipe({ optional: true }))
+    isSelfOrder = false,
+  ) {
+    const response =
+      await this.paymentMethodService.findAllPaymentMethod(isSelfOrder);
 
     return {
       result: toCamelCase(response),

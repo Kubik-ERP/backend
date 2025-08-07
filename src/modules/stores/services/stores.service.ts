@@ -42,8 +42,8 @@ export class StoresService {
         await prisma.operational_hours.createMany({
           data: parsedBusinessHours.map((bh) => ({
             days: this.mapDayToNumber(bh.day),
-            open_time: formatTime(bh.openTime),
-            close_time: formatTime(bh.closeTime),
+            open_time: bh.openTime,
+            close_time: bh.closeTime,
             stores_id: store.id,
           })),
         });
