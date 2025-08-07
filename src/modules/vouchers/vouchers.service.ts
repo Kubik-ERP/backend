@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -17,11 +18,16 @@ import {
   getOffset,
   getTotalPages,
 } from 'src/common/helpers/pagination.helpers';
-import { parseDDMMYYYY } from 'src/common/helpers/common.helpers';
+import {
+  parseDDMMYYYY,
+  percentageToAmount,
+} from 'src/common/helpers/common.helpers';
 import { VouchersActiveDto } from './dto/vouchers-active';
 
 @Injectable()
 export class VouchersService {
+  private readonly logger = new Logger(VouchersService.name);
+
   constructor(private readonly _prisma: PrismaService) {}
 
   async findActive(query: VouchersActiveDto, header: ICustomRequestHeaders) {
@@ -477,5 +483,92 @@ export class VouchersService {
         where: { id },
       });
     });
+  }
+
+  /**
+   * Calculate voucher amount
+   *
+   * @param voucherId - Voucher ID
+   * @param productIds - Product IDs
+   * @param grandTotal - Grand total (after discount)
+   * @returns {voucherAmount: number, grandTotal: number}
+   */
+  async voucherCalculation(
+    voucherId: string,
+    productIds: string[],
+    grandTotal: number,
+  ) {
+    let voucherAmount = 0;
+    // check valid voucher
+    const voucher = await this._prisma.voucher.findUnique({
+      where: {
+        id: voucherId,
+
+        // memastikan voucher berlaku untuk salah satu product yang di checkout
+        voucher_has_products: {
+          some: {
+            products_id: {
+              in: productIds,
+            },
+          },
+        },
+      },
+    });
+
+    // check voucher is exist
+    if (!voucher) {
+      this.logger.error(`Voucher with ID ${voucherId} not found`);
+      throw new NotFoundException(`Voucher with ID ${voucherId} not found`);
+    }
+
+    // check voucher is active
+    const isVoucherActive =
+      voucher.start_period <= new Date() && voucher.end_period >= new Date();
+    if (!isVoucherActive) {
+      this.logger.error(`Voucher with ID ${voucherId} is not active`);
+      throw new BadRequestException(
+        `Voucher with ID ${voucherId} is not active`,
+      );
+    }
+
+    // check subTotal is valid
+    const isSubTotalValid = voucher.min_price <= grandTotal;
+    if (!isSubTotalValid) {
+      this.logger.error(`Voucher with ID ${voucherId} is not valid`);
+      throw new BadRequestException(
+        `Voucher with ID ${voucherId} is not valid`,
+      );
+    }
+
+    // check voucher is max usage
+    const voucherUsage = await this._prisma.invoice_has_vouchers.count({
+      where: {
+        voucher_id: voucher.id,
+      },
+    });
+
+    if (voucherUsage >= voucher.quota) {
+      this.logger.error(`Voucher with ID ${voucherId} is max usage`);
+      throw new BadRequestException(
+        `Voucher with ID ${voucherId} is max usage`,
+      );
+    }
+
+    // Voucher amount
+    voucherAmount = voucher.is_percent
+      ? percentageToAmount(voucher.amount, grandTotal)
+      : voucher.amount;
+    // choose the lowest between voucher amount and max discount price
+    if (voucher.max_price) {
+      voucherAmount =
+        voucherAmount > voucher.max_price ? voucher.max_price : voucherAmount;
+    }
+
+    const afterVoucher = grandTotal - voucherAmount;
+
+    return {
+      voucherAmount,
+      grandTotal: afterVoucher,
+    };
   }
 }
