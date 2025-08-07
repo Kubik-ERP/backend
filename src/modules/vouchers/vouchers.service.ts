@@ -156,6 +156,12 @@ export class VouchersService {
         skip: getOffset(query.page, query.pageSize),
         take: query.pageSize,
         orderBy: orderBy,
+        include: {
+          // Untuk mengetahui apakah voucher ini sudah di apply ke invoice
+          invoice_has_vouchers: {
+            take: 1,
+          },
+        },
       }),
       this._prisma.voucher.count({
         where: filters,
@@ -166,6 +172,7 @@ export class VouchersService {
     const vouchers = items.map((item) => ({
       ...item,
       status: getStatus(item),
+      is_applied: item.invoice_has_vouchers.length > 0,
     }));
 
     return {
@@ -189,6 +196,12 @@ export class VouchersService {
     // --- Cari voucher berdasarkan id dan store_id
     const voucher = await this._prisma.voucher.findUnique({
       where: { id, store_id },
+      include: {
+        // Untuk mengetahui apakah voucher ini sudah di apply ke invoice
+        invoice_has_vouchers: {
+          take: 1,
+        },
+      },
     });
 
     // --- Jika voucher tidak ditemukan, throw error
@@ -209,6 +222,7 @@ export class VouchersService {
     return {
       ...voucher,
       voucher_has_products,
+      is_applied: voucher.invoice_has_vouchers.length > 0,
     };
   }
 
@@ -311,17 +325,17 @@ export class VouchersService {
 
     const { hasProducts, ...rest } = dto;
 
-    // --- Verify voucher yang dikirim client ada di store
-    const existingVoucher = await this._prisma.voucher.findFirst({
-      where: {
-        id,
-        store_id,
-      },
-    });
+    // --- Memastikan voucher ada di store
+    const isVoucherExist = await this.isVoucherExist(id, store_id);
+    if (!isVoucherExist) {
+      throw new BadRequestException(`Voucher with ID ${id} not found`);
+    }
 
-    if (!existingVoucher) {
+    // --- Memastikan voucher belum pernah di apply ke invoice
+    const isVoucherApplied = await this.isVoucherApplied(id);
+    if (isVoucherApplied) {
       throw new BadRequestException(
-        'Voucher not found or does not belong to this store',
+        'Voucher has already been applied to an invoice',
       );
     }
 
@@ -467,6 +481,20 @@ export class VouchersService {
       throw new BadRequestException('store_id is required');
     }
 
+    // --- Memastikan voucher ada di store
+    const isVoucherExist = await this.isVoucherExist(id, store_id);
+    if (!isVoucherExist) {
+      throw new BadRequestException(`Voucher with ID ${id} not found`);
+    }
+
+    // --- Memastikan voucher belum pernah di apply ke invoice
+    const isVoucherApplied = await this.isVoucherApplied(id);
+    if (isVoucherApplied) {
+      throw new BadRequestException(
+        'Voucher has already been applied to an invoice',
+      );
+    }
+
     await this._prisma.$transaction(async (tx) => {
       const voucher = await tx.voucher.findUnique({
         where: { id, store_id },
@@ -570,5 +598,34 @@ export class VouchersService {
       voucherAmount,
       grandTotal: afterVoucher,
     };
+  }
+
+  /**
+   * Check if voucher exists
+   *
+   * @param voucherId - Voucher ID
+   * @param storeId - Store ID
+   * @returns {boolean}
+   */
+  private async isVoucherExist(voucherId: string, storeId: string) {
+    const voucher = await this._prisma.voucher.findUnique({
+      where: { id: voucherId, store_id: storeId },
+    });
+
+    return !!voucher;
+  }
+
+  /**
+   * Check if voucher has been applied to an invoice
+   *
+   * @param voucherId - Voucher ID
+   * @returns {boolean}
+   */
+  private async isVoucherApplied(voucherId: string) {
+    const isVoucherApplied = await this._prisma.invoice_has_vouchers.findFirst({
+      where: { voucher_id: voucherId },
+    });
+
+    return !!isVoucherApplied;
   }
 }
