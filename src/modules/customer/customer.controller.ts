@@ -127,6 +127,8 @@ export class CustomersController {
     }
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Get('/loyalty-points/:id')
   async loyaltyPoints(
     @Param('id') id: string,
@@ -139,6 +141,8 @@ export class CustomersController {
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Post('/loyalty-points/:type')
   async createLoyaltyPoint(
     @Param('type') type: point_type,
@@ -151,6 +155,8 @@ export class CustomersController {
     };
   }
 
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Patch('/loyalty-points/:id')
   async updateLoyaltyPoints(
     @Param('id') id: string,
