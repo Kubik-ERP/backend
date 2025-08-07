@@ -164,11 +164,13 @@ export class SuppliersService {
       );
 
       return {
-        data: suppliers,
-        page,
-        pageSize,
-        total,
-        totalPages,
+        items: suppliers,
+        meta: {
+          page,
+          pageSize,
+          total,
+          totalPages,
+        },
       };
     } catch (error) {
       this.logger.error('Failed to get suppliers', error);
