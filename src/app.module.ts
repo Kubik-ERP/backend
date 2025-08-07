@@ -30,6 +30,7 @@ import { HeaderMiddleware } from './common/middleware/header-middleware';
 import { BankModule } from './modules/bank/bank.module';
 import { StoreTableModule } from './modules/store-table/store-table.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
     ProductsModule,
     RolesModule,
     StoresModule,
+    SuppliersModule,
     UsersModule,
     TablesModule,
     TemplatesEmailModule,
