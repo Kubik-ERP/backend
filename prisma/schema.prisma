@@ -542,6 +542,7 @@ model stores {
   store_floors                store_floors[]
   store_has_categories        store_has_categories[]
   stores_has_employees        stores_has_employees[]
+  stores_has_master_brands    stores_has_master_brands[]
   stores_has_master_suppliers stores_has_master_suppliers[]
   stores_has_products         stores_has_products[]
   tables                      tables[]
@@ -807,6 +808,25 @@ enum table_shape {
   SQUARE
   RECTANGLE
   ROUND
+}
+
+model master_brands {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  brand_name               String
+  notes                    String?
+  created_at               DateTime?                  @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime?                  @default(now()) @db.Timestamptz(6)
+  stores_has_master_brands stores_has_master_brands[]
+
+  @@index([brand_name], map: "idx_master_brands_brand_name")
+}
+
+model stores_has_master_brands {
+  id               String         @id(map: "store_has_master_brands_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stores_id        String?        @db.Uuid
+  master_brands_id String?        @db.Uuid
+  master_brands    master_brands? @relation(fields: [master_brands_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_master_brands_master_brands_id_fk")
+  stores           stores?        @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_master_brands_stores_id_fk")
 }
 
 enum transaction_type {
