@@ -720,10 +720,9 @@ model voucher_has_products {
 }
 
 model invoice_has_vouchers {
-  id         String  @id @db.Uuid
   voucher_id String  @db.Uuid
-  invoice_id String  @unique(map: "invoice_has_vouchers_invoice_unique") @db.Uuid
-  min_price  Float   @default(0)
+  invoice_id String  @id(map: "invoice_has_vouchers_pk") @db.Uuid
+  amount     Float   @default(0)
   invoice    invoice @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_has_vouchers_invoice_fk")
   voucher    voucher @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_has_vouchers_voucher_fk")
 

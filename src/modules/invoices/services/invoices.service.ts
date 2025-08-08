@@ -56,7 +56,7 @@ import { validateStoreId } from 'src/common/helpers/validators.helper';
 import { CashDrawerService } from 'src/modules/cash-drawer/services/cash-drawer.service';
 import { VariantsService } from '../../variants/variants.service';
 import { ProductsService } from '../../products/products.service';
-import { percentageToAmount } from 'src/common/helpers/common.helpers';
+import { VouchersService } from 'src/modules/vouchers/vouchers.service';
 
 @Injectable()
 export class InvoiceService {
@@ -72,6 +72,7 @@ export class InvoiceService {
     private readonly _mailService: MailService,
     private readonly _variantService: VariantsService,
     private readonly _productService: ProductsService,
+    private readonly _voucherService: VouchersService,
   ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
@@ -438,6 +439,16 @@ export class InvoiceService {
           change_amount: calculation.changeAmount,
         });
 
+        // create invoice voucher if voucher id is provided
+        if (request.voucherId) {
+          await this.createInvoiceVoucher(
+            tx,
+            invoiceId,
+            request.voucherId,
+            calculation.voucherAmount,
+          );
+        }
+
         // insert the customer has invoice
         await this.createCustomerInvoice(tx, invoiceId, request.customerId);
 
@@ -590,6 +601,16 @@ export class InvoiceService {
 
       // create invoice with status unpaid
       await this.create(tx, invoiceData);
+
+      // create invoice voucher if voucher id is provided
+      if (request.voucherId) {
+        await this.createInvoiceVoucher(
+          tx,
+          invoiceId,
+          request.voucherId,
+          calculation.voucherAmount,
+        );
+      }
 
       request.products.forEach(async (detail) => {
         // find the price
@@ -1136,6 +1157,12 @@ export class InvoiceService {
       calculationEstimationDto.products.push(dto);
     }
 
+    // jika invoice memiliki applied voucher
+    const voucherInvoice = await this.getInvoiceVoucher(invoice.id);
+    if (voucherInvoice) {
+      calculationEstimationDto.voucherId = voucherInvoice.voucher_id;
+    }
+
     let grandTotal = 0;
     let paymentAmount = 0;
     let changeAmount = 0;
@@ -1391,76 +1418,23 @@ export class InvoiceService {
     }
 
     // --- apply voucher
+
     let voucherAmount = 0;
     if (request?.voucherId) {
-      // check valid voucher
-      const voucher = await this._prisma.voucher.findUnique({
-        where: {
-          id: request.voucherId,
+      const voucherCalculation = await this._voucherService.voucherCalculation(
+        // voucher id
+        request.voucherId,
+        // product ids
+        request.products.map((product) => product.productId),
+        // grand total
+        total,
+      );
 
-          // memastikan voucher berlaku untuk salah satu product yang di checkout
-          voucher_has_products: {
-            some: {
-              products_id: {
-                in: request.products.map((product) => product.productId),
-              },
-            },
-          },
-        },
-      });
+      // set voucher amount
+      voucherAmount = voucherCalculation.voucherAmount;
 
-      // check voucher is exist
-      if (!voucher) {
-        this.logger.error(`Voucher with ID ${request.voucherId} not found`);
-        throw new NotFoundException(
-          `Voucher with ID ${request.voucherId} not found`,
-        );
-      }
-      // check voucher is active
-      const isVoucherActive =
-        voucher.start_period <= new Date() && voucher.end_period >= new Date();
-      if (!isVoucherActive) {
-        this.logger.error(`Voucher with ID ${request.voucherId} is not active`);
-        throw new BadRequestException(
-          `Voucher with ID ${request.voucherId} is not active`,
-        );
-      }
-
-      // check subTotal is valid
-      const isSubTotalValid = voucher.min_price <= total;
-      if (!isSubTotalValid) {
-        this.logger.error(`Voucher with ID ${request.voucherId} is not valid`);
-        throw new BadRequestException(
-          `Voucher with ID ${request.voucherId} is not valid`,
-        );
-      }
-
-      // check voucher is max usage
-      const voucherUsage = await this._prisma.invoice_has_vouchers.count({
-        where: {
-          voucher_id: voucher.id,
-        },
-      });
-
-      if (voucherUsage >= voucher.quota) {
-        this.logger.error(`Voucher with ID ${request.voucherId} is max usage`);
-        throw new BadRequestException(
-          `Voucher with ID ${request.voucherId} is max usage`,
-        );
-      }
-
-      // Voucher amount
-      voucherAmount = voucher.is_percent
-        ? percentageToAmount(voucher.amount, total)
-        : voucher.amount;
-      // choose the lowest between voucher amount and max discount price
-      if (voucher.max_price) {
-        voucherAmount =
-          voucherAmount > voucher.max_price ? voucher.max_price : voucherAmount;
-      }
-
-      // apply voucher amount
-      total -= voucherAmount;
+      // replace it with grand total after voucher
+      total = voucherCalculation.grandTotal;
     }
 
     // --- end apply voucher
@@ -2133,5 +2107,51 @@ export class InvoiceService {
     }
   }
 
+  /**
+   * Create an invoice voucher
+   *
+   * 1 invoice can apply 1 voucher
+   */
+  private async createInvoiceVoucher(
+    tx: Prisma.TransactionClient,
+    invoiceId: string,
+    voucherId: string,
+    voucherAmount: number,
+  ) {
+    try {
+      return await tx.invoice_has_vouchers.create({
+        data: {
+          invoice_id: invoiceId,
+          voucher_id: voucherId,
+          amount: voucherAmount,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to create invoice voucher');
+      throw new BadRequestException('Failed to create invoice voucher', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * Get invoice voucher by invoice id
+   *
+   * 1 invoice always has 0...1 voucher
+   */
+  private async getInvoiceVoucher(invoiceId: string) {
+    try {
+      return await this._prisma.invoice_has_vouchers.findFirst({
+        where: { invoice_id: invoiceId },
+      });
+    } catch (error) {
+      this.logger.error('Failed to get voucher invoice');
+      throw new BadRequestException('Failed to get voucher invoice', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
   // End of query section
 }
