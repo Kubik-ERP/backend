@@ -31,6 +31,7 @@ import { BankModule } from './modules/bank/bank.module';
 import { StoreTableModule } from './modules/store-table/store-table.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { SuppliersModule } from './modules/suppliers/suppliers.module';
     TemplatesEmailModule,
     StoreTableModule,
     VouchersModule,
+    PurchaseOrdersModule,
   ],
   providers: [
     {
