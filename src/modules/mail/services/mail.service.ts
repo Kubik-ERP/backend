@@ -17,13 +17,26 @@ export class MailService {
   private _transporter;
 
   constructor() {
+    const port = Number(process.env.MAIL_PORT) || 587;
+    // Gmail / most providers:
+    // - Port 465 -> implicit TLS (secure true)
+    // - Port 587 -> STARTTLS (secure false, upgrade later)
+    const secure = port === 465; // only use true for implicit TLS
+
     this._transporter = nodemailer.createTransport({
       host: process.env.MAIL_HOST,
-      port: Number(process.env.MAIL_PORT),
-      secure: true,
-      auth: {
-        user: process.env.MAIL_USERNAME,
-        pass: process.env.MAIL_PASSWORD,
+      port,
+      secure,
+      auth: process.env.MAIL_USERNAME
+        ? {
+            user: process.env.MAIL_USERNAME,
+            pass: process.env.MAIL_PASSWORD,
+          }
+        : undefined,
+      tls: {
+        // Allow STARTTLS upgrade; can relax cert checking if needed via env
+        rejectUnauthorized:
+          process.env.MAIL_TLS_REJECT_UNAUTHORIZED === 'false' ? false : true,
       },
     });
   }
