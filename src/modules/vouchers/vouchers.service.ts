@@ -7,7 +7,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { VouchersListDto } from './dto/vouchers-list.dto';
 import { Prisma } from '@prisma/client';
-import { getStatus } from './vouchers.util';
+import { getStatus, isVoucherActive } from './vouchers.util';
 import {
   camelToSnake,
   toSnakeCase,
@@ -550,9 +550,8 @@ export class VouchersService {
     }
 
     // check voucher is active
-    const isVoucherActive =
-      voucher.start_period <= new Date() && voucher.end_period >= new Date();
-    if (!isVoucherActive) {
+    const isActive = isVoucherActive(voucher);
+    if (!isActive) {
       this.logger.error(`Voucher with ID ${voucherId} is not active`);
       throw new BadRequestException(
         `Voucher with ID ${voucherId} is not active`,
