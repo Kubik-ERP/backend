@@ -31,6 +31,7 @@ import { BankModule } from './modules/bank/bank.module';
 import { StoreTableModule } from './modules/store-table/store-table.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { BrandsModule } from './modules/brands/brands.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { SuppliersModule } from './modules/suppliers/suppliers.module';
     // Core Feature Modules
     AuthenticationModule,
     BankModule,
+    BrandsModule,
     CashDrawerModule,
     CategoriesModule,
     ChargesModule,
