@@ -921,7 +921,7 @@ model master_inventory_items {
   barcode                           String?                             @db.VarChar(64)
   sku                               String                              @db.VarChar(64)
   category_id                       String                              @db.Uuid
-  unit                              String                              @db.Uuid
+  unit                              String                              @db.VarChar(64)
   notes                             String?
   stock_quantity                    Int
   reorder_level                     Int
