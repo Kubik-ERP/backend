@@ -56,6 +56,7 @@ import { validateStoreId } from 'src/common/helpers/validators.helper';
 import { CashDrawerService } from 'src/modules/cash-drawer/services/cash-drawer.service';
 import { VariantsService } from '../../variants/variants.service';
 import { ProductsService } from '../../products/products.service';
+import { VouchersService } from 'src/modules/vouchers/vouchers.service';
 
 @Injectable()
 export class InvoiceService {
@@ -71,6 +72,7 @@ export class InvoiceService {
     private readonly _mailService: MailService,
     private readonly _variantService: VariantsService,
     private readonly _productService: ProductsService,
+    private readonly _voucherService: VouchersService,
   ) {}
 
   public async getInvoices(request: GetListInvoiceDto) {
@@ -353,6 +355,15 @@ export class InvoiceService {
 
     await this.validatePaymentMethod(request.paymentMethodId, request.provider);
 
+    if (
+      request.orderType !== order_type.take_away &&
+      !request.tableCode?.trim()
+    ) {
+      throw new BadRequestException(
+        'Table code is mandatory because order type is not take away',
+      );
+    }
+
     const paymentProvider =
       request.provider === 'cash'
         ? undefined // use undefined for cash
@@ -427,6 +438,16 @@ export class InvoiceService {
           payment_amount: calculation.paymentAmount,
           change_amount: calculation.changeAmount,
         });
+
+        // create invoice voucher if voucher id is provided
+        if (request.voucherId) {
+          await this.createInvoiceVoucher(
+            tx,
+            invoiceId,
+            request.voucherId,
+            calculation.voucherAmount,
+          );
+        }
 
         // insert the customer has invoice
         await this.createCustomerInvoice(tx, invoiceId, request.customerId);
@@ -581,6 +602,16 @@ export class InvoiceService {
       // create invoice with status unpaid
       await this.create(tx, invoiceData);
 
+      // create invoice voucher if voucher id is provided
+      if (request.voucherId) {
+        await this.createInvoiceVoucher(
+          tx,
+          invoiceId,
+          request.voucherId,
+          calculation.voucherAmount,
+        );
+      }
+
       request.products.forEach(async (detail) => {
         // find the price
         let productPrice = 0,
@@ -674,6 +705,8 @@ export class InvoiceService {
         // Get a list of product IDs from frontend payload
         const feProductIds = request.products.map((p) => p.productId);
 
+        const now = new Date();
+
         // Iterate through each product in the payload
         for (const feProduct of request.products) {
           // note: Check for product variant
@@ -715,7 +748,12 @@ export class InvoiceService {
           // If the product is completely new (not in queue), create it
           if (existingQueues.length === 0) {
             this.logger.log(`Creating new product ${productId}`);
-            await this.createInvoiceAndKitchenQueueItem(tx, invoice, feProduct);
+            await this.createInvoiceAndKitchenQueueItem(
+              tx,
+              invoice,
+              feProduct,
+              now,
+            );
             continue;
           }
 
@@ -877,11 +915,18 @@ export class InvoiceService {
           );
 
           if (hasInProgress) {
+            // Get product name for better error message
+            const product = await tx.products.findUnique({
+              where: { id: productId },
+              select: { name: true },
+            });
+            const productName = product?.name || productId;
+
             this.logger.warn(
-              `Skipping deletion for product ${productId} due to existing in_progress queue`,
+              `Skipping deletion for product ${productName} due to existing in_progress queue`,
             );
             throw new BadRequestException(
-              `Product ${productId} cannot be deleted, already in process.`,
+              `Product ${productName} cannot be deleted, already in process.`,
             );
           }
 
@@ -915,11 +960,18 @@ export class InvoiceService {
     return { message: 'Invoice products processed successfully' };
   }
 
-  // Helper to create invoice_detail + kitchen_queue
+  /**
+   * Helper method to create invoice_detail and kitchen_queue items for a product
+   * @param tx - Prisma transaction client for ensuring data consistency
+   * @param invoice - The invoice record to associate the items with
+   * @param product - Product information including quantity, notes, and variant details
+   * @param now - Consistent timestamp to ensure all related records have the same creation time
+   */
   private async createInvoiceAndKitchenQueueItem(
     tx: Prisma.TransactionClient,
     invoice: invoice,
     product: ProductDto,
+    now: Date,
   ) {
     let productPrice = 0;
     let variantPrice = 0;
@@ -968,7 +1020,8 @@ export class InvoiceService {
           variant_id: product.variantId,
           notes: product.notes ?? null,
           order_status: order_status.placed,
-          created_at: new Date(),
+          created_at: now,
+          updated_at: now,
           order_type: invoice.order_type ?? order_type.dine_in, // dine_in order type is more often
           store_id: invoice.store_id ?? '',
           table_code: invoice.table_code ?? '',
@@ -1102,6 +1155,12 @@ export class InvoiceService {
       dto.quantity = item.qty ?? 0;
 
       calculationEstimationDto.products.push(dto);
+    }
+
+    // jika invoice memiliki applied voucher
+    const voucherInvoice = await this.getInvoiceVoucher(invoice.id);
+    if (voucherInvoice) {
+      calculationEstimationDto.voucherId = voucherInvoice.voucher_id;
     }
 
     let grandTotal = 0;
@@ -1358,6 +1417,28 @@ export class InvoiceService {
       });
     }
 
+    // --- apply voucher
+
+    let voucherAmount = 0;
+    if (request?.voucherId) {
+      const voucherCalculation = await this._voucherService.voucherCalculation(
+        // voucher id
+        request.voucherId,
+        // product ids
+        request.products.map((product) => product.productId),
+        // grand total
+        total,
+      );
+
+      // set voucher amount
+      voucherAmount = voucherCalculation.voucherAmount;
+
+      // replace it with grand total after voucher
+      total = voucherCalculation.grandTotal;
+    }
+
+    // --- end apply voucher
+
     // applied tax and service
     // bacause tax and service only set one term, this part
     // might be need to be change if the business change
@@ -1469,6 +1550,7 @@ export class InvoiceService {
       paymentAmount,
       changeAmount,
       items,
+      voucherAmount,
     };
   }
 
@@ -1476,10 +1558,6 @@ export class InvoiceService {
     const paymentMethod = await this._prisma.payment_methods.findFirst({
       where: {
         id: methodId,
-        name: {
-          contains: provider,
-          mode: 'insensitive',
-        },
       },
     });
 
@@ -2029,5 +2107,51 @@ export class InvoiceService {
     }
   }
 
+  /**
+   * Create an invoice voucher
+   *
+   * 1 invoice can apply 1 voucher
+   */
+  private async createInvoiceVoucher(
+    tx: Prisma.TransactionClient,
+    invoiceId: string,
+    voucherId: string,
+    voucherAmount: number,
+  ) {
+    try {
+      return await tx.invoice_has_vouchers.create({
+        data: {
+          invoice_id: invoiceId,
+          voucher_id: voucherId,
+          amount: voucherAmount,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to create invoice voucher');
+      throw new BadRequestException('Failed to create invoice voucher', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * Get invoice voucher by invoice id
+   *
+   * 1 invoice always has 0...1 voucher
+   */
+  private async getInvoiceVoucher(invoiceId: string) {
+    try {
+      return await this._prisma.invoice_has_vouchers.findFirst({
+        where: { invoice_id: invoiceId },
+      });
+    } catch (error) {
+      this.logger.error('Failed to get voucher invoice');
+      throw new BadRequestException('Failed to get voucher invoice', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
   // End of query section
 }

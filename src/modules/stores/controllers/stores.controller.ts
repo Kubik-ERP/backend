@@ -261,10 +261,37 @@ export class StoresController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all stores' })
   public async getAllStores(@Req() req: ICustomRequestHeaders) {
+    console.log('okok');
     try {
       const result = await this._storeService.getAllStores(req.user.id);
       let response: any = [];
       result.map((store) => {
+        const groupedOperationalHours = store.operational_hours.reduce(
+          (acc: any, item: any) => {
+            const day = item.days;
+            if (!acc[day]) {
+              const dayMap = [
+                'Sunday',
+                'Monday',
+                'Tuesday',
+                'Wednesday',
+                'Thursday',
+                'Friday',
+                'Saturday',
+              ];
+              acc[day] = {
+                days: dayMap[day] ?? 'Unknown',
+                times: [],
+              };
+            }
+            acc[day].times.push({
+              openTime: item.open_time,
+              closeTime: item.close_time,
+            });
+            return acc;
+          },
+          {},
+        );
         response.push({
           id: store.id,
           name: store.name,
@@ -276,6 +303,7 @@ export class StoresController {
           city: store.city,
           postal_code: store.postal_code,
           building: store.building,
+          operationalHours: groupedOperationalHours,
           created_at: formatDate(store.created_at),
           updated_at: formatDate(store.updated_at),
         });
@@ -303,8 +331,17 @@ export class StoresController {
         (acc: any, item: any) => {
           const day = item.days;
           if (!acc[day]) {
+            const dayMap = [
+              'Sunday',
+              'Monday',
+              'Tuesday',
+              'Wednesday',
+              'Thursday',
+              'Friday',
+              'Saturday',
+            ];
             acc[day] = {
-              days: day,
+              days: dayMap[day] ?? 'Unknown',
               times: [],
             };
           }

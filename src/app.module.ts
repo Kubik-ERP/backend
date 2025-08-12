@@ -30,6 +30,9 @@ import { HeaderMiddleware } from './common/middleware/header-middleware';
 import { BankModule } from './modules/bank/bank.module';
 import { StoreTableModule } from './modules/store-table/store-table.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { BrandsModule } from './modules/brands/brands.module';
+import { InventoryCategoryModule } from './modules/inventory-category/inventory-category.module';
 
 @Module({
   imports: [
@@ -56,17 +59,20 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
     // Core Feature Modules
     AuthenticationModule,
     BankModule,
+    BrandsModule,
     CashDrawerModule,
     CategoriesModule,
     ChargesModule,
     CustomerModule,
     EmployeesModule,
     InvoicesModule,
+    InventoryCategoryModule,
     KitchenModule,
     PaymentMethodModule,
     ProductsModule,
     RolesModule,
     StoresModule,
+    SuppliersModule,
     UsersModule,
     TablesModule,
     TemplatesEmailModule,
