@@ -33,6 +33,7 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { InventoryCategoryModule } from './modules/inventory-category/inventory-category.module';
+import { InventoryItemsModule } from './modules/inventory-items/inventory-items.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { InventoryCategoryModule } from './modules/inventory-category/inventory-
     EmployeesModule,
     InvoicesModule,
     InventoryCategoryModule,
+    InventoryItemsModule,
     KitchenModule,
     PaymentMethodModule,
     ProductsModule,
