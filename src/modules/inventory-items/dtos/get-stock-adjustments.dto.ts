@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { StockAdjustmentActionDto } from './create-stock-adjustment.dto';
 
 export class GetStockAdjustmentsDto {
@@ -26,9 +26,4 @@ export class GetStockAdjustmentsDto {
   @IsOptional()
   @IsEnum(StockAdjustmentActionDto)
   action?: StockAdjustmentActionDto;
-
-  @ApiPropertyOptional({ description: 'Filter by storage location id' })
-  @IsOptional()
-  @IsUUID()
-  storageLocationId?: string;
 }

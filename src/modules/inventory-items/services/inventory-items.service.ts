@@ -22,6 +22,19 @@ type OrderByKey = 'id' | 'created_at' | 'name' | 'updated_at' | 'sku';
 @Injectable()
 export class InventoryItemsService {
   private readonly logger = new Logger(InventoryItemsService.name);
+  // Columns that are guaranteed to exist in DB for inventory_stock_adjustments
+  private readonly stockAdjustmentSafeSelect = {
+    id: true,
+    master_inventory_items_id: true,
+    stores_id: true,
+    action: true,
+    adjustment_quantity: true,
+    notes: true,
+    previous_quantity: true,
+    new_quantity: true,
+    created_at: true,
+    updated_at: true,
+  } as const;
 
   constructor(private readonly _prisma: PrismaService) {}
 
@@ -270,18 +283,19 @@ export class InventoryItemsService {
     // ensure item belongs to store
     await this.detail(itemId, header);
 
-    const { page = 1, pageSize = 10, action, storageLocationId } = query;
+    const { page = 1, pageSize = 10, action } = query;
     const skip = (page - 1) * pageSize;
+    // Build minimal filter to avoid issues: only by item and store; optionally by action
     const where: any = {
       master_inventory_items_id: itemId,
       stores_id: store_id,
+      ...(action ? { action } : {}),
     };
-    if (action) where.action = action;
-    if (storageLocationId) where.storage_location_id = storageLocationId;
 
     const [rows, total] = await Promise.all([
       this._prisma.inventory_stock_adjustments.findMany({
         where,
+        select: this.stockAdjustmentSafeSelect,
         orderBy: { created_at: 'desc' },
         skip,
         take: pageSize,
@@ -343,6 +357,7 @@ export class InventoryItemsService {
       // if (slId) adjData.storage_location_id = slId;
       const adj = await tx.inventory_stock_adjustments.create({
         data: adjData as any,
+        select: this.stockAdjustmentSafeSelect,
       });
       return { updatedItem, adj };
     });
@@ -369,6 +384,13 @@ export class InventoryItemsService {
         id: adjustmentId,
         master_inventory_items_id: itemId,
         stores_id: store_id,
+      },
+      select: {
+        id: true,
+        action: true,
+        adjustment_quantity: true,
+        previous_quantity: true,
+        new_quantity: true,
       },
     });
     if (!existing) throw new NotFoundException('Stock adjustment not found');
@@ -419,6 +441,7 @@ export class InventoryItemsService {
             : existing.new_quantity,
           updated_at: new Date(),
         },
+        select: this.stockAdjustmentSafeSelect,
       });
 
       return { updatedAdj, item };
