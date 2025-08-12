@@ -20,6 +20,7 @@ import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.gua
 import { PurchaseOrdersListDto } from './dto/purchase-orders-list.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CancelPurchaseOrderDto } from './dto/cancel-purchase-order.dto';
+import { ConfirmPurchaseOrderDto } from './dto/confirm-purchase-order.dto';
 
 @Controller('purchase-order')
 export class PurchaseOrdersController {
@@ -97,12 +98,9 @@ export class PurchaseOrdersController {
   @Post()
   async create(
     @Req() req: ICustomRequestHeaders,
-    @Body() createPurchaseOrderDto: CreatePurchaseOrdersDto,
+    @Body() dto: CreatePurchaseOrdersDto,
   ) {
-    const newPurchaseOrder = await this.purchaseOrderService.create(
-      createPurchaseOrderDto,
-      req,
-    );
+    const newPurchaseOrder = await this.purchaseOrderService.create(dto, req);
 
     return {
       statusCode: 201,
@@ -123,12 +121,12 @@ export class PurchaseOrdersController {
   @Put(':id')
   async update(
     @Param('id') id: string,
-    @Body() updatePurchaseOrderDto: UpdatePurchaseOrdersDto,
+    @Body() dto: UpdatePurchaseOrdersDto,
     @Req() req: ICustomRequestHeaders,
   ) {
     const updatedPurchaseOrder = await this.purchaseOrderService.update(
       id,
-      updatePurchaseOrderDto,
+      dto,
       req,
     );
 
@@ -151,19 +149,99 @@ export class PurchaseOrdersController {
   @Post(':id/cancel')
   async cancel(
     @Param('id') id: string,
-    @Body() cancelPurchaseOrderDto: CancelPurchaseOrderDto,
+    @Body() dto: CancelPurchaseOrderDto,
     @Req() req: ICustomRequestHeaders,
   ) {
-    const cancelledPurchaseOrder = await this.purchaseOrderService.cancel(
-      id,
-      cancelPurchaseOrderDto,
-      req,
-    );
+    const result = await this.purchaseOrderService.cancel(id, dto, req);
 
     return {
       statusCode: 200,
       message: 'Purchase order cancelled successfully',
-      result: toCamelCase(cancelledPurchaseOrder),
+      result: toCamelCase(result),
+    };
+  }
+
+  @ApiOperation({ summary: 'Change purchase order status to confirmed' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Post(':id/confirm')
+  async confirm(
+    @Param('id') id: string,
+    @Body() dto: ConfirmPurchaseOrderDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.purchaseOrderService.confirm(id, dto, req);
+
+    return {
+      statusCode: 200,
+      message: 'Purchase order confirmed successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  @ApiOperation({ summary: 'Change purchase order status to shipped' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Post(':id/ship')
+  async ship(@Param('id') id: string, @Req() req: ICustomRequestHeaders) {
+    const result = await this.purchaseOrderService.ship(id, req);
+
+    return {
+      statusCode: 200,
+      message: 'Purchase order shipped successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  @ApiOperation({ summary: 'Change purchase order status to received' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Post(':id/receive')
+  async receive(@Param('id') id: string, @Req() req: ICustomRequestHeaders) {
+    const result = await this.purchaseOrderService.receive(id, req);
+
+    return {
+      statusCode: 200,
+      message: 'Purchase order received successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  @ApiOperation({ summary: 'Change purchase order status to paid' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Post(':id/pay')
+  async pay(@Param('id') id: string, @Req() req: ICustomRequestHeaders) {
+    const result = await this.purchaseOrderService.pay(id, req);
+
+    return {
+      statusCode: 200,
+      message: 'Purchase order paid successfully',
+      result: toCamelCase(result),
     };
   }
 }
