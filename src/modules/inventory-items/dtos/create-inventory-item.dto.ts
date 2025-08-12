@@ -39,7 +39,7 @@ export class CreateInventoryItemDto {
   @IsUUID()
   categoryId: string;
 
-  @ApiProperty({ description: 'Unit (free text)', example: 'kg' })
+  @ApiProperty({ description: 'Unit', example: 'Karung 5 kg' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(64)

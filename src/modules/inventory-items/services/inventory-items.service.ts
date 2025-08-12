@@ -57,7 +57,7 @@ export class InventoryItemsService {
     });
 
     this.logger.log(`Inventory item created: ${item.name}`);
-    return item;
+    return this.toPlainItem(item);
   }
 
   public async list(
@@ -102,7 +102,8 @@ export class InventoryItemsService {
     ]);
 
     const totalPages = Math.ceil(total / pageSize);
-    return { items, meta: { page, pageSize, total, totalPages } };
+    const plainItems = items.map((i) => this.toPlainItem(i));
+    return { items: plainItems, meta: { page, pageSize, total, totalPages } };
   }
 
   public async detail(id: string, header: ICustomRequestHeaders) {
@@ -119,7 +120,7 @@ export class InventoryItemsService {
       throw new NotFoundException(
         `Inventory item with ID ${id} not found in this store`,
       );
-    return item;
+    return this.toPlainItem(item);
   }
 
   public async update(
@@ -169,7 +170,7 @@ export class InventoryItemsService {
       },
     });
     this.logger.log(`Inventory item updated: ${updated.name}`);
-    return updated;
+    return this.toPlainItem(updated);
   }
 
   public async remove(id: string, header: ICustomRequestHeaders) {
@@ -212,5 +213,15 @@ export class InventoryItemsService {
         `Inventory item with SKU '${sku}' already exists in this store`,
       );
     }
+  }
+
+  private toPlainItem(item: any) {
+    if (!item) return item;
+    const price = item.price_per_unit;
+    const priceNumber =
+      price && typeof price === 'object' && typeof price.toNumber === 'function'
+        ? price.toNumber()
+        : price;
+    return { ...item, price_per_unit: priceNumber };
   }
 }
