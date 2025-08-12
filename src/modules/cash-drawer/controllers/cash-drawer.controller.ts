@@ -324,9 +324,9 @@ export class CashDrawerController {
   @Get('transaction/cashflow')
   async getCashFlow(
     @Req() req: ICustomRequestHeaders,
-    @Param() params: CashFlowParamsDto, 
-    @Headers('x-store-id') storeId: string
-  ){
+    @Param() params: CashFlowParamsDto,
+    @Headers('x-store-id') storeId: string,
+  ) {
     const data = await this.service.getCashFlow(params, storeId);
     return {
       message: 'Cash flow data retrieved successfully',

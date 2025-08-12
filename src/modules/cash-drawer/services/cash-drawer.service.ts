@@ -13,7 +13,7 @@ import { UUID } from 'crypto';
 
 @Injectable()
 export class CashDrawerService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async openCashDrawer(
     userId: number,
