@@ -34,6 +34,7 @@ import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { InventoryCategoryModule } from './modules/inventory-category/inventory-category.module';
 import { StorageLocationsModule } from './modules/storage-locations/storage-locations.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { StorageLocationsModule } from './modules/storage-locations/storage-loca
     TemplatesEmailModule,
     StoreTableModule,
     VouchersModule,
+    PurchaseOrdersModule,
   ],
   providers: [
     {
