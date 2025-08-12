@@ -31,6 +31,9 @@ import { BankModule } from './modules/bank/bank.module';
 import { StoreTableModule } from './modules/store-table/store-table.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { BrandsModule } from './modules/brands/brands.module';
+import { InventoryCategoryModule } from './modules/inventory-category/inventory-category.module';
+import { StorageLocationsModule } from './modules/storage-locations/storage-locations.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 
 @Module({
@@ -58,12 +61,15 @@ import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.
     // Core Feature Modules
     AuthenticationModule,
     BankModule,
+    BrandsModule,
     CashDrawerModule,
     CategoriesModule,
     ChargesModule,
     CustomerModule,
     EmployeesModule,
     InvoicesModule,
+    InventoryCategoryModule,
+    StorageLocationsModule,
     KitchenModule,
     PaymentMethodModule,
     ProductsModule,

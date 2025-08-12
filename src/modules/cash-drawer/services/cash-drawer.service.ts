@@ -7,8 +7,9 @@ import {
 } from 'src/common/helpers/common.helpers';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
-import { CashDrawerQueryDto } from '../dtos/cash-drawer.dto';
+import { CashDrawerQueryDto, CashFlowParamsDto } from '../dtos/cash-drawer.dto';
 import { cash_drawer_type } from '@prisma/client';
+import { UUID } from 'crypto';
 
 @Injectable()
 export class CashDrawerService {
@@ -390,5 +391,26 @@ export class CashDrawerService {
       cashOut: amountOut,
       sales: sales,
     };
+  }
+
+  async getCashFlow(params: CashFlowParamsDto, storeId: string) {
+    const startTimestamp = Math.floor(params.startDate.getTime() / 1000);
+    const endTimestamp = Math.floor(params.endDate.getTime() / 1000);
+    const data = await this.prisma.cash_drawer_transactions.findMany({
+      where: {
+        created_at: {
+          gte: startTimestamp,
+          lte: endTimestamp,
+        },
+        store_id: storeId,
+      },
+      orderBy: {
+        created_at: 'asc',
+      },
+      take: params.limit!,
+      skip: (params.page! - 1) * params.limit!,
+    });
+
+    return data;
   }
 }

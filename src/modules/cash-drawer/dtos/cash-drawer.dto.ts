@@ -1,9 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsDate,
   IsDateString,
   IsEmpty,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -195,4 +197,38 @@ export class AddTransactionBody {
   @IsString()
   @IsOptional()
   notes?: string;
+}
+
+export class CashFlowParamsDto {
+  @IsNotEmpty()
+  @Type(() => Date)
+  @IsDate()
+  startDate: Date;
+
+  @IsNotEmpty()
+  @Type(() => Date)
+  @IsDate()
+  endDate: Date;
+
+  // Pagination
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 10;
+
+  // Sorting
+  @IsOptional()
+  @IsString()
+  sortBy?: string = 'createdAt';
+
+  @IsOptional()
+  @IsString()
+  sortOrder?: 'asc' | 'desc' = 'asc';
 }
