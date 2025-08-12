@@ -22,7 +22,7 @@ import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CancelPurchaseOrderDto } from './dto/cancel-purchase-order.dto';
 import { ConfirmPurchaseOrderDto } from './dto/confirm-purchase-order.dto';
 
-@Controller('purchase-order')
+@Controller('purchase-orders')
 export class PurchaseOrdersController {
   constructor(private readonly purchaseOrderService: PurchaseOrdersService) {}
 
