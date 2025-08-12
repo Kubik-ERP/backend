@@ -10,6 +10,12 @@ import {
   GetInventoryItemsDto,
   UpdateInventoryItemDto,
 } from '../dtos';
+import {
+  CreateStockAdjustmentDto,
+  GetStockAdjustmentsDto,
+  StockAdjustmentActionDto,
+  UpdateStockAdjustmentDto,
+} from '../dtos';
 
 type OrderByKey = 'id' | 'created_at' | 'name' | 'updated_at' | 'sku';
 
@@ -191,6 +197,237 @@ export class InventoryItemsService {
       await this._prisma.master_inventory_items.delete({ where: { id } });
     }
     this.logger.log(`Inventory item deleted: ${existing.name}`);
+  }
+
+  // Stock Adjustment: enriched item detail for header section
+  public async stockAdjustmentDetail(
+    id: string,
+    header: ICustomRequestHeaders,
+  ) {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+
+    const item = await this._prisma.master_inventory_items.findFirst({
+      where: {
+        id,
+        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+      },
+      select: {
+        name: true,
+        sku: true,
+        barcode: true,
+        unit: true,
+        stock_quantity: true,
+        reorder_level: true,
+        minimum_stock_quantity: true,
+        expiry_date: true,
+        price_per_unit: true,
+        master_brands: { select: { brand_name: true } },
+        master_inventory_categories: { select: { name: true } },
+        master_storage_locations: { select: { name: true } },
+        master_suppliers: { select: { supplier_name: true } },
+      },
+    });
+    if (!item)
+      throw new NotFoundException(
+        `Inventory item with ID ${id} not found in this store`,
+      );
+
+    // Convert price_per_unit to number and return only fields shown in UI
+    const priceField: any = (item as any).price_per_unit;
+    const pricePerUnit =
+      priceField &&
+      typeof priceField === 'object' &&
+      typeof priceField.toNumber === 'function'
+        ? priceField.toNumber()
+        : priceField;
+
+    return {
+      name: item.name,
+      sku: item.sku,
+      brandName: item.master_brands?.brand_name ?? null,
+      barcode: item.barcode,
+      categoryName: item.master_inventory_categories?.name ?? null,
+      unit: item.unit,
+      stockQuantity: item.stock_quantity,
+      reorderLevel: item.reorder_level,
+      minimumStockQuantity: item.minimum_stock_quantity,
+      expiryDate: item.expiry_date,
+      storageLocationName: item.master_storage_locations?.name ?? null,
+      pricePerUnit,
+      supplierName: item.master_suppliers?.supplier_name ?? null,
+    };
+  }
+
+  // Stock Adjustment: list tracking log
+  public async listStockAdjustments(
+    itemId: string,
+    query: GetStockAdjustmentsDto,
+    header: ICustomRequestHeaders,
+  ) {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+    // ensure item belongs to store
+    await this.detail(itemId, header);
+
+    const { page = 1, pageSize = 10, action, storageLocationId } = query;
+    const skip = (page - 1) * pageSize;
+    const where: any = {
+      master_inventory_items_id: itemId,
+      stores_id: store_id,
+    };
+    if (action) where.action = action;
+    if (storageLocationId) where.storage_location_id = storageLocationId;
+
+    const [rows, total] = await Promise.all([
+      this._prisma.inventory_stock_adjustments.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      this._prisma.inventory_stock_adjustments.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / pageSize);
+    return { items: rows, meta: { page, pageSize, total, totalPages } };
+  }
+
+  // Stock Adjustment: create
+  public async addStockAdjustment(
+    itemId: string,
+    dto: CreateStockAdjustmentDto,
+    header: ICustomRequestHeaders,
+  ) {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+
+    const item = await this._prisma.master_inventory_items.findFirst({
+      where: {
+        id: itemId,
+        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+      },
+    });
+    if (!item)
+      throw new NotFoundException(
+        `Inventory item with ID ${itemId} not found in this store`,
+      );
+
+    const slId = item.storage_location_id;
+    const prevQty = item.stock_quantity;
+    const delta =
+      dto.action === StockAdjustmentActionDto.STOCK_IN
+        ? dto.adjustmentQuantity
+        : -dto.adjustmentQuantity;
+    const newQty = prevQty + delta;
+    if (newQty < 0) {
+      throw new BadRequestException(
+        'Resulting stock quantity cannot be negative',
+      );
+    }
+
+    const result = await this._prisma.$transaction(async (tx) => {
+      const updatedItem = await tx.master_inventory_items.update({
+        where: { id: itemId },
+        data: { stock_quantity: newQty, updated_at: new Date() },
+      });
+      const adjData: any = {
+        master_inventory_items_id: itemId,
+        stores_id: store_id,
+        action: dto.action as any,
+        adjustment_quantity: dto.adjustmentQuantity,
+        notes: dto.notes,
+        previous_quantity: prevQty,
+        new_quantity: newQty,
+      };
+      // if (slId) adjData.storage_location_id = slId;
+      const adj = await tx.inventory_stock_adjustments.create({
+        data: adjData as any,
+      });
+      return { updatedItem, adj };
+    });
+
+    return {
+      item: this.toPlainItem(result.updatedItem),
+      adjustment: result.adj,
+    };
+  }
+
+  // Stock Adjustment: update
+  public async updateStockAdjustment(
+    itemId: string,
+    adjustmentId: string,
+    dto: UpdateStockAdjustmentDto,
+    header: ICustomRequestHeaders,
+  ) {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+    await this.detail(itemId, header);
+
+    const existing = await this._prisma.inventory_stock_adjustments.findFirst({
+      where: {
+        id: adjustmentId,
+        master_inventory_items_id: itemId,
+        stores_id: store_id,
+      },
+    });
+    if (!existing) throw new NotFoundException('Stock adjustment not found');
+
+    // If fields that affect quantity changed, recalc item stock: revert previous delta then apply new delta
+    const needRecalc =
+      dto.adjustmentQuantity !== undefined || dto.action !== undefined;
+
+    const result = await this._prisma.$transaction(async (tx) => {
+      let item = await tx.master_inventory_items.findUnique({
+        where: { id: itemId },
+      });
+      if (!item) throw new NotFoundException('Inventory item not found');
+
+      if (needRecalc) {
+        const prevDelta =
+          existing.action === 'STOCK_IN'
+            ? existing.adjustment_quantity
+            : -existing.adjustment_quantity;
+        let recalculated = item.stock_quantity - prevDelta; // revert
+        const nextAction = dto.action ?? (existing.action as any);
+        const nextQty = dto.adjustmentQuantity ?? existing.adjustment_quantity;
+        const nextDelta = nextAction === 'STOCK_IN' ? nextQty : -nextQty;
+        recalculated = recalculated + nextDelta;
+        if (recalculated < 0)
+          throw new BadRequestException(
+            'Resulting stock quantity cannot be negative',
+          );
+        item = await tx.master_inventory_items.update({
+          where: { id: itemId },
+          data: { stock_quantity: recalculated, updated_at: new Date() },
+        });
+      }
+
+      const updatedAdj = await tx.inventory_stock_adjustments.update({
+        where: { id: adjustmentId },
+        data: {
+          ...(dto.action !== undefined && { action: dto.action as any }),
+          ...(dto.adjustmentQuantity !== undefined && {
+            adjustment_quantity: dto.adjustmentQuantity,
+          }),
+          ...(dto.notes !== undefined && { notes: dto.notes }),
+          previous_quantity: needRecalc
+            ? existing.previous_quantity
+            : existing.previous_quantity,
+          new_quantity: needRecalc
+            ? item.stock_quantity
+            : existing.new_quantity,
+          updated_at: new Date(),
+        },
+      });
+
+      return { updatedAdj, item };
+    });
+
+    return {
+      item: this.toPlainItem(result.item),
+      adjustment: result.updatedAdj,
+    };
   }
 
   private async ensureNotDuplicateSku(

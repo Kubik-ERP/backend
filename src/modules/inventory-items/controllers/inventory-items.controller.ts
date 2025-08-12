@@ -23,6 +23,11 @@ import {
   GetInventoryItemsDto,
   UpdateInventoryItemDto,
 } from '../dtos';
+import {
+  CreateStockAdjustmentDto,
+  GetStockAdjustmentsDto,
+  UpdateStockAdjustmentDto,
+} from '../dtos';
 import { InventoryItemsService } from '../services/inventory-items.service';
 
 @ApiTags('Inventory Items')
@@ -93,6 +98,34 @@ export class InventoryItemsController {
     };
   }
 
+  // Detail for Stock Adjustment page header (with joined info)
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Get(':id/stock-adjustments/detail')
+  @ApiOperation({
+    summary: 'Get inventory item detail for Stock Adjustment page',
+  })
+  public async stockAdjustmentDetail(
+    @Param('id') id: string,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const item = await this.inventoryItemsService.stockAdjustmentDetail(
+      id,
+      req,
+    );
+    return {
+      message:
+        'Inventory item (stock adjustment detail) retrieved successfully',
+      result: toCamelCase(item),
+    };
+  }
+
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @ApiHeader({
@@ -131,5 +164,88 @@ export class InventoryItemsController {
   ) {
     await this.inventoryItemsService.remove(id, req);
     return { message: 'Inventory item deleted successfully' };
+  }
+
+  // Tracking log list
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Get(':id/stock-adjustments')
+  @ApiOperation({ summary: 'Get stock adjustment tracking log for an item' })
+  public async listStockAdjustments(
+    @Param('id') id: string,
+    @Query() query: GetStockAdjustmentsDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.inventoryItemsService.listStockAdjustments(
+      id,
+      query,
+      req,
+    );
+    return {
+      message: 'Stock adjustments retrieved successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  // Add stock adjustment
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post(':id/stock-adjustments')
+  @ApiOperation({ summary: 'Add stock adjustment (Stock In / Stock Out)' })
+  public async addStockAdjustment(
+    @Param('id') id: string,
+    @Body() dto: CreateStockAdjustmentDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.inventoryItemsService.addStockAdjustment(
+      id,
+      dto,
+      req,
+    );
+    return {
+      message: 'Stock adjustment created successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  // Update stock adjustment
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Put(':id/stock-adjustments/:adjustmentId')
+  @ApiOperation({ summary: 'Update a stock adjustment record' })
+  public async updateStockAdjustment(
+    @Param('id') id: string,
+    @Param('adjustmentId') adjustmentId: string,
+    @Body() dto: UpdateStockAdjustmentDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.inventoryItemsService.updateStockAdjustment(
+      id,
+      adjustmentId,
+      dto,
+      req,
+    );
+    return {
+      message: 'Stock adjustment updated successfully',
+      result: toCamelCase(result),
+    };
   }
 }
