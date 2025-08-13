@@ -1,0 +1,60 @@
+version: "3.8"
+
+services:
+  pos-backend:
+    image: ghcr.io/abdurrahimi/pos-be:latest
+    env_file:
+      - /root/envi/.env.pos.be
+    ports:
+      - "8080:8080"
+    networks:
+      - pos-net
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+    depends_on:
+      - redis
+      - postgres
+
+  redis:
+    image: redis:7.2-alpine
+    volumes:
+      - redis-data:/data
+    networks:
+      - pos-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: kubik_db
+      POSTGRES_USER: kubik_user
+      POSTGRES_PASSWORD: KubikERP2025
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - pos-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+volumes:
+  redis-data:
+  postgres-data:
+
+networks:
+  pos-net:
+    driver: overlay
