@@ -1009,6 +1009,17 @@ model inventory_stock_adjustments {
   @@index([stores_id], map: "idx_isa_store_id")
 }
 
+model invoice_has_vouchers {
+  id         String  @id @db.Uuid
+  voucher_id String  @db.Uuid
+  invoice_id String  @unique(map: "invoice_has_vouchers_invoice_unique") @db.Uuid
+  min_price  Float   @default(0)
+  invoice    invoice @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_has_vouchers_invoice_fk")
+  voucher    voucher @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_has_vouchers_voucher_fk")
+
+  @@index([voucher_id])
+}
+
 enum cash_drawer_type {
   open
   close
