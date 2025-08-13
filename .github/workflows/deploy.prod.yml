@@ -3,13 +3,12 @@ name: Deploy POS BE
 on:
   push:
     tags:
-      - 'v*.*.*' # contoh v1.0.0
+      - 'v*.*.*'
 
 env:
   APP_NAME: pos-backend
   STACK_NAME: pos
   REGISTRY: ghcr.io
-  IMAGE: ghcr.io/${{ github.repository_owner }}/pos-be
 
 jobs:
   deploy:
@@ -19,27 +18,35 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
+      - name: Set variables
+        run: |
+          REPO_OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          RAW_VERSION=${GITHUB_REF#refs/tags/}
+          VERSION=$(echo "$RAW_VERSION" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]//g')
+          IMAGE=$REGISTRY/$REPO_OWNER/pos-be
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build & push Docker image
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
           docker build -t $IMAGE:$VERSION -t $IMAGE:latest .
           docker push $IMAGE:$VERSION
           docker push $IMAGE:latest
 
-      - name: SSH to server and update service
+      - name: Deploy to server
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.PROD_IP }}
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_KEY }}
           script: |
-            docker login ghcr.io -u ${{ github.actor }} --password ${{ secrets.GHCR_TOKEN }}
-            docker service update --image $IMAGE:${VERSION} --with-registry-auth $STACK_NAME_$APP_NAME
+            docker login $REGISTRY -u ${{ github.actor }} --password ${{ secrets.GHCR_TOKEN }}
+            docker service update --image $IMAGE:$VERSION --with-registry-auth $STACK_NAME_$APP_NAME
