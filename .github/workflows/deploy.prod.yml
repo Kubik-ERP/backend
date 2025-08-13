@@ -41,6 +41,15 @@ jobs:
           docker push $IMAGE:$VERSION
           docker push $IMAGE:latest
 
+      - name: Copy stack file to server
+        uses: appleboy/scp-action@v0.1.3
+        with:
+          host: ${{ secrets.PROD_IP }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_KEY }}
+          source: pos-be-stack.yml
+          target: /root/deploy/
+
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -49,4 +58,4 @@ jobs:
           key: ${{ secrets.PROD_KEY }}
           script: |
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker stack deploy -c pos-be-stack.yml pos
+            docker stack deploy -c /root/deploy/pos-be-stack.yml $STACK_NAME
