@@ -1,17 +1,11 @@
-import {
-  IsUUID,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsEnum,
-  IsDateString,
-} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { point_type } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { IsDate, IsInt, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateCustomerPointDto {
   @ApiProperty({ example: 100 })
   @IsInt()
+  @Type(() => Number)
   value: number;
 
   @ApiProperty({ example: '0014cc8a-748a-431b-a7f2-7449e1764f56' })
@@ -23,18 +17,11 @@ export class CreateCustomerPointDto {
   @IsOptional()
   invoice_id?: string;
 
-  @ApiProperty({
-    enum: point_type,
-    example: 'point_deduction',
-    description: 'Point type (must match enum exactly)',
-  })
-  @IsEnum(point_type)
-  type: point_type;
-
   @ApiPropertyOptional({ example: '2025-12-31' })
-  @IsDateString()
+  @IsDate()
   @IsOptional()
-  expiry_date?: string;
+  @Type(() => Date)
+  expiry_date?: Date;
 
   @ApiPropertyOptional({ example: 'Adjustment refund' })
   @IsString()
