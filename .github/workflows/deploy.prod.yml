@@ -7,7 +7,7 @@ on:
 
 env:
   APP_NAME: pos-backend
-  STACK_NAME: pos
+  STACK_NAME: kubik
   REGISTRY: ghcr.io
 
 jobs:
@@ -41,12 +41,15 @@ jobs:
           docker push $IMAGE:$VERSION
           docker push $IMAGE:latest
 
-      - name: Deploy to server
+      - name: Deploy stack on server if not exist
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.PROD_IP }}
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_KEY }}
           script: |
-            docker login $REGISTRY -u ${{ github.actor }} --password ${{ secrets.GHCR_TOKEN }}
-            docker service update --image $IMAGE:$VERSION --with-registry-auth $STACK_NAME_$APP_NAME
+            docker login $REGISTRY -u ${{ github.actor }} --password-stdin <<< "${{ secrets.GHCR_TOKEN }}"
+            if ! docker stack ls | grep -q $STACK_NAME; then
+              docker stack deploy -c /root/pos-backend/docker-compose.yml $STACK_NAME
+            fi
+            docker service update --image $IMAGE:$VERSION --with-registry-auth ${STACK_NAME}_${APP_NAME}
