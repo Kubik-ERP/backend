@@ -13,7 +13,7 @@ import { UUID } from 'crypto';
 
 @Injectable()
 export class CashDrawerService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async openCashDrawer(
     userId: number,
@@ -224,6 +224,7 @@ export class CashDrawerService {
           notes: notes || '',
           created_by: userId,
           created_at: jakartaTime().toUnixInteger(),
+          store_id: cashDrawer.store_id,
         },
       });
     });
@@ -394,23 +395,41 @@ export class CashDrawerService {
   }
 
   async getCashFlow(params: CashFlowParamsDto, storeId: string) {
-    const startTimestamp = Math.floor(params.startDate.getTime() / 1000);
-    const endTimestamp = Math.floor(params.endDate.getTime() / 1000);
-    const data = await this.prisma.cash_drawer_transactions.findMany({
-      where: {
-        created_at: {
-          gte: startTimestamp,
-          lte: endTimestamp,
+    const startTimestamp = Math.floor(new Date(params.startDate).getTime() / 1000);
+    const endTimestamp = Math.floor(new Date(params.endDate).getTime() / 1000);
+    const [data, count] = await Promise.all([
+      this.prisma.cash_drawer_transactions.findMany({
+        include: {
+          users: {
+            select: {
+              id: true,
+              fullname: true,
+            },
+          },
         },
-        store_id: storeId,
-      },
-      orderBy: {
-        created_at: 'asc',
-      },
-      take: params.limit!,
-      skip: (params.page! - 1) * params.limit!,
-    });
+        where: {
+          created_at: {
+            gte: startTimestamp,
+            lte: endTimestamp,
+          },
+          store_id: storeId,
+        },
+        orderBy: { created_at: 'desc' },
+        take: params.limit,
+        skip: (params.page! - 1) * params.limit!,
+      }),
+      this.prisma.cash_drawer_transactions.count({
+        where: {
+          created_at: {
+            gte: startTimestamp,
+            lte: endTimestamp,
+          },
+          store_id: storeId,
+        }
+      }),
+    ]);
 
-    return data;
+
+    return [data, count];
   }
 }

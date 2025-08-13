@@ -46,7 +46,7 @@ export class CashDrawerController {
   constructor(
     private readonly service: CashDrawerService,
     private readonly userService: UsersService,
-  ) {}
+  ) { }
 
   @HttpCode(200)
   @ApiOperation({ summary: 'Get Cash Drawer List' })
@@ -324,13 +324,21 @@ export class CashDrawerController {
   @Get('transaction/cashflow')
   async getCashFlow(
     @Req() req: ICustomRequestHeaders,
-    @Param() params: CashFlowParamsDto,
+    @Query() params: CashFlowParamsDto,
     @Headers('x-store-id') storeId: string,
   ) {
-    const data = await this.service.getCashFlow(params, storeId);
+    const [data, count] = await this.service.getCashFlow(params, storeId);
+    const results = toCamelCase(data);
+    const res = formatPaginatedResult(
+      results,
+      parseInt(count.toString()) ?? 0,
+      params.page,
+      params.limit,
+    );
+
     return {
-      message: 'Cash flow data retrieved successfully',
-      result: toCamelCase(data),
+      message: 'Cash drawer transactions retrieved successfully',
+      result: res,
     };
   }
 }
