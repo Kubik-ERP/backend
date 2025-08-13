@@ -252,6 +252,19 @@ export class BrandsService {
       // Check if brand exists and belongs to the store
       const existingBrand = await this.getBrandById(id, header);
 
+      // Prevent delete if brand is linked to any inventory item in this store
+      const linkedItemsCount = await this._prisma.master_inventory_items.count({
+        where: {
+          brand_id: id,
+          stores_has_master_inventory_items: { some: { stores_id: store_id } },
+        },
+      });
+      if (linkedItemsCount > 0) {
+        throw new BadRequestException(
+          'Brand cannot be deleted because it is linked to one or more inventory items in this store',
+        );
+      }
+
       // Delete the store-brand relationship first
       await this._prisma.stores_has_master_brands.deleteMany({
         where: {
@@ -259,8 +272,6 @@ export class BrandsService {
           stores_id: store_id,
         },
       });
-
-      // Check if brand is still used by other stores
       const otherStoreRelations =
         await this._prisma.stores_has_master_brands.count({
           where: {
@@ -268,7 +279,6 @@ export class BrandsService {
           },
         });
 
-      // Only delete the brand if it's not used by other stores
       if (otherStoreRelations === 0) {
         await this._prisma.master_brands.delete({
           where: { id },
