@@ -13,7 +13,7 @@ import { UUID } from 'crypto';
 
 @Injectable()
 export class CashDrawerService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async openCashDrawer(
     userId: number,
@@ -395,7 +395,9 @@ export class CashDrawerService {
   }
 
   async getCashFlow(params: CashFlowParamsDto, storeId: string) {
-    const startTimestamp = Math.floor(new Date(params.startDate).getTime() / 1000);
+    const startTimestamp = Math.floor(
+      new Date(params.startDate).getTime() / 1000,
+    );
     const endTimestamp = Math.floor(new Date(params.endDate).getTime() / 1000);
     const [data, count] = await Promise.all([
       this.prisma.cash_drawer_transactions.findMany({
@@ -425,10 +427,9 @@ export class CashDrawerService {
             lte: endTimestamp,
           },
           store_id: storeId,
-        }
+        },
       }),
     ]);
-
 
     return [data, count];
   }

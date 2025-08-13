@@ -46,7 +46,7 @@ export class CashDrawerController {
   constructor(
     private readonly service: CashDrawerService,
     private readonly userService: UsersService,
-  ) { }
+  ) {}
 
   @HttpCode(200)
   @ApiOperation({ summary: 'Get Cash Drawer List' })
