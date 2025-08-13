@@ -19,9 +19,9 @@ RUN npm run build
 FROM node:22-slim
 WORKDIR /app
 
-# Copy package.json & install hanya production dependencies
+# Copy package.json & install hanya production dependencies, skip scripts
 COPY package*.json ./
-RUN npm install --production --omit=dev --no-fund --no-audit
+RUN npm install --production --omit=dev --ignore-scripts --no-fund --no-audit
 
 # Copy hasil build & Prisma client dari builder
 COPY --from=builder /app/dist ./dist
