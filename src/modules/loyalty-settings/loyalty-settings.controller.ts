@@ -58,13 +58,25 @@ export class LoyaltySettingsController {
     schema: { type: 'string' },
   })
   @Get()
-  async findAll(
-    @Req() req: ICustomRequestHeaders,
-    @Query() query: LoyaltyProductItemQueryDto,
-  ) {
-    const data = await this.loyaltySettingsService.findAll(req, query);
+  async findAll(@Req() req: ICustomRequestHeaders) {
+    const data = await this.loyaltySettingsService.findAll(req);
     return {
       message: 'Loyalty settings retrieved successfully',
+      result: toCamelCase(data),
+    };
+  }
+
+  @ApiOperation({ summary: 'Get All Loyalty Product Settings' })
+  @ApiBearerAuth()
+  @UseGuards(AuthenticationJWTGuard)
+  @Get(':id/product')
+  async findAllProductSettings(
+    @Query() query: LoyaltyProductItemQueryDto,
+    @Param('id') id: string,
+  ) {
+    const data = await this.loyaltySettingsService.findAllProductSettings(query, id);
+    return {
+      message: 'Loyalty product settings retrieved successfully',
       result: toCamelCase(data),
     };
   }

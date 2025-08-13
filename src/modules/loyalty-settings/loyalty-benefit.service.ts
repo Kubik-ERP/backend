@@ -87,7 +87,15 @@ export class LoyaltyBenefitService {
         include: {
           benefit_free_items: {
             include: {
-              products: true,
+              products: {
+                include : {
+                  categories_has_products: {
+                    include: {
+                      categories: true,
+                    },
+                  },
+                }
+              },
             },
           },
         },
@@ -99,6 +107,7 @@ export class LoyaltyBenefitService {
         id: item.product_id,
         name: item.products.name,
         quantity: item.quantity,
+        categories: item.products.categories_has_products.map((category) => category.categories.category),
       }));
       const discount = {
         value: benefit.discount_value,

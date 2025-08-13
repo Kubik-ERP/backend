@@ -70,10 +70,7 @@ export class LoyaltySettingsService {
     };
   }
 
-  async findAll(
-    header: ICustomRequestHeaders,
-    query: LoyaltyProductItemQueryDto,
-  ) {
+  async findAll(header: ICustomRequestHeaders) {
     const { store_id } = header;
     if (!store_id) {
       throw new BadRequestException('Store ID is required');
@@ -84,29 +81,35 @@ export class LoyaltySettingsService {
     if (!loyaltySettings) {
       throw new BadRequestException('No loyalty settings found for this store');
     }
+    return {
+      data: loyaltySettings,
+    };
+  }
+
+  async findAllProductSettings(
+    query: LoyaltyProductItemQueryDto, 
+    id: string,
+  ){
     const { page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
     const [totalItems, loyaltyProductItems] = await this.prisma.$transaction([
       this.prisma.loyalty_product_item.count({
-        where: { loyalty_point_setting_id: loyaltySettings.id },
+        where: { loyalty_point_setting_id: id },
       }),
       this.prisma.loyalty_product_item.findMany({
-        where: { loyalty_point_setting_id: loyaltySettings.id },
+        where: { loyalty_point_setting_id: id },
         skip: skip,
         take: limit,
       }),
     ]);
     const totalPages = Math.ceil(totalItems / limit);
     return {
-      loyaltySettings,
-      loyaltyProductItems: {
-        items: loyaltyProductItems,
-        meta: {
-          total: totalItems,
-          page,
-          limit,
-          totalPages,
-        },
+      data: loyaltyProductItems,
+      meta: {
+        total: totalItems,
+        page,
+        limit,
+        totalPages,
       },
     };
   }
