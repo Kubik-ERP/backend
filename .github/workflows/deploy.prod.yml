@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set variables
@@ -35,6 +35,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
+      - name: Build & push Docker image
+        run: |
+          docker build -t $IMAGE:$VERSION -t $IMAGE:latest .
+          docker push $IMAGE:$VERSION
+          docker push $IMAGE:latest
+
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -42,5 +48,5 @@ jobs:
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_KEY }}
           script: |
-            echo "$GHCR_TOKEN" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
-            docker service update --image $IMAGE:$VERSION --with-registry-auth $STACK_NAME_$APP_NAME
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker stack deploy -c pos-be-stack.yml $STACK_NAME
