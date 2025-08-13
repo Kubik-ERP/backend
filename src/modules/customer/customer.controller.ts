@@ -1,29 +1,26 @@
 import {
-  Body,
   Controller,
-  Delete,
   Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
   HttpException,
   HttpStatus,
-  Param,
-  Patch,
-  Post,
   Query,
-  Req,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 
-import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { point_type } from '@prisma/client';
-import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
-import { toCamelCase } from '../../common/helpers/object-transformer.helper';
-import { CustomerService } from './customer.service';
-import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
-import { QueryInvoiceDto } from './dto/query-invoice.dto';
-import { QueryLoyaltyPointsDto } from './dto/query-loyalty-points.dto';
-import { UpdateCustomerPointsDto } from './dto/update-customer-points.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CustomerService } from './customer.service';
+import { toCamelCase } from '../../common/helpers/object-transformer.helper';
+import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
+import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
+import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
+import { QueryInvoiceDto } from './dto/query-invoice.dto';
 
 @Controller('customers')
 export class CustomersController {
@@ -127,46 +124,52 @@ export class CustomersController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
-  @ApiBearerAuth()
   @Get('/loyalty-points/:id')
-  async loyaltyPoints(
-    @Param('id') id: string,
-    @Query() query: QueryLoyaltyPointsDto,
-  ) {
-    const customer = await this.customersService.loyaltyPoints(id, query);
-    return {
-      message: 'Success',
-      result: toCamelCase(customer),
-    };
+  async loyaltyPoints(@Param('id') id: string) {
+    try {
+      const customer = await this.customersService.loyaltyPoints(id);
+      if (!customer) {
+        throw new HttpException(
+          { statusCode: HttpStatus.NOT_FOUND, message: 'Customer not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(customer),
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch detail Customers',
+          result: error,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
-  @ApiBearerAuth()
-  @Post('/loyalty-points/:type')
-  async createLoyaltyPoint(
-    @Param('type') type: point_type,
-    @Body() dto: CreateCustomerPointDto,
-  ) {
-    const result = await this.customersService.createLoyaltyPoint(type, dto);
-    return {
-      message: 'Point added successfully',
-      result,
-    };
-  }
-
-  @UseGuards(AuthenticationJWTGuard)
-  @ApiBearerAuth()
-  @Patch('/loyalty-points/:id')
-  async updateLoyaltyPoints(
-    @Param('id') id: string,
-    @Body() dto: UpdateCustomerPointsDto,
-  ) {
-    const result = await this.customersService.updateLoyaltyPoint(id, dto);
-    return {
-      message: 'Point updated successfully',
-      result,
-    };
+  @Post('/loyalty-points')
+  async createLoyaltyPoint(@Body() dto: CreateCustomerPointDto) {
+    try {
+      const result = await this.customersService.createLoyaltyPoint(dto);
+      return {
+        statusCode: 201,
+        message: 'Point added successfully',
+        result,
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to create customer point',
+          result: error,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Get(':idOrName')
