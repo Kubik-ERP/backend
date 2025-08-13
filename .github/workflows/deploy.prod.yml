@@ -49,4 +49,4 @@ jobs:
           key: ${{ secrets.PROD_KEY }}
           script: |
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker stack deploy -c pos-be-stack.yml $STACK_NAME
+            docker stack deploy -c pos-be-stack.yml pos
