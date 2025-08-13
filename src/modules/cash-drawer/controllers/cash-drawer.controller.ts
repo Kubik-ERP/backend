@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Headers,
   Post,
   Put,
   Query,
@@ -15,6 +16,7 @@ import {
   AddTransactionParams,
   CashDrawerListQueryDto,
   CashDrawerQueryDto,
+  CashFlowParamsDto,
   CloseCashDrawerDto,
   OpenCashDrawerDto,
 } from '../dtos/cash-drawer.dto';
@@ -316,6 +318,27 @@ export class CashDrawerController {
     return {
       message: 'Cash drawer summary data retrieved successfully',
       result: toCamelCase(result),
+    };
+  }
+
+  @Get('transaction/cashflow')
+  async getCashFlow(
+    @Req() req: ICustomRequestHeaders,
+    @Query() params: CashFlowParamsDto,
+    @Headers('x-store-id') storeId: string,
+  ) {
+    const [data, count] = await this.service.getCashFlow(params, storeId);
+    const results = toCamelCase(data);
+    const res = formatPaginatedResult(
+      results,
+      parseInt(count.toString()) ?? 0,
+      params.page,
+      params.limit,
+    );
+
+    return {
+      message: 'Cash drawer transactions retrieved successfully',
+      result: res,
     };
   }
 }

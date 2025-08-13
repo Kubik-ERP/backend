@@ -53,3 +53,36 @@ export const parseDDMMYYYY = (dateStr: string): Date => {
   const [day, month, year] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day); // month is 0-based
 };
+
+export const percentageToAmount = (percentage: number, total: number) => {
+  return total * (percentage / 100);
+};
+
+/**
+ * Generate next id
+ *
+ * @example
+ * generateNextId('PO', 1, 3) // PO-002
+ * generateNextId('PO', 10) // PO-011
+ * generateNextId('PO', 100, 4) // PO-0101
+ */
+export const generateNextId = (
+  prefix: string,
+  latestNumber: number,
+  padding: number = 3,
+): string => {
+  return `${prefix}-${(latestNumber + 1).toString().padStart(padding, '0')}`;
+};
+
+/**
+ * Convert id to number
+ *
+ * @example
+ * idToNumber('PO-001') // 1
+ * idToNumber('PO-010') // 10
+ * idToNumber('PO-100') // 100
+ */
+export const idToNumber = (id: string): number => {
+  const parts = id.split('-');
+  return parts.length > 1 ? parseInt(parts[1], 10) : NaN;
+};

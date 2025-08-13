@@ -164,11 +164,13 @@ export class SuppliersService {
       );
 
       return {
-        data: suppliers,
-        page,
-        pageSize,
-        total,
-        totalPages,
+        items: suppliers,
+        meta: {
+          page,
+          pageSize,
+          total,
+          totalPages,
+        },
       };
     } catch (error) {
       this.logger.error('Failed to get suppliers', error);
@@ -349,6 +351,19 @@ export class SuppliersService {
       // Check if supplier exists in this store
       await this.getSupplierById(id, header);
 
+      // Prevent delete if supplier is linked to any inventory item in this store
+      const linkedItemsCount = await this._prisma.master_inventory_items.count({
+        where: {
+          supplier_id: id,
+          stores_has_master_inventory_items: { some: { stores_id: store_id } },
+        },
+      });
+      if (linkedItemsCount > 0) {
+        throw new BadRequestException(
+          'Supplier cannot be deleted because it is linked to one or more inventory items in this store',
+        );
+      }
+
       // Remove supplier from store relation first
       await this._prisma.stores_has_master_suppliers.deleteMany({
         where: {
@@ -356,7 +371,6 @@ export class SuppliersService {
           master_suppliers_id: id,
         },
       });
-
       // Check if supplier is used in other stores
       const otherStoreRelations =
         await this._prisma.stores_has_master_suppliers.count({
@@ -365,7 +379,6 @@ export class SuppliersService {
           },
         });
 
-      // If no other store uses this supplier, delete the supplier entirely
       if (otherStoreRelations === 0) {
         await this._prisma.master_suppliers.delete({
           where: { id },

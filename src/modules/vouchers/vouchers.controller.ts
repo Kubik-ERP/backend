@@ -9,7 +9,6 @@ import {
   Req,
   Put,
   Delete,
-  BadRequestException,
 } from '@nestjs/common';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { VouchersService } from './vouchers.service';
