@@ -6,7 +6,11 @@ import {
 import { CreatePurchaseOrdersDto } from './dto/create-purchase-orders.dto';
 import { UpdatePurchaseOrdersDto } from './dto/update-purchase-orders.dto';
 import { PurchaseOrdersListDto } from './dto/purchase-orders-list.dto';
-import { Prisma, purchase_order_status } from '@prisma/client';
+import {
+  Prisma,
+  purchase_order_status,
+  stock_adjustment_action,
+} from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { camelToSnake } from 'src/common/helpers/object-transformer.helper';
 import {
@@ -146,8 +150,6 @@ export class PurchaseOrdersService {
     if (inventoryItems.length !== productItems.length) {
       throw new BadRequestException('Some products do not exist');
     }
-
-    // TODO(PO): tanyakan terkait reorder level dan minumum stok quantity
 
     const result = await this._prisma.$transaction(async (tx) => {
       // Generate next PO number
@@ -423,13 +425,11 @@ export class PurchaseOrdersService {
     });
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
-    // Check if PO status is allowed to cancel
-    // TODO(PO): apakah kondisi ini sudah benar?
-    const allowedStatuses = [
-      purchase_order_status.pending,
-      purchase_order_status.confirmed,
+    const disallowedStatuses = [
+      purchase_order_status.cancelled,
+      purchase_order_status.received,
     ] as purchase_order_status[];
-    if (!allowedStatuses.includes(existingPO.order_status)) {
+    if (disallowedStatuses.includes(existingPO.order_status)) {
       throw new BadRequestException(
         'Purchase Order is not allowed to be cancelled',
       );
@@ -465,10 +465,12 @@ export class PurchaseOrdersService {
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
     // Check if PO status is allowed to confirm
-    const allowedStatuses = [
-      purchase_order_status.pending,
+    const disallowedStatuses = [
+      purchase_order_status.confirmed,
+      purchase_order_status.cancelled,
+      purchase_order_status.received,
     ] as purchase_order_status[];
-    if (!allowedStatuses.includes(existingPO.order_status)) {
+    if (disallowedStatuses.includes(existingPO.order_status)) {
       throw new BadRequestException(
         'Purchase Order is not allowed to be confirmed',
       );
@@ -511,10 +513,12 @@ export class PurchaseOrdersService {
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
     // Check if PO status is allowed to ship
-    const allowedStatuses = [
-      purchase_order_status.confirmed,
+    const disallowedStatuses = [
+      purchase_order_status.shipped,
+      purchase_order_status.cancelled,
+      purchase_order_status.received,
     ] as purchase_order_status[];
-    if (!allowedStatuses.includes(existingPO.order_status)) {
+    if (disallowedStatuses.includes(existingPO.order_status)) {
       throw new BadRequestException(
         'Purchase Order is not allowed to be shipped',
       );
@@ -540,22 +544,27 @@ export class PurchaseOrdersService {
     // Ensure PO exists & belongs to store (prevents cross-store updates)
     const existingPO = await this._prisma.purchase_orders.findFirst({
       where: { id, store_id },
-      select: { id: true, order_status: true },
+      select: {
+        id: true,
+        order_status: true,
+        order_number: true,
+      },
     });
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
     // Check if PO status is allowed to receive
-    const allowedStatuses = [
-      purchase_order_status.shipped,
+    const disallowedStatuses = [
+      purchase_order_status.received,
+      purchase_order_status.cancelled,
     ] as purchase_order_status[];
-    if (!allowedStatuses.includes(existingPO.order_status)) {
+    if (disallowedStatuses.includes(existingPO.order_status)) {
       throw new BadRequestException(
         'Purchase Order is not allowed to be received',
       );
     }
 
     const result = await this._prisma.$transaction(async (tx) => {
-      // --- Decrement stock inventory items
+      // --- Get PO items to process
       const poItems = await tx.purchase_order_items.findMany({
         where: { purchase_order_id: id },
         select: {
@@ -563,18 +572,67 @@ export class PurchaseOrdersService {
           quantity: true,
         },
       });
-      await Promise.all(
-        poItems.map((i) =>
-          tx.master_inventory_items.update({
-            where: { id: i.master_inventory_item_id },
-            data: {
-              stock_quantity: { decrement: i.quantity },
-            },
-          }),
-        ),
-      );
 
-      // --- Update PO status
+      if (!poItems.length) {
+        throw new BadRequestException('No items found in purchase order');
+      }
+
+      // --- Get current inventory items data
+      const inventoryItems = await tx.master_inventory_items.findMany({
+        where: {
+          id: { in: poItems.map((i) => i.master_inventory_item_id) },
+          stores_has_master_inventory_items: { some: { stores_id: store_id } },
+        },
+      });
+
+      // Validate all items exist and belong to the store
+      const invById = new Map(inventoryItems.map((it) => [it.id, it]));
+      const missingItems = poItems.filter(
+        (item) => !invById.has(item.master_inventory_item_id),
+      );
+      if (missingItems.length > 0) {
+        throw new BadRequestException(
+          `Some inventory items not found or don't belong to store: ${missingItems.map((i) => i.master_inventory_item_id).join(', ')}`,
+        );
+      }
+
+      // --- Increment stock quantities
+      const stockUpdates = poItems.map((item) => {
+        const inv = invById.get(item.master_inventory_item_id)!;
+        const newQuantity = inv.stock_quantity + item.quantity;
+
+        return tx.master_inventory_items.update({
+          where: { id: item.master_inventory_item_id },
+          data: {
+            stock_quantity: newQuantity,
+            updated_at: new Date(),
+          },
+        });
+      });
+
+      // --- Create stock adjustment records
+      const stockAdjustments = poItems.map((item) => {
+        const inv = invById.get(item.master_inventory_item_id)!;
+        const previousQuantity = inv.stock_quantity;
+        const newQuantity = previousQuantity + item.quantity;
+
+        return tx.inventory_stock_adjustments.create({
+          data: {
+            master_inventory_items_id: item.master_inventory_item_id,
+            stores_id: store_id,
+            action: stock_adjustment_action.STOCK_IN,
+            adjustment_quantity: item.quantity,
+            notes: `Received PO (${existingPO.order_number})`,
+            previous_quantity: previousQuantity,
+            new_quantity: newQuantity,
+          },
+        });
+      });
+
+      // Execute all stock updates and adjustments
+      await Promise.all([...stockUpdates, ...stockAdjustments]);
+
+      // --- Update PO status to received
       return await tx.purchase_orders.update({
         where: { id },
         data: {
@@ -601,13 +659,12 @@ export class PurchaseOrdersService {
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
     // Check if PO status is allowed to pay
-    const allowedStatuses = [
-      purchase_order_status.received,
+    const disallowedStatuses = [
+      purchase_order_status.paid,
+      purchase_order_status.cancelled,
     ] as purchase_order_status[];
-    if (!allowedStatuses.includes(existingPO.order_status)) {
-      throw new BadRequestException(
-        'Purchase Order is not allowed to be received',
-      );
+    if (disallowedStatuses.includes(existingPO.order_status)) {
+      throw new BadRequestException('Purchase Order is not allowed to be paid');
     }
 
     const result = await this._prisma.purchase_orders.update({
