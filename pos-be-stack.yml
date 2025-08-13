@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   pos-backend:
-    image: ghcr.io/abdurrahimi/pos-be:latest
+    image: ghcr.io/kubik-erp/pos-be:latest
     env_file:
       - /root/envi/.env.pos.be
     ports:
