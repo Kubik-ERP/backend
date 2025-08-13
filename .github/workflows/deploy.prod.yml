@@ -37,9 +37,9 @@ jobs:
       - name: SSH to server and update service
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.PROD_IP }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_KEY }}
           script: |
             docker login ghcr.io -u ${{ github.actor }} --password ${{ secrets.GHCR_TOKEN }}
             docker service update --image $IMAGE:${VERSION} --with-registry-auth $STACK_NAME_$APP_NAME
