@@ -4,7 +4,11 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
 import { formatDate, formatTime } from 'src/common/helpers/common.helpers';
 import { Prisma } from '@prisma/client';
-import { IHourSlot, IOperationalDay } from '../interfaces/stores.interface';
+import {
+  getOffset,
+  getTotalPages,
+} from 'src/common/helpers/pagination.helpers';
+import { StoresListDto } from '../dtos/stores-list.dto';
 
 @Injectable()
 export class StoresService {
@@ -244,17 +248,41 @@ export class StoresService {
     };
   }
 
-  public async getAllStores(userId: number): Promise<any[]> {
-    return await this.prisma.stores.findMany({
-      where: {
-        user_has_stores: {
-          some: { user_id: userId },
+  public async getAllStores(dto: StoresListDto, header: ICustomRequestHeaders) {
+    const userId = header.user.id;
+
+    // --- Fetch data
+    const [items, total] = await Promise.all([
+      this.prisma.stores.findMany({
+        where: {
+          user_has_stores: {
+            some: { user_id: userId },
+          },
         },
+        skip: getOffset(dto.page, dto.pageSize),
+        take: dto.pageSize,
+        orderBy: {
+          [dto.orderBy]: dto.orderDirection,
+        },
+      }),
+      this.prisma.stores.count({
+        where: {
+          user_has_stores: {
+            some: { user_id: userId },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      items: items,
+      meta: {
+        page: dto.page,
+        pageSize: dto.pageSize,
+        total,
+        totalPages: getTotalPages(total, dto.pageSize),
       },
-      include: {
-        operational_hours: true,
-      },
-    });
+    };
   }
 
   public async updateProfile(userId: number, body: UpdateProfileDto) {

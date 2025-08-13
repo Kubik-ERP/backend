@@ -10,6 +10,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -44,6 +45,7 @@ import { StorageService } from 'src/modules/storage-service/services/storage-ser
 import { PinGuard } from 'src/common/guards/authentication-pin.guard';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
 import { UpdateProductDto } from '../../products/dto/update-product.dto';
+import { StoresListDto } from '../dtos/stores-list.dto';
 
 @Controller('store')
 @ApiTags('Stores')
@@ -256,67 +258,27 @@ export class StoresController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
-  @Get('/')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all stores' })
-  public async getAllStores(@Req() req: ICustomRequestHeaders) {
-    console.log('okok');
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @Get('/')
+  public async getAllStores(
+    @Query() dto: StoresListDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
     try {
-      const result = await this._storeService.getAllStores(req.user.id);
-      let response: any = [];
-      result.map((store) => {
-        const groupedOperationalHours = store.operational_hours.reduce(
-          (acc: any, item: any) => {
-            const day = item.days;
-            if (!acc[day]) {
-              const dayMap = [
-                'Sunday',
-                'Monday',
-                'Tuesday',
-                'Wednesday',
-                'Thursday',
-                'Friday',
-                'Saturday',
-              ];
-              acc[day] = {
-                days: dayMap[day] ?? 'Unknown',
-                times: [],
-              };
-            }
-            acc[day].times.push({
-              openTime: item.open_time,
-              closeTime: item.close_time,
-            });
-            return acc;
-          },
-          {},
-        );
-        response.push({
-          id: store.id,
-          name: store.name,
-          email: store.email,
-          phone_number: store.phone_number,
-          business_type: store.business_type,
-          photo: store.photo,
-          address: store.address,
-          city: store.city,
-          postal_code: store.postal_code,
-          building: store.building,
-          operationalHours: groupedOperationalHours,
-          created_at: formatDate(store.created_at),
-          updated_at: formatDate(store.updated_at),
-        });
-      });
+      const result = await this._storeService.getAllStores(dto, req);
       return {
-        result: response,
+        statusCode: 200,
+        message: 'Stores fetched successfully',
+        result: toCamelCase(result),
       };
     } catch (error) {
-      console.log(error);
-      throw new HttpException(
-        'Internal Server Error',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      return {
+        statusCode: 500,
+        message: error.message,
+        result: null,
+      };
     }
   }
 

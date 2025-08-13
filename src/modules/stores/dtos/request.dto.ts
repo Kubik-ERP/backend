@@ -116,21 +116,28 @@ export class UpdateProfileDto {
     example: 'John Doe',
     description: 'Full name of the user',
   })
+  @IsOptional()
+  @IsString()
   fullname?: string;
 
   @ApiPropertyOptional({
     example: 'john@example.com',
     description: 'Email address of the user',
   })
+  @IsOptional()
+  @IsEmail()
   email?: string;
 
   @ApiPropertyOptional({
     example: '+6281234567890',
     description: 'Phone number of the user',
   })
+  @IsOptional()
+  @IsString()
   phone?: string;
 
   @ApiProperty({ example: 'https://example.com/image.jpg', required: false })
   @IsOptional()
+  @IsString()
   image?: string;
 }
