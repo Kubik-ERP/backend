@@ -1,27 +1,27 @@
-# ===== STAGE 1: Build =====
+# ===== Stage 1: Builder =====
 FROM node:22-slim AS builder
 WORKDIR /app
 
-# Copy package.json & lockfile dulu biar cache install aman
+# Copy package.json & lockfile dulu
 COPY package*.json ./
-RUN npm install --production=false --no-fund --no-audit
+
+# Install semua dependencies termasuk dev
+RUN npm install --no-fund --no-audit
 
 # Copy seluruh source code
 COPY . .
 
-# Generate Prisma client
+# Prisma generate & build
 RUN npx prisma generate
-
-# Build app
 RUN npm run build
 
-# ===== STAGE 2: Production =====
+# ===== Stage 2: Production =====
 FROM node:22-slim
 WORKDIR /app
 
-# Copy only package.json & install production deps
+# Copy package.json & install hanya production dependencies
 COPY package*.json ./
-RUN npm install --production --no-fund --no-audit
+RUN npm install --production --omit=dev --no-fund --no-audit
 
 # Copy hasil build & Prisma client dari builder
 COPY --from=builder /app/dist ./dist
