@@ -74,7 +74,10 @@ export class LoyaltySettingsController {
     @Query() query: LoyaltyProductItemQueryDto,
     @Param('id') id: string,
   ) {
-    const data = await this.loyaltySettingsService.findAllProductSettings(query, id);
+    const data = await this.loyaltySettingsService.findAllProductSettings(
+      query,
+      id,
+    );
     return {
       message: 'Loyalty product settings retrieved successfully',
       result: toCamelCase(data),

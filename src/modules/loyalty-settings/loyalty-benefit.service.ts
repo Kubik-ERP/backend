@@ -88,13 +88,13 @@ export class LoyaltyBenefitService {
           benefit_free_items: {
             include: {
               products: {
-                include : {
+                include: {
                   categories_has_products: {
                     include: {
                       categories: true,
                     },
                   },
-                }
+                },
               },
             },
           },
@@ -107,7 +107,10 @@ export class LoyaltyBenefitService {
         id: item.product_id,
         name: item.products.name,
         quantity: item.quantity,
-        categories: item.products.categories_has_products[0].categories.category || null,
+        categories:
+          item.products.categories_has_products[0].categories.category || null,
+        price: item.products.price || null,
+        discount_price: item.products.discount_price || null,
       }));
       const discount = {
         value: benefit.discount_value,
@@ -128,9 +131,9 @@ export class LoyaltyBenefitService {
       loyaltyBenefits: {
         items: mappedBenefits,
         meta: {
-          total: totalItems,
           page,
-          limit,
+          pageSize: limit,
+          total: totalItems,
           totalPages,
         },
       },

@@ -86,10 +86,7 @@ export class LoyaltySettingsService {
     };
   }
 
-  async findAllProductSettings(
-    query: LoyaltyProductItemQueryDto, 
-    id: string,
-  ){
+  async findAllProductSettings(query: LoyaltyProductItemQueryDto, id: string) {
     const { page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
     const [totalItems, loyaltyProductItems] = await this.prisma.$transaction([
@@ -106,9 +103,9 @@ export class LoyaltySettingsService {
     return {
       data: loyaltyProductItems,
       meta: {
-        total: totalItems,
         page,
-        limit,
+        pageSize: limit,
+        total: totalItems,
         totalPages,
       },
     };
