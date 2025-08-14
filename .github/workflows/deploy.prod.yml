@@ -57,7 +57,8 @@ jobs:
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_KEY }}
           script: |
+            IMAGE=ghcr.io/kubik-erp/pos-be:latest
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
-            docker pull $IMAGE:latest
+            docker pull $IMAGE
             docker stack deploy -c /root/deploy/pos-be-stack.yml pos --with-registry-auth
             docker service update --force pos_pos-backend
