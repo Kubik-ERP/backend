@@ -33,6 +33,7 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { InventoryCategoryModule } from './modules/inventory-category/inventory-category.module';
+import { SelfOrderModule } from './modules/self-order/self-order.module';
 import { InventoryItemsModule } from './modules/inventory-items/inventory-items.module';
 import { StorageLocationsModule } from './modules/storage-locations/storage-locations.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
@@ -83,6 +84,7 @@ import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.
     TemplatesEmailModule,
     StoreTableModule,
     VouchersModule,
+    SelfOrderModule,
     PurchaseOrdersModule,
   ],
   providers: [
