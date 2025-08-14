@@ -5,14 +5,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CreateCustomerDto } from './dto/create-customer.dto';
-import { UpdateCustomerDto } from './dto/update-customer.dto';
-import { PrismaService } from '../../prisma/prisma.service';
-import { validate as isUUID } from 'uuid';
 import { customer as CustomerModel, point_type, Prisma } from '@prisma/client';
-import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
-import { QueryInvoiceDto } from './dto/query-invoice.dto';
+import { validate as isUUID } from 'uuid';
 import { validateStoreId } from '../../common/helpers/validators.helper';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
+import { CreateCustomerDto } from './dto/create-customer.dto';
+import { QueryInvoiceDto } from './dto/query-invoice.dto';
+import { QueryLoyaltyPointsDto } from './dto/query-loyalty-points.dto';
+import { UpdateCustomerPointsDto } from './dto/update-customer-points.dto';
+import { UpdateCustomerDto } from './dto/update-customer.dto';
 
 @Injectable()
 export class CustomerService {
@@ -282,7 +284,7 @@ export class CustomerService {
     };
   }
 
-  public async loyaltyPoints(id: string): Promise<any> {
+  public async loyaltyPoints(id: string, query: QueryLoyaltyPointsDto) {
     const customer = await this.prisma.customer.findUnique({
       where: { id },
       include: {
@@ -303,14 +305,68 @@ export class CustomerService {
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
-    const totalPoints = customer.trn_customer_points.reduce((sum, point) => {
-      if (point.type?.toString() === 'point_deduction') {
-        return sum - point.value;
-      } else {
-        return sum + point.value;
-      }
-    }, 0);
-
+    const {
+      page = 1,
+      limit = 10,
+      expiryDate,
+      type,
+      search,
+      orderBy,
+      orderDirection,
+    } = query;
+    const skip = (page - 1) * limit;
+    const conditions: Prisma.trn_customer_pointsWhereInput[] = [];
+    if (expiryDate) {
+      conditions.push({
+        expiry_date: {
+          gte: new Date(expiryDate),
+        },
+      });
+    }
+    if (type) {
+      conditions.push({
+        type: {
+          equals: type,
+        },
+      });
+    }
+    if (search) {
+      conditions.push({
+        notes: {
+          contains: search,
+          mode: 'insensitive',
+        },
+      });
+    }
+    const whereCondition: Prisma.trn_customer_pointsWhereInput = {
+      customer_id: id,
+      AND: conditions.length > 0 ? conditions : undefined,
+    };
+    const sortDirection =
+      orderDirection?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    const orderByMap: Record<string, any> = {
+      type: { type: sortDirection },
+      expiryDate: { expiry_date: sortDirection },
+      value: { value: sortDirection },
+      invoice_number: { invoice: { invoice_number: sortDirection } },
+      created_at: { invoice: { created_at: sortDirection } },
+    };
+    const prismaOrderBy = orderByMap[orderBy as string] ?? {
+      id: 'desc',
+    };
+    const [totalItems, points] = await this.prisma.$transaction([
+      this.prisma.trn_customer_points.count({ where: whereCondition }),
+      this.prisma.trn_customer_points.findMany({
+        where: whereCondition,
+        skip: skip,
+        take: limit,
+        include: {
+          invoice: true,
+        },
+        orderBy: prismaOrderBy,
+      }),
+    ]);
+    const totalPages = Math.ceil(totalItems / limit);
     return {
       id: customer.id,
       name: customer.name,
@@ -322,21 +378,109 @@ export class CustomerService {
       tags: customer.customers_has_tag.map((cht) => cht.tag),
       stores: customer.customer_has_stores.map((chs) => chs.stores),
       points: {
-        total: totalPoints,
-        details: customer.trn_customer_points,
+        total: customer.point || 0,
+        data: points,
+        meta: {
+          total: totalItems,
+          page,
+          limit,
+          totalPages,
+        },
       },
     };
   }
 
-  async createLoyaltyPoint(dto: CreateCustomerPointDto) {
+  async createLoyaltyPoint(type: point_type, dto: CreateCustomerPointDto) {
+    const existingCustomer = await this.prisma.customer.findUnique({
+      where: { id: dto.customer_id },
+    });
+    if (!existingCustomer) {
+      throw new NotFoundException('Customer not found');
+    }
+    if (type === 'point_addition') {
+      if (dto.value <= 0) {
+        throw new BadRequestException('Invalid point addition');
+      }
+      await this.prisma.customer.update({
+        where: { id: dto.customer_id },
+        data: {
+          point: {
+            increment: dto.value,
+          },
+        },
+      });
+    }
+    if (type === 'point_deduction') {
+      if (dto.value <= 0 || (existingCustomer.point ?? 0) - dto.value < 0) {
+        throw new BadRequestException('Invalid point deduction');
+      }
+      await this.prisma.customer.update({
+        where: { id: dto.customer_id },
+        data: {
+          point: {
+            decrement: dto.value,
+          },
+        },
+      });
+    }
+    const dataToCreate = {
+      ...dto,
+      type,
+    };
     try {
       const result = await this.prisma.trn_customer_points.create({
-        data: dto,
+        data: dataToCreate,
       });
       return result;
     } catch (err) {
       throw new BadRequestException('Failed to create point: ' + err.message);
     }
+  }
+
+  async updateLoyaltyPoint(id: string, dto: UpdateCustomerPointsDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const existingPoints = await tx.trn_customer_points.findUniqueOrThrow({
+        where: { id },
+      });
+
+      const newValue = dto.value ?? existingPoints.value;
+
+      if (newValue <= 0) {
+        throw new BadRequestException('Point value must be positive.');
+      }
+
+      if (newValue !== existingPoints.value) {
+        const customer = await tx.customer.findUniqueOrThrow({
+          where: { id: existingPoints.customer_id },
+        });
+
+        const valueDifference = newValue - existingPoints.value;
+        const netPointChange =
+          existingPoints.type === 'point_addition'
+            ? valueDifference
+            : -valueDifference;
+
+        if ((customer.point ?? 0) + netPointChange < 0) {
+          throw new BadRequestException(
+            'Update rejected. This change would result in a negative point balance.',
+          );
+        }
+
+        await tx.customer.update({
+          where: { id: customer.id },
+          data: { point: { increment: netPointChange } },
+        });
+      }
+
+      return tx.trn_customer_points.update({
+        where: { id },
+        data: {
+          value: newValue,
+          expiry_date: dto.expiry_date ?? existingPoints.expiry_date,
+          notes: dto.notes ?? existingPoints.notes,
+        },
+      });
+    });
   }
 
   public async findOne(idOrName: string): Promise<CustomerModel | null> {

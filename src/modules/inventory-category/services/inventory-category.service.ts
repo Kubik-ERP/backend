@@ -139,6 +139,19 @@ export class InventoryCategoryService {
     if (!store_id) throw new BadRequestException('store_id is required');
     const existing = await this.detail(id, header);
 
+    // Prevent delete if category is linked to any inventory item in this store
+    const linkedItemsCount = await this._prisma.master_inventory_items.count({
+      where: {
+        category_id: id,
+        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+      },
+    });
+    if (linkedItemsCount > 0) {
+      throw new BadRequestException(
+        'Inventory category cannot be deleted because it is linked to one or more inventory items in this store',
+      );
+    }
+
     await this._prisma.stores_has_master_inventory_categories.deleteMany({
       where: { stores_id: store_id, master_inventory_categories_id: id },
     });
