@@ -33,6 +33,7 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { InventoryCategoryModule } from './modules/inventory-category/inventory-category.module';
+import { SelfOrderModule } from './modules/self-order/self-order.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { InventoryCategoryModule } from './modules/inventory-category/inventory-
     TemplatesEmailModule,
     StoreTableModule,
     VouchersModule,
+    SelfOrderModule,
   ],
   providers: [
     {
