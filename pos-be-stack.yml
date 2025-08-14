@@ -46,6 +46,8 @@ services:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - pos-net
+    ports:
+      - "127.0.0.1:5432:5432"
     deploy:
       replicas: 1
       restart_policy:
