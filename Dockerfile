@@ -1,5 +1,5 @@
 # ===== Stage 2: Production =====
-FROM node:22-slim
+FROM node:22-slim AS builder
 WORKDIR /app
 
 # Install OpenSSL agar Prisma bisa jalan
