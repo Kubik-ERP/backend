@@ -58,4 +58,6 @@ jobs:
           key: ${{ secrets.PROD_KEY }}
           script: |
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
-            docker stack deploy -c /root/deploy/pos-be-stack.yml pos
+            docker pull $IMAGE:latest
+            docker stack deploy -c /root/deploy/pos-be-stack.yml pos --with-registry-auth
+            docker service update --force pos_pos-backend
