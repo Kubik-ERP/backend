@@ -97,11 +97,32 @@ export class LoyaltySettingsService {
         where: { loyalty_point_setting_id: id },
         skip: skip,
         take: limit,
+        include: {
+          products: {
+            include: {
+              categories_has_products: {
+                include: {
+                  categories: true,
+                },
+              },
+            },
+          },
+        },
       }),
     ]);
+    const mappedItems = loyaltyProductItems.map((item) => ({
+      ...item,
+      products: {
+        name: item.products.name || null,
+        categories:
+          item.products.categories_has_products[0].categories.category || null,
+        price: item.products.price || null,
+        discountPrice: item.products.discount_price || null,
+      },
+    }));
     const totalPages = Math.ceil(totalItems / limit);
     return {
-      data: loyaltyProductItems,
+      data: mappedItems,
       meta: {
         page,
         pageSize: limit,
