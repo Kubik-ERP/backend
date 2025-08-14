@@ -16,7 +16,7 @@ export class PaymentMethodService {
       where: {
         ...(isSelfOrder
           ? {
-              name: { in: ['Pay at Cashier', 'QRIS'] },
+              name: { in: ['Pay at Cashier', 'Qris'] },
             }
           : {
               name: { notIn: ['Pay at Cashier'] },

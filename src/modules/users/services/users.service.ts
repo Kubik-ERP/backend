@@ -27,7 +27,6 @@ export class UsersService {
    */
   public async create(payload: CreateUserDto): Promise<UserModel> {
     try {
-      // @ts-ignore
       return await this.prisma.users.create({
         data: {
           username: payload.username,
@@ -35,6 +34,8 @@ export class UsersService {
           password: payload.password,
           fullname: payload.fullname,
           role_id: payload.role_id,
+          phone: payload.phone,
+          ext: payload.ext || 62,
         },
       });
     } catch (error) {

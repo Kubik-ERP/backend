@@ -74,10 +74,7 @@ export class SuppliersController {
     );
     return {
       message: 'Suppliers retrieved successfully',
-      result: {
-        ...suppliers,
-        data: toCamelCase(suppliers.data),
-      },
+      result: toCamelCase(suppliers),
     };
   }
 

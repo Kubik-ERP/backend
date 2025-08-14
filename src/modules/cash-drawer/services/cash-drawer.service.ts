@@ -7,8 +7,9 @@ import {
 } from 'src/common/helpers/common.helpers';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
-import { CashDrawerQueryDto } from '../dtos/cash-drawer.dto';
+import { CashDrawerQueryDto, CashFlowParamsDto } from '../dtos/cash-drawer.dto';
 import { cash_drawer_type } from '@prisma/client';
+import { UUID } from 'crypto';
 
 @Injectable()
 export class CashDrawerService {
@@ -223,6 +224,7 @@ export class CashDrawerService {
           notes: notes || '',
           created_by: userId,
           created_at: jakartaTime().toUnixInteger(),
+          store_id: cashDrawer.store_id,
         },
       });
     });
@@ -390,5 +392,45 @@ export class CashDrawerService {
       cashOut: amountOut,
       sales: sales,
     };
+  }
+
+  async getCashFlow(params: CashFlowParamsDto, storeId: string) {
+    const startTimestamp = Math.floor(
+      new Date(params.startDate).getTime() / 1000,
+    );
+    const endTimestamp = Math.floor(new Date(params.endDate).getTime() / 1000);
+    const [data, count] = await Promise.all([
+      this.prisma.cash_drawer_transactions.findMany({
+        include: {
+          users: {
+            select: {
+              id: true,
+              fullname: true,
+            },
+          },
+        },
+        where: {
+          created_at: {
+            gte: startTimestamp,
+            lte: endTimestamp,
+          },
+          store_id: storeId,
+        },
+        orderBy: { created_at: 'desc' },
+        take: params.limit,
+        skip: (params.page! - 1) * params.limit!,
+      }),
+      this.prisma.cash_drawer_transactions.count({
+        where: {
+          created_at: {
+            gte: startTimestamp,
+            lte: endTimestamp,
+          },
+          store_id: storeId,
+        },
+      }),
+    ]);
+
+    return [data, count];
   }
 }

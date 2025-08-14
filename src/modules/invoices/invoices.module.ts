@@ -17,6 +17,7 @@ import { KitchenService } from '../kitchen/services/kitchen.service';
 import { CashDrawerService } from '../cash-drawer/services/cash-drawer.service';
 import { VariantsService } from '../variants/variants.service';
 import { ProductsService } from '../products/products.service';
+import { VouchersService } from '../vouchers/vouchers.service';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { ProductsService } from '../products/products.service';
     CashDrawerService,
     VariantsService,
     ProductsService,
+    VouchersService,
   ],
   controllers: [InvoiceSettingController, InvoiceController],
   exports: [
