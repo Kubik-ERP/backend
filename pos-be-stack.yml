@@ -52,7 +52,7 @@ services:
 #     restart_policy:
 #       condition: on-failure
 
-volumes:
+# volumes:
   # redis-data:
   # postgres-data:
 
