@@ -10,6 +10,7 @@ import {
   Param,
   ParseBoolPipe,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -19,9 +20,16 @@ import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
 import { ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { SelfOrderSignUpDto } from '../dtos/self-order-signup.dto';
 import { PaymentMethodService } from '../../payment-methods/services/payment-method.service';
-import { CalculationEstimationDto } from '../../invoices/dtos/process-payment.dto';
+import {
+  CalculationEstimationDto,
+  ProceedCheckoutInvoiceDto,
+  ProceedInstantPaymentDto,
+  ProceedPaymentDto,
+  UpsertInvoiceItemDto,
+} from '../../invoices/dtos/process-payment.dto';
 import { InvoiceService } from '../../invoices/services/invoices.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { ProductsService } from '../../products/products.service';
 
 @ApiTags('Self Order')
 @Controller('self-order')
@@ -32,10 +40,14 @@ export class SelfOrderController {
     private readonly paymentMethodService: PaymentMethodService,
     private readonly invoiceService: InvoiceService,
     private readonly prisma: PrismaService,
+    private readonly productsService: ProductsService,
   ) {}
 
   // Sign up: if exists (by code+number+store) return existing, else create via customersService.create
   @Post('customers/signup')
+  @ApiOperation({
+    summary: 'Customer Self Order Sign Up',
+  })
   async signUp(
     @Body() dto: SelfOrderSignUpDto,
     @Req() req: ICustomRequestHeaders,
@@ -54,6 +66,9 @@ export class SelfOrderController {
     description: 'Store ID associated with this request',
     required: true,
     schema: { type: 'string' },
+  })
+  @ApiOperation({
+    summary: 'Get All Categories',
   })
   @ApiQuery({
     name: 'page',
@@ -103,6 +118,9 @@ export class SelfOrderController {
 
   // * Get Categories Detail by id categories
   @Get('categories/:idOrName')
+  @ApiOperation({
+    summary: 'Get Categories Detail by ID or Name',
+  })
   async findCategory(@Param('idOrName') idOrName: string) {
     try {
       const category = await this.categoriesService.findOne(idOrName);
@@ -170,6 +188,106 @@ export class SelfOrderController {
 
     return {
       result,
+    };
+  }
+
+  // * Get Product Detail
+  @Get('product/:idOrName')
+  @ApiOperation({
+    summary: 'Get Product Detail by ID or Name',
+  })
+  async findOne(@Param('idOrName') idOrName: string) {
+    try {
+      const products = await this.productsService.findOne(idOrName);
+      if (!products) {
+        throw new HttpException(
+          { statusCode: HttpStatus.NOT_FOUND, message: 'products not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(products),
+      };
+    } catch (error) {
+      console.error('Error finding products:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch products',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /* ---------------------- // * Invoice Process Instant ---------------------- */
+  @Post('invoice/process/instant')
+  @ApiOperation({
+    summary: 'Create invoice and pay it instantly',
+  })
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiOperation({
+    summary: 'Create invoice and pay it instantly',
+  })
+  public async processInstantPayment(
+    @Req() req: ICustomRequestHeaders,
+    @Body() body: ProceedInstantPaymentDto,
+  ) {
+    const response = await this.invoiceService.proceedInstantPayment(req, body);
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  /* ---------------------- // * Invoice Process Checkout --------------------- */
+  @Post('invoice/process/checkout')
+  @ApiOperation({
+    summary: 'Create invoice with unpaid status',
+  })
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiOperation({
+    summary: 'Create invoice with unpaid status',
+  })
+  public async processCheckout(
+    @Req() req: ICustomRequestHeaders,
+    @Body() body: ProceedCheckoutInvoiceDto,
+  ) {
+    const response = await this.invoiceService.proceedCheckout(req, body);
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  /* ---------------------- // * Invoice Process Payment ---------------------- */
+  @Post('invoice/process/payment')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiOperation({
+    summary: 'Pay the unpaid invoice',
+  })
+  public async processPayment(
+    @Req() req: ICustomRequestHeaders,
+    @Body() body: ProceedPaymentDto,
+  ) {
+    const response = await this.invoiceService.proceedPayment(req, body);
+    return {
+      result: toCamelCase(response),
     };
   }
 }

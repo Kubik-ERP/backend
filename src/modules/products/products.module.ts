@@ -8,5 +8,6 @@ import { StorageServiceModule } from '../storage-service/storage-service.module'
   imports: [PrismaModule, StorageServiceModule],
   controllers: [ProductsController],
   providers: [ProductsService],
+  exports: [ProductsService],
 })
 export class ProductsModule {}
