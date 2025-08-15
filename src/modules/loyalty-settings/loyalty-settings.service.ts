@@ -7,6 +7,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateLoyaltySettingDto } from './dto/create-loyalty-setting.dto';
 import { LoyaltyProductItemQueryDto } from './dto/loyalty-product-items-query.dto';
 import { UpdateLoyaltySettingDto } from './dto/update-loyalty-setting.dto';
+import { UpdateSettingItemDto } from './dto/updateSettingItem.dto';
 
 @Injectable()
 export class LoyaltySettingsService {
@@ -180,30 +181,54 @@ export class LoyaltySettingsService {
       },
     });
 
-    if (
-      updateLoyaltySettingDto.product_based_items &&
-      updateLoyaltySettingDto.product_based_items.length > 0
-    ) {
-      const productItems = updateLoyaltySettingDto.product_based_items.map(
-        (item) => ({
-          loyalty_point_setting_id: loyaltySetting.id,
-          product_id: item.product_id,
-          points: item.points_earned,
-          minimum_transaction: item.minimum_purchase,
-        }),
-      );
-      await this.prisma.loyalty_product_item.deleteMany({
-        where: { loyalty_point_setting_id: loyaltySetting.id },
-      });
-      await this.prisma.loyalty_product_item.createMany({
-        data: productItems,
-      });
-    }
+    // if (
+    //   updateLoyaltySettingDto.product_based_items &&
+    //   updateLoyaltySettingDto.product_based_items.length > 0
+    // ) {
+    //   const productItems = updateLoyaltySettingDto.product_based_items.map(
+    //     (item) => ({
+    //       loyalty_point_setting_id: loyaltySetting.id,
+    //       product_id: item.product_id,
+    //       points: item.points_earned,
+    //       minimum_transaction: item.minimum_purchase,
+    //     }),
+    //   );
+    //   await this.prisma.loyalty_product_item.deleteMany({
+    //     where: { loyalty_point_setting_id: loyaltySetting.id },
+    //   });
+    //   await this.prisma.loyalty_product_item.createMany({
+    //     data: productItems,
+    //   });
+    // }
 
     return {
       loyaltySetting,
-      productItems: updateLoyaltySettingDto.product_based_items || [],
+      // productItems: updateLoyaltySettingDto.product_based_items || [],
     };
+  }
+
+  async updateSettingsItem(
+    updateSettingItemDto: UpdateSettingItemDto,
+    id: string,
+  ) {
+    const existingSetting = await this.prisma.loyalty_product_item.findUnique({
+      where: { id },
+    });
+    if (!existingSetting) {
+      throw new NotFoundException('Loyalty setting item not found');
+    }
+    const updatedSetting = await this.prisma.loyalty_product_item.update({
+      where: { id },
+      data: {
+        product_id:
+          updateSettingItemDto.product_id ?? existingSetting.product_id,
+        points: updateSettingItemDto.points_earned ?? existingSetting.points,
+        minimum_transaction:
+          updateSettingItemDto.minimum_purchase ??
+          existingSetting.minimum_transaction,
+      },
+    });
+    return updatedSetting;
   }
 
   remove(id: number) {

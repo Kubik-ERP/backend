@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -16,6 +17,7 @@ import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CreateLoyaltySettingDto } from './dto/create-loyalty-setting.dto';
 import { LoyaltyProductItemQueryDto } from './dto/loyalty-product-items-query.dto';
 import { UpdateLoyaltySettingDto } from './dto/update-loyalty-setting.dto';
+import { UpdateSettingItemDto } from './dto/updateSettingItem.dto';
 import { LoyaltySettingsService } from './loyalty-settings.service';
 
 @Controller('loyalty-settings')
@@ -103,6 +105,24 @@ export class LoyaltySettingsController {
     );
     return {
       message: 'Loyalty setting updated successfully',
+      result: toCamelCase(data),
+    };
+  }
+
+  @ApiOperation({ summary: 'Update Loyalty Setting Item' })
+  @ApiBearerAuth()
+  @UseGuards(AuthenticationJWTGuard)
+  @Put('item/:id')
+  async updateSettingItem(
+    @Param('id') id: string,
+    @Body() updateSettingItemDto: UpdateSettingItemDto,
+  ) {
+    const data = await this.loyaltySettingsService.updateSettingsItem(
+      updateSettingItemDto,
+      id,
+    );
+    return {
+      message: 'Loyalty setting item updated successfully',
       result: toCamelCase(data),
     };
   }

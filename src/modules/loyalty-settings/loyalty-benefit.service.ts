@@ -180,12 +180,12 @@ export class LoyaltyBenefitService {
       where: { id },
       data: {
         discount_value:
-          updateBenefitDto.value || existingBenefit.discount_value,
-        is_percent: updateBenefitDto.isPercent || existingBenefit.is_percent,
+          updateBenefitDto.value ?? existingBenefit.discount_value,
+        is_percent: updateBenefitDto.isPercent ?? existingBenefit.is_percent,
         benefit_name:
-          updateBenefitDto.benefitName || existingBenefit.benefit_name,
+          updateBenefitDto.benefitName ?? existingBenefit.benefit_name,
         points_needs:
-          updateBenefitDto.pointNeeds || existingBenefit.points_needs,
+          updateBenefitDto.pointNeeds ?? existingBenefit.points_needs,
       },
       include: {
         benefit_free_items: {
