@@ -1,4 +1,18 @@
-import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpException,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  ParseBoolPipe,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { SelfOrderService } from '../services/self-order.service';
 import { CategoriesService } from '../../categories/categories.service';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
