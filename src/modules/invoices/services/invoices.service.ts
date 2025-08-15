@@ -429,7 +429,7 @@ export class InvoiceService {
 
         // update invoice
         await this.update(tx, invoiceId, {
-          subtotal: calculation.total,
+          subtotal: calculation.subTotal, // harga sebelum potongan voucher
           tax_id: calculation.taxId,
           service_charge_id: calculation.serviceChargeId,
           tax_amount: calculation.tax,
@@ -580,7 +580,7 @@ export class InvoiceService {
         payment_status: invoice_type.unpaid,
         discount_amount: 0, // need to confirm
         order_type: request.orderType,
-        subtotal: calculation.total,
+        subtotal: calculation.subTotal, // harga sebelum potongan voucher
         created_at: now,
         update_at: now,
         delete_at: null,
@@ -1181,7 +1181,7 @@ export class InvoiceService {
       // update invoice
       await this.update(tx, invoice.id, {
         payment_status: invoice_type.paid,
-        subtotal: calculation.total,
+        subtotal: calculation.subTotal, // harga sebelum potongan voucher
         tax_id: calculation.taxId,
         service_charge_id: calculation.serviceChargeId,
         tax_amount: calculation.tax,
@@ -1402,9 +1402,9 @@ export class InvoiceService {
       }
 
       const discountAmount = (originalPrice - discountedPrice) * item.quantity;
-      const subtotal = (productPrice + variantPrice) * item.quantity;
+      const lineTotal = (productPrice + variantPrice) * item.quantity;
       discountTotal += discountAmount;
-      total += subtotal;
+      total += lineTotal;
 
       items.push({
         productId: item.productId,
@@ -1413,9 +1413,12 @@ export class InvoiceService {
         variantPrice,
         qty: item.quantity,
         discountAmount: discountAmount,
-        subtotal,
+        subtotal: lineTotal,
       });
     }
+
+    // harga sebelum potongan voucher
+    const subTotal = total;
 
     // --- apply voucher
 
@@ -1551,6 +1554,7 @@ export class InvoiceService {
       changeAmount,
       items,
       voucherAmount,
+      subTotal,
     };
   }
 
@@ -1752,7 +1756,7 @@ export class InvoiceService {
           table_code: invoice.table_code,
           payment_status: invoice.payment_status as invoice_type,
           discount_amount: invoice.discount_amount,
-          subtotal: invoice.subtotal,
+          subtotal: invoice.subtotal, // harga sebelum potongan voucher
           order_type: invoice.order_type,
           created_at: invoice.created_at ?? new Date(),
           update_at: invoice.update_at ?? new Date(),

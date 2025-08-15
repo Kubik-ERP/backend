@@ -20,4 +20,8 @@ export interface CalculationResult {
     subtotal: number;
   }[];
   voucherAmount: number;
+  /**
+   * Harga sebelum potongan voucher
+   */
+  subTotal: number;
 }
