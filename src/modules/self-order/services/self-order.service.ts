@@ -48,6 +48,7 @@ export class SelfOrderService {
     const created = await this.customersService.create(
       {
         name: dto.name,
+        email: dto.email,
         code: dto.code,
         number: dto.number,
       } as CreateCustomerDto,

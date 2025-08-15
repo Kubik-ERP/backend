@@ -7,5 +7,6 @@ import { PrismaModule } from 'src/prisma/prisma.module';
   imports: [PrismaModule],
   controllers: [StoreTableController],
   providers: [StoreTableService],
+  exports: [StoreTableService],
 })
 export class StoreTableModule {}

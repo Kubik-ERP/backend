@@ -12,6 +12,11 @@ export class SelfOrderSignUpDto {
   @IsNotEmpty()
   name!: string;
 
+  @ApiProperty({ example: 'john@example.com' })
+  @IsString()
+  @IsOptional()
+  email!: string;
+
   @ApiProperty({ example: '8123456789', required: false })
   @IsString()
   @IsNotEmpty()
