@@ -2,8 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class SelfOrderSignUpDto {
-  @ApiProperty({ example: 'CUST-001', required: false })
-  @IsOptional()
+  @ApiProperty({ example: '+62', required: false })
+  @IsNotEmpty()
   @IsString()
   code?: string;
 
@@ -12,13 +12,18 @@ export class SelfOrderSignUpDto {
   @IsNotEmpty()
   name!: string;
 
-  @ApiProperty({ example: '628123456789', required: false })
-  @IsOptional()
+  @ApiProperty({ example: 'john@example.com' })
   @IsString()
+  @IsOptional()
+  email!: string;
+
+  @ApiProperty({ example: '8123456789', required: false })
+  @IsString()
+  @IsNotEmpty()
   number?: string;
 
   @ApiProperty({
-    description: 'Target store ID (UUID)',
+    description: 'Store ID (UUID)',
     example: 'b4b7a2a8-9c9a-4e4d-8b7f-1234567890ab',
   })
   @IsUUID()

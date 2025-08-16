@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CustomerService } from '../../customer/customer.service';
 import { CreateCustomerDto } from '../../customer/dto/create-customer.dto';
-import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
+import { SelfOrderSignUpDto } from '../dtos/self-order-signup.dto';
 
 @Injectable()
 export class SelfOrderService {
@@ -15,80 +15,46 @@ export class SelfOrderService {
     private readonly customersService: CustomerService,
   ) {}
 
-  // Sign in by code and number
-  async signIn(params: { code?: string; number?: string }) {
-    const code = params.code?.trim();
-    const number = params.number?.trim();
-    if (!number) throw new BadRequestException('number is required');
+  // Sign up (Self-Order):
+  // 1) If phone (code+number) exists and linked to store -> return existing
+  // 2) Else create a new customer and store link using customersService.create
+  async signUp(dto: SelfOrderSignUpDto, header: ICustomRequestHeaders) {
+    if (!dto?.name?.trim()) {
+      throw new BadRequestException('name is required');
+    }
+    if (!dto?.storeId?.trim()) {
+      throw new BadRequestException('storeId is required');
+    }
 
-    const customer = await this.prisma.customer.findFirst({
+    const existing = await this.prisma.customer.findFirst({
       where: {
-        number,
-        ...(code ? { code } : {}),
+        number: dto.number ?? undefined,
+        ...(dto.code ? { code: dto.code } : {}),
+        customer_has_stores: {
+          some: { stores: { id: dto.storeId } },
+        },
       },
       include: {
         customers_has_tag: { include: { tag: true } },
-        trn_customer_points: true,
+        customer_has_stores: { include: { stores: true } },
       },
     });
 
-    if (!customer) {
-      throw new NotFoundException('Customer not found');
+    if (existing) {
+      return { customer: existing, created: false } as const;
     }
 
-    const latestVisit = await this.prisma.invoice.findFirst({
-      where: { customer_id: customer.id },
-      orderBy: { created_at: 'desc' },
-      select: { created_at: true },
-    });
-
-    return {
-      id: customer.id,
-      name: customer.name,
-      code: customer.code ?? undefined,
-      number: customer.number ?? undefined,
-      dob: customer.dob ? customer.dob.toISOString() : undefined,
-      email: customer.email ?? undefined,
-      username: customer.username ?? undefined,
-      address: customer.address ?? undefined,
-      point:
-        customer.trn_customer_points?.reduce(
-          (acc: number, p: { type?: unknown; value: number }) =>
-            acc +
-            (p.type?.toString() === 'point_deduction' ? -p.value : p.value),
-          0,
-        ) ?? 0,
-      latestVisit: latestVisit?.created_at?.toISOString() ?? undefined,
-      customersHasTag: customer.customers_has_tag.map((cht: any) => ({
-        customer_id: cht.customer_id,
-        tag_id: cht.tag_id,
-        tag: cht.tag,
-      })),
-    };
-  }
-
-  // Sign up: reuse existing customersService.create implementation
-  async signUp(
-    createCustomerDto: CreateCustomerDto,
-    header: ICustomRequestHeaders,
-  ) {
-    if (!createCustomerDto?.name?.trim()) {
-      throw new BadRequestException('name is required');
-    }
-
+    header.store_id = dto.storeId;
     const created = await this.customersService.create(
       {
-        name: createCustomerDto.name,
-        code: createCustomerDto.code,
-        number: createCustomerDto.number,
+        name: dto.name,
+        email: dto.email,
+        code: dto.code,
+        number: dto.number,
       } as CreateCustomerDto,
       header,
     );
 
-    return {
-      statusCode: 201,
-      message: 'Customer created successfully',
-      result: toCamelCase(created),
-    };
+    return { customer: created, created: true } as const;
   }
 }

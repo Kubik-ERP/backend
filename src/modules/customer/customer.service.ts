@@ -709,4 +709,19 @@ export class CustomerService {
       completedOrders,
     };
   }
+
+  async findByPhoneNumber(number: string, storeId: string) {
+    return this.prisma.customer.findFirst({
+      where: {
+        number,
+        customer_has_stores: {
+          some: { stores: { id: storeId } },
+        },
+      },
+      include: {
+        customers_has_tag: { include: { tag: true } },
+        customer_has_stores: { include: { stores: true } },
+      },
+    });
+  }
 }
