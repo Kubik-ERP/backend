@@ -81,8 +81,11 @@ export const generateNextId = (
  * idToNumber('PO-001') // 1
  * idToNumber('PO-010') // 10
  * idToNumber('PO-100') // 100
+ * idToNumber('STK-20250820-007') // 7
+ * idToNumber('INV-2025-12-00045') // 45
  */
 export const idToNumber = (id: string): number => {
   const parts = id.split('-');
-  return parts.length > 1 ? parseInt(parts[1], 10) : NaN;
+  const lastPart = parts[parts.length - 1]; // always take the last segment
+  return /^\d+$/.test(lastPart) ? parseInt(lastPart, 10) : NaN;
 };
