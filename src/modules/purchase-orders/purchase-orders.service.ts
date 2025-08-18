@@ -154,7 +154,7 @@ export class PurchaseOrdersService {
     const result = await this._prisma.$transaction(async (tx) => {
       // Generate next PO number
       const lastPO = await tx.purchase_orders.findFirst({
-        orderBy: { id: 'desc' },
+        orderBy: { created_at: 'desc' },
         select: { order_number: true },
       });
 
