@@ -54,7 +54,7 @@ export class PurchaseOrdersService {
     const orderByField = camelToSnake(query.orderBy);
     const orderDirection = query.orderDirection;
     const orderBy: Prisma.purchase_ordersOrderByWithRelationInput[] = [];
-    if (orderByField === 'supplierName') {
+    if (orderByField === 'supplier_name') {
       orderBy.push({
         // NOTE: harusnya ke supplier_info->>supplier_name
         // prisma belum support order by dengan type json
