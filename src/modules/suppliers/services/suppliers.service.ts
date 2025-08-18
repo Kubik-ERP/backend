@@ -9,6 +9,8 @@ import { CreateSupplierDto } from '../dtos/create-supplier.dto';
 import { UpdateSupplierDto } from '../dtos/update-supplier.dto';
 import { GetSuppliersDto } from '../dtos/get-suppliers.dto';
 import { master_suppliers } from '@prisma/client';
+import { GetItemSuppliesDto } from '../dtos';
+import { toPlainItem } from '../../../common/helpers/object-transformer.helper';
 
 @Injectable()
 export class SuppliersService {
@@ -78,6 +80,143 @@ export class SuppliersService {
         description: error.message,
       });
     }
+  }
+
+  /**
+   * @description Get item supplies list (inventory items tied to suppliers) with search, date filter, and ordering
+   */
+  public async getItemSupplies(
+    supplierId: string,
+    query: GetItemSuppliesDto,
+    header: ICustomRequestHeaders,
+  ) {
+    const store_id = header.store_id;
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
+    const {
+      page = 1,
+      pageSize = 10,
+      search,
+      startDate,
+      endDate,
+      orderBy = 'order_date',
+      orderDirection = 'desc',
+    } = query;
+
+    const skip = (page - 1) * pageSize;
+    const whereItem: any = {
+      stores_has_master_inventory_items: {
+        some: { stores_id: store_id },
+      },
+    };
+
+    // Filter by supplier id
+    if (supplierId) {
+      whereItem.supplier_id = supplierId;
+    }
+
+    if (search) {
+      whereItem.OR = [
+        { sku: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Date filter on created_at of master_inventory_items
+    if (startDate || endDate) {
+      const createdAt: any = {};
+      if (startDate) createdAt.gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        // include end of day
+        end.setHours(23, 59, 59, 999);
+        createdAt.lte = end;
+      }
+      whereItem.created_at = createdAt;
+    }
+
+    const orderByClause: any = {};
+    const direction = orderDirection;
+    switch (orderBy) {
+      case 'sku':
+        orderByClause.sku = direction;
+        break;
+      case 'price_per_unit':
+        orderByClause.price_per_unit = direction;
+        break;
+      case 'expiry_date':
+        orderByClause.expiry_date = direction;
+        break;
+      case 'order_date':
+        orderByClause.created_at = direction;
+        break;
+      default:
+        orderByClause.created_at = direction;
+    }
+
+    const total = await this._prisma.master_inventory_items.count({
+      where: whereItem,
+    });
+
+    const items = await this._prisma.master_inventory_items.findMany({
+      where: whereItem,
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        master_inventory_categories: { select: { name: true } },
+        master_brands: { select: { brand_name: true } },
+        price_per_unit: true,
+        expiry_date: true,
+        created_at: true,
+        purchase_order_items: {
+          take: 1,
+          orderBy: { purchase_orders: { order_date: 'asc' } },
+          select: { purchase_orders: { select: { order_date: true } } },
+        },
+      },
+      orderBy: orderByClause,
+      skip,
+      take: pageSize,
+    });
+
+    let mapped = items.map((it) => ({
+      id: it.id,
+      sku: it.sku,
+      item_name: it.name,
+      category: it.master_inventory_categories?.name ?? null,
+      brand: it.master_brands?.brand_name ?? null,
+      price_per_unit: it.price_per_unit,
+      expiry_date: it.expiry_date,
+      created_at: it.created_at,
+    }));
+
+    // If sorting by order_date was requested, sort in-memory by derived field
+    if (orderBy === 'order_date') {
+      mapped = mapped.sort((a, b) => {
+        const aTime = a.created_at
+          ? new Date(a.created_at as any).getTime()
+          : 0;
+        const bTime = b.created_at
+          ? new Date(b.created_at as any).getTime()
+          : 0;
+        return orderDirection === 'asc' ? aTime - bTime : bTime - aTime;
+      });
+    }
+
+    const plainItems = mapped.map((i) => toPlainItem(i));
+
+    return {
+      items: plainItems,
+      meta: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
   }
 
   /**
@@ -360,7 +499,7 @@ export class SuppliersService {
       });
       if (linkedItemsCount > 0) {
         throw new BadRequestException(
-          'Supplier cannot be deleted because it is linked to one or more inventory items in this store',
+          'This supplier is linked to existing inventory items. Please remove or reassign the linked items before attemping to delete',
         );
       }
 
