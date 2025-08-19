@@ -214,7 +214,19 @@ export class VouchersService {
       voucher_has_products = await this._prisma.voucher_has_products.findMany({
         where: { voucher_id: voucher.id },
         include: {
-          products: true,
+          products: {
+            include: {
+              categories_has_products: {
+                select: {
+                  categories: {
+                    select: {
+                      category: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       });
     }
