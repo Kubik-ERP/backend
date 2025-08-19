@@ -113,6 +113,25 @@ export class InventoryItemsService {
     const [items, total] = await Promise.all([
       this._prisma.master_inventory_items.findMany({
         where,
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          master_inventory_categories: { select: { name: true } },
+          master_brands: { select: { brand_name: true } },
+          unit: true,
+          stock_quantity: true,
+          reorder_level: true,
+          minimum_stock_quantity: true,
+          price_per_unit: true,
+          expiry_date: true,
+          created_at: true,
+          purchase_order_items: {
+            take: 1,
+            orderBy: { purchase_orders: { order_date: 'asc' } },
+            select: { purchase_orders: { select: { order_date: true } } },
+          },
+        },
         orderBy: { [orderBy as OrderByKey]: orderDirection },
         skip,
         take: pageSize,
@@ -120,8 +139,23 @@ export class InventoryItemsService {
       this._prisma.master_inventory_items.count({ where }),
     ]);
 
+    let mapped = items.map((it) => ({
+      id: it.id,
+      sku: it.sku,
+      item_name: it.name,
+      category: it.master_inventory_categories?.name ?? null,
+      brand: it.master_brands?.brand_name ?? null,
+      unit: it.unit,
+      stock_quantity: it.stock_quantity,
+      reorder_level: it.reorder_level,
+      minimum_stock_quantity: it.minimum_stock_quantity,
+      price_per_unit: it.price_per_unit,
+      expiry_date: it.expiry_date,
+      created_at: it.created_at,
+    }));
+
     const totalPages = Math.ceil(total / pageSize);
-    const plainItems = items.map((i) => this.toPlainItem(i));
+    const plainItems = mapped.map((i) => this.toPlainItem(i));
     return { items: plainItems, meta: { page, pageSize, total, totalPages } };
   }
 
@@ -134,12 +168,48 @@ export class InventoryItemsService {
         id,
         stores_has_master_inventory_items: { some: { stores_id: store_id } },
       },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        barcode: true,
+        master_inventory_categories: { select: { name: true } },
+        master_storage_locations: { select: { name: true } },
+        unit: true,
+        stock_quantity: true,
+        reorder_level: true,
+        minimum_stock_quantity: true,
+        expiry_date: true,
+        price_per_unit: true,
+        master_brands: { select: { brand_name: true } },
+        master_suppliers: { select: { supplier_name: true } },
+        created_at: true,
+      },
     });
     if (!item)
       throw new NotFoundException(
         `Inventory item with ID ${id} not found in this store`,
       );
-    return this.toPlainItem(item);
+
+    const mapped = {
+      id: item.id,
+      sku: item.sku,
+      item_name: item.name,
+      barcode: item.barcode,
+      category: item.master_inventory_categories?.name ?? null,
+      brand: item.master_brands?.brand_name ?? null,
+      unit: item.unit,
+      stock_quantity: item.stock_quantity,
+      reorder_level: item.reorder_level,
+      minimum_stock_quantity: item.minimum_stock_quantity,
+      price_per_unit: item.price_per_unit,
+      expiry_date: item.expiry_date,
+      storage_location: item.master_storage_locations?.name ?? null,
+      supplier: item.master_suppliers?.supplier_name ?? null,
+      created_at: item.created_at,
+    };
+
+    return this.toPlainItem(mapped);
   }
 
   public async update(

@@ -28,11 +28,31 @@ export class GetInventoryItemsDto {
   @ApiProperty({
     description: 'Order by field',
     example: 'created_at',
-    enum: ['id', 'created_at', 'name', 'updated_at', 'sku'],
+    enum: [
+      'id',
+      'created_at',
+      'name',
+      'updated_at',
+      'sku',
+      'stock_quantity',
+      'reorder_level',
+      'minimum_stock_quantity',
+      'price_per_unit',
+    ],
   })
   @IsOptional()
   @IsString()
-  @IsIn(['id', 'created_at', 'name', 'updated_at', 'sku'])
+  @IsIn([
+    'id',
+    'created_at',
+    'name',
+    'updated_at',
+    'sku',
+    'stock_quantity',
+    'reorder_level',
+    'minimum_stock_quantity',
+    'price_per_unit',
+  ])
   orderBy?: string = 'created_at';
 
   @ApiProperty({
