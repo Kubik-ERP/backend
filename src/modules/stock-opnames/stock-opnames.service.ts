@@ -168,8 +168,7 @@ export class StockOpnamesService {
   }
 
   async findOne(id: string, header: ICustomRequestHeaders) {
-    // const store_id = header.store_id;
-    const store_id = 'e5396731-5263-4969-9e31-860f617b5213';
+    const store_id = header.store_id;
     if (!store_id) throw new BadRequestException('store_id is required');
 
     if (!header.user) throw new BadRequestException('user is required');
