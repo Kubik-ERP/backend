@@ -93,6 +93,7 @@ export class StockOpnamesService {
           stock_opname_items: {
             createMany: { data: soItems },
           },
+          updated_at: new Date(),
         },
         include: {
           stock_opname_items: {
