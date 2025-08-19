@@ -19,7 +19,6 @@ export class ProductsService {
     createProductDto: CreateProductDto,
     header: ICustomRequestHeaders,
   ): Promise<ProductModel> {
-    let discountValue: number | undefined = 0;
     try {
       const store_id = header.store_id;
 
@@ -33,11 +32,11 @@ export class ProductsService {
       if (existingProduct) {
         throw new Error('Product with this name already exists');
       }
-      if (createProductDto.discount_price === 0) {
-        discountValue = createProductDto.price;
-      } else {
-        discountValue = createProductDto.discount_price;
-      }
+
+      // jika discount_price tidak ada, maka discountValue = price
+      const discountValue = createProductDto?.isDiscount
+        ? createProductDto.discount_price
+        : createProductDto.price;
 
       const productWithCategories = await this.prisma.$transaction(
         async (tx) => {
@@ -308,12 +307,17 @@ export class ProductsService {
           }
         }
 
+        // jika discount_price tidak ada, maka discountValue = price
+        const discountValue = updateProductDto?.isDiscount
+          ? updateProductDto.discount_price
+          : updateProductDto.price;
+
         return await tx.products.update({
           where: { id },
           data: {
             name: updateProductDto.name,
             price: updateProductDto.price,
-            discount_price: updateProductDto.discount_price,
+            discount_price: discountValue,
             picture_url: updateProductDto.image,
             is_percent: updateProductDto.is_percent,
           },
