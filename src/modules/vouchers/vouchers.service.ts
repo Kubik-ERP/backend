@@ -19,7 +19,8 @@ import {
   getTotalPages,
 } from 'src/common/helpers/pagination.helpers';
 import {
-  parseDDMMYYYY,
+  jakartaTime,
+  convertToIsoDate,
   percentageToAmount,
 } from 'src/common/helpers/common.helpers';
 import { VouchersActiveDto } from './dto/vouchers-active';
@@ -37,14 +38,16 @@ export class VouchersService {
       throw new BadRequestException('store_id is required');
     }
 
+    const today = jakartaTime().toFormat('yyyy-MM-dd');
+
     // --- Filter
     const filters: Prisma.voucherWhereInput = {
       // active voucher
       start_period: {
-        lte: new Date(),
+        lte: new Date(today),
       },
       end_period: {
-        gte: new Date(),
+        gte: new Date(today),
       },
 
       // filter by store_id
@@ -114,15 +117,15 @@ export class VouchersService {
     const activeVoucherFilter: Prisma.voucherWhereInput = {};
     if (query.startDate || query.endDate) {
       const start = query.startDate
-        ? parseDDMMYYYY(query.startDate)
+        ? convertToIsoDate(query.startDate)
         : undefined;
-      const end = query.endDate ? parseDDMMYYYY(query.endDate) : undefined;
+      const end = query.endDate ? convertToIsoDate(query.endDate) : undefined;
 
       activeVoucherFilter.AND = [
         // Start period before or same as end filter date
-        ...(end ? [{ start_period: { lte: end } }] : []),
+        ...(end ? [{ start_period: { lte: new Date(end) } }] : []),
         // End period after or same as start filter date
-        ...(start ? [{ end_period: { gte: start } }] : []),
+        ...(start ? [{ end_period: { gte: new Date(start) } }] : []),
       ];
     }
 
