@@ -344,6 +344,12 @@ export class ProductsService {
       }
 
       await this.prisma.$transaction(async (tx) => {
+        await tx.voucher_has_products.deleteMany({
+          where: {
+            products_id: id,
+          },
+        });
+
         await tx.categories_has_products.deleteMany({
           where: {
             products_id: id,
