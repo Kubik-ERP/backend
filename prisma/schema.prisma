@@ -150,25 +150,29 @@ model customers_has_tag {
 }
 
 model employees {
-  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                       String?                      @db.VarChar(45)
-  email                      String?                      @unique @db.VarChar(45)
-  phone_number               String?                      @db.VarChar(45)
-  profile_url                String?                      @db.VarChar(45)
-  start_date                 DateTime?                    @db.Date
-  end_date                   DateTime?                    @db.Date
-  gender                     gender?
-  title                      String?                      @db.VarChar(45)
-  phone_code                 String?                      @db.VarChar(45)
-  permission                 String?                      @db.VarChar(45)
-  cash_drawers               cash_drawers[]
-  employees_has_roles        employees_has_roles[]
-  employees_has_social_media employees_has_social_media[]
-  employees_shift            employees_shift[]
-  platforms_has_employees    platforms_has_employees[]
-  product_commissions        product_commissions[]
-  stores_has_employees       stores_has_employees[]
-  voucher_commissions        voucher_commissions[]
+  id                              String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                            String?                      @db.VarChar(45)
+  email                           String?                      @unique @db.VarChar(45)
+  phone_number                    String?                      @db.VarChar(45)
+  profile_url                     String?                      @db.VarChar(45)
+  start_date                      DateTime?                    @db.Date
+  end_date                        DateTime?                    @db.Date
+  gender                          gender?
+  title                           String?                      @db.VarChar(45)
+  phone_code                      String?                      @db.VarChar(45)
+  permission                      String?                      @db.VarChar(45)
+  default_commission_product_type commission_type?
+  default_commission_voucher_type commission_type?
+  default_commission_voucher      Float?
+  default_commission_product      Float?
+  cash_drawers                    cash_drawers[]
+  employees_has_roles             employees_has_roles[]
+  employees_has_social_media      employees_has_social_media[]
+  employees_shift                 employees_shift[]
+  platforms_has_employees         platforms_has_employees[]
+  product_commissions             product_commissions[]
+  stores_has_employees            stores_has_employees[]
+  voucher_commissions             voucher_commissions[]
 }
 
 model employees_has_roles {
@@ -423,22 +427,23 @@ model product_commissions {
 }
 
 model products {
-  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                    String?                   @db.VarChar(45)
-  price                   Float?
-  discount_price          Float?
-  picture_url             String?                   @db.VarChar(45)
-  is_percent              Boolean?                  @default(false)
-  benefit_free_items      benefit_free_items[]
-  categories_has_products categories_has_products[]
-  invoice_details         invoice_details[]
-  kitchen_queue           kitchen_queue[]
-  loyalty_product_item    loyalty_product_item[]
-  product_commissions     product_commissions[]
-  recipe                  recipe[]
-  stores_has_products     stores_has_products[]
-  variant_has_products    variant_has_products[]
-  voucher_has_products    voucher_has_products[]
+  id                           String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                         String?                        @db.VarChar(45)
+  price                        Float?
+  discount_price               Float?
+  picture_url                  String?                        @db.VarChar(45)
+  is_percent                   Boolean?                       @default(false)
+  benefit_free_items           benefit_free_items[]
+  catalog_bundling_has_product catalog_bundling_has_product[]
+  categories_has_products      categories_has_products[]
+  invoice_details              invoice_details[]
+  kitchen_queue                kitchen_queue[]
+  loyalty_product_item         loyalty_product_item[]
+  product_commissions          product_commissions[]
+  recipe                       recipe[]
+  stores_has_products          stores_has_products[]
+  variant_has_products         variant_has_products[]
+  voucher_has_products         voucher_has_products[]
 }
 
 model recipe {
@@ -539,6 +544,7 @@ model stores {
   business_owner_has_stores              business_owner_has_stores[]
   cash_drawer_transactions               cash_drawer_transactions[]
   cash_drawers                           cash_drawers[]
+  catalog_bundling                       catalog_bundling[]
   customer_has_stores                    customer_has_stores[]
   floor                                  floor[]
   inventory_stock_adjustments            inventory_stock_adjustments[]
@@ -1050,6 +1056,30 @@ model store_facilities {
   stores      stores    @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_facilities_fk")
 }
 
+model catalog_bundling {
+  id                           String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  store_id                     String                         @db.Uuid
+  name                         String?                        @db.VarChar(100)
+  description                  String?                        @default("-") @db.VarChar(100)
+  created_at                   DateTime?                      @default(now()) @db.Timestamp(6)
+  updated_at                   DateTime?                      @default(now()) @db.Timestamp(6)
+  type                         String?                        @db.VarChar(50)
+  discount                     Decimal?                       @db.Decimal(5, 2)
+  price                        Int?
+  stores                       stores                         @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_facilities_fk")
+  catalog_bundling_has_product catalog_bundling_has_product[]
+}
+
+model catalog_bundling_has_product {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id          String           @db.Uuid
+  catalog_bundling_id String           @db.Uuid
+  created_at          DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at          DateTime?        @default(now()) @db.Timestamp(6)
+  catalog_bundling    catalog_bundling @relation(fields: [catalog_bundling_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "idx_catalog_bundling_has_product_catalog_bundling")
+  products            products         @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "idx_catalog_bundling_has_product_product")
+}
+
 enum cash_drawer_type {
   open
   close
@@ -1139,4 +1169,15 @@ enum stock_opname_status {
   draft
   on_review
   verified
+}
+
+enum bundling_price_type {
+  total_items @map("total items")
+  discount
+  custom
+}
+
+enum commission_type {
+  amount
+  percentage
 }

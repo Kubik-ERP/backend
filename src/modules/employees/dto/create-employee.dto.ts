@@ -1,13 +1,15 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { gender } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { commission_type, gender } from '@prisma/client';
+import { Transform, Type } from 'class-transformer';
 import {
   IsDate,
   IsEnum,
+  IsArray,
   IsNumber,
   IsOptional,
   IsString,
   ValidateNested,
+  IsBoolean,
 } from 'class-validator';
 
 export class SocialMediaDto {
@@ -52,9 +54,14 @@ export class ProductCommissionDto {
   @IsNumber()
   amount?: number;
 
-  @ApiProperty({ example: true, required: false })
   @IsOptional()
-  @Type(() => Boolean)
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @ApiPropertyOptional({
+    name: 'is_percent',
+    type: 'boolean',
+    example: true,
+  })
   is_percent?: boolean;
 }
 
@@ -73,9 +80,14 @@ export class VoucherCommissionDto {
   @IsNumber()
   amount?: number;
 
-  @ApiProperty({ example: false, required: false })
   @IsOptional()
-  @Type(() => Boolean)
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @ApiPropertyOptional({
+    name: 'is_percent',
+    type: 'boolean',
+    example: true,
+  })
   is_percent?: boolean;
 }
 
@@ -84,12 +96,14 @@ export class CommissionDto {
   @IsOptional()
   @ValidateNested({ each: true })
   @Type(() => ProductCommissionDto)
-  productComission?: ProductCommissionDto[];
+  @IsArray()
+  productCommission?: ProductCommissionDto[];
 
   @ApiProperty({ type: [VoucherCommissionDto], required: false })
   @IsOptional()
   @ValidateNested({ each: true })
   @Type(() => VoucherCommissionDto)
+  @IsArray()
   voucherCommission?: VoucherCommissionDto[];
 }
 
@@ -158,9 +172,49 @@ export class CreateEmployeeDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => CommissionDto)
-  comissions?: CommissionDto;
+  commissions?: CommissionDto;
 
   @ApiProperty({ example: 'https://example.com/image.jpg', required: false })
   @IsOptional()
   profilePicture?: string;
+
+  @ApiProperty({
+    description: 'Default Commission Product',
+    required: false,
+    example: 1000,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  public defaultCommissionProduct: number;
+
+  @ApiProperty({
+    description: 'Default Commission Product Type',
+    required: false,
+    example: 'amount',
+  })
+  @IsOptional()
+  @IsString()
+  @IsEnum(commission_type)
+  public defaultCommissionProductType: commission_type;
+
+  @ApiProperty({
+    description: 'Default Commission Voucher',
+    required: false,
+    example: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  public defaultCommissionVoucher: number;
+
+  @ApiProperty({
+    description: 'Default Commission Voucher Type',
+    required: false,
+    example: 'percentage',
+  })
+  @IsOptional()
+  @IsString()
+  @IsEnum(commission_type)
+  public defaultCommissionVoucherType: commission_type;
 }
