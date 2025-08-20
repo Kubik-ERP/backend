@@ -71,13 +71,17 @@ export class SuppliersService {
       this.logger.log(`Supplier created successfully with ID: ${supplier.id}`);
       return supplier;
     } catch (error) {
-      this.logger.error('Failed to create supplier', error);
       if (error instanceof BadRequestException) {
+        this.logger.error(`Failed to create supplier: ${error.message}`);
         throw error;
       }
+      this.logger.error(
+        `Failed to create supplier: ${error?.message ?? error}` +
+          (error?.stack ? `\nStack: ${error.stack}` : ''),
+      );
       throw new BadRequestException('Failed to create supplier', {
         cause: new Error(),
-        description: error.message,
+        description: error?.message ?? 'Unknown error',
       });
     }
   }
