@@ -1,3 +1,4 @@
+import { Response } from 'express';
 import {
   Body,
   Controller,
@@ -9,6 +10,7 @@ import {
   Query,
   UseGuards,
   Req,
+  Res,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -34,6 +36,30 @@ import { InventoryItemsService } from '../services/inventory-items.service';
 @Controller('inventory-items')
 export class InventoryItemsController {
   constructor(private readonly inventoryItemsService: InventoryItemsService) {}
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('generate-template')
+  @ApiOperation({ summary: 'Generate import template for inventory items' })
+  async generateImportTemplate(
+    @Req() req: ICustomRequestHeaders,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.inventoryItemsService.generateImportTemplate(req);
+    res.set({
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition':
+        'attachment; filename="inventory-items-import-template.xlsx"',
+    });
+    res.end(buffer);
+  }
 
   @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()

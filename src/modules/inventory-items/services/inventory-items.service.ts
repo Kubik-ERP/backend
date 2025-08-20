@@ -1,3 +1,4 @@
+import * as ExcelJS from 'exceljs';
 import {
   BadRequestException,
   Injectable,
@@ -21,6 +22,212 @@ type OrderByKey = 'id' | 'created_at' | 'name' | 'updated_at' | 'sku';
 
 @Injectable()
 export class InventoryItemsService {
+  /**
+   * Generate Excel import template for inventory items with reference sheets and dropdowns
+   */
+  public async generateImportTemplate(
+    header: ICustomRequestHeaders,
+  ): Promise<Buffer> {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+
+    // Fetch master data filtered by store
+    const [brands, categories, storageLocations, suppliers] = await Promise.all(
+      [
+        this._prisma.master_brands.findMany({
+          where: {
+            stores_has_master_brands: { some: { stores_id: store_id } },
+          },
+          select: { id: true, brand_name: true },
+        }),
+        this._prisma.master_inventory_categories.findMany({
+          where: {
+            stores_has_master_inventory_categories: {
+              some: { stores_id: store_id },
+            },
+          },
+          select: { id: true, name: true },
+        }),
+        this._prisma.master_storage_locations.findMany({
+          where: {
+            stores_has_master_storage_locations: {
+              some: { stores_id: store_id },
+            },
+          },
+          select: { id: true, name: true },
+        }),
+        this._prisma.master_suppliers.findMany({
+          where: {
+            stores_has_master_suppliers: { some: { stores_id: store_id } },
+          },
+          select: { id: true, supplier_name: true },
+        }),
+      ],
+    );
+
+    const workbook = new ExcelJS.Workbook();
+
+    // Sheet 1: Inventory Items
+    const sheet = workbook.addWorksheet('Inventory Items');
+    const columns = [
+      { header: 'Item Name', key: 'item_name', width: 30 },
+      { header: 'Brand', key: 'brand', width: 25 },
+      { header: 'Barcode', key: 'barcode', width: 20 },
+      { header: 'SKU', key: 'sku', width: 20 },
+      { header: 'Category', key: 'category', width: 25 },
+      { header: 'Unit', key: 'unit', width: 15 },
+      { header: 'Notes', key: 'notes', width: 30 },
+      { header: 'Stock Quantity', key: 'stock_quantity', width: 18 },
+      {
+        header: 'Minimum Stock Quantity',
+        key: 'minimum_stock_quantity',
+        width: 22,
+      },
+      { header: 'Reorder Level', key: 'reorder_level', width: 15 },
+      { header: 'Expiry Date', key: 'expiry_date', width: 18 },
+      { header: 'Storage Location', key: 'storage_location', width: 25 },
+      { header: 'Price Per Unit', key: 'price_per_unit', width: 18 },
+      { header: 'Supplier', key: 'supplier', width: 25 },
+    ];
+    sheet.columns = columns;
+
+    // Add dropdowns for master data columns with proper validation
+    const addDropdown = (
+      col: number,
+      refSheet: string,
+      refCol: string,
+      count: number,
+    ) => {
+      const colLetter = sheet.getColumn(col).letter;
+      for (let row = 4; row <= 1000; row++) {
+        sheet.getCell(`${colLetter}${row}`).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: [`'${refSheet}'!$${refCol}$2:$${refCol}$${count + 1}`],
+          showErrorMessage: true,
+          errorStyle: 'stop',
+          errorTitle: 'Invalid Selection',
+          error: 'Please pick a value from the drop-down list.',
+        };
+      }
+    };
+
+    // Sheet 2: Brand Reference
+    const brandSheet = workbook.addWorksheet('Brand Reference');
+    brandSheet.columns = [
+      { header: 'ID | Brand Name', key: 'id_name', width: 40 },
+    ];
+    brands.forEach((b) =>
+      brandSheet.addRow({
+        id_name: `${b.id} | ${b.brand_name}`,
+      }),
+    );
+    addDropdown(2, 'Brand Reference', 'A', brands.length); // Brand moved to column 2, reference column A
+
+    // Sheet 3: Category Reference
+    const catSheet = workbook.addWorksheet('Category Reference');
+    catSheet.columns = [
+      { header: 'ID | Category Name', key: 'id_name', width: 40 },
+    ];
+    categories.forEach((c) =>
+      catSheet.addRow({
+        id_name: `${c.id} | ${c.name}`,
+      }),
+    );
+    addDropdown(5, 'Category Reference', 'A', categories.length); // Category moved to column 5, reference column A
+
+    // Sheet 4: Storage Location Reference
+    const storageSheet = workbook.addWorksheet('Storage Location Reference');
+    storageSheet.columns = [
+      { header: 'ID | Storage Location Name', key: 'id_name', width: 45 },
+    ];
+    storageLocations.forEach((s) =>
+      storageSheet.addRow({
+        id_name: `${s.id} | ${s.name}`,
+      }),
+    );
+    addDropdown(12, 'Storage Location Reference', 'A', storageLocations.length); // Storage Location moved to column 12, reference column A
+
+    // Sheet 5: Supplier Reference
+    const supplierSheet = workbook.addWorksheet('Supplier Reference');
+    supplierSheet.columns = [
+      { header: 'ID | Supplier Name', key: 'id_name', width: 40 },
+    ];
+    suppliers.forEach((s) =>
+      supplierSheet.addRow({
+        id_name: `${s.id} | ${s.supplier_name}`,
+      }),
+    );
+    addDropdown(14, 'Supplier Reference', 'A', suppliers.length); // Supplier moved to column 14, reference column A
+
+    // Style header row (only for columns with data)
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true };
+    // Apply background color only to columns with data (A to N = 14 columns)
+    for (let col = 1; col <= 14; col++) {
+      headerRow.getCell(col).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFB6FFB6' },
+      };
+    }
+
+    // Add notes row
+    sheet.insertRow(1, ['TEMPLATE FOR IMPORT INVENTORY ITEMS']);
+    sheet.mergeCells('A1:N1'); // Updated to N1 for 14 columns
+    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFF0000' } };
+
+    // Add required label row
+    sheet.insertRow(2, ['The label (*) is required to be filled']);
+    sheet.mergeCells('A2:N2'); // Updated to N2 for 14 columns
+    sheet.getRow(2).font = { italic: true, color: { argb: 'FFFF6600' } };
+
+    // Mark required columns in header - updated column positions (without Store ID)
+    const requiredCols = [1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]; // Item Name, Brand, SKU, Category, Unit, Stock Qty, Min Stock, Reorder, Storage, Price, Supplier
+    requiredCols.forEach((col) => {
+      const cell = sheet.getRow(3).getCell(col);
+      cell.value = `${cell.value}(*)`;
+      cell.font = { ...cell.font, color: { argb: 'FF008000' } };
+    });
+
+    // Prepare sample data using first item from each reference
+    const sampleBrand =
+      brands.length > 0 ? `${brands[0].id} | ${brands[0].brand_name}` : '';
+    const sampleCategory =
+      categories.length > 0
+        ? `${categories[0].id} | ${categories[0].name}`
+        : '';
+    const sampleStorage =
+      storageLocations.length > 0
+        ? `${storageLocations[0].id} | ${storageLocations[0].name}`
+        : '';
+    const sampleSupplier =
+      suppliers.length > 0
+        ? `${suppliers[0].id} | ${suppliers[0].supplier_name}`
+        : '';
+
+    // Add sample row at row 4 using insertRow to ensure it stays at position 4
+    sheet.insertRow(4, [
+      'Sample Item Name', // Item Name
+      sampleBrand, // Brand - use first brand from reference
+      'SAMPLE123', // Barcode
+      'SKU001', // SKU
+      sampleCategory, // Category - use first category from reference
+      'pcs', // Unit
+      'Sample notes', // Notes
+      100, // Stock Quantity
+      10, // Minimum Stock Quantity
+      20, // Reorder Level
+      '2025-12-30', // Expiry Date
+      sampleStorage, // Storage Location - use first storage from reference
+      15000, // Price Per Unit
+      sampleSupplier, // Supplier - use first supplier from reference
+    ]);
+
+    // Return as buffer
+    const buf = await workbook.xlsx.writeBuffer();
+    return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  }
   private readonly logger = new Logger(InventoryItemsService.name);
   // Columns that are guaranteed to exist in DB for inventory_stock_adjustments
   private readonly stockAdjustmentSafeSelect = {
