@@ -228,7 +228,17 @@ export class StockOpnamesService {
     const stockOpname = await this._prisma.stock_opnames.findUnique({
       where: { id, store_id },
       include: {
-        stock_opname_items: true,
+        stock_opname_items: {
+          include: {
+            master_inventory_items: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+              },
+            },
+          },
+        },
         users: {
           select: {
             fullname: true,
