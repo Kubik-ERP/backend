@@ -13,7 +13,11 @@ import {
   getOffset,
   getTotalPages,
 } from 'src/common/helpers/pagination.helpers';
-import { generateNextId, idToNumber } from 'src/common/helpers/common.helpers';
+import {
+  generateNextId,
+  idToNumber,
+  jakartaTime,
+} from 'src/common/helpers/common.helpers';
 
 @Injectable()
 export class StockOpnamesService {
@@ -58,11 +62,7 @@ export class StockOpnamesService {
       });
 
       // get yyyymmdd
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      const date = `${year}${month}${day}`;
+      const date = jakartaTime().toFormat('yyyyMMdd');
 
       const soCode = generateNextId(
         `STK-${date}`,
@@ -93,6 +93,7 @@ export class StockOpnamesService {
           stock_opname_items: {
             createMany: { data: soItems },
           },
+          updated_at: new Date(),
         },
         include: {
           stock_opname_items: {
@@ -177,16 +178,12 @@ export class StockOpnamesService {
     if (id === 'new') {
       // Generate next SO code
       const lastSO = await this._prisma.stock_opnames.findFirst({
-        orderBy: { id: 'desc' },
+        orderBy: { created_at: 'desc' },
         select: { code: true },
       });
 
       // get yyyymmdd
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      const date = `${year}${month}${day}`;
+      const date = jakartaTime().toFormat('yyyyMMdd');
 
       const soCode = generateNextId(
         `STK-${date}`,

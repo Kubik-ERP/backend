@@ -92,4 +92,14 @@ export class CreateProductDto {
     description: 'Daftar varian produk',
   })
   variants?: CreateVariantDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @ApiPropertyOptional({
+    name: 'isDiscount',
+    type: 'boolean',
+    example: true,
+  })
+  isDiscount?: boolean = false;
 }

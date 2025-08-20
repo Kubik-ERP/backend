@@ -49,10 +49,21 @@ export const formatDateCommon = (date: Date): string => {
   return `${day}/${month}/${year}`;
 };
 
-export const parseDDMMYYYY = (dateStr: string): Date => {
-  const [day, month, year] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day); // month is 0-based
-};
+/**
+ * Convert string "dd-MM-yyyy" → "yyyy-MM-dd"
+ *
+ * NOTE:
+ * - Tidak perlu pakai timezone karena kolom di DB bertipe DATE (tanpa jam).
+ * - DATE hanya simpan informasi tahun, bulan, hari → tidak ada jam/offset.
+ * - Jadi tidak ada risiko "geser hari" akibat perbedaan timezone server vs lokal.
+ */
+export function convertToIsoDate(input: string): string {
+  const dt = DateTime.fromFormat(input, 'dd-MM-yyyy');
+  if (!dt.isValid) {
+    throw new Error('Invalid date format, expected dd-MM-yyyy');
+  }
+  return dt.toFormat('yyyy-MM-dd');
+}
 
 export const percentageToAmount = (percentage: number, total: number) => {
   return total * (percentage / 100);
