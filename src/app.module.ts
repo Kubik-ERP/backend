@@ -40,6 +40,7 @@ import { SelfOrderModule } from './modules/self-order/self-order.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { StockOpnamesModule } from './modules/stock-opnames/stock-opnames.module';
 import { FacilitiesModule } from './modules/facilities/facilities.module';
+import { ProductBundlingModule } from './modules/product-bundling/product-bundling.module';
 
 @Module({
   imports: [
@@ -92,6 +93,7 @@ import { FacilitiesModule } from './modules/facilities/facilities.module';
     PurchaseOrdersModule,
     StockOpnamesModule,
     FacilitiesModule,
+    ProductBundlingModule,
   ],
   providers: [
     {
