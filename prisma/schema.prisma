@@ -1063,6 +1063,9 @@ model catalog_bundling {
   description                  String?                        @default("-") @db.VarChar(100)
   created_at                   DateTime?                      @default(now()) @db.Timestamp(6)
   updated_at                   DateTime?                      @default(now()) @db.Timestamp(6)
+  type                         String?                        @db.VarChar(50)
+  discount                     Decimal?                       @db.Decimal(5, 2)
+  price                        Int?
   stores                       stores                         @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_facilities_fk")
   catalog_bundling_has_product catalog_bundling_has_product[]
 }
@@ -1171,4 +1174,10 @@ enum stock_opname_status {
 enum commission_type {
   amount
   percentage
+}
+
+enum bundling_price_type {
+  total_items @map("total items")
+  discount
+  custom
 }

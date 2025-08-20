@@ -20,6 +20,9 @@ export class ProductBundlingService {
       data: {
         name,
         description,
+        type: createProductBundlingDto.type,
+        discount: createProductBundlingDto.discount,
+        price: createProductBundlingDto.price,
         store_id: store_id,
       },
     });
@@ -81,7 +84,8 @@ export class ProductBundlingService {
   }
 
   async update(id: string, updateProductBundlingDto: UpdateProductBundlingDto) {
-    const { name, description, productId } = updateProductBundlingDto;
+    const { name, description, productId, discount, type, price } =
+      updateProductBundlingDto;
     const existing = await this.prisma.catalog_bundling.findUnique({
       where: { id },
     });
@@ -91,8 +95,11 @@ export class ProductBundlingService {
     const bundling = await this.prisma.catalog_bundling.update({
       where: { id },
       data: {
-        name,
-        description,
+        name: name ?? existing.name,
+        description: description ?? existing.description,
+        discount: discount ?? existing.discount,
+        type: type ?? existing.type,
+        price: price ?? existing.price,
       },
     });
     let bundlingProducts: any[] = [];
