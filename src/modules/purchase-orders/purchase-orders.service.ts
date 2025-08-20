@@ -54,7 +54,7 @@ export class PurchaseOrdersService {
     const orderByField = camelToSnake(query.orderBy);
     const orderDirection = query.orderDirection;
     const orderBy: Prisma.purchase_ordersOrderByWithRelationInput[] = [];
-    if (orderByField === 'supplierName') {
+    if (orderByField === 'supplier_name') {
       orderBy.push({
         // NOTE: harusnya ke supplier_info->>supplier_name
         // prisma belum support order by dengan type json
@@ -154,7 +154,7 @@ export class PurchaseOrdersService {
     const result = await this._prisma.$transaction(async (tx) => {
       // Generate next PO number
       const lastPO = await tx.purchase_orders.findFirst({
-        orderBy: { id: 'desc' },
+        orderBy: { created_at: 'desc' },
         select: { order_number: true },
       });
 
@@ -478,7 +478,7 @@ export class PurchaseOrdersService {
 
     // Generate next DO number
     const lastDO = await this._prisma.purchase_orders.findFirst({
-      orderBy: { id: 'desc' },
+      orderBy: { created_at: 'desc' },
       select: { delivery_number: true },
     });
 

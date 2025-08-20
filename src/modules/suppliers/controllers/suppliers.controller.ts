@@ -17,9 +17,15 @@ import {
   ApiOperation,
   ApiTags,
   ApiHeader,
+  ApiParam,
 } from '@nestjs/swagger';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
-import { CreateSupplierDto, UpdateSupplierDto, GetSuppliersDto } from '../dtos';
+import {
+  CreateSupplierDto,
+  UpdateSupplierDto,
+  GetSuppliersDto,
+  GetItemSuppliesDto,
+} from '../dtos';
 
 @ApiTags('Suppliers')
 @Controller('suppliers')
@@ -148,6 +154,37 @@ export class SuppliersController {
     await this.suppliersService.deleteSupplier(id, req);
     return {
       message: 'Supplier deleted successfully',
+    };
+  }
+
+  /* -------------------------- Item Supplies listing -------------------------- */
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Get(':id/item-supplies')
+  @ApiOperation({
+    summary: 'Get list of item supplies (inventory items under suppliers)',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Supplier ID',
+    required: true,
+    schema: { type: 'string', format: 'uuid' },
+  })
+  public async getItemSupplies(
+    @Param('id') id: string,
+    @Query() query: GetItemSuppliesDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.suppliersService.getItemSupplies(id, query, req);
+    return {
+      message: 'Item supplies retrieved successfully',
+      result: toCamelCase(result),
     };
   }
 }

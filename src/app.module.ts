@@ -38,6 +38,7 @@ import { TablesModule } from './modules/tables/tables.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { SelfOrderModule } from './modules/self-order/self-order.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
+import { StockOpnamesModule } from './modules/stock-opnames/stock-opnames.module';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.
     VouchersModule,
     SelfOrderModule,
     PurchaseOrdersModule,
+    StockOpnamesModule,
   ],
   providers: [
     {

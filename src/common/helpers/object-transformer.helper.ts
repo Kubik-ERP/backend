@@ -65,3 +65,13 @@ export function toSnakeCase(obj: any): any {
   }
   return obj;
 }
+
+export function toPlainItem(item: any) {
+  if (!item) return item;
+  const price = item.price_per_unit;
+  const priceNumber =
+    price && typeof price === 'object' && typeof price.toNumber === 'function'
+      ? price.toNumber()
+      : price;
+  return { ...item, price_per_unit: priceNumber };
+}
