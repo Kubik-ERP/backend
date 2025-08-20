@@ -125,6 +125,19 @@ export class StorageLocationsService {
     if (!store_id) throw new BadRequestException('store_id is required');
     const existing = await this.detail(id, header);
 
+    // Prevent delete if supplier is linked to any inventory item in this store
+    const linkedItemsCount = await this._prisma.master_inventory_items.count({
+      where: {
+        storage_location_id: id,
+        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+      },
+    });
+    if (linkedItemsCount > 0) {
+      throw new BadRequestException(
+        'This storage location is linked to existing inventory items. Please remove or reassign the linked items before attemping to delete',
+      );
+    }
+
     await this._prisma.stores_has_master_storage_locations.deleteMany({
       where: { stores_id: store_id, master_storage_locations_id: id },
     });
