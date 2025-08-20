@@ -107,8 +107,9 @@ export class LoyaltyBenefitService {
         id: item.product_id,
         name: item.products.name,
         quantity: item.quantity,
-        categories:
-          item.products.categories_has_products[0].categories.category || null,
+        categories: item.products.categories_has_products.map(
+          (cat) => cat.categories.category,
+        ),
         price: item.products.price || null,
         discount_price: item.products.discount_price || null,
       }));

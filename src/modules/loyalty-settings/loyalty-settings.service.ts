@@ -115,8 +115,9 @@ export class LoyaltySettingsService {
       ...item,
       products: {
         name: item.products.name || null,
-        categories:
-          item.products.categories_has_products[0].categories.category || null,
+        categories: item.products.categories_has_products.map(
+          (cat) => cat.categories.category,
+        ),
         price: item.products.price || null,
         discountPrice: item.products.discount_price || null,
       },
@@ -181,29 +182,29 @@ export class LoyaltySettingsService {
       },
     });
 
-    // if (
-    //   updateLoyaltySettingDto.product_based_items &&
-    //   updateLoyaltySettingDto.product_based_items.length > 0
-    // ) {
-    //   const productItems = updateLoyaltySettingDto.product_based_items.map(
-    //     (item) => ({
-    //       loyalty_point_setting_id: loyaltySetting.id,
-    //       product_id: item.product_id,
-    //       points: item.points_earned,
-    //       minimum_transaction: item.minimum_purchase,
-    //     }),
-    //   );
-    //   await this.prisma.loyalty_product_item.deleteMany({
-    //     where: { loyalty_point_setting_id: loyaltySetting.id },
-    //   });
-    //   await this.prisma.loyalty_product_item.createMany({
-    //     data: productItems,
-    //   });
-    // }
+    if (
+      updateLoyaltySettingDto.product_based_items &&
+      updateLoyaltySettingDto.product_based_items.length > 0
+    ) {
+      const productItems = updateLoyaltySettingDto.product_based_items.map(
+        (item) => ({
+          loyalty_point_setting_id: loyaltySetting.id,
+          product_id: item.product_id,
+          points: item.points_earned,
+          minimum_transaction: item.minimum_purchase,
+        }),
+      );
+      await this.prisma.loyalty_product_item.deleteMany({
+        where: { loyalty_point_setting_id: loyaltySetting.id },
+      });
+      await this.prisma.loyalty_product_item.createMany({
+        data: productItems,
+      });
+    }
 
     return {
       loyaltySetting,
-      // productItems: updateLoyaltySettingDto.product_based_items || [],
+      productItems: updateLoyaltySettingDto.product_based_items || [],
     };
   }
 

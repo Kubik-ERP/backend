@@ -15,12 +15,10 @@ import { validate as isUUID } from 'uuid';
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
-  // TODO(rekomendasi): baiknya di bungkus ke dalam db transaction agar bisa rollback jika ada yang gagal
   async create(
     createProductDto: CreateProductDto,
     header: ICustomRequestHeaders,
   ): Promise<ProductModel> {
-    let discountValue: number | undefined = 0;
     try {
       const store_id = header.store_id;
 
@@ -34,84 +32,88 @@ export class ProductsService {
       if (existingProduct) {
         throw new Error('Product with this name already exists');
       }
-      if (createProductDto.discount_price === 0) {
-        discountValue = createProductDto.price;
-      } else {
-        discountValue = createProductDto.discount_price;
-      }
 
-      const createdProduct = await this.prisma.products.create({
-        data: {
-          name: createProductDto.name,
-          price: createProductDto.price,
-          discount_price: discountValue,
-          picture_url: createProductDto.image,
-          is_percent: createProductDto.is_percent,
-        },
-      });
+      // jika discount_price tidak ada, maka discountValue = price
+      const discountValue = createProductDto?.isDiscount
+        ? createProductDto.discount_price
+        : createProductDto.price;
 
-      await this.prisma.stores_has_products.create({
-        data: {
-          stores_id: store_id,
-          products_id: createdProduct.id,
-        },
-      });
-
-      if (createProductDto.categories?.length) {
-        for (const category of createProductDto.categories) {
-          await this.prisma.categories_has_products.create({
+      const productWithCategories = await this.prisma.$transaction(
+        async (tx) => {
+          const createdProduct = await tx.products.create({
             data: {
+              name: createProductDto.name,
+              price: createProductDto.price,
+              discount_price: discountValue,
+              picture_url: createProductDto.image,
+              is_percent: createProductDto.is_percent,
+            },
+          });
+
+          await tx.stores_has_products.create({
+            data: {
+              stores_id: store_id,
               products_id: createdProduct.id,
-              categories_id: category.id,
-            },
-          });
-        }
-      }
-
-      if (createProductDto.variants?.length) {
-        for (const variant of createProductDto.variants) {
-          const createdVariant = await this.prisma.variant.create({
-            data: {
-              name: variant.name,
-              price: variant.price,
             },
           });
 
-          await this.prisma.variant_has_products.create({
-            data: {
+          if (createProductDto.categories?.length) {
+            for (const category of createProductDto.categories) {
+              await tx.categories_has_products.create({
+                data: {
+                  products_id: createdProduct.id,
+                  categories_id: category.id,
+                },
+              });
+            }
+          }
+
+          if (createProductDto.variants?.length) {
+            for (const variant of createProductDto.variants) {
+              const createdVariant = await tx.variant.create({
+                data: {
+                  name: variant.name,
+                  price: variant.price,
+                },
+              });
+
+              await tx.variant_has_products.create({
+                data: {
+                  products_id: createdProduct.id,
+                  variant_id: createdVariant.id,
+                },
+              });
+            }
+          }
+
+          // Apply product ke voucher yang diterapkan untuk semua product
+          // memiliki is_apply_all_products = true
+          const vouchers = await tx.voucher.findMany({
+            where: {
+              is_apply_all_products: true,
+              store_id: store_id,
+            },
+          });
+          await tx.voucher_has_products.createMany({
+            data: vouchers.map((voucher) => ({
+              voucher_id: voucher.id,
               products_id: createdProduct.id,
-              variant_id: createdVariant.id,
-            },
+            })),
           });
-        }
-      }
 
-      const productWithCategories = await this.prisma.products.findUnique({
-        where: { id: createdProduct.id },
-        include: {
-          categories_has_products: true,
-          variant_has_products: {
+          return await tx.products.findUnique({
+            where: { id: createdProduct.id },
             include: {
-              variant: true,
+              categories_has_products: true,
+              variant_has_products: {
+                include: {
+                  variant: true,
+                },
+              },
             },
-          },
+          });
         },
-      });
-
-      // Apply product ke voucher yang diterapkan untuk semua product
-      // memiliki is_apply_all_products = true
-      const vouchers = await this.prisma.voucher.findMany({
-        where: {
-          is_apply_all_products: true,
-          store_id: store_id,
-        },
-      });
-      await this.prisma.voucher_has_products.createMany({
-        data: vouchers.map((voucher) => ({
-          voucher_id: voucher.id,
-          products_id: createdProduct.id,
-        })),
-      });
+      );
 
       return productWithCategories!;
     } catch (error) {
@@ -268,55 +270,62 @@ export class ProductsService {
         }
       }
 
-      const updatedProduct = await this.prisma.products.update({
-        where: { id },
-        data: {
-          name: updateProductDto.name,
-          price: updateProductDto.price,
-          discount_price: updateProductDto.discount_price,
-          picture_url: updateProductDto.image,
-          is_percent: updateProductDto.is_percent,
-        },
-        include: {
-          categories_has_products: true,
-        },
-      });
-
-      if (updateProductDto.categories?.length) {
-        await this.prisma.categories_has_products.deleteMany({
-          where: { products_id: id },
-        });
-
-        await this.prisma.categories_has_products.createMany({
-          data: updateProductDto.categories.map((cat) => ({
-            products_id: id,
-            categories_id: cat.id,
-          })),
-        });
-      }
-
-      // Update variants: hapus semua -> buat ulang
-      if (updateProductDto.variants?.length) {
-        await this.prisma.variant_has_products.deleteMany({
-          where: { products_id: id },
-        });
-
-        for (const variant of updateProductDto.variants) {
-          const createdVariant = await this.prisma.variant.create({
-            data: {
-              name: variant.name,
-              price: variant.price ?? 0,
-            },
+      const updatedProduct = await this.prisma.$transaction(async (tx) => {
+        if (updateProductDto.categories?.length) {
+          await tx.categories_has_products.deleteMany({
+            where: { products_id: id },
           });
 
-          await this.prisma.variant_has_products.create({
-            data: {
+          await tx.categories_has_products.createMany({
+            data: updateProductDto.categories.map((cat) => ({
               products_id: id,
-              variant_id: createdVariant.id,
-            },
+              categories_id: cat.id,
+            })),
           });
         }
-      }
+
+        // Update variants: hapus semua -> buat ulang
+        if (updateProductDto.variants?.length) {
+          await tx.variant_has_products.deleteMany({
+            where: { products_id: id },
+          });
+
+          for (const variant of updateProductDto.variants) {
+            const createdVariant = await tx.variant.create({
+              data: {
+                name: variant.name,
+                price: variant.price ?? 0,
+              },
+            });
+
+            await tx.variant_has_products.create({
+              data: {
+                products_id: id,
+                variant_id: createdVariant.id,
+              },
+            });
+          }
+        }
+
+        // jika discount_price tidak ada, maka discountValue = price
+        const discountValue = updateProductDto?.isDiscount
+          ? updateProductDto.discount_price
+          : updateProductDto.price;
+
+        return await tx.products.update({
+          where: { id },
+          data: {
+            name: updateProductDto.name,
+            price: updateProductDto.price,
+            discount_price: discountValue,
+            picture_url: updateProductDto.image,
+            is_percent: updateProductDto.is_percent,
+          },
+          include: {
+            categories_has_products: true,
+          },
+        });
+      });
 
       return updatedProduct;
     } catch (error) {
@@ -338,20 +347,28 @@ export class ProductsService {
         throw new NotFoundException('Product not found');
       }
 
-      await this.prisma.categories_has_products.deleteMany({
-        where: {
-          products_id: id,
-        },
-      });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.voucher_has_products.deleteMany({
+          where: {
+            products_id: id,
+          },
+        });
 
-      await this.prisma.variant_has_products.deleteMany({
-        where: {
-          products_id: id,
-        },
-      });
+        await tx.categories_has_products.deleteMany({
+          where: {
+            products_id: id,
+          },
+        });
 
-      await this.prisma.products.delete({
-        where: { id },
+        await tx.variant_has_products.deleteMany({
+          where: {
+            products_id: id,
+          },
+        });
+
+        await tx.products.delete({
+          where: { id },
+        });
       });
 
       return true;
