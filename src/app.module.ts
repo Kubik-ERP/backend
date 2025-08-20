@@ -39,6 +39,7 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { SelfOrderModule } from './modules/self-order/self-order.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { StockOpnamesModule } from './modules/stock-opnames/stock-opnames.module';
+import { FacilitiesModule } from './modules/facilities/facilities.module';
 
 @Module({
   imports: [
@@ -90,6 +91,7 @@ import { StockOpnamesModule } from './modules/stock-opnames/stock-opnames.module
     SelfOrderModule,
     PurchaseOrdersModule,
     StockOpnamesModule,
+    FacilitiesModule,
   ],
   providers: [
     {

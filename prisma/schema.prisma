@@ -548,6 +548,7 @@ model stores {
   operational_hours                      operational_hours[]
   purchase_orders                        purchase_orders[]
   stock_opnames                          stock_opnames[]
+  store_facilities                       store_facilities[]
   store_floors                           store_floors[]
   store_has_categories                   store_has_categories[]
   stores_has_employees                   stores_has_employees[]
@@ -1037,6 +1038,16 @@ model stock_opnames {
   stock_opname_items stock_opname_items[]
   stores             stores               @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "stock_opnames_stores_fk")
   users              users                @relation(fields: [performed_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "stock_opnames_users_fk")
+}
+
+model store_facilities {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  store_id    String    @db.Uuid
+  facility    String?   @db.VarChar(100)
+  description String?   @default("-") @db.VarChar(100)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+  stores      stores    @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_facilities_fk")
 }
 
 enum cash_drawer_type {
