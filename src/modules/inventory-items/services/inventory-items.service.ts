@@ -1,4 +1,5 @@
 import * as ExcelJS from 'exceljs';
+import { v4 as uuidv4 } from 'uuid';
 import {
   BadRequestException,
   Injectable,
@@ -10,6 +11,7 @@ import {
   CreateInventoryItemDto,
   GetInventoryItemsDto,
   UpdateInventoryItemDto,
+  ImportPreviewResponseDto,
 } from '../dtos';
 import {
   CreateStockAdjustmentDto,
@@ -228,6 +230,485 @@ export class InventoryItemsService {
     const buf = await workbook.xlsx.writeBuffer();
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
   }
+
+  /**
+   * Preview import data from Excel file
+   */
+  public async previewImport(
+    file: Express.Multer.File,
+    header: ICustomRequestHeaders,
+    existingBatchId?: string,
+  ): Promise<ImportPreviewResponseDto> {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+
+    if (!file) throw new BadRequestException('File is required');
+
+    // Validate file format
+    if (!file.originalname.match(/\.(xlsx|xls)$/)) {
+      throw new BadRequestException('Only Excel files are allowed');
+    }
+
+    // Use existing batch ID or generate new one
+    const batchId = existingBatchId || uuidv4();
+
+    // If using existing batch ID, delete previous data
+    if (existingBatchId) {
+      try {
+        await this._prisma.$executeRaw`
+          DELETE FROM temp_import_inventory_items 
+          WHERE batch_id = ${existingBatchId}::uuid
+        `;
+        this.logger.log(
+          `Deleted previous import data for batch: ${existingBatchId}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error deleting previous batch data: ${error.message}`,
+        );
+        // Continue with the import even if deletion fails
+      }
+    }
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer as any);
+
+    const worksheet = workbook.getWorksheet('Inventory Items');
+    if (!worksheet) {
+      throw new BadRequestException(
+        'Worksheet "Inventory Items" not found in the Excel file',
+      );
+    }
+
+    // Extract data starting from row 4 (after headers)
+    const rows: any[] = [];
+    let currentRowNumber = 4; // Start from row 4
+
+    worksheet.eachRow((row, rowNum) => {
+      if (rowNum >= 4) {
+        // Skip empty rows - check if row has values and they are not all empty
+        const rowValues = row.values as ExcelJS.CellValue[];
+        const hasData = rowValues
+          .slice(1)
+          .some(
+            (cell) =>
+              cell !== null && cell !== undefined && String(cell).trim() !== '',
+          );
+
+        if (hasData) {
+          const rowData = {
+            row_number: currentRowNumber,
+            item_name: this.getCellValue(row.getCell(1)),
+            brand: this.getCellValue(row.getCell(2)),
+            barcode: this.getCellValue(row.getCell(3)),
+            sku: this.getCellValue(row.getCell(4)),
+            category: this.getCellValue(row.getCell(5)),
+            unit: this.getCellValue(row.getCell(6)),
+            notes: this.getCellValue(row.getCell(7)),
+            stock_quantity: this.getNumericValue(row.getCell(8)),
+            minimum_stock_quantity: this.getNumericValue(row.getCell(9)),
+            reorder_level: this.getNumericValue(row.getCell(10)),
+            expiry_date: this.getDateValue(row.getCell(11)),
+            storage_location: this.getCellValue(row.getCell(12)),
+            price_per_unit: this.getNumericValue(row.getCell(13)),
+            supplier: this.getCellValue(row.getCell(14)),
+          };
+          rows.push(rowData);
+          currentRowNumber += 1;
+        }
+      }
+    });
+
+    // Check for duplicate SKUs and Barcodes within the batch
+    const skuCountMap = new Map<string, number>();
+    const barcodeCountMap = new Map<string, number>();
+    const skuRowMap = new Map<string, number[]>();
+    const barcodeRowMap = new Map<string, number[]>();
+
+    rows.forEach((row) => {
+      if (row.sku?.trim()) {
+        const sku = row.sku.trim().toLowerCase();
+        skuCountMap.set(sku, (skuCountMap.get(sku) || 0) + 1);
+        if (!skuRowMap.has(sku)) skuRowMap.set(sku, []);
+        skuRowMap.get(sku)?.push(row.row_number);
+      }
+
+      if (row.barcode?.trim()) {
+        const barcode = row.barcode.trim().toLowerCase();
+        barcodeCountMap.set(barcode, (barcodeCountMap.get(barcode) || 0) + 1);
+        if (!barcodeRowMap.has(barcode)) barcodeRowMap.set(barcode, []);
+        barcodeRowMap.get(barcode)?.push(row.row_number);
+      }
+    });
+
+    // Process and validate each row
+    const processedData = await Promise.all(
+      rows.map(async (rowData) => {
+        const errors: string[] = [];
+        const processedRow = { ...rowData };
+
+        // Validation and processing
+        if (!processedRow.item_name?.trim()) {
+          errors.push('Item name is required');
+        }
+
+        if (processedRow.brand?.trim()) {
+          // Extract ID from "ID | Name" format
+          const brandId = this.extractIdFromReference(processedRow.brand);
+          if (brandId) {
+            // Verify brand exists and belongs to store
+            const brandExists = await this._prisma.master_brands.findFirst({
+              where: {
+                id: brandId,
+                stores_has_master_brands: { some: { stores_id: store_id } },
+              },
+            });
+            if (!brandExists) {
+              errors.push('Brand not found or does not belong to this store');
+            }
+          } else {
+            errors.push('Invalid brand format. Expected format: "ID | Name"');
+          }
+        } else {
+          errors.push('Brand is required');
+        }
+
+        if (processedRow.sku?.trim()) {
+          const sku = processedRow.sku.trim().toLowerCase();
+
+          // Check for duplicate in current batch
+          if (skuCountMap.get(sku)! > 1) {
+            const duplicateRows = skuRowMap.get(sku) || [];
+            errors.push(
+              `SKU '${processedRow.sku}' is duplicated in rows: ${duplicateRows.join(', ')}`,
+            );
+          }
+
+          // Check for duplicate SKU in current store
+          try {
+            const existingSku =
+              await this._prisma.master_inventory_items.findFirst({
+                where: {
+                  sku: { equals: processedRow.sku.trim(), mode: 'insensitive' },
+                  stores_has_master_inventory_items: {
+                    some: { stores_id: store_id },
+                  },
+                },
+              });
+            if (existingSku) {
+              errors.push(
+                `SKU '${processedRow.sku}' already exists in this store`,
+              );
+            }
+          } catch (error) {
+            errors.push('Error validating SKU uniqueness');
+          }
+        } else {
+          errors.push('SKU is required');
+        }
+
+        // Validate barcode uniqueness if provided
+        if (processedRow.barcode?.trim()) {
+          const barcode = processedRow.barcode.trim().toLowerCase();
+
+          // Check for duplicate in current batch
+          if (barcodeCountMap.get(barcode)! > 1) {
+            const duplicateRows = barcodeRowMap.get(barcode) || [];
+            errors.push(
+              `Barcode '${processedRow.barcode}' is duplicated in rows: ${duplicateRows.join(', ')}`,
+            );
+          }
+
+          try {
+            const existingBarcode =
+              await this._prisma.master_inventory_items.findFirst({
+                where: {
+                  barcode: {
+                    equals: processedRow.barcode.trim(),
+                    mode: 'insensitive',
+                  },
+                  stores_has_master_inventory_items: {
+                    some: { stores_id: store_id },
+                  },
+                },
+              });
+            if (existingBarcode) {
+              errors.push(
+                `Barcode '${processedRow.barcode}' already exists in this store`,
+              );
+            }
+          } catch (error) {
+            errors.push('Error validating barcode uniqueness');
+          }
+        }
+
+        if (processedRow.category?.trim()) {
+          const categoryId = this.extractIdFromReference(processedRow.category);
+          if (categoryId) {
+            const categoryExists =
+              await this._prisma.master_inventory_categories.findFirst({
+                where: {
+                  id: categoryId,
+                  stores_has_master_inventory_categories: {
+                    some: { stores_id: store_id },
+                  },
+                },
+              });
+            if (!categoryExists) {
+              errors.push(
+                'Category not found or does not belong to this store',
+              );
+            }
+          } else {
+            errors.push(
+              'Invalid category format. Expected format: "ID | Name"',
+            );
+          }
+        } else {
+          errors.push('Category is required');
+        }
+
+        if (!processedRow.unit?.trim()) {
+          errors.push('Unit is required');
+        }
+
+        if (
+          processedRow.stock_quantity === null ||
+          processedRow.stock_quantity === undefined ||
+          isNaN(processedRow.stock_quantity)
+        ) {
+          errors.push('Stock quantity is required and must be a valid number');
+        } else if (processedRow.stock_quantity < 0) {
+          errors.push('Stock quantity must be a positive number');
+        }
+
+        if (
+          processedRow.minimum_stock_quantity === null ||
+          processedRow.minimum_stock_quantity === undefined ||
+          isNaN(processedRow.minimum_stock_quantity)
+        ) {
+          errors.push(
+            'Minimum stock quantity is required and must be a valid number',
+          );
+        } else if (processedRow.minimum_stock_quantity < 0) {
+          errors.push('Minimum stock quantity must be a positive number');
+        }
+
+        if (
+          processedRow.reorder_level === null ||
+          processedRow.reorder_level === undefined ||
+          isNaN(processedRow.reorder_level)
+        ) {
+          errors.push('Reorder level is required and must be a valid number');
+        } else if (processedRow.reorder_level < 0) {
+          errors.push('Reorder level must be a positive number');
+        }
+
+        if (processedRow.storage_location?.trim()) {
+          const storageId = this.extractIdFromReference(
+            processedRow.storage_location,
+          );
+          if (storageId) {
+            const storageExists =
+              await this._prisma.master_storage_locations.findFirst({
+                where: {
+                  id: storageId,
+                  stores_has_master_storage_locations: {
+                    some: { stores_id: store_id },
+                  },
+                },
+              });
+            if (!storageExists) {
+              errors.push(
+                'Storage location not found or does not belong to this store',
+              );
+            }
+          } else {
+            errors.push(
+              'Invalid storage location format. Expected format: "ID | Name"',
+            );
+          }
+        } else {
+          errors.push('Storage location is required');
+        }
+
+        if (
+          processedRow.price_per_unit === null ||
+          processedRow.price_per_unit === undefined ||
+          isNaN(processedRow.price_per_unit)
+        ) {
+          errors.push('Price per unit is required and must be a valid number');
+        } else if (processedRow.price_per_unit <= 0) {
+          errors.push('Price per unit must be greater than 0');
+        }
+
+        // Validate expiry_date format if provided
+        if (processedRow.expiry_date) {
+          const expiryDate = new Date(processedRow.expiry_date);
+          if (isNaN(expiryDate.getTime())) {
+            errors.push('Invalid expiry date format');
+          } else if (expiryDate < new Date()) {
+            errors.push('Expiry date cannot be in the past');
+          }
+        }
+
+        if (processedRow.supplier?.trim()) {
+          const supplierId = this.extractIdFromReference(processedRow.supplier);
+          if (supplierId) {
+            const supplierExists =
+              await this._prisma.master_suppliers.findFirst({
+                where: {
+                  id: supplierId,
+                  stores_has_master_suppliers: {
+                    some: { stores_id: store_id },
+                  },
+                },
+              });
+            if (!supplierExists) {
+              errors.push(
+                'Supplier not found or does not belong to this store',
+              );
+            }
+          } else {
+            errors.push(
+              'Invalid supplier format. Expected format: "ID | Name"',
+            );
+          }
+        } else {
+          errors.push('Supplier is required');
+        }
+
+        const status = errors.length === 0 ? 'valid' : 'invalid';
+        const errorMessages = errors.length > 0 ? errors.join('; ') : null;
+
+        return {
+          ...processedRow,
+          batch_id: batchId,
+          status,
+          error_messages: errorMessages,
+        };
+      }),
+    );
+
+    // Save to temporary table - use raw query since Prisma model might not be generated yet
+    const tempData = processedData.map((row) => ({
+      batch_id: batchId,
+      row_number: row.row_number,
+      status: row.status,
+      item_name: row.item_name,
+      brand: row.brand,
+      barcode: row.barcode,
+      sku: row.sku,
+      category: row.category,
+      unit: row.unit,
+      notes: row.notes,
+      stock_quantity: row.stock_quantity,
+      minimum_stock_quantity: row.minimum_stock_quantity,
+      reorder_level: row.reorder_level,
+      expiry_date: row.expiry_date,
+      storage_location: row.storage_location,
+      price_per_unit: row.price_per_unit,
+      supplier: row.supplier,
+      error_messages: row.error_messages,
+    }));
+
+    for (const data of tempData) {
+      await this._prisma.$executeRaw`
+        INSERT INTO temp_import_inventory_items (
+          batch_id, row_number, status, item_name, brand, barcode, sku, category, unit, notes,
+          stock_quantity, minimum_stock_quantity, reorder_level, expiry_date, storage_location,
+          price_per_unit, supplier, error_messages
+        ) VALUES (
+          ${data.batch_id}::uuid, ${data.row_number}, ${data.status}, ${data.item_name}, ${data.brand},
+          ${data.barcode}, ${data.sku}, ${data.category}, ${data.unit}, ${data.notes},
+          ${data.stock_quantity}, ${data.minimum_stock_quantity}, ${data.reorder_level}, ${data.expiry_date},
+          ${data.storage_location}, ${data.price_per_unit}, ${data.supplier}, ${data.error_messages}
+        )
+      `;
+    }
+
+    // Separate valid and invalid data
+    const validData = processedData.filter((row) => row.status === 'valid');
+    const invalidData = processedData.filter((row) => row.status === 'invalid');
+
+    return {
+      batch_id: batchId,
+      total_rows: processedData.length,
+      valid_rows: validData.length,
+      invalid_rows: invalidData.length,
+      success_data: validData.map((row) => ({
+        id: row.batch_id, // Using batch_id as temporary id
+        row_number: row.row_number,
+        item_name: row.item_name,
+        brand: row.brand,
+        barcode: row.barcode,
+        sku: row.sku,
+        category: row.category,
+        unit: row.unit,
+        notes: row.notes,
+        stock_quantity: row.stock_quantity,
+        minimum_stock_quantity: row.minimum_stock_quantity,
+        reorder_level: row.reorder_level,
+        expiry_date: row.expiry_date,
+        storage_location: row.storage_location,
+        price_per_unit: row.price_per_unit,
+        supplier: row.supplier,
+      })),
+      failed_data: invalidData.map((row) => ({
+        id: row.batch_id, // Using batch_id as temporary id
+        row_number: row.row_number,
+        item_name: row.item_name,
+        brand: row.brand,
+        barcode: row.barcode,
+        sku: row.sku,
+        category: row.category,
+        unit: row.unit,
+        notes: row.notes,
+        stock_quantity: row.stock_quantity,
+        minimum_stock_quantity: row.minimum_stock_quantity,
+        reorder_level: row.reorder_level,
+        expiry_date: row.expiry_date,
+        storage_location: row.storage_location,
+        price_per_unit: row.price_per_unit,
+        supplier: row.supplier,
+        error_messages: row.error_messages,
+      })),
+    };
+  }
+
+  // Helper methods for Excel data processing
+  private getCellValue(cell: ExcelJS.Cell): string | null {
+    if (!cell || cell.value === null || cell.value === undefined) return null;
+    return String(cell.value).trim();
+  }
+
+  private getNumericValue(cell: ExcelJS.Cell): number | null {
+    if (!cell || cell.value === null || cell.value === undefined) return null;
+    const value = Number(cell.value);
+    return isNaN(value) ? null : value;
+  }
+
+  private getDateValue(cell: ExcelJS.Cell): Date | null {
+    if (!cell || cell.value === null || cell.value === undefined) return null;
+
+    if (cell.value instanceof Date) {
+      return cell.value;
+    }
+
+    // Try to parse date string
+    const dateStr = String(cell.value).trim();
+    if (!dateStr) return null;
+
+    // Try common date formats
+    const parsedDate = new Date(dateStr);
+    return isNaN(parsedDate.getTime()) ? null : parsedDate;
+  }
+
+  private extractIdFromReference(reference: string): string | null {
+    if (!reference) return null;
+    const parts = reference.split(' | ');
+    return parts.length >= 2 ? parts[0].trim() : null;
+  }
+
   private readonly logger = new Logger(InventoryItemsService.name);
   // Columns that are guaranteed to exist in DB for inventory_stock_adjustments
   private readonly stockAdjustmentSafeSelect = {

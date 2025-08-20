@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -11,19 +12,27 @@ import {
   UseGuards,
   Req,
   Res,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiHeader,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { IsOptional, IsUUID } from 'class-validator';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import {
   CreateInventoryItemDto,
   GetInventoryItemsDto,
   UpdateInventoryItemDto,
+  PreviewImportDto,
+  ImportPreviewResponseDto,
 } from '../dtos';
 import {
   CreateStockAdjustmentDto,
@@ -45,7 +54,7 @@ export class InventoryItemsController {
     required: true,
     schema: { type: 'string' },
   })
-  @Post('generate-template')
+  @Post('import/generate-template')
   @ApiOperation({ summary: 'Generate import template for inventory items' })
   async generateImportTemplate(
     @Req() req: ICustomRequestHeaders,
@@ -59,6 +68,50 @@ export class InventoryItemsController {
         'attachment; filename="inventory-items-import-template.xlsx"',
     });
     res.end(buffer);
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('import/preview-data')
+  @ApiOperation({ summary: 'Preview import data from Excel file' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Excel file to import',
+    type: PreviewImportDto,
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  async previewImport(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: ICustomRequestHeaders,
+    @Body('batchId') batchId?: string,
+  ) {
+    // Validate batch_id if provided
+    if (
+      batchId &&
+      !batchId.match(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      )
+    ) {
+      throw new BadRequestException(
+        'Invalid batch ID format. Must be a valid UUID v4',
+      );
+    }
+
+    const result = await this.inventoryItemsService.previewImport(
+      file,
+      req,
+      batchId,
+    );
+    return {
+      message: 'Import preview processed successfully',
+      result: toCamelCase(result),
+    };
   }
 
   @UseGuards(AuthenticationJWTGuard)
