@@ -85,8 +85,32 @@ export class ProductBundlingService {
     };
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} productBundling`;
+  async findOne(id: string) {
+    const existing = await this.prisma.catalog_bundling.findUnique({
+      where: { id },
+      include: {
+        catalog_bundling_has_product: {
+          include: {
+            products: true,
+          },
+        },
+      },
+    });
+    if (!existing) {
+      throw new Error('Product bundling not found');
+    }
+    return {
+      ...existing,
+      discount: existing.discount ? existing.discount.toNumber() : undefined,
+      products: existing.catalog_bundling_has_product.map((product) => ({
+        product_id: product.products.id,
+        product_name: product.products.name,
+        product_price: product.products.price,
+        product_discount_price: product.products.discount_price,
+        quantity: product.quantity,
+      })),
+      catalog_bundling_has_product: undefined,
+    };
   }
 
   async update(id: string, updateProductBundlingDto: UpdateProductBundlingDto) {

@@ -68,9 +68,12 @@ export class ProductBundlingController {
     };
   }
 
+  @ApiOperation({ summary: 'Detail Product Bundling' })
+  @ApiBearerAuth()
+  @UseGuards(AuthenticationJWTGuard)
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    const data = await this.productBundlingService.findOne(+id);
+    const data = await this.productBundlingService.findOne(id);
     return {
       message: 'Product bundling successfully retrieved',
       result: data,
