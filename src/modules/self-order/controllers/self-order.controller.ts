@@ -158,7 +158,7 @@ export class SelfOrderController {
   }
 
   /* ------------------------- // * Get Payment Method ------------------------ */
-  @Get('payment/methods')
+  @Get('payment/method')
   @ApiOperation({
     summary: 'Get list of the payment methods',
   })
