@@ -30,6 +30,12 @@ import {
 import { InvoiceService } from '../../invoices/services/invoices.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ProductsService } from '../../products/products.service';
+import { KitchenService } from '../../kitchen/services/kitchen.service';
+import {
+  GetInvoiceSettingDto,
+  SettingInvoiceDto,
+} from '../../invoices/dtos/setting-invoice.dto';
+import { StoresService } from '../../stores/services/stores.service';
 
 @ApiTags('Self Order')
 @Controller('self-order')
@@ -41,6 +47,8 @@ export class SelfOrderController {
     private readonly invoiceService: InvoiceService,
     private readonly prisma: PrismaService,
     private readonly productsService: ProductsService,
+    private readonly kitchenService: KitchenService,
+    private readonly storeService: StoresService,
   ) {}
 
   // Sign up: if exists (by code+number+store) return existing, else create via customersService.create
@@ -150,7 +158,7 @@ export class SelfOrderController {
   }
 
   /* ------------------------- // * Get Payment Method ------------------------ */
-  @Get('payment-methods')
+  @Get('payment/methods')
   @ApiOperation({
     summary: 'Get list of the payment methods',
   })
@@ -174,7 +182,7 @@ export class SelfOrderController {
   }
 
   /* ------------------------- //  * Calculate invoice ------------------------ */
-  @Post('calculate/estimation')
+  @Post('invoice/calculate/estimation')
   @ApiOperation({
     summary: 'Simulate the total estimation',
   })
@@ -192,7 +200,7 @@ export class SelfOrderController {
   }
 
   // * Get Product Detail
-  @Get('product/:idOrName')
+  @Get('products/:idOrName')
   @ApiOperation({
     summary: 'Get Product Detail by ID or Name',
   })
@@ -289,5 +297,45 @@ export class SelfOrderController {
     return {
       result: toCamelCase(response),
     };
+  }
+
+  /* --------------------------- // * Kitchen Ticket -------------------------- */
+  @Get('kitchen/ticket/:invoiceId')
+  @ApiOperation({
+    summary: 'Get Kitchen Ticket in Invoice Detail',
+  })
+  public async getTicketByInvoiceId(@Param('invoiceId') invoiceId: string) {
+    const response = await this.kitchenService.ticketByInvoiceId({
+      invoiceId,
+    });
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  /* -------------------------- // * Invoice Setting -------------------------- */
+  @Get('invoice/setting')
+  @ApiOperation({ summary: 'Get Invoice Setting' })
+  public async getData(
+    @Query() q: GetInvoiceSettingDto,
+    @Req() req: IRequestUser,
+  ) {
+    const validateStore = await this.storeService.validateStore(
+      q.storeId,
+      req.id,
+    );
+    if (!validateStore) {
+      throw new Error(
+        'Store not found or you do not have access to this store',
+      );
+    }
+
+    const response = await this.invoiceService.getInvoiceSetting(q, req.id);
+    if (response.length === 0) {
+      return {
+        result: new SettingInvoiceDto(),
+      };
+    }
+    return { result: response };
   }
 }
