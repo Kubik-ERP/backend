@@ -8,6 +8,8 @@ import { InvoicesModule } from '../invoices/invoices.module';
 import { SelfOrderController } from './controllers/self-order.controller';
 import { SelfOrderService } from './services/self-order.service';
 import { ProductsModule } from '../products/products.module';
+import { KitchenModule } from '../kitchen/kitchen.module';
+import { StoresModule } from '../stores/stores.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { ProductsModule } from '../products/products.module';
     PaymentMethodModule,
     InvoicesModule,
     ProductsModule,
+    KitchenModule,
+    StoresModule,
   ],
   controllers: [SelfOrderController],
   providers: [SelfOrderService],
