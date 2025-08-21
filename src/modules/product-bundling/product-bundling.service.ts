@@ -15,7 +15,7 @@ export class ProductBundlingService {
     if (!store_id) {
       throw new Error('Store ID is required');
     }
-    const { name, description, productId } = createProductBundlingDto;
+    const { name, description, products } = createProductBundlingDto;
     const bundling = await this.prisma.catalog_bundling.create({
       data: {
         name,
@@ -26,9 +26,10 @@ export class ProductBundlingService {
         store_id: store_id,
       },
     });
-    const bundlingProducts = productId.map((product) => ({
+    const bundlingProducts = products.map((product) => ({
       catalog_bundling_id: bundling.id,
-      product_id: product,
+      product_id: product.productId,
+      quantity: product.quantity,
     }));
     await this.prisma.catalog_bundling_has_product.createMany({
       data: bundlingProducts,
@@ -62,9 +63,14 @@ export class ProductBundlingService {
     ]);
     const mappedBundling = productBundling.map((item) => ({
       ...item,
-      products: item.catalog_bundling_has_product.map(
-        (product) => product.products,
-      ),
+      discount: item.discount ? item.discount.toNumber() : undefined,
+      products: item.catalog_bundling_has_product.map((product) => ({
+        product_id: product.products.id,
+        product_name: product.products.name,
+        product_price: product.products.price,
+        product_discount_price: product.products.discount_price,
+        quantity: product.quantity,
+      })),
       catalog_bundling_has_product: undefined,
     }));
     const totalPages = Math.ceil(totalItems / limit);
@@ -84,7 +90,7 @@ export class ProductBundlingService {
   }
 
   async update(id: string, updateProductBundlingDto: UpdateProductBundlingDto) {
-    const { name, description, productId, discount, type, price } =
+    const { name, description, products, discount, type, price } =
       updateProductBundlingDto;
     const existing = await this.prisma.catalog_bundling.findUnique({
       where: { id },
@@ -103,10 +109,11 @@ export class ProductBundlingService {
       },
     });
     let bundlingProducts: any[] = [];
-    if (productId && productId.length !== 0) {
-      bundlingProducts = productId.map((product) => ({
+    if (products && products.length !== 0) {
+      bundlingProducts = products.map((product) => ({
         catalog_bundling_id: bundling.id,
-        product_id: product,
+        product_id: product.productId,
+        quantity: product.quantity,
       }));
       await this.prisma.catalog_bundling_has_product.deleteMany({
         where: { catalog_bundling_id: bundling.id },

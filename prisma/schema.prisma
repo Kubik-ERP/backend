@@ -150,29 +150,25 @@ model customers_has_tag {
 }
 
 model employees {
-  id                              String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                            String?                      @db.VarChar(45)
-  email                           String?                      @unique @db.VarChar(45)
-  phone_number                    String?                      @db.VarChar(45)
-  profile_url                     String?                      @db.VarChar(45)
-  start_date                      DateTime?                    @db.Date
-  end_date                        DateTime?                    @db.Date
-  gender                          gender?
-  title                           String?                      @db.VarChar(45)
-  phone_code                      String?                      @db.VarChar(45)
-  permission                      String?                      @db.VarChar(45)
-  default_commission_product_type commission_type?
-  default_commission_voucher_type commission_type?
-  default_commission_voucher      Float?
-  default_commission_product      Float?
-  cash_drawers                    cash_drawers[]
-  employees_has_roles             employees_has_roles[]
-  employees_has_social_media      employees_has_social_media[]
-  employees_shift                 employees_shift[]
-  platforms_has_employees         platforms_has_employees[]
-  product_commissions             product_commissions[]
-  stores_has_employees            stores_has_employees[]
-  voucher_commissions             voucher_commissions[]
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                       String?                      @db.VarChar(45)
+  email                      String?                      @unique @db.VarChar(45)
+  phone_number               String?                      @db.VarChar(45)
+  profile_url                String?                      @db.VarChar(45)
+  start_date                 DateTime?                    @db.Date
+  end_date                   DateTime?                    @db.Date
+  gender                     gender?
+  title                      String?                      @db.VarChar(45)
+  phone_code                 String?                      @db.VarChar(45)
+  permission                 String?                      @db.VarChar(45)
+  cash_drawers               cash_drawers[]
+  employees_has_roles        employees_has_roles[]
+  employees_has_social_media employees_has_social_media[]
+  employees_shift            employees_shift[]
+  platforms_has_employees    platforms_has_employees[]
+  product_commissions        product_commissions[]
+  stores_has_employees       stores_has_employees[]
+  voucher_commissions        voucher_commissions[]
 }
 
 model employees_has_roles {
@@ -1023,7 +1019,7 @@ model stock_opname_items {
   expected_quantity        Int
   actual_quantity          Int
   notes                    String?
-  diff_quantity            Int?                   @default(dbgenerated("(actual_quantity - expected_quantity)"))
+  diff_quantity            Int?
   master_inventory_items   master_inventory_items @relation(fields: [master_inventory_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "stock_opname_items_master_inventory_items_fk")
   stock_opnames            stock_opnames          @relation(fields: [stock_opname_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "stock_opname_items_stock_opnames_fk")
 
@@ -1061,11 +1057,11 @@ model catalog_bundling {
   store_id                     String                         @db.Uuid
   name                         String?                        @db.VarChar(100)
   description                  String?                        @default("-") @db.VarChar(100)
+  type                         bundling_price_type
+  discount                     Decimal?                       @db.Decimal(5, 2)
+  price                        Int
   created_at                   DateTime?                      @default(now()) @db.Timestamp(6)
   updated_at                   DateTime?                      @default(now()) @db.Timestamp(6)
-  type                         String?                        @db.VarChar(50)
-  discount                     Decimal?                       @db.Decimal(5, 2)
-  price                        Int?
   stores                       stores                         @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_facilities_fk")
   catalog_bundling_has_product catalog_bundling_has_product[]
 }
@@ -1074,10 +1070,34 @@ model catalog_bundling_has_product {
   id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   product_id          String           @db.Uuid
   catalog_bundling_id String           @db.Uuid
+  quantity            Int?             @default(1)
   created_at          DateTime?        @default(now()) @db.Timestamp(6)
   updated_at          DateTime?        @default(now()) @db.Timestamp(6)
   catalog_bundling    catalog_bundling @relation(fields: [catalog_bundling_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "idx_catalog_bundling_has_product_catalog_bundling")
   products            products         @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "idx_catalog_bundling_has_product_product")
+}
+
+model temp_import_inventory_items {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id               String    @db.Uuid
+  row_number             Int
+  status                 String    @db.VarChar(20)
+  item_name              String?   @db.VarChar(150)
+  brand                  String?   @db.VarChar(100)
+  barcode                String?   @db.VarChar(64)
+  sku                    String?   @db.VarChar(64)
+  category               String?   @db.VarChar(100)
+  unit                   String?   @db.VarChar(64)
+  notes                  String?
+  stock_quantity         Int?
+  minimum_stock_quantity Int?
+  reorder_level          Int?
+  expiry_date            DateTime? @db.Date
+  storage_location       String?   @db.VarChar(100)
+  price_per_unit         Decimal?  @db.Decimal(18, 2)
+  supplier               String?   @db.VarChar(100)
+  error_messages         String?
+  imported_at            DateTime? @default(now()) @db.Timestamptz(6)
 }
 
 enum cash_drawer_type {
@@ -1171,13 +1191,8 @@ enum stock_opname_status {
   verified
 }
 
-enum commission_type {
-  amount
-  percentage
-}
-
 enum bundling_price_type {
-  total_items @map("total items")
-  discount
-  custom
+  TOTAL_ITEMS
+  DISCOUNT
+  CUSTOM
 }

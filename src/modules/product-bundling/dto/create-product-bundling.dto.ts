@@ -2,7 +2,28 @@ import { ApiProperty } from '@nestjs/swagger';
 import { bundling_price_type } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+
+export class CreateCatalogBundlingProducts {
+  @ApiProperty({
+    example: '1b2c3d4e-5f6g-7h8i-9j0k-lmnopqrstuv',
+    required: true,
+  })
+  @IsString()
+  @Type(() => String)
+  productId: string;
+
+  @ApiProperty({ example: 2, required: true })
+  @IsNumber()
+  @Type(() => Number)
+  quantity: number;
+}
 
 export class CreateProductBundlingDto {
   @ApiProperty({ example: 'Produk Bundling A', required: true })
@@ -15,14 +36,12 @@ export class CreateProductBundlingDto {
   @Type(() => String)
   description: string;
 
-  @ApiProperty({
-    type: [String],
-    required: true,
-  })
-  @IsString({ each: true })
-  productId: string[];
+  @ApiProperty({ type: [CreateCatalogBundlingProducts], required: true })
+  @ValidateNested({ each: true })
+  @Type(() => CreateCatalogBundlingProducts)
+  products: CreateCatalogBundlingProducts[];
 
-  @ApiProperty({ example: 'total items', required: true })
+  @ApiProperty({ example: 'TOTAL_ITEMS', required: true })
   @IsEnum(bundling_price_type)
   type: bundling_price_type;
 
