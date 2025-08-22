@@ -485,9 +485,15 @@ model role_permissions {
 model roles {
   id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                String?               @db.VarChar(45)
+  store_id            String?               @db.Uuid
+  is_system           Boolean               @default(false)
+  created_at          DateTime              @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at          DateTime?             @db.Timestamp(6)
   employees_has_roles employees_has_roles[]
   role_permissions    role_permissions[]
   users               users[]
+
+  @@unique([store_id, name], map: "roles_store_id_name_unique")
 }
 
 model store_floors {
