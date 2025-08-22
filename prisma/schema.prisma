@@ -1061,11 +1061,11 @@ model catalog_bundling {
   store_id                     String                         @db.Uuid
   name                         String?                        @db.VarChar(100)
   description                  String?                        @default("-") @db.VarChar(100)
-  created_at                   DateTime?                      @default(now()) @db.Timestamp(6)
-  updated_at                   DateTime?                      @default(now()) @db.Timestamp(6)
-  type                         String?                        @db.VarChar(50)
+  type                         bundling_price_type
   discount                     Decimal?                       @db.Decimal(5, 2)
   price                        Int?
+  created_at                   DateTime?                      @default(now()) @db.Timestamp(6)
+  updated_at                   DateTime?                      @default(now()) @db.Timestamp(6)
   stores                       stores                         @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_facilities_fk")
   catalog_bundling_has_product catalog_bundling_has_product[]
 }
@@ -1074,10 +1074,34 @@ model catalog_bundling_has_product {
   id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   product_id          String           @db.Uuid
   catalog_bundling_id String           @db.Uuid
+  quantity            Int?             @default(1)
   created_at          DateTime?        @default(now()) @db.Timestamp(6)
   updated_at          DateTime?        @default(now()) @db.Timestamp(6)
   catalog_bundling    catalog_bundling @relation(fields: [catalog_bundling_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "idx_catalog_bundling_has_product_catalog_bundling")
   products            products         @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "idx_catalog_bundling_has_product_product")
+}
+
+model temp_import_inventory_items {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id               String    @db.Uuid
+  row_number             Int
+  status                 String    @db.VarChar(20)
+  item_name              String?   @db.VarChar(150)
+  brand                  String?   @db.VarChar(100)
+  barcode                String?   @db.VarChar(64)
+  sku                    String?   @db.VarChar(64)
+  category               String?   @db.VarChar(100)
+  unit                   String?   @db.VarChar(64)
+  notes                  String?
+  stock_quantity         Int?
+  minimum_stock_quantity Int?
+  reorder_level          Int?
+  expiry_date            DateTime? @db.Date
+  storage_location       String?   @db.VarChar(100)
+  price_per_unit         Decimal?  @db.Decimal(18, 2)
+  supplier               String?   @db.VarChar(100)
+  error_messages         String?
+  imported_at            DateTime? @default(now()) @db.Timestamptz(6)
 }
 
 enum cash_drawer_type {
