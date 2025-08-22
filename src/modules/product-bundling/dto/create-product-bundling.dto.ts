@@ -53,6 +53,7 @@ export class CreateProductBundlingDto {
 
   @ApiProperty({ example: '100000', required: true })
   @IsNumber()
+  @IsOptional()
   @Type(() => Number)
-  price: number;
+  price?: number;
 }
