@@ -8,16 +8,22 @@ import {
   Delete,
   HttpException,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 
 @Controller('roles')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
+  @ApiOperation({ summary: 'Create role' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Post()
   async create(@Body() createRoleDto: CreateRoleDto) {
     try {
@@ -39,6 +45,9 @@ export class RolesController {
     }
   }
 
+  @ApiOperation({ summary: 'Get all roles' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Get()
   async findAll() {
     try {
@@ -60,6 +69,9 @@ export class RolesController {
     }
   }
 
+  @ApiOperation({ summary: 'Get role by id' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Get(':id')
   async findOne(@Param('id') id: string) {
     try {
@@ -91,6 +103,9 @@ export class RolesController {
     }
   }
 
+  @ApiOperation({ summary: 'Update role by id' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Patch(':id')
   async update(@Param('id') id: string, @Body() updateRoleDto: UpdateRoleDto) {
     try {
@@ -125,6 +140,9 @@ export class RolesController {
     }
   }
 
+  @ApiOperation({ summary: 'Delete role by id' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
   @Delete(':id')
   async remove(@Param('id') id: string) {
     try {

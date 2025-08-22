@@ -35,5 +35,6 @@ import { StorageServiceModule } from '../storage-service/storage-service.module'
   ],
   controllers: [StoresController],
   providers: [StoresService, JwtStrategy],
+  exports: [StoresService],
 })
 export class StoresModule {}
