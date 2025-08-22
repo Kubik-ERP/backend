@@ -1104,30 +1104,6 @@ model temp_import_inventory_items {
   imported_at            DateTime? @default(now()) @db.Timestamptz(6)
 }
 
-model catalog_bundling {
-  id                           String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  store_id                     String                         @db.Uuid
-  name                         String?                        @db.VarChar(100)
-  description                  String?                        @default("-") @db.VarChar(100)
-  created_at                   DateTime?                      @default(now()) @db.Timestamp(6)
-  updated_at                   DateTime?                      @default(now()) @db.Timestamp(6)
-  type                         String?                        @db.VarChar(50)
-  discount                     Decimal?                       @db.Decimal(5, 2)
-  price                        Int?
-  stores                       stores                         @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_facilities_fk")
-  catalog_bundling_has_product catalog_bundling_has_product[]
-}
-
-model catalog_bundling_has_product {
-  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  product_id          String           @db.Uuid
-  catalog_bundling_id String           @db.Uuid
-  created_at          DateTime?        @default(now()) @db.Timestamp(6)
-  updated_at          DateTime?        @default(now()) @db.Timestamp(6)
-  catalog_bundling    catalog_bundling @relation(fields: [catalog_bundling_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "idx_catalog_bundling_has_product_catalog_bundling")
-  products            products         @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "idx_catalog_bundling_has_product_product")
-}
-
 enum cash_drawer_type {
   open
   close
@@ -1223,17 +1199,6 @@ enum bundling_price_type {
   total_items @map("total items")
   discount
   custom
-}
-
-enum commission_type {
-  amount
-  percentage
-}
-
-enum bundling_price_type {
-  TOTAL_ITEMS
-  DISCOUNT
-  CUSTOM
 }
 
 enum commission_type {
