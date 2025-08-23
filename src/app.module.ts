@@ -41,6 +41,7 @@ import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.
 import { StockOpnamesModule } from './modules/stock-opnames/stock-opnames.module';
 import { FacilitiesModule } from './modules/facilities/facilities.module';
 import { ProductBundlingModule } from './modules/product-bundling/product-bundling.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
 
 @Module({
   imports: [
@@ -94,6 +95,7 @@ import { ProductBundlingModule } from './modules/product-bundling/product-bundli
     StockOpnamesModule,
     FacilitiesModule,
     ProductBundlingModule,
+    PermissionsModule,
   ],
   providers: [
     {
