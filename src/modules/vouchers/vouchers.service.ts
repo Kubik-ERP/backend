@@ -87,21 +87,22 @@ export class VouchersService {
         name: 'asc',
       },
       include: {
-        invoice_has_vouchers: true,
+        invoice: {
+          select: {
+            voucher_id: true,
+          },
+        },
       },
     });
 
     return (
       vouchers
         // Hide voucher yang kuotanya habis
-        .filter(
-          ({ invoice_has_vouchers, ...voucher }) =>
-            invoice_has_vouchers.length < voucher.quota,
-        )
+        .filter(({ invoice, ...voucher }) => invoice.length < voucher.quota)
         // menambahkan field remaining_quota
-        .map(({ invoice_has_vouchers, ...voucher }) => ({
+        .map(({ invoice, ...voucher }) => ({
           ...voucher,
-          remaining_quota: voucher.quota - invoice_has_vouchers.length,
+          remaining_quota: voucher.quota - invoice.length,
         }))
     );
   }
@@ -161,7 +162,10 @@ export class VouchersService {
         orderBy: orderBy,
         include: {
           // Untuk mengetahui apakah voucher ini sudah di apply ke invoice
-          invoice_has_vouchers: {
+          invoice: {
+            select: {
+              voucher_id: true,
+            },
             take: 1,
           },
         },
@@ -175,7 +179,7 @@ export class VouchersService {
     const vouchers = items.map((item) => ({
       ...item,
       status: getStatus(item),
-      is_applied: item.invoice_has_vouchers.length > 0,
+      is_applied: item.invoice.length > 0,
     }));
 
     return {
@@ -201,7 +205,10 @@ export class VouchersService {
       where: { id, store_id },
       include: {
         // Untuk mengetahui apakah voucher ini sudah di apply ke invoice
-        invoice_has_vouchers: {
+        invoice: {
+          select: {
+            voucher_id: true,
+          },
           take: 1,
         },
       },
@@ -237,7 +244,7 @@ export class VouchersService {
     return {
       ...voucher,
       voucher_has_products,
-      is_applied: voucher.invoice_has_vouchers.length > 0,
+      is_applied: voucher.invoice.length > 0,
     };
   }
 
@@ -583,7 +590,7 @@ export class VouchersService {
     }
 
     // check voucher is max usage
-    const voucherUsage = await this._prisma.invoice_has_vouchers.count({
+    const voucherUsage = await this._prisma.invoice.count({
       where: {
         voucher_id: voucher.id,
       },
@@ -636,7 +643,7 @@ export class VouchersService {
    * @returns {boolean}
    */
   private async isVoucherApplied(voucherId: string) {
-    const isVoucherApplied = await this._prisma.invoice_has_vouchers.findFirst({
+    const isVoucherApplied = await this._prisma.invoice.findFirst({
       where: { voucher_id: voucherId },
     });
 

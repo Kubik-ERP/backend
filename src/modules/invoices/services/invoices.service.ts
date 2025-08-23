@@ -418,6 +418,9 @@ export class InvoiceService {
           complete_order_at: null,
           payment_amount: null,
           change_amount: null,
+          // voucher applied
+          voucher_id: request.voucherId ?? null,
+          voucher_amount: 0,
         };
 
         // create invoice with status unpaid
@@ -437,17 +440,10 @@ export class InvoiceService {
           grand_total: grandTotal,
           payment_amount: calculation.paymentAmount,
           change_amount: calculation.changeAmount,
+          // voucher applied
+          voucher_id: request.voucherId ?? undefined,
+          voucher_amount: calculation.voucherAmount,
         });
-
-        // create invoice voucher if voucher id is provided
-        if (request.voucherId) {
-          await this.createInvoiceVoucher(
-            tx,
-            invoiceId,
-            request.voucherId,
-            calculation.voucherAmount,
-          );
-        }
 
         // insert the customer has invoice
         await this.createCustomerInvoice(tx, invoiceId, request.customerId);
@@ -597,20 +593,13 @@ export class InvoiceService {
         complete_order_at: null,
         payment_amount: null,
         change_amount: null,
+        // voucher applied
+        voucher_id: request.voucherId ?? null,
+        voucher_amount: calculation.voucherAmount ?? 0,
       };
 
       // create invoice with status unpaid
       await this.create(tx, invoiceData);
-
-      // create invoice voucher if voucher id is provided
-      if (request.voucherId) {
-        await this.createInvoiceVoucher(
-          tx,
-          invoiceId,
-          request.voucherId,
-          calculation.voucherAmount,
-        );
-      }
 
       request.products.forEach(async (detail) => {
         // find the price
@@ -1158,9 +1147,8 @@ export class InvoiceService {
     }
 
     // jika invoice memiliki applied voucher
-    const voucherInvoice = await this.getInvoiceVoucher(invoice.id);
-    if (voucherInvoice) {
-      calculationEstimationDto.voucherId = voucherInvoice.voucher_id;
+    if (invoice.voucher_id) {
+      calculationEstimationDto.voucherId = invoice.voucher_id;
     }
 
     let grandTotal = 0;
@@ -2111,51 +2099,5 @@ export class InvoiceService {
     }
   }
 
-  /**
-   * Create an invoice voucher
-   *
-   * 1 invoice can apply 1 voucher
-   */
-  private async createInvoiceVoucher(
-    tx: Prisma.TransactionClient,
-    invoiceId: string,
-    voucherId: string,
-    voucherAmount: number,
-  ) {
-    try {
-      return await tx.invoice_has_vouchers.create({
-        data: {
-          invoice_id: invoiceId,
-          voucher_id: voucherId,
-          amount: voucherAmount,
-        },
-      });
-    } catch (error) {
-      this.logger.error('Failed to create invoice voucher');
-      throw new BadRequestException('Failed to create invoice voucher', {
-        cause: new Error(),
-        description: error.message,
-      });
-    }
-  }
-
-  /**
-   * Get invoice voucher by invoice id
-   *
-   * 1 invoice always has 0...1 voucher
-   */
-  private async getInvoiceVoucher(invoiceId: string) {
-    try {
-      return await this._prisma.invoice_has_vouchers.findFirst({
-        where: { invoice_id: invoiceId },
-      });
-    } catch (error) {
-      this.logger.error('Failed to get voucher invoice');
-      throw new BadRequestException('Failed to get voucher invoice', {
-        cause: new Error(),
-        description: error.message,
-      });
-    }
-  }
   // End of query section
 }
