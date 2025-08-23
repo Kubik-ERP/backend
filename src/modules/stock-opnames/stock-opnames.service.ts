@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateStockOpnameDto } from './dto/create-stock-opname.dto';
@@ -23,6 +24,8 @@ import {
 
 @Injectable()
 export class StockOpnamesService {
+  private readonly logger = new Logger(StockOpnamesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   // ===== Constants & shared Prisma selections
@@ -182,6 +185,7 @@ export class StockOpnamesService {
   // ===== CRUD
   async create(dto: CreateStockOpnameDto, header: ICustomRequestHeaders) {
     const store_id = requireStoreId(header);
+    this.logger.log(`Creating new stock opname for store ${store_id}`);
 
     const itemsPayload = dto.items ?? [];
     if (!itemsPayload.length)
@@ -220,6 +224,9 @@ export class StockOpnamesService {
       });
     });
 
+    this.logger.log(
+      `Successfully created stock opname with code ${result.code}`,
+    );
     return result;
   }
 
@@ -311,6 +318,7 @@ export class StockOpnamesService {
     header: ICustomRequestHeaders,
   ) {
     const store_id = requireStoreId(header);
+    this.logger.log(`Updating stock opname ${id} for store ${store_id}`);
 
     const itemsPayload = dto.items ?? [];
     if (!itemsPayload.length)
@@ -398,11 +406,13 @@ export class StockOpnamesService {
       });
     });
 
+    this.logger.log(`Successfully updated stock opname ${id}`);
     return result;
   }
 
   async remove(id: string, header: ICustomRequestHeaders) {
     const store_id = requireStoreId(header);
+    this.logger.log(`Removing stock opname ${id} from store ${store_id}`);
 
     return this.prisma.$transaction(async (tx) => {
       const existing = await this.ensureSOInStore(tx, id, store_id, {
@@ -417,12 +427,15 @@ export class StockOpnamesService {
       });
 
       // When deleting the stock opname, no need to update totals since the whole record will be deleted
-      return tx.stock_opnames.delete({ where: { id } });
+      const result = await tx.stock_opnames.delete({ where: { id } });
+      this.logger.log(`Successfully removed stock opname ${id}`);
+      return result;
     });
   }
 
   async verify(id: string, header: ICustomRequestHeaders) {
     const store_id = requireStoreId(header);
+    this.logger.log(`Verifying stock opname ${id} for store ${store_id}`);
 
     // Ensure exists + mutable for verification rule
     const existing = await this.ensureSOInStore(this.prisma, id, store_id, {
@@ -431,7 +444,7 @@ export class StockOpnamesService {
     });
     this.assertMutable(existing.status, 'verify');
 
-    return this.prisma.stock_opnames.update({
+    const result = await this.prisma.stock_opnames.update({
       where: { id },
       data: {
         status: stock_opname_status.verified,
@@ -439,5 +452,7 @@ export class StockOpnamesService {
         updated_at: new Date(),
       },
     });
+    this.logger.log(`Successfully verified stock opname ${id}`);
+    return result;
   }
 }
