@@ -72,8 +72,8 @@ export class PermissionsService {
         permissions: {
           include: {
             store_role_permissions: {
-              include: {
-                roles: true,
+              select: {
+                role_id: true,
               },
             },
           },
