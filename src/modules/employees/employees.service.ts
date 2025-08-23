@@ -340,7 +340,6 @@ export class EmployeesService {
       commissions,
     } = dto;
 
-    console.log({ dto: JSON.stringify(dto) });
     const existing = await this.prisma.employees.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Employee with ID ${id} not found`);

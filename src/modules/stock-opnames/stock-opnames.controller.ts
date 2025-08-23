@@ -157,7 +157,6 @@ export class StockOpnamesController {
         result: null,
       };
     } catch (error) {
-      console.log({ error });
       return {
         statusCode: error?.status || 500,
         message: error.message,

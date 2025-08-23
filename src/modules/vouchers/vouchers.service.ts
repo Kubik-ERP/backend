@@ -22,6 +22,7 @@ import {
   jakartaTime,
   convertToIsoDate,
   percentageToAmount,
+  requireStoreId,
 } from 'src/common/helpers/common.helpers';
 import { VouchersActiveDto } from './dto/vouchers-active';
 
@@ -32,11 +33,7 @@ export class VouchersService {
   constructor(private readonly _prisma: PrismaService) {}
 
   async findActive(query: VouchersActiveDto, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
 
     const today = jakartaTime().toFormat('yyyy-MM-dd');
 
@@ -108,11 +105,7 @@ export class VouchersService {
   }
 
   async findAll(query: VouchersListDto, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
 
     // --- Filter range active voucher
     const activeVoucherFilter: Prisma.voucherWhereInput = {};
@@ -194,11 +187,7 @@ export class VouchersService {
   }
 
   async findOne(id: string, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
 
     // --- Cari voucher berdasarkan id dan store_id
     const voucher = await this._prisma.voucher.findUnique({
@@ -249,11 +238,8 @@ export class VouchersService {
   }
 
   async create(dto: CreateVoucherDto, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
+    this.logger.log(`Creating new voucher for store ${store_id}`);
 
     const { hasProducts, ...rest } = dto;
 
@@ -320,10 +306,14 @@ export class VouchersService {
         );
       }
 
-      return {
+      const result = {
         ...voucherCreated,
         voucher_has_products,
       };
+      this.logger.log(
+        `Successfully created voucher with promo code ${voucherCreated.promo_code}`,
+      );
+      return result;
     } catch (error) {
       if (error.code === 'P2002') {
         throw new BadRequestException(`Duplicate promo code ${dto.promoCode}`);
@@ -339,11 +329,8 @@ export class VouchersService {
     dto: UpdateVoucherDto,
     header: ICustomRequestHeaders,
   ) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
+    this.logger.log(`Updating voucher ${id} for store ${store_id}`);
 
     const { hasProducts, ...rest } = dto;
 
@@ -485,6 +472,7 @@ export class VouchersService {
         };
       });
 
+      this.logger.log(`Successfully updated voucher ${id}`);
       return updatedVoucher;
     } catch (error) {
       if (error.code === 'P2002') {
@@ -497,11 +485,8 @@ export class VouchersService {
   }
 
   async remove(id: string, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
+    this.logger.log(`Removing voucher ${id} from store ${store_id}`);
 
     // --- Memastikan voucher ada di store
     const isVoucherExist = await this.isVoucherExist(id, store_id);
@@ -532,6 +517,7 @@ export class VouchersService {
       await tx.voucher.delete({
         where: { id },
       });
+      this.logger.log(`Successfully removed voucher ${id}`);
     });
   }
 
