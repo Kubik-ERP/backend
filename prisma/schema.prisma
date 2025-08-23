@@ -390,9 +390,13 @@ model payments {
 }
 
 model permissions {
-  id               String             @id @db.Uuid
-  name             String?            @db.VarChar(45)
-  role_permissions role_permissions[]
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String?                  @db.VarChar(45)
+  key                    String                   @unique(map: "permissions_key_unique") @db.VarChar(100)
+  permission_category_id String                   @db.Uuid
+  permission_categories  permission_categories    @relation(fields: [permission_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "permissions_permission_categories_fk")
+  role_permissions       role_permissions[]
+  store_role_permissions store_role_permissions[]
 }
 
 model platforms {
@@ -472,22 +476,29 @@ model recipe_details {
 }
 
 model role_permissions {
-  roles_id       String      @db.Uuid
-  permissions_id String      @db.Uuid
-  permissions    permissions @relation(fields: [permissions_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_roles_has_permissions_permissions1")
-  roles          roles       @relation(fields: [roles_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_roles_has_permissions_roles1")
+  role_id       String      @db.Uuid
+  permission_id String      @db.Uuid
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_roles_has_permissions_permissions1")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_roles_has_permissions_roles1")
 
-  @@id([roles_id, permissions_id])
-  @@index([permissions_id], map: "fk_roles_has_permissions_permissions1_idx")
-  @@index([roles_id], map: "fk_roles_has_permissions_roles1_idx")
+  @@id([role_id, permission_id])
+  @@index([permission_id], map: "fk_roles_has_permissions_permissions1_idx")
+  @@index([role_id], map: "fk_roles_has_permissions_roles1_idx")
 }
 
 model roles {
-  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                String?               @db.VarChar(45)
-  employees_has_roles employees_has_roles[]
-  role_permissions    role_permissions[]
-  users               users[]
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String?                  @db.VarChar(45)
+  store_id               String?                  @db.Uuid
+  is_system              Boolean                  @default(false)
+  created_at             DateTime                 @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at             DateTime?                @db.Timestamp(6)
+  employees_has_roles    employees_has_roles[]
+  role_permissions       role_permissions[]
+  store_role_permissions store_role_permissions[]
+  users                  users[]
+
+  @@unique([store_id, name], map: "roles_store_id_name_unique")
 }
 
 model store_floors {
@@ -557,6 +568,7 @@ model stores {
   store_facilities                       store_facilities[]
   store_floors                           store_floors[]
   store_has_categories                   store_has_categories[]
+  store_role_permissions                 store_role_permissions[]
   stores_has_employees                   stores_has_employees[]
   stores_has_master_brands               stores_has_master_brands[]
   stores_has_master_inventory_categories stores_has_master_inventory_categories[]
@@ -1102,6 +1114,24 @@ model temp_import_inventory_items {
   supplier               String?   @db.VarChar(100)
   error_messages         String?
   imported_at            DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model permission_categories {
+  id          String        @id(map: "permission_categories_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String        @unique(map: "permission_categories_name_unique") @db.VarChar(45)
+  permissions permissions[]
+}
+
+model store_role_permissions {
+  role_id       String      @db.Uuid
+  permission_id String      @db.Uuid
+  store_id      String      @db.Uuid
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "store_role_permissions_permissions_fk")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "store_role_permissions_roles_fk")
+  stores        stores      @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "store_role_permissions_stores_fk")
+
+  @@id([role_id, permission_id, store_id], map: "store_role_permissions_pk")
+  @@index([store_id, role_id], map: "idx_srp_store_role")
 }
 
 enum cash_drawer_type {

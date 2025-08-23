@@ -1,12 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsString } from 'class-validator';
 
 export class CreateRoleDto {
   @ApiPropertyOptional({
+    required: true,
     example: 'Kasir',
-    description: 'Role untuk kasir',
+    description: 'Role name',
   })
-  @IsOptional()
   @IsString()
-  name?: string;
+  name: string;
 }
