@@ -22,6 +22,7 @@ import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.g
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import { StorageService } from '../storage-service/services/storage-service.service';
+import { AssignEmployeeDto } from './dto/assign-employee.dto';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -119,5 +120,21 @@ export class EmployeesController {
       message: 'Employee deleted successfully',
       result: null,
     };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Post('assign-to-store')
+  async assignToStore(
+    @Req() req: ICustomRequestHeaders,
+    @Body() assignEmployeeDto: AssignEmployeeDto,
+  ) {
+    return await this.employeesService.assignToStore(assignEmployeeDto, req);
   }
 }

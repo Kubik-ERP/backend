@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { StorageService } from '../storage-service/services/storage-service.service';
+import { AssignEmployeeDto } from './dto/assign-employee.dto';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -452,5 +453,62 @@ export class EmployeesService {
     return this.prisma.employees.delete({
       where: { id },
     });
+  }
+
+  async assignToStore(
+    assignEmployeeDto: AssignEmployeeDto,
+    req: ICustomRequestHeaders,
+  ) {
+    const { employeeId, type } = assignEmployeeDto;
+    const storeId = req.store_id;
+    if (!storeId) {
+      throw new BadRequestException('Store ID is required');
+    }
+
+    const employee = await this.findOne(employeeId);
+    if (!employee) {
+      throw new NotFoundException(`Employee with ID ${employeeId} not found`);
+    }
+
+    const existingAssignment = await this.prisma.stores_has_employees.findFirst(
+      {
+        where: {
+          AND: [{ employees_id: employeeId }, { stores_id: storeId }],
+        },
+      },
+    );
+
+    if (type === 'ASSIGN') {
+      if (existingAssignment) {
+        throw new BadRequestException(
+          `Employee with ID ${employeeId} is already assigned to store ${storeId}`,
+        );
+      }
+
+      await this.prisma.stores_has_employees.create({
+        data: {
+          employees_id: employeeId,
+          stores_id: storeId,
+        },
+      });
+
+      return {
+        message: 'Employee assigned to store successfully',
+      };
+    } else {
+      if (!existingAssignment) {
+        throw new BadRequestException(
+          `Employee with ID ${employeeId} is not assigned to store ${storeId}`,
+        );
+      }
+      await this.prisma.stores_has_employees.deleteMany({
+        where: {
+          AND: [{ employees_id: employeeId }, { stores_id: storeId }],
+        },
+      });
+      return {
+        message: 'Employee unassigned from store successfully',
+      };
+    }
   }
 }
