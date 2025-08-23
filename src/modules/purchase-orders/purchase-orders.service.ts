@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CreatePurchaseOrdersDto } from './dto/create-purchase-orders.dto';
@@ -18,18 +19,21 @@ import {
   getTotalPages,
 } from 'src/common/helpers/pagination.helpers';
 import { CancelPurchaseOrderDto } from './dto/cancel-purchase-order.dto';
-import { generateNextId } from 'src/common/helpers/common.helpers';
+import {
+  generateNextId,
+  requireStoreId,
+} from 'src/common/helpers/common.helpers';
 import { idToNumber } from 'src/common/helpers/common.helpers';
 import { ConfirmPurchaseOrderDto } from './dto/confirm-purchase-order.dto';
 
 @Injectable()
 export class PurchaseOrdersService {
+  private readonly logger = new Logger(PurchaseOrdersService.name);
+
   constructor(private readonly _prisma: PrismaService) {}
 
   async findAll(query: PurchaseOrdersListDto, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) throw new BadRequestException('store_id is required');
+    const store_id = requireStoreId(header);
 
     // --- Filter
     const filters: Prisma.purchase_ordersWhereInput = {
@@ -92,9 +96,7 @@ export class PurchaseOrdersService {
   }
 
   async findOne(id: string, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) throw new BadRequestException('store_id is required');
+    const store_id = requireStoreId(header);
 
     const purchaseOrder = await this._prisma.purchase_orders.findUnique({
       where: { id, store_id },
@@ -111,9 +113,8 @@ export class PurchaseOrdersService {
   }
 
   async create(dto: CreatePurchaseOrdersDto, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) throw new BadRequestException('store_id is required');
+    const store_id = requireStoreId(header);
+    this.logger.log(`Creating new purchase order for store ${store_id}`);
 
     const { productItems } = dto;
     if (!productItems?.length) {
@@ -223,6 +224,9 @@ export class PurchaseOrdersService {
       return po;
     });
 
+    this.logger.log(
+      `Successfully created purchase order with number ${result.order_number}`,
+    );
     return result;
   }
 
@@ -231,8 +235,8 @@ export class PurchaseOrdersService {
     dto: UpdatePurchaseOrdersDto,
     header: ICustomRequestHeaders,
   ) {
-    const store_id = header.store_id;
-    if (!store_id) throw new BadRequestException('store_id is required');
+    const store_id = requireStoreId(header);
+    this.logger.log(`Updating purchase order ${id} for store ${store_id}`);
 
     const { productItems } = dto;
     if (!productItems?.length) {
@@ -406,6 +410,7 @@ export class PurchaseOrdersService {
       });
     });
 
+    this.logger.log(`Successfully updated purchase order ${id}`);
     return result;
   }
 
@@ -414,9 +419,8 @@ export class PurchaseOrdersService {
     dto: CancelPurchaseOrderDto,
     header: ICustomRequestHeaders,
   ) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) throw new BadRequestException('store_id is required');
+    const store_id = requireStoreId(header);
+    this.logger.log(`Cancelling purchase order ${id} for store ${store_id}`);
 
     // Ensure PO exists & belongs to store (prevents cross-store updates)
     const existingPO = await this._prisma.purchase_orders.findFirst({
@@ -445,6 +449,7 @@ export class PurchaseOrdersService {
       },
     });
 
+    this.logger.log(`Successfully cancelled purchase order ${id}`);
     return cancelledPO;
   }
 
@@ -453,9 +458,8 @@ export class PurchaseOrdersService {
     dto: ConfirmPurchaseOrderDto,
     header: ICustomRequestHeaders,
   ) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) throw new BadRequestException('store_id is required');
+    const store_id = requireStoreId(header);
+    this.logger.log(`Confirming purchase order ${id} for store ${store_id}`);
 
     // Ensure PO exists & belongs to store (prevents cross-store updates)
     const existingPO = await this._prisma.purchase_orders.findFirst({
@@ -497,13 +501,15 @@ export class PurchaseOrdersService {
       },
     });
 
+    this.logger.log(
+      `Successfully confirmed purchase order ${id} with delivery number ${doNumber}`,
+    );
     return result;
   }
 
   async ship(id: string, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) throw new BadRequestException('store_id is required');
+    const store_id = requireStoreId(header);
+    this.logger.log(`Shipping purchase order ${id} for store ${store_id}`);
 
     // Ensure PO exists & belongs to store (prevents cross-store updates)
     const existingPO = await this._prisma.purchase_orders.findFirst({
@@ -533,13 +539,13 @@ export class PurchaseOrdersService {
       },
     });
 
+    this.logger.log(`Successfully shipped purchase order ${id}`);
     return result;
   }
 
   async receive(id: string, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) throw new BadRequestException('store_id is required');
+    const store_id = requireStoreId(header);
+    this.logger.log(`Receiving purchase order ${id} for store ${store_id}`);
 
     // Ensure PO exists & belongs to store (prevents cross-store updates)
     const existingPO = await this._prisma.purchase_orders.findFirst({
@@ -643,13 +649,15 @@ export class PurchaseOrdersService {
       });
     });
 
+    this.logger.log(`Successfully received purchase order ${id}`);
     return result;
   }
 
   async pay(id: string, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) throw new BadRequestException('store_id is required');
+    const store_id = requireStoreId(header);
+    this.logger.log(
+      `Processing payment for purchase order ${id} for store ${store_id}`,
+    );
 
     // Ensure PO exists & belongs to store (prevents cross-store updates)
     const existingPO = await this._prisma.purchase_orders.findFirst({
@@ -676,6 +684,7 @@ export class PurchaseOrdersService {
       },
     });
 
+    this.logger.log(`Successfully processed payment for purchase order ${id}`);
     return result;
   }
 }

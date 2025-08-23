@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { DateTime } from 'luxon';
 
 export function formatTime(time: string | undefined): string {
@@ -99,4 +100,30 @@ export const idToNumber = (id: string): number => {
   const parts = id.split('-');
   const lastPart = parts[parts.length - 1]; // always take the last segment
   return /^\d+$/.test(lastPart) ? parseInt(lastPart, 10) : NaN;
+};
+
+/**
+ * Require user from header
+ *
+ * @param header
+ * @returns user
+ * @throws BadRequestException if user is not found
+ */
+export const requireUser = (header: ICustomRequestHeaders) => {
+  const user = header?.user;
+  if (!user) throw new BadRequestException('user is required');
+  return user;
+};
+
+/**
+ * Require store id from header
+ *
+ * @param header
+ * @returns store_id
+ * @throws BadRequestException if store_id is not found
+ */
+export const requireStoreId = (header: ICustomRequestHeaders): string => {
+  const store_id = header?.store_id;
+  if (!store_id) throw new BadRequestException('store_id is required');
+  return store_id;
 };
