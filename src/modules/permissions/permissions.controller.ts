@@ -27,9 +27,9 @@ export class PermissionsController {
   })
   @ApiBearerAuth()
   @Get()
-  async findAll(@Req() req: ICustomRequestHeaders) {
+  async findAll() {
     try {
-      const permissions = await this.permissionsService.findAll(req);
+      const permissions = await this.permissionsService.findAll();
       return {
         statusCode: 200,
         message: 'Permissions fetched successfully',

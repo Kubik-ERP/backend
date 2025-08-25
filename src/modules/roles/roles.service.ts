@@ -1,8 +1,8 @@
 import {
   Injectable,
-  ConflictException,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -18,33 +18,34 @@ import {
   getOffset,
   getTotalPages,
 } from 'src/common/helpers/pagination.helpers';
+import { requireStoreId } from 'src/common/helpers/common.helpers';
 
 @Injectable()
 export class RolesService {
+  private readonly logger = new Logger(RolesService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateRoleDto, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
+    this.logger.log(`Creating new role "${dto.name}" for store ${store_id}`);
 
-    return this.prisma.roles.create({
+    const result = await this.prisma.roles.create({
       data: {
         name: dto.name,
         store_id,
         updated_at: new Date(),
       },
     });
+
+    this.logger.log(
+      `Successfully created role "${result.name}" with ID ${result.id}`,
+    );
+    return result;
   }
 
   async findAll(dto: RolesListDto, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
 
     // --- Filter
     const filters: Prisma.rolesWhereInput = {
@@ -82,11 +83,7 @@ export class RolesService {
   }
 
   async findOne(id: string, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
 
     const role = await this.prisma.roles.findUnique({
       where: {
@@ -96,6 +93,7 @@ export class RolesService {
     });
 
     if (!role) {
+      this.logger.warn(`Role with id ${id} not found in store ${store_id}`);
       throw new NotFoundException(`Role with id ${id} not found.`);
     }
     return role;
@@ -106,11 +104,8 @@ export class RolesService {
     updateRoleDto: UpdateRoleDto,
     header: ICustomRequestHeaders,
   ) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
+    this.logger.log(`Updating role ${id} for store ${store_id}`);
 
     const role = await this.prisma.roles.findUnique({
       where: {
@@ -120,29 +115,33 @@ export class RolesService {
     });
 
     if (!role) {
+      this.logger.warn(`Role with id ${id} not found in store ${store_id}`);
       throw new NotFoundException(`Role with id ${id} not found.`);
     }
 
     // TODO(RBAC): menunggu konfirmasi apakah perlu ada role yang paten
     if (role.is_system) {
+      this.logger.warn(`Attempted to update system role ${id}`);
       throw new BadRequestException('Cannot update system role.');
     }
 
-    return await this.prisma.roles.update({
+    const result = await this.prisma.roles.update({
       where: { id },
       data: {
         name: updateRoleDto.name,
         updated_at: new Date(),
       },
     });
+
+    this.logger.log(
+      `Successfully updated role "${result.name}" with ID ${result.id}`,
+    );
+    return result;
   }
 
   async remove(id: string, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
+    this.logger.log(`Removing role ${id} from store ${store_id}`);
 
     const role = await this.prisma.roles.findUnique({
       where: {
@@ -152,16 +151,22 @@ export class RolesService {
     });
 
     if (!role) {
+      this.logger.warn(`Role with id ${id} not found in store ${store_id}`);
       throw new NotFoundException(`Role with id ${id} not found.`);
     }
 
     // TODO(RBAC): menunggu konfirmasi apakah perlu ada role yang paten
     if (role.is_system) {
+      this.logger.warn(`Attempted to delete system role ${id}`);
       throw new BadRequestException('Cannot delete system role.');
     }
 
     // TODO(RBAC): tambahin kondisi gak bisa edit, jika role udah di pake
 
-    return this.prisma.roles.delete({ where: { id } });
+    const result = await this.prisma.roles.delete({ where: { id } });
+    this.logger.log(
+      `Successfully removed role "${result.name}" with ID ${result.id}`,
+    );
+    return result;
   }
 }

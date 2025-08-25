@@ -238,6 +238,8 @@ model invoice {
   order_status                               order_status?
   payment_amount                             Float?
   change_amount                              Float?
+  voucher_amount                             Float                    @default(0)
+  voucher_id                                 String?                  @db.Uuid
   customers_has_invoices                     customers_has_invoices[]
   customer                                   customer                 @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods                            payment_methods?         @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
@@ -245,9 +247,9 @@ model invoice {
   charges_invoice_service_charge_idTocharges charges?                 @relation("invoice_service_charge_idTocharges", fields: [service_charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk_1")
   stores                                     stores?                  @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_stores_fk")
   users                                      users?                   @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
+  voucher                                    voucher?                 @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_voucher_fk")
   invoice_charges                            invoice_charges[]
   invoice_details                            invoice_details[]
-  invoice_has_vouchers                       invoice_has_vouchers?
   kitchen_queue                              kitchen_queue[]
   trn_customer_points                        trn_customer_points[]
 
@@ -722,7 +724,7 @@ model voucher {
   updated_at            DateTime?              @db.Timestamp(6)
   store_id              String                 @db.Uuid
   is_apply_all_products Boolean                @default(false)
-  invoice_has_vouchers  invoice_has_vouchers[]
+  invoice               invoice[]
   stores                stores                 @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "voucher_stores_fk")
   voucher_commissions   voucher_commissions[]
   voucher_has_products  voucher_has_products[]
@@ -750,16 +752,6 @@ model voucher_has_products {
   @@id([voucher_id, products_id])
   @@index([products_id], map: "fk_voucher_has_products_products1_idx")
   @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
-}
-
-model invoice_has_vouchers {
-  voucher_id String  @db.Uuid
-  invoice_id String  @id(map: "invoice_has_vouchers_pk") @db.Uuid
-  amount     Float   @default(0)
-  invoice    invoice @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_has_vouchers_invoice_fk")
-  voucher    voucher @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_has_vouchers_voucher_fk")
-
-  @@index([voucher_id])
 }
 
 model master_suppliers {
@@ -1035,7 +1027,7 @@ model stock_opname_items {
   expected_quantity        Int
   actual_quantity          Int
   notes                    String?
-  diff_quantity            Int?                   @default(dbgenerated("(actual_quantity - expected_quantity)"))
+  diff_quantity            Int?
   master_inventory_items   master_inventory_items @relation(fields: [master_inventory_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "stock_opname_items_master_inventory_items_fk")
   stock_opnames            stock_opnames          @relation(fields: [stock_opname_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "stock_opname_items_stock_opnames_fk")
 

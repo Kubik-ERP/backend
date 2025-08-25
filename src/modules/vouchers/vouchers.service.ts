@@ -22,6 +22,7 @@ import {
   jakartaTime,
   convertToIsoDate,
   percentageToAmount,
+  requireStoreId,
 } from 'src/common/helpers/common.helpers';
 import { VouchersActiveDto } from './dto/vouchers-active';
 
@@ -32,11 +33,7 @@ export class VouchersService {
   constructor(private readonly _prisma: PrismaService) {}
 
   async findActive(query: VouchersActiveDto, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
 
     const today = jakartaTime().toFormat('yyyy-MM-dd');
 
@@ -87,31 +84,28 @@ export class VouchersService {
         name: 'asc',
       },
       include: {
-        invoice_has_vouchers: true,
+        invoice: {
+          select: {
+            voucher_id: true,
+          },
+        },
       },
     });
 
     return (
       vouchers
         // Hide voucher yang kuotanya habis
-        .filter(
-          ({ invoice_has_vouchers, ...voucher }) =>
-            invoice_has_vouchers.length < voucher.quota,
-        )
+        .filter(({ invoice, ...voucher }) => invoice.length < voucher.quota)
         // menambahkan field remaining_quota
-        .map(({ invoice_has_vouchers, ...voucher }) => ({
+        .map(({ invoice, ...voucher }) => ({
           ...voucher,
-          remaining_quota: voucher.quota - invoice_has_vouchers.length,
+          remaining_quota: voucher.quota - invoice.length,
         }))
     );
   }
 
   async findAll(query: VouchersListDto, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
 
     // --- Filter range active voucher
     const activeVoucherFilter: Prisma.voucherWhereInput = {};
@@ -161,7 +155,10 @@ export class VouchersService {
         orderBy: orderBy,
         include: {
           // Untuk mengetahui apakah voucher ini sudah di apply ke invoice
-          invoice_has_vouchers: {
+          invoice: {
+            select: {
+              voucher_id: true,
+            },
             take: 1,
           },
         },
@@ -175,7 +172,7 @@ export class VouchersService {
     const vouchers = items.map((item) => ({
       ...item,
       status: getStatus(item),
-      is_applied: item.invoice_has_vouchers.length > 0,
+      is_applied: item.invoice.length > 0,
     }));
 
     return {
@@ -190,18 +187,17 @@ export class VouchersService {
   }
 
   async findOne(id: string, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
 
     // --- Cari voucher berdasarkan id dan store_id
     const voucher = await this._prisma.voucher.findUnique({
       where: { id, store_id },
       include: {
         // Untuk mengetahui apakah voucher ini sudah di apply ke invoice
-        invoice_has_vouchers: {
+        invoice: {
+          select: {
+            voucher_id: true,
+          },
           take: 1,
         },
       },
@@ -237,16 +233,13 @@ export class VouchersService {
     return {
       ...voucher,
       voucher_has_products,
-      is_applied: voucher.invoice_has_vouchers.length > 0,
+      is_applied: voucher.invoice.length > 0,
     };
   }
 
   async create(dto: CreateVoucherDto, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
+    this.logger.log(`Creating new voucher for store ${store_id}`);
 
     const { hasProducts, ...rest } = dto;
 
@@ -313,10 +306,14 @@ export class VouchersService {
         );
       }
 
-      return {
+      const result = {
         ...voucherCreated,
         voucher_has_products,
       };
+      this.logger.log(
+        `Successfully created voucher with promo code ${voucherCreated.promo_code}`,
+      );
+      return result;
     } catch (error) {
       if (error.code === 'P2002') {
         throw new BadRequestException(`Duplicate promo code ${dto.promoCode}`);
@@ -332,11 +329,8 @@ export class VouchersService {
     dto: UpdateVoucherDto,
     header: ICustomRequestHeaders,
   ) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
+    this.logger.log(`Updating voucher ${id} for store ${store_id}`);
 
     const { hasProducts, ...rest } = dto;
 
@@ -478,6 +472,7 @@ export class VouchersService {
         };
       });
 
+      this.logger.log(`Successfully updated voucher ${id}`);
       return updatedVoucher;
     } catch (error) {
       if (error.code === 'P2002') {
@@ -490,11 +485,8 @@ export class VouchersService {
   }
 
   async remove(id: string, header: ICustomRequestHeaders) {
-    // --- Memastikan store_id ada di header
-    const store_id = header.store_id;
-    if (!store_id) {
-      throw new BadRequestException('store_id is required');
-    }
+    const store_id = requireStoreId(header);
+    this.logger.log(`Removing voucher ${id} from store ${store_id}`);
 
     // --- Memastikan voucher ada di store
     const isVoucherExist = await this.isVoucherExist(id, store_id);
@@ -525,6 +517,7 @@ export class VouchersService {
       await tx.voucher.delete({
         where: { id },
       });
+      this.logger.log(`Successfully removed voucher ${id}`);
     });
   }
 
@@ -583,7 +576,7 @@ export class VouchersService {
     }
 
     // check voucher is max usage
-    const voucherUsage = await this._prisma.invoice_has_vouchers.count({
+    const voucherUsage = await this._prisma.invoice.count({
       where: {
         voucher_id: voucher.id,
       },
@@ -636,7 +629,7 @@ export class VouchersService {
    * @returns {boolean}
    */
   private async isVoucherApplied(voucherId: string) {
-    const isVoucherApplied = await this._prisma.invoice_has_vouchers.findFirst({
+    const isVoucherApplied = await this._prisma.invoice.findFirst({
       where: { voucher_id: voucherId },
     });
 
