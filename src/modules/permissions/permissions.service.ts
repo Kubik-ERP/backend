@@ -87,4 +87,31 @@ export class PermissionsService {
     this.logger.log(`Found ${result.length} permission categories`);
     return result;
   }
+
+  async me(header: ICustomRequestHeaders) {
+    const store_id = requireStoreId(header);
+    const result = await this._prisma.users.findUnique({
+      where: { id: header.user.id },
+      select: {
+        roles: {
+          select: {
+            store_role_permissions: {
+              select: {
+                permissions: {
+                  select: {
+                    key: true,
+                  },
+                },
+              },
+              where: { store_id: store_id },
+            },
+          },
+        },
+      },
+    });
+
+    return result?.roles.store_role_permissions.map(
+      (item) => item.permissions.key,
+    );
+  }
 }

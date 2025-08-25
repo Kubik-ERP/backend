@@ -73,4 +73,24 @@ export class PermissionsController {
       };
     }
   }
+
+  @ApiOperation({ summary: 'Get permissions of the current user' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('me')
+  async me(@Req() req: ICustomRequestHeaders) {
+    const permissions = await this.permissionsService.me(req);
+
+    return {
+      statusCode: 200,
+      message: 'Permissions fetched successfully',
+      result: permissions,
+    };
+  }
 }
