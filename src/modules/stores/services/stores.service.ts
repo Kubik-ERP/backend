@@ -52,6 +52,17 @@ export class StoresService {
           })),
         });
       }
+
+      // clone role_permissions to store_role_permissions
+      const templateRolePermissions = await prisma.role_permissions.findMany();
+      const storeRolePermissions = templateRolePermissions.map((rp) => ({
+        store_id: store.id,
+        role_id: rp.role_id,
+        permission_id: rp.permission_id,
+      }));
+      await prisma.store_role_permissions.createMany({
+        data: storeRolePermissions,
+      });
     });
   }
 
