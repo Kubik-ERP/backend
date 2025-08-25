@@ -135,7 +135,8 @@ export class EmployeesController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
