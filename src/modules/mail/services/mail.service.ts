@@ -152,7 +152,9 @@ export class MailService {
       return html;
     } catch (error) {
       console.log(error);
-      throw new Error('Failed to load template');
+      // TODO: benerin
+      // throw new Error('Failed to load template');
+      return '';
     }
   }
 }
