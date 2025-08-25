@@ -10,6 +10,7 @@ import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { StorageServiceModule } from '../storage-service/storage-service.module';
+import { Reflector } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -34,7 +35,7 @@ import { StorageServiceModule } from '../storage-service/storage-service.module'
     StorageServiceModule,
   ],
   controllers: [StoresController],
-  providers: [StoresService, JwtStrategy],
+  providers: [StoresService, JwtStrategy, Reflector],
   exports: [StoresService],
 })
 export class StoresModule {}

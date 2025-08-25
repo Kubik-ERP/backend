@@ -500,7 +500,8 @@ model roles {
   store_role_permissions store_role_permissions[]
   users                  users[]
 
-  @@unique([store_id, name], map: "roles_store_id_name_unique")
+  @@unique([name, is_system], map: "roles_name_is_system_unique")
+  @@unique([name, store_id], map: "roles_name_store_id_unique")
 }
 
 model store_floors {

@@ -9,16 +9,19 @@ import {
 } from '@nestjs/common';
 import { PermissionsService } from './permissions.service';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { AssignPermissionsToRolesDto } from './dto/assign-permissions-to-roles.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 
 @Controller('permissions')
 export class PermissionsController {
   constructor(private readonly permissionsService: PermissionsService) {}
 
   @ApiOperation({ summary: 'Get all permissions' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -27,9 +30,9 @@ export class PermissionsController {
   })
   @ApiBearerAuth()
   @Get()
-  async findAll() {
+  async findAll(@Req() req: ICustomRequestHeaders) {
     try {
-      const permissions = await this.permissionsService.findAll();
+      const permissions = await this.permissionsService.findAll(req);
       return {
         statusCode: 200,
         message: 'Permissions fetched successfully',
@@ -45,7 +48,8 @@ export class PermissionsController {
   }
 
   @ApiOperation({ summary: 'Assign permissions to roles' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -72,5 +76,25 @@ export class PermissionsController {
         result: null,
       };
     }
+  }
+
+  @ApiOperation({ summary: 'Get permissions of the current user' })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('me')
+  async me(@Req() req: ICustomRequestHeaders) {
+    const permissions = await this.permissionsService.me(req);
+
+    return {
+      statusCode: 200,
+      message: 'Permissions fetched successfully',
+      result: permissions,
+    };
   }
 }

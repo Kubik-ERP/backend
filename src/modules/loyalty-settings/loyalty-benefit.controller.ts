@@ -11,7 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { LoyaltyProductItemQueryDto } from './dto/loyalty-product-items-query.dto';
@@ -24,7 +25,8 @@ export class LoyaltyBenefitController {
 
   @ApiOperation({ summary: 'Create Loyalty Benefit' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
   @Post(':settingId')
   async create(
     @Param('settingId') settingId: string,
@@ -42,7 +44,8 @@ export class LoyaltyBenefitController {
 
   @ApiOperation({ summary: 'Get All Loyalty Benefits' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -61,6 +64,9 @@ export class LoyaltyBenefitController {
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
+  @ApiBearerAuth()
   @Get(':storeId')
   findOne(@Param('storeId') storeId: string) {
     return this.loyaltyBenefitService.findOne(+storeId);
@@ -68,7 +74,8 @@ export class LoyaltyBenefitController {
 
   @ApiOperation({ summary: 'Update Loyalty Setting' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -81,6 +88,9 @@ export class LoyaltyBenefitController {
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
+  @ApiBearerAuth()
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.loyaltyBenefitService.remove(+id);

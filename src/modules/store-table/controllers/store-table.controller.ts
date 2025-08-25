@@ -13,19 +13,25 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { StoreTableService } from '../services/store-table.service';
 import { CreateAccountStoreConfigurationDto } from '../dtos/store-table.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 
 @ApiTags('StoreTable')
 @ApiBearerAuth()
-@UseGuards(AuthenticationJWTGuard)
+@UseGuards(AuthPermissionGuard)
 @Controller('store-tables')
 export class StoreTableController {
   constructor(private readonly storeTableService: StoreTableService) {}
 
   @HttpCode(200)
+  @RequirePermissions(
+    'process_unpaid_invoice',
+    'check_out_sales',
+    'store_management',
+  )
   @Get()
   async getAll(
     @Req() req: ICustomRequestHeaders,
@@ -41,6 +47,7 @@ export class StoreTableController {
   }
 
   @HttpCode(200)
+  @RequirePermissions('store_management')
   @Post()
   async create(
     @Req() req: ICustomRequestHeaders,
@@ -61,6 +68,7 @@ export class StoreTableController {
   }
 
   @HttpCode(200)
+  @RequirePermissions('store_management')
   @Put(':id')
   async update(
     @Req() req: ICustomRequestHeaders,
@@ -83,6 +91,7 @@ export class StoreTableController {
   }
 
   @HttpCode(200)
+  @RequirePermissions('store_management')
   @Delete(':id')
   async delete(
     @Req() req: ICustomRequestHeaders,

@@ -13,7 +13,8 @@ import {
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { VouchersService } from './vouchers.service';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { VouchersListDto } from './dto/vouchers-list.dto';
 import { CreateVoucherDto } from './dto/create-voucher.dto';
 import { UpdateVoucherDto } from './dto/update-voucher.dto';
@@ -23,7 +24,8 @@ export class VouchersController {
   constructor(private readonly vouchersService: VouchersService) {}
 
   @ApiOperation({ summary: 'Get active vouchers' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('check_out_sales', 'process_unpaid_invoice')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -53,7 +55,8 @@ export class VouchersController {
   }
 
   @ApiOperation({ summary: 'Get all vouchers' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('voucher')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -83,7 +86,8 @@ export class VouchersController {
   }
 
   @ApiOperation({ summary: 'Get voucher by id' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('voucher')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -112,7 +116,8 @@ export class VouchersController {
   @Post()
   @ApiOperation({ summary: 'Create Voucher' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('voucher')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -135,7 +140,8 @@ export class VouchersController {
   @Put(':id')
   @ApiOperation({ summary: 'Update Voucher' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('voucher')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -163,7 +169,8 @@ export class VouchersController {
   @Delete(':id')
   @ApiOperation({ summary: 'Delete Voucher' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('voucher')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
