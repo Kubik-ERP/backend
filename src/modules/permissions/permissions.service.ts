@@ -65,13 +65,17 @@ export class PermissionsService {
     });
   }
 
-  async findAll() {
+  async findAll(header: ICustomRequestHeaders) {
+    const store_id = requireStoreId(header);
     this.logger.log('Fetching all permission categories with permissions');
     const result = await this._prisma.permission_categories.findMany({
       include: {
         permissions: {
           include: {
             store_role_permissions: {
+              where: {
+                store_id: store_id,
+              },
               select: {
                 role_id: true,
               },
