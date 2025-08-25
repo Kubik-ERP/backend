@@ -27,7 +27,11 @@ export class StoreTableController {
   constructor(private readonly storeTableService: StoreTableService) {}
 
   @HttpCode(200)
-  @RequirePermissions('process_unpaid_invoice', 'check_out_sales', 'store_management')
+  @RequirePermissions(
+    'process_unpaid_invoice',
+    'check_out_sales',
+    'store_management',
+  )
   @Get()
   async getAll(
     @Req() req: ICustomRequestHeaders,
