@@ -14,7 +14,8 @@ import {
   ApiHeader,
   ApiOperation,
 } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { KitchenService } from '../services/kitchen.service';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
 import {
@@ -27,7 +28,8 @@ import { GetListInvoiceDto } from '../dtos/kitchen.dto';
 export class KitchenController {
   constructor(private readonly kitchenService: KitchenService) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('queue')
   @ApiBearerAuth()
   @Get('queue/customer')
   @ApiOperation({
@@ -49,7 +51,8 @@ export class KitchenController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('queue')
   @ApiBearerAuth()
   @Get('queue/kitchen')
   @ApiHeader({
@@ -68,7 +71,8 @@ export class KitchenController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('queue')
   @ApiBearerAuth()
   @Get('ticket/:invoiceId')
   @ApiOperation({
@@ -83,7 +87,8 @@ export class KitchenController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('queue')
   @ApiBearerAuth()
   @Put('queue')
   @ApiOperation({
@@ -102,7 +107,8 @@ export class KitchenController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('queue')
   @ApiBearerAuth()
   @Put('queue/:queueId')
   @ApiOperation({

@@ -22,7 +22,8 @@ import { FindAllProductsQueryDto } from './dto/find-product.dto';
 import { ApiBearerAuth, ApiConsumes, ApiHeader } from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import { StorageService } from '../storage-service/services/storage-service.service';
-import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('products')
 export class ProductsController {
@@ -31,7 +32,8 @@ export class ProductsController {
     private readonly storageService: StorageService,
   ) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -78,7 +80,12 @@ export class ProductsController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'product_management',
+    'process_unpaid_invoice',
+    'check_out_sales',
+  )
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -118,6 +125,9 @@ export class ProductsController {
     }
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiBearerAuth()
   @Get(':idOrName')
   async findOne(@Param('idOrName') idOrName: string) {
     try {
@@ -145,6 +155,9 @@ export class ProductsController {
     }
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiBearerAuth()
   @Patch(':id')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(ImageUploadInterceptor('image'))
@@ -181,6 +194,9 @@ export class ProductsController {
     }
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiBearerAuth()
   @Delete(':id')
   async remove(@Param('id') id: string) {
     try {

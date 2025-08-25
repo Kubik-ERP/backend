@@ -16,7 +16,8 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 import { ApiHeader } from '@nestjs/swagger';
 import { UpdatePurchaseOrdersDto } from './dto/update-purchase-orders.dto';
 import { ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { PurchaseOrdersListDto } from './dto/purchase-orders-list.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CancelPurchaseOrderDto } from './dto/cancel-purchase-order.dto';
@@ -27,7 +28,8 @@ export class PurchaseOrdersController {
   constructor(private readonly purchaseOrderService: PurchaseOrdersService) {}
 
   @ApiOperation({ summary: 'Get all purchase orders' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_purchase_order')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -60,7 +62,8 @@ export class PurchaseOrdersController {
   }
 
   @ApiOperation({ summary: 'Get purchase order by id' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_purchase_order')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -87,7 +90,8 @@ export class PurchaseOrdersController {
   }
 
   @ApiOperation({ summary: 'Create purchase order' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_purchase_order')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -110,7 +114,8 @@ export class PurchaseOrdersController {
   }
 
   @ApiOperation({ summary: 'Update purchase order' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_purchase_order')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -138,7 +143,8 @@ export class PurchaseOrdersController {
   }
 
   @ApiOperation({ summary: 'Cancel purchase order' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_purchase_order')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -162,7 +168,8 @@ export class PurchaseOrdersController {
   }
 
   @ApiOperation({ summary: 'Change purchase order status to confirmed' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_purchase_order')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -186,7 +193,8 @@ export class PurchaseOrdersController {
   }
 
   @ApiOperation({ summary: 'Change purchase order status to shipped' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_purchase_order')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -206,7 +214,8 @@ export class PurchaseOrdersController {
   }
 
   @ApiOperation({ summary: 'Change purchase order status to received' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_purchase_order')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -226,7 +235,8 @@ export class PurchaseOrdersController {
   }
 
   @ApiOperation({ summary: 'Change purchase order status to paid' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_purchase_order')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',

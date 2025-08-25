@@ -9,16 +9,19 @@ import {
 } from '@nestjs/common';
 import { PermissionsService } from './permissions.service';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { AssignPermissionsToRolesDto } from './dto/assign-permissions-to-roles.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 
 @Controller('permissions')
 export class PermissionsController {
   constructor(private readonly permissionsService: PermissionsService) {}
 
   @ApiOperation({ summary: 'Get all permissions' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -45,7 +48,8 @@ export class PermissionsController {
   }
 
   @ApiOperation({ summary: 'Assign permissions to roles' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',

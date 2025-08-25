@@ -17,7 +17,8 @@ import { BankService } from './bank.service';
 import { AttachUserBankDto, CreateBankDto } from './dto/create-bank.dto';
 import { UpdateBankDto, UpdateUserBankDto } from './dto/update-bank.dto';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 
 @Controller('bank')
@@ -26,6 +27,9 @@ export class BankController {
 
   @Post('/')
   @ApiOperation({ summary: 'Create a new bank' })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('accounts')
+  @ApiBearerAuth()
   async create(@Body() dto: CreateBankDto) {
     try {
       const result = await this.bankService.create(dto);
@@ -44,6 +48,9 @@ export class BankController {
 
   @Get('/')
   @ApiOperation({ summary: 'Get all banks' })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('accounts')
+  @ApiBearerAuth()
   async findAll() {
     try {
       const result = await this.bankService.findAll();
@@ -62,6 +69,9 @@ export class BankController {
 
   @Get('/bank-id/:id')
   @ApiOperation({ summary: 'Get bank by ID' })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('accounts')
+  @ApiBearerAuth()
   async findOne(@Param('id') id: string) {
     try {
       const result = await this.bankService.findOne(id);
@@ -77,6 +87,9 @@ export class BankController {
   @Delete('/:id')
   @HttpCode(204)
   @ApiOperation({ summary: 'Delete bank by ID' })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('accounts')
+  @ApiBearerAuth()
   async remove(@Param('id') id: string) {
     try {
       await this.bankService.remove(id);
@@ -88,7 +101,8 @@ export class BankController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('accounts')
   @Post('/attach')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Attach a bank to the authenticated user' })
@@ -111,7 +125,8 @@ export class BankController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('accounts')
   @Get('/user-banks')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all banks for the authenticated user' })
@@ -131,7 +146,8 @@ export class BankController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('accounts')
   @Put('/user-banks/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update user bank by ID' })

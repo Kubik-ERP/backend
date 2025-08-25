@@ -31,7 +31,6 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('User has no permissions');
     }
 
-    console.log({ user });
     // Check if user has at least one of the required permissions (OR logic)
     const hasPermission = requiredPermissions.some((permission) =>
       user.permissions.includes(permission),

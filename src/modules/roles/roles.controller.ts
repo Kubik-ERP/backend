@@ -16,7 +16,8 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { RolesListDto } from './dto/roles-list.dto';
 
 @Controller('roles')
@@ -24,7 +25,8 @@ export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   @ApiOperation({ summary: 'Create role' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -44,7 +46,8 @@ export class RolesController {
   }
 
   @ApiOperation({ summary: 'Get all roles' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -71,7 +74,8 @@ export class RolesController {
   }
 
   @ApiOperation({ summary: 'Get role by id' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -98,7 +102,8 @@ export class RolesController {
   }
 
   @ApiOperation({ summary: 'Update role by id' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -129,7 +134,8 @@ export class RolesController {
   }
 
   @ApiOperation({ summary: 'Delete role by id' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',

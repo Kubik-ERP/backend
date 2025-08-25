@@ -18,7 +18,8 @@ import {
   ApiHeader,
   ApiOperation,
 } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import { StorageService } from '../storage-service/services/storage-service.service';
@@ -39,7 +40,8 @@ export class EmployeesController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create Employee' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -62,7 +64,12 @@ export class EmployeesController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'manage_staff_member',
+    'check_out_sales',
+    'process_unpaid_invoice',
+  )
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -82,6 +89,9 @@ export class EmployeesController {
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
+  @ApiBearerAuth()
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const employee = await this.employeesService.findOne(id);
@@ -112,6 +122,9 @@ export class EmployeesController {
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
+  @ApiBearerAuth()
   @Delete(':id')
   async remove(@Param('id') id: string) {
     await this.employeesService.remove(id);
