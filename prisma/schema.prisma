@@ -1218,9 +1218,9 @@ enum stock_opname_status {
 }
 
 enum bundling_price_type {
-  total_items @map("total items")
-  discount
-  custom
+  TOTAL_ITEMS
+  DISCOUNT
+  CUSTOM
 }
 
 enum commission_type {
