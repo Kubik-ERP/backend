@@ -23,11 +23,11 @@ import {
   GetInvoiceSettingDto,
   SettingInvoiceDto,
 } from '../dtos/setting-invoice.dto';
-import { empty } from '@prisma/client/runtime/library';
 import { StoresService } from 'src/modules/stores/services/stores.service';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { ImageUploadInterceptor } from 'src/common/interceptors/image-upload.interceptor';
 import { StorageService } from 'src/modules/storage-service/services/storage-service.service';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 
 @Controller('invoice')
 export class InvoiceSettingController {
@@ -41,7 +41,8 @@ export class InvoiceSettingController {
   @ApiOperation({
     summary: 'Set Invoice Setting',
   })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('invoice_templates')
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(ImageUploadInterceptor('companyLogo'))
@@ -80,7 +81,12 @@ export class InvoiceSettingController {
 
   @Get('setting')
   @ApiOperation({ summary: 'Get Invoice Setting' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'invoice_templates',
+    'process_unpaid_invoice',
+    'check_out_sales',
+  )
   @ApiBearerAuth()
   async getData(@Query() q: GetInvoiceSettingDto, @Req() req: IRequestUser) {
     const validateStore = await this.storeService.validateStore(

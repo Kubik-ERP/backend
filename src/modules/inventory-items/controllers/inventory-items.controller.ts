@@ -37,7 +37,7 @@ export class InventoryItemsController {
   constructor(private readonly inventoryItemsService: InventoryItemsService) {}
 
   @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('manage_item')
+  @RequirePermissions('manage_item', 'manage_purchase_order')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
