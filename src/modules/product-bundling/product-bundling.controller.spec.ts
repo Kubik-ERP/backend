@@ -11,7 +11,9 @@ describe('ProductBundlingController', () => {
       providers: [ProductBundlingService],
     }).compile();
 
-    controller = module.get<ProductBundlingController>(ProductBundlingController);
+    controller = module.get<ProductBundlingController>(
+      ProductBundlingController,
+    );
   });
 
   it('should be defined', () => {

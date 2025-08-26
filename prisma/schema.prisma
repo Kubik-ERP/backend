@@ -399,6 +399,7 @@ model permissions {
   permission_categories  permission_categories    @relation(fields: [permission_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "permissions_permission_categories_fk")
   role_permissions       role_permissions[]
   store_role_permissions store_role_permissions[]
+  sub_package_access     sub_package_access[]
 }
 
 model platforms {
@@ -662,12 +663,15 @@ model users {
   fullname                 String?                    @db.VarChar
   role_id                  String                     @db.Uuid
   picture_url              String?                    @db.VarChar(45)
+  subs_id                  String?                    @db.Uuid
+  sub_expired_at           DateTime?                  @db.Timestamp(6)
   cash_drawer_transactions cash_drawer_transactions[]
   cash_drawers             cash_drawers[]
   invoice                  invoice[]
   stock_opnames            stock_opnames[]
   user_has_stores          user_has_stores[]
   roles                    roles                      @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
+  subs_package             subs_package?              @relation(fields: [subs_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_subs_package_fk")
   users_has_banks          users_has_banks[]
 }
 
@@ -1125,6 +1129,35 @@ model store_role_permissions {
 
   @@id([role_id, permission_id, store_id], map: "store_role_permissions_pk")
   @@index([store_id, role_id], map: "idx_srp_store_role")
+}
+
+model sub_package_access {
+  package_id    String       @db.Uuid
+  permission_id String       @db.Uuid
+  permissions   permissions  @relation(fields: [permission_id], references: [id], onDelete: Cascade, map: "sub_package_access_permissions_fk")
+  subs_package  subs_package @relation(fields: [package_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "sub_package_access_subs_package_fk")
+
+  @@id([package_id, permission_id], map: "sub_package_access_pk")
+}
+
+model subs_package {
+  id                 String               @id(map: "subs_package_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  package_name       String               @db.VarChar
+  is_active          Boolean              @default(true)
+  created_at         DateTime?            @db.Timestamp(6)
+  updated_at         DateTime?            @db.Timestamp(6)
+  sub_package_access sub_package_access[]
+  users              users[]
+}
+
+model user_sub_logs {
+  id           String    @id(map: "user_sub_logs_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      Int
+  package_id   String    @db.Uuid
+  package_name String?   @db.VarChar
+  created_at   DateTime? @db.Timestamp(6)
+  updated_at   DateTime? @db.Timestamp(6)
+  expired_at   DateTime  @db.Timestamp(6)
 }
 
 enum cash_drawer_type {

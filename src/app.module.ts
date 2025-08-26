@@ -42,6 +42,9 @@ import { StockOpnamesModule } from './modules/stock-opnames/stock-opnames.module
 import { FacilitiesModule } from './modules/facilities/facilities.module';
 import { ProductBundlingModule } from './modules/product-bundling/product-bundling.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { ServerKeyMiddleware } from './common/middleware/server-middleware';
+import { SubscriptionController } from './modules/subscription/controllers/subscription.controller';
+import { SubscriptionModule } from './modules/subscription/subscription.module';
 
 @Module({
   imports: [
@@ -96,6 +99,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
     FacilitiesModule,
     ProductBundlingModule,
     PermissionsModule,
+    SubscriptionModule,
   ],
   providers: [
     {
@@ -109,5 +113,6 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(HeaderMiddleware).forRoutes('*');
+    consumer.apply(ServerKeyMiddleware).forRoutes(SubscriptionController);
   }
 }
