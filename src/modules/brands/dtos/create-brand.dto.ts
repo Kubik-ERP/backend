@@ -12,6 +12,16 @@ export class CreateBrandDto {
   brandName: string;
 
   @ApiProperty({
+    description:
+      'Brand code - if not provided, will be auto-generated based on brand name',
+    required: false,
+    example: 'NK0001',
+  })
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @ApiProperty({
     description: 'Brand notes or description',
     required: false,
     example: 'Athletic and sportswear brand',

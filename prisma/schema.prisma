@@ -772,6 +772,7 @@ model master_suppliers {
   tax_identification_number   String?                       @db.VarChar(50)
   created_at                  DateTime?                     @default(now()) @db.Timestamptz(6)
   updated_at                  DateTime?                     @default(now()) @db.Timestamptz(6)
+  code                        String                        @default("") @db.VarChar(255)
   master_inventory_items      master_inventory_items[]
   purchase_orders             purchase_orders[]
   stores_has_master_suppliers stores_has_master_suppliers[]
@@ -856,6 +857,7 @@ model master_brands {
   notes                    String?
   created_at               DateTime?                  @default(now()) @db.Timestamptz(6)
   updated_at               DateTime?                  @default(now()) @db.Timestamptz(6)
+  code                     String                     @default("") @db.VarChar(255)
   master_inventory_items   master_inventory_items[]
   stores_has_master_brands stores_has_master_brands[]
 
@@ -868,6 +870,7 @@ model master_inventory_categories {
   notes                                  String?
   created_at                             DateTime                                 @default(now()) @db.Timestamptz(6)
   updated_at                             DateTime                                 @default(now()) @db.Timestamptz(6)
+  code                                   String                                   @default("") @db.VarChar(255)
   master_inventory_items                 master_inventory_items[]
   stores_has_master_inventory_categories stores_has_master_inventory_categories[]
 
@@ -975,6 +978,7 @@ model master_storage_locations {
   notes                               String?
   created_at                          DateTime                              @default(now()) @db.Timestamptz(6)
   updated_at                          DateTime                              @default(now()) @db.Timestamptz(6)
+  code                                String                                @default("") @db.VarChar(255)
   master_inventory_items              master_inventory_items[]
   stores_has_master_storage_locations stores_has_master_storage_locations[]
 

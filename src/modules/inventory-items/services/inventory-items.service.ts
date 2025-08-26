@@ -181,16 +181,16 @@ export class InventoryItemsService {
         sku: true,
         name: true,
         barcode: true,
-        master_inventory_categories: { select: { name: true } },
-        master_storage_locations: { select: { name: true } },
+        master_inventory_categories: { select: { id: true, name: true } },
+        master_brands: { select: { id: true, brand_name: true } },
+        master_storage_locations: { select: { id: true, name: true } },
         unit: true,
         stock_quantity: true,
         reorder_level: true,
         minimum_stock_quantity: true,
         expiry_date: true,
         price_per_unit: true,
-        master_brands: { select: { brand_name: true } },
-        master_suppliers: { select: { supplier_name: true } },
+        master_suppliers: { select: { id: true, supplier_name: true } },
         created_at: true,
       },
     });
@@ -214,6 +214,10 @@ export class InventoryItemsService {
       expiry_date: item.expiry_date,
       storage_location: item.master_storage_locations?.name ?? null,
       supplier: item.master_suppliers?.supplier_name ?? null,
+      category_id: item.master_inventory_categories?.id ?? null,
+      brand_id: item.master_brands?.id ?? null,
+      supplier_id: item.master_suppliers?.id ?? null,
+      storage_location_id: item.master_storage_locations?.id ?? null,
       created_at: item.created_at,
     };
 
@@ -473,7 +477,7 @@ export class InventoryItemsService {
     });
     if (!existing) throw new NotFoundException('Stock adjustment not found');
 
-    // If fields that affect quantity changed, recalc item stock: revert previous delta then apply new delta
+    // If fields that affect quantity changed, recalc item stock
     const needRecalc =
       dto.adjustmentQuantity !== undefined || dto.action !== undefined;
 
@@ -483,26 +487,7 @@ export class InventoryItemsService {
       });
       if (!item) throw new NotFoundException('Inventory item not found');
 
-      if (needRecalc) {
-        const prevDelta =
-          existing.action === 'STOCK_IN'
-            ? existing.adjustment_quantity
-            : -existing.adjustment_quantity;
-        let recalculated = item.stock_quantity - prevDelta; // revert
-        const nextAction = dto.action ?? (existing.action as any);
-        const nextQty = dto.adjustmentQuantity ?? existing.adjustment_quantity;
-        const nextDelta = nextAction === 'STOCK_IN' ? nextQty : -nextQty;
-        recalculated = recalculated + nextDelta;
-        if (recalculated < 0)
-          throw new BadRequestException(
-            'Resulting stock quantity cannot be negative',
-          );
-        item = await tx.master_inventory_items.update({
-          where: { id: itemId },
-          data: { stock_quantity: recalculated, updated_at: new Date() },
-        });
-      }
-
+      // Update the adjustment record first
       const updatedAdj = await tx.inventory_stock_adjustments.update({
         where: { id: adjustmentId },
         data: {
@@ -511,18 +496,77 @@ export class InventoryItemsService {
             adjustment_quantity: dto.adjustmentQuantity,
           }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
-          previous_quantity: needRecalc
-            ? existing.previous_quantity
-            : existing.previous_quantity,
-          new_quantity: needRecalc
-            ? item.stock_quantity
-            : existing.new_quantity,
           updated_at: new Date(),
         },
+        select: {
+          ...this.stockAdjustmentSafeSelect,
+          created_at: true,
+        },
+      });
+
+      if (needRecalc) {
+        // Get all adjustments for this item in chronological order
+        const allAdjustments = await tx.inventory_stock_adjustments.findMany({
+          where: {
+            master_inventory_items_id: itemId,
+            stores_id: store_id,
+          },
+          orderBy: { created_at: 'asc' },
+          select: {
+            id: true,
+            action: true,
+            adjustment_quantity: true,
+            previous_quantity: true,
+            created_at: true,
+          },
+        });
+
+        if (allAdjustments.length === 0) {
+          throw new NotFoundException('No adjustments found');
+        }
+
+        // Get the original stock quantity before any adjustments
+        const originalStockQuantity = allAdjustments[0].previous_quantity;
+        let runningStockQuantity = originalStockQuantity;
+
+        // Recalculate stock quantity by applying all adjustments in order
+        for (const adj of allAdjustments) {
+          const delta =
+            adj.action === 'STOCK_IN'
+              ? adj.adjustment_quantity
+              : -adj.adjustment_quantity;
+          runningStockQuantity += delta;
+
+          if (runningStockQuantity < 0) {
+            throw new BadRequestException(
+              'Resulting stock quantity cannot be negative',
+            );
+          }
+
+          // Update the new_quantity for each adjustment record
+          await tx.inventory_stock_adjustments.update({
+            where: { id: adj.id },
+            data: { new_quantity: runningStockQuantity },
+          });
+        }
+
+        // Update the item's final stock quantity
+        item = await tx.master_inventory_items.update({
+          where: { id: itemId },
+          data: {
+            stock_quantity: runningStockQuantity,
+            updated_at: new Date(),
+          },
+        });
+      }
+
+      // Get the updated adjustment record with correct new_quantity
+      const finalUpdatedAdj = await tx.inventory_stock_adjustments.findUnique({
+        where: { id: adjustmentId },
         select: this.stockAdjustmentSafeSelect,
       });
 
-      return { updatedAdj, item };
+      return { updatedAdj: finalUpdatedAdj, item };
     });
 
     return {

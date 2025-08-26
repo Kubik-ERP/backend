@@ -15,6 +15,105 @@ export class InventoryCategoryService {
 
   constructor(private readonly _prisma: PrismaService) {}
 
+  /**
+   * Generate inventory category code based on category name
+   * Rules:
+   * - 2+ words: take first letter of first 2 words
+   * - 1 word: take first 2 letters
+   * - Add counter based on MAX existing code for the prefix
+   */
+  private async generateCategoryCode(
+    categoryName: string,
+    storeId: string,
+  ): Promise<string> {
+    try {
+      // Generate prefix from category name
+      const words = categoryName.trim().split(/\s+/);
+      let prefix = '';
+
+      if (words.length >= 2) {
+        // 2+ words: take first letter of first 2 words
+        prefix = (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+      } else {
+        // 1 word: take first 2 letters
+        prefix = words[0].substring(0, 2).toUpperCase();
+      }
+
+      // Find the highest existing code number for this prefix in the store
+      const existingCategories =
+        await this._prisma.master_inventory_categories.findMany({
+          where: {
+            code: {
+              startsWith: prefix,
+            },
+            stores_has_master_inventory_categories: {
+              some: {
+                stores_id: storeId,
+              },
+            },
+          },
+          select: {
+            code: true,
+          },
+        });
+
+      let maxCounter = 0;
+
+      // Extract counter from existing codes and find the maximum
+      existingCategories.forEach((category) => {
+        const numberPart = category.code.substring(prefix.length);
+        const counter = parseInt(numberPart, 10);
+        if (!isNaN(counter) && counter > maxCounter) {
+          maxCounter = counter;
+        }
+      });
+
+      // Generate new counter (max + 1) with leading zeros
+      const newCounter = (maxCounter + 1).toString().padStart(4, '0');
+
+      return `${prefix}${newCounter}`;
+    } catch (error) {
+      this.logger.error(`Failed to generate category code: ${error.message}`);
+      throw new BadRequestException('Failed to generate category code');
+    }
+  }
+
+  /**
+   * Validate duplicate category code within a store
+   */
+  private async validateDuplicateCategoryCode(
+    code: string,
+    excludeId?: string,
+    storeId?: string,
+  ): Promise<void> {
+    const whereCondition: any = {
+      code,
+    };
+
+    if (excludeId) {
+      whereCondition.id = {
+        not: excludeId,
+      };
+    }
+
+    if (storeId) {
+      whereCondition.stores_has_master_inventory_categories = {
+        some: {
+          stores_id: storeId,
+        },
+      };
+    }
+
+    const existingCategory =
+      await this._prisma.master_inventory_categories.findFirst({
+        where: whereCondition,
+      });
+
+    if (existingCategory) {
+      throw new BadRequestException(`Category code '${code}' already exists`);
+    }
+  }
+
   public async create(
     dto: CreateInventoryCategoryDto,
     header: ICustomRequestHeaders,
@@ -24,9 +123,17 @@ export class InventoryCategoryService {
 
     await this.ensureNotDuplicate(dto.name, undefined, store_id);
 
+    // Generate code if not provided
+    const categoryCode =
+      dto.code || (await this.generateCategoryCode(dto.name, store_id));
+
+    // Validate for duplicate code within the store
+    await this.validateDuplicateCategoryCode(categoryCode, undefined, store_id);
+
     const category = await this._prisma.master_inventory_categories.create({
       data: {
         name: dto.name,
+        code: categoryCode,
         notes: dto.notes,
         created_at: new Date(),
         updated_at: new Date(),
@@ -40,7 +147,9 @@ export class InventoryCategoryService {
       },
     });
 
-    this.logger.log(`Inventory category created: ${category.name}`);
+    this.logger.log(
+      `Inventory category created: ${category.name} with code: ${category.code}`,
+    );
     return category;
   }
 
@@ -68,7 +177,14 @@ export class InventoryCategoryService {
     };
 
     if (search) {
-      where.name = { contains: search, mode: 'insensitive' };
+      where.OR = [
+        {
+          name: { contains: search, mode: 'insensitive' },
+        },
+        {
+          code: { contains: search, mode: 'insensitive' },
+        },
+      ];
     }
 
     const [items, total] = await Promise.all([
@@ -122,10 +238,16 @@ export class InventoryCategoryService {
       await this.ensureNotDuplicate(dto.name, id, store_id);
     }
 
+    // Validate for duplicate category code if it's being updated
+    if (dto.code && dto.code !== existing.code) {
+      await this.validateDuplicateCategoryCode(dto.code, id, store_id);
+    }
+
     const updated = await this._prisma.master_inventory_categories.update({
       where: { id },
       data: {
         ...(dto.name && { name: dto.name }),
+        ...(dto.code && { code: dto.code }),
         ...(dto.notes !== undefined && { notes: dto.notes }),
         updated_at: new Date(),
       },
