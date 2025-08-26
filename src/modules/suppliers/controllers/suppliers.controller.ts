@@ -34,7 +34,11 @@ export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
   @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('supplier_management')
+  @RequirePermissions(
+    'supplier_management',
+    'manage_purchase_order',
+    'manage_item',
+  )
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
