@@ -22,13 +22,11 @@ services:
     restart: always
     depends_on:
       - redis
-      - postgres
     networks:
       - kubik-net
 
 volumes:
   redis-data:
-  postgres-data:
 
 networks:
   kubik-net:
