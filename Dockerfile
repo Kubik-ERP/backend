@@ -1,34 +1,29 @@
-# ===== Stage 1: Builder =====
-FROM node:22-slim AS builder
+# Gunakan image Node.js sebagai base
+FROM node:22
+
+# Set working directory dalam container
 WORKDIR /app
 
-# Copy package.json & lockfile dulu
-COPY package*.json ./
+# Salin code ke dalam container
+COPY ./ ./
 
-# Install semua dependencies termasuk dev
+# Install dependencies
 RUN npm install --no-fund --no-audit
 
-# Copy seluruh source code
+# Salin semua file proyek termasuk folder Prisma
 COPY . .
 
-# Prisma generate & build
-RUN npx prisma generate
+# Pastikan folder prisma sudah ada
+RUN ls -la prisma
+
+# # Jalankan perintah Prisma
+RUN npm run db:pull && npm run db:generate
+
+# Build aplikasi
 RUN npm run build
 
-# ===== Stage 2: Production =====
-FROM node:22-slim
-WORKDIR /app
-
-# Copy package.json & install hanya production dependencies, skip scripts
-COPY package*.json ./
-RUN npm install --production --omit=dev --ignore-scripts --no-fund --no-audit
-
-# Copy hasil build & Prisma client dari builder
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-
-# Kalau memang butuh schema/migrations saat runtime
-COPY prisma ./prisma
-
+# Expose port aplikasi
 EXPOSE 8080
-CMD ["node", "dist/main.js"]
+
+# Jalankan aplikasi
+CMD ["npm", "start"]
