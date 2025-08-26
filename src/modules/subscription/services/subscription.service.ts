@@ -14,9 +14,9 @@ export class SubscriptionService {
     return await this.prisma.subs_package.findMany({
       include: {
         sub_package_access: {
-            include: {
-                permissions: true,
-            }
+          include: {
+            permissions: true,
+          },
         },
       },
     });
@@ -62,33 +62,37 @@ export class SubscriptionService {
     return await this.prisma.subs_package.delete({ where: { id } });
   }
 
-  async getPermissionLists(){
+  async getPermissionLists() {
     return await this.prisma.permission_categories.findMany({
-        include: {
-            permissions: true,
-        }
-    })
+      include: {
+        permissions: true,
+      },
+    });
   }
 
-  async assignSubscription(email: string, subscriptionId: string, expiredAt: Date){
+  async assignSubscription(
+    email: string,
+    subscriptionId: string,
+    expiredAt: Date,
+  ) {
     const sub = await this.prisma.subs_package.findUnique({
-        where: {
-            id: subscriptionId
-        }
+      where: {
+        id: subscriptionId,
+      },
     });
 
-    if(!sub){
-      throw new BadRequestException('Subscription not found')
+    if (!sub) {
+      throw new BadRequestException('Subscription not found');
     }
 
     return await this.prisma.users.update({
-        where: {
-            email: email
-        },
-        data: {
-            subs_id: subscriptionId,
-            sub_expired_at: new Date(expiredAt)
-        }
-    })
+      where: {
+        email: email,
+      },
+      data: {
+        subs_id: subscriptionId,
+        sub_expired_at: new Date(expiredAt),
+      },
+    });
   }
 }

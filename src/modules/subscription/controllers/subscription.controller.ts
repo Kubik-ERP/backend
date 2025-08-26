@@ -74,7 +74,7 @@ export class SubscriptionController {
 
   @Get('/list-permission')
   @HttpCode(200)
-  async getPermissionLists(){
+  async getPermissionLists() {
     const result = await this._service.getPermissionLists();
     return {
       message: 'Successfully retrieve data',
@@ -84,9 +84,13 @@ export class SubscriptionController {
 
   @Post('/assign-subscription')
   @HttpCode(200)
-  async assignSubscription(@Body() body: CreateSubscriptionDto){
+  async assignSubscription(@Body() body: CreateSubscriptionDto) {
     try {
-      const result = await this._service.assignSubscription(body.email, body.subscriptionId, body.expiredAt);
+      const result = await this._service.assignSubscription(
+        body.email,
+        body.subscriptionId,
+        body.expiredAt,
+      );
       return {
         message: 'Successfully assign subscription',
         result,
