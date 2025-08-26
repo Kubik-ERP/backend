@@ -18,6 +18,18 @@ export class CreateSupplierDto {
   supplierName: string;
 
   @ApiProperty({
+    description:
+      'Supplier code. If not provided, will be auto-generated based on supplier name. ' +
+      'Auto-generation rules: 2+ words = first letter of first 2 words, ' +
+      '1 word = first 2 letters, followed by 4-digit counter (e.g., SU0001)',
+    required: false,
+    example: 'SU0001',
+  })
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @ApiProperty({
     description: 'Contact person name',
     required: true,
     example: 'John Doe',

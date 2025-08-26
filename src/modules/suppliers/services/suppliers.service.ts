@@ -19,6 +19,103 @@ export class SuppliersService {
   constructor(private readonly _prisma: PrismaService) {}
 
   /**
+   * Generate supplier code based on supplier name
+   * Rules:
+   * - 2+ words: take first letter of first 2 words
+   * - 1 word: take first 2 letters
+   * - Add counter based on MAX existing code for the prefix
+   */
+  private async generateSupplierCode(
+    supplierName: string,
+    storeId: string,
+  ): Promise<string> {
+    try {
+      // Generate prefix from supplier name
+      const words = supplierName.trim().split(/\s+/);
+      let prefix = '';
+
+      if (words.length >= 2) {
+        // 2+ words: take first letter of first 2 words
+        prefix = (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+      } else {
+        // 1 word: take first 2 letters
+        prefix = words[0].substring(0, 2).toUpperCase();
+      }
+
+      // Find the highest existing code number for this prefix in the store
+      const existingSuppliers = await this._prisma.master_suppliers.findMany({
+        where: {
+          code: {
+            startsWith: prefix,
+          },
+          stores_has_master_suppliers: {
+            some: {
+              stores_id: storeId,
+            },
+          },
+        },
+        select: {
+          code: true,
+        },
+      });
+
+      let maxCounter = 0;
+
+      // Extract counter from existing codes and find the maximum
+      existingSuppliers.forEach((supplier) => {
+        const numberPart = supplier.code.substring(prefix.length);
+        const counter = parseInt(numberPart, 10);
+        if (!isNaN(counter) && counter > maxCounter) {
+          maxCounter = counter;
+        }
+      });
+
+      // Generate new counter (max + 1) with leading zeros
+      const newCounter = (maxCounter + 1).toString().padStart(4, '0');
+
+      return `${prefix}${newCounter}`;
+    } catch (error) {
+      this.logger.error(`Failed to generate supplier code: ${error.message}`);
+      throw new BadRequestException('Failed to generate supplier code');
+    }
+  }
+
+  /**
+   * Validate duplicate supplier code within a store
+   */
+  private async validateDuplicateSupplierCode(
+    code: string,
+    excludeId?: string,
+    storeId?: string,
+  ): Promise<void> {
+    const whereCondition: any = {
+      code,
+    };
+
+    if (excludeId) {
+      whereCondition.id = {
+        not: excludeId,
+      };
+    }
+
+    if (storeId) {
+      whereCondition.stores_has_master_suppliers = {
+        some: {
+          stores_id: storeId,
+        },
+      };
+    }
+
+    const existingSupplier = await this._prisma.master_suppliers.findFirst({
+      where: whereCondition,
+    });
+
+    if (existingSupplier) {
+      throw new BadRequestException(`Supplier code '${code}' already exists`);
+    }
+  }
+
+  /**
    * @description Create a new supplier
    */
   public async createSupplier(
@@ -32,12 +129,13 @@ export class SuppliersService {
         throw new BadRequestException('store_id is required');
       }
 
-      // Validate for duplicate supplier (same name + tax identification number) within the store
+      // Validate for duplicate supplier (same name + email + tax identification number) within the store
       await this.validateDuplicateSupplier(
         createSupplierDto.supplierName,
         createSupplierDto.taxIdentificationNumber,
         undefined,
         store_id,
+        createSupplierDto.email,
       );
 
       // Validate contact person is not empty
@@ -45,9 +143,25 @@ export class SuppliersService {
         throw new BadRequestException('Contact person is required');
       }
 
+      // Generate code if not provided
+      const supplierCode =
+        createSupplierDto.code ||
+        (await this.generateSupplierCode(
+          createSupplierDto.supplierName,
+          store_id,
+        ));
+
+      // Validate for duplicate code within the store
+      await this.validateDuplicateSupplierCode(
+        supplierCode,
+        undefined,
+        store_id,
+      );
+
       const supplier = await this._prisma.master_suppliers.create({
         data: {
           supplier_name: createSupplierDto.supplierName,
+          code: supplierCode,
           contact_person: createSupplierDto.contactPerson,
           phone_number: createSupplierDto.phoneNumber,
           email: createSupplierDto.email || null,
@@ -68,7 +182,9 @@ export class SuppliersService {
         },
       });
 
-      this.logger.log(`Supplier created successfully with ID: ${supplier.id}`);
+      this.logger.log(
+        `Supplier created successfully: ${supplier.supplier_name} with code: ${supplier.code}`,
+      );
       return supplier;
     } catch (error) {
       if (error instanceof BadRequestException) {
@@ -258,6 +374,12 @@ export class SuppliersService {
             },
           },
           {
+            code: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
             contact_person: {
               contains: search,
               mode: 'insensitive',
@@ -395,9 +517,10 @@ export class SuppliersService {
       // Check if supplier exists in this store
       const existingSupplier = await this.getSupplierById(id, header);
 
-      // Validate for duplicate supplier if name or tax ID is being updated
+      // Validate for duplicate supplier if name, email, or tax ID is being updated
       if (
         updateSupplierDto.supplierName ||
+        updateSupplierDto.email !== undefined ||
         updateSupplierDto.taxIdentificationNumber !== undefined
       ) {
         const taxId =
@@ -405,11 +528,17 @@ export class SuppliersService {
             ? existingSupplier.tax_identification_number || undefined
             : updateSupplierDto.taxIdentificationNumber;
 
+        const email =
+          updateSupplierDto.email === undefined
+            ? existingSupplier.email || undefined
+            : updateSupplierDto.email;
+
         await this.validateDuplicateSupplier(
           updateSupplierDto.supplierName || existingSupplier.supplier_name,
           taxId,
           id,
           store_id,
+          email,
         );
       }
 
@@ -421,10 +550,25 @@ export class SuppliersService {
         throw new BadRequestException('Contact person cannot be empty');
       }
 
+      // Validate for duplicate supplier code if it's being updated
+      if (
+        updateSupplierDto.code &&
+        updateSupplierDto.code !== existingSupplier.code
+      ) {
+        await this.validateDuplicateSupplierCode(
+          updateSupplierDto.code,
+          id,
+          store_id,
+        );
+      }
+
       const updateData: any = {};
 
       if (updateSupplierDto.supplierName !== undefined) {
         updateData.supplier_name = updateSupplierDto.supplierName;
+      }
+      if (updateSupplierDto.code !== undefined) {
+        updateData.code = updateSupplierDto.code;
       }
       if (updateSupplierDto.contactPerson !== undefined) {
         updateData.contact_person = updateSupplierDto.contactPerson;
@@ -547,13 +691,14 @@ export class SuppliersService {
   }
 
   /**
-   * @description Validate duplicate supplier by name and tax identification number within a store
+   * @description Validate duplicate supplier by name, email, and tax identification number within a store
    */
   private async validateDuplicateSupplier(
     supplierName: string,
     taxIdentificationNumber?: string,
     excludeId?: string,
     storeId?: string,
+    email?: string,
   ): Promise<void> {
     const whereConditions: any[] = [];
 
@@ -569,6 +714,16 @@ export class SuppliersService {
     if (taxIdentificationNumber?.trim()) {
       whereConditions.push({
         tax_identification_number: taxIdentificationNumber,
+      });
+    }
+
+    // If email is provided, check for duplicate email
+    if (email?.trim()) {
+      whereConditions.push({
+        email: {
+          equals: email,
+          mode: 'insensitive',
+        },
       });
     }
 
@@ -597,6 +752,16 @@ export class SuppliersService {
       ) {
         throw new BadRequestException(
           `Supplier with name "${supplierName}" already exists in this store`,
+        );
+      }
+
+      if (
+        email &&
+        existingSupplier &&
+        existingSupplier.email?.toLowerCase() === email.toLowerCase()
+      ) {
+        throw new BadRequestException(
+          `Supplier with email ${email} already exists in this store`,
         );
       }
 
