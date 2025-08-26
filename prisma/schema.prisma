@@ -856,6 +856,7 @@ model master_brands {
   notes                    String?
   created_at               DateTime?                  @default(now()) @db.Timestamptz(6)
   updated_at               DateTime?                  @default(now()) @db.Timestamptz(6)
+  code                     String                     @default("") @db.VarChar(255)
   master_inventory_items   master_inventory_items[]
   stores_has_master_brands stores_has_master_brands[]
 
