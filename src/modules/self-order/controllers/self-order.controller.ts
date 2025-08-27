@@ -19,6 +19,7 @@ import { CategoriesService } from '../../categories/categories.service';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
 import { ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { SelfOrderSignUpDto } from '../dtos/self-order-signup.dto';
+import { ValidateStoreTableDto } from '../dtos/validate-store-table.dto';
 import { PaymentMethodService } from '../../payment-methods/services/payment-method.service';
 import {
   CalculationEstimationDto,
@@ -315,5 +316,59 @@ export class SelfOrderController {
       };
     }
     return { result: response };
+  }
+
+  @Post()
+  @ApiOperation({
+    summary: 'Validate store and table for self-order access',
+  })
+  async validateStoreAndTable(@Body() body: ValidateStoreTableDto) {
+    try {
+      const { storeId, tablesName } = body;
+
+      // Check if store exists and has the specified table
+      const storeTable = await this.prisma.store_tables.findFirst({
+        where: {
+          name: tablesName,
+          store_floors: {
+            store_id: storeId,
+          },
+        },
+        include: {
+          store_floors: {
+            include: {
+              stores: true,
+            },
+          },
+        },
+      });
+
+      if (!storeTable) {
+        throw new HttpException(
+          'Store or table not found',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      return {
+        statusCode: 200,
+        message: 'Store and table validation successful',
+        result: {
+          storeId: storeTable.store_floors.store_id,
+          storeName: storeTable.store_floors.stores.name,
+          floorName: storeTable.store_floors.floor_name,
+          tableName: storeTable.name,
+          tableId: storeTable.id,
+        },
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Store or table not found',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }
