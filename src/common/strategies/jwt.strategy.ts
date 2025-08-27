@@ -40,7 +40,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
               roles: {
                 include: {
                   store_role_permissions: {
-                    where: { store_id: storeId },
+                    where: {
+                      store_id: storeId,
+                      // hide permission yang tidak sesuai dengan paket langganan yang dimiliki user
+                      permissions: {
+                        sub_package_access: {
+                          some: {
+                            subs_package: {
+                              users: {
+                                some: {
+                                  id: parseInt(payload.sub),
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
                     include: {
                       permissions: true,
                     },

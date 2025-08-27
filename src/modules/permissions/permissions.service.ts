@@ -69,8 +69,40 @@ export class PermissionsService {
     const store_id = requireStoreId(header);
     this.logger.log('Fetching all permission categories with permissions');
     const result = await this._prisma.permission_categories.findMany({
+      where: {
+        // hide kategori yang tidak sesuai dengan paket langganan yang dimiliki user
+        permissions: {
+          some: {
+            sub_package_access: {
+              some: {
+                subs_package: {
+                  users: {
+                    some: {
+                      id: header.user.id,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       include: {
         permissions: {
+          where: {
+            // hide permission yang tidak sesuai dengan paket langganan yang dimiliki user
+            sub_package_access: {
+              some: {
+                subs_package: {
+                  users: {
+                    some: {
+                      id: header.user.id,
+                    },
+                  },
+                },
+              },
+            },
+          },
           include: {
             store_role_permissions: {
               where: {
@@ -103,7 +135,23 @@ export class PermissionsService {
                   },
                 },
               },
-              where: { store_id: store_id },
+              where: {
+                store_id: store_id,
+                // hide permission yang tidak sesuai dengan paket langganan yang dimiliki user
+                permissions: {
+                  sub_package_access: {
+                    some: {
+                      subs_package: {
+                        users: {
+                          some: {
+                            id: header.user.id,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
         },
