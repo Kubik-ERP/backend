@@ -30,7 +30,6 @@ import {
 import { InvoiceService } from '../../invoices/services/invoices.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ProductsService } from '../../products/products.service';
-import { KitchenService } from '../../kitchen/services/kitchen.service';
 import {
   GetInvoiceSettingDto,
   SettingInvoiceDto,
@@ -47,7 +46,6 @@ export class SelfOrderController {
     private readonly invoiceService: InvoiceService,
     private readonly prisma: PrismaService,
     private readonly productsService: ProductsService,
-    private readonly kitchenService: KitchenService,
     private readonly storeService: StoresService,
   ) {}
 
@@ -278,36 +276,16 @@ export class SelfOrderController {
     };
   }
 
-  /* ---------------------- // * Invoice Process Payment ---------------------- */
-  @Post('invoice/process/payment')
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
+  /* ----------------- // * Get invoice by ID (Detail Invoice) ---------------- */
+  @Get('invoice/:invoiceId')
   @ApiOperation({
-    summary: 'Pay the unpaid invoice',
+    summary: 'Get invoice by invoice ID',
   })
-  public async processPayment(
-    @Req() req: ICustomRequestHeaders,
-    @Body() body: ProceedPaymentDto,
-  ) {
-    const response = await this.invoiceService.proceedPayment(req, body);
-    return {
-      result: toCamelCase(response),
-    };
-  }
-
-  /* --------------------------- // * Kitchen Ticket -------------------------- */
-  @Get('kitchen/ticket/:invoiceId')
-  @ApiOperation({
-    summary: 'Get Kitchen Ticket in Invoice Detail',
-  })
-  public async getTicketByInvoiceId(@Param('invoiceId') invoiceId: string) {
-    const response = await this.kitchenService.ticketByInvoiceId({
-      invoiceId,
+  public async invoiceByKey(@Param('invoiceId') invoiceId: string) {
+    const response = await this.invoiceService.getInvoicePreview({
+      invoiceId: invoiceId,
     });
+
     return {
       result: toCamelCase(response),
     };

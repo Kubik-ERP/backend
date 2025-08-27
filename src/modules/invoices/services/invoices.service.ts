@@ -75,7 +75,12 @@ export class InvoiceService {
     private readonly _voucherService: VouchersService,
   ) {}
 
-  public async getInvoices(request: GetListInvoiceDto) {
+  public async getInvoices(
+    header: ICustomRequestHeaders,
+    request: GetListInvoiceDto,
+  ) {
+    const storeId = validateStoreId(header.store_id);
+
     const {
       page,
       pageSize,
@@ -111,6 +116,7 @@ export class InvoiceService {
         order_type: { in: Array.isArray(orderType) ? orderType : [orderType] },
       }),
       ...(invoiceNumber && { invoice_number: { equals: invoiceNumber } }),
+      store_id: storeId, // Filter by store ID
     };
 
     const [items, total] = await Promise.all([
@@ -130,8 +136,44 @@ export class InvoiceService {
       }),
     ]);
 
+    // Add queue number for each invoice based on created_at order in the same day
+    const itemsWithQueue = await Promise.all(
+      items.map(async (invoice) => {
+        if (!invoice.created_at) {
+          return {
+            ...invoice,
+            queue: 0, // If no created_at, set queue to 0
+          };
+        }
+
+        const invoiceDate = new Date(invoice.created_at);
+        const startOfDay = new Date(invoiceDate);
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const endOfDay = new Date(invoiceDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // Count invoices created before this invoice on the same day in the same store
+        const queueNumber = await this._prisma.invoice.count({
+          where: {
+            store_id: storeId,
+            created_at: {
+              gte: startOfDay,
+              lte: endOfDay,
+              lt: invoice.created_at,
+            },
+          },
+        });
+
+        return {
+          ...invoice,
+          queue: queueNumber + 1, // Queue starts from 1
+        };
+      }),
+    );
+
     return {
-      items,
+      items: itemsWithQueue,
       meta: {
         page,
         pageSize,
