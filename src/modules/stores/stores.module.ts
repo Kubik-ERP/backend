@@ -11,6 +11,7 @@ import { PassportModule } from '@nestjs/passport';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { StorageServiceModule } from '../storage-service/storage-service.module';
 import { Reflector } from '@nestjs/core';
+import { OwnerOrPermissionGuard } from 'src/common/guards/owner-or-permission.guard';
 
 @Module({
   imports: [
@@ -35,7 +36,7 @@ import { Reflector } from '@nestjs/core';
     StorageServiceModule,
   ],
   controllers: [StoresController],
-  providers: [StoresService, JwtStrategy, Reflector],
+  providers: [StoresService, JwtStrategy, Reflector, OwnerOrPermissionGuard],
   exports: [StoresService],
 })
 export class StoresModule {}

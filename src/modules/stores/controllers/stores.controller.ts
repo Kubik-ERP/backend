@@ -33,6 +33,7 @@ import {
 } from '../dtos/request.dto';
 import { StoresService } from '../services/stores.service';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { OwnerOrPermissionGuard } from 'src/common/guards/owner-or-permission.guard';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import {
   convertFromUnixTimestamp,
@@ -57,7 +58,7 @@ export class StoresController {
     private readonly storageService: StorageService,
   ) {}
 
-  @UseGuards(AuthPermissionGuard)
+  @UseGuards(OwnerOrPermissionGuard)
   @RequirePermissions('store_management')
   @Post('/')
   @HttpCode(200)
@@ -172,7 +173,7 @@ export class StoresController {
     }
   }
 
-  @UseGuards(AuthPermissionGuard)
+  @UseGuards(OwnerOrPermissionGuard)
   @RequirePermissions('store_management')
   @Put('manage/:id')
   @ApiBearerAuth()
