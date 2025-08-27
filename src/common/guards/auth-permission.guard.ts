@@ -36,11 +36,6 @@ export class AuthPermissionGuard extends AuthGuard('jwt') {
       throw error || new Error('Unauthorized');
     }
 
-    if (user.verified_at === null) {
-      console.log(`[ERROR] AuthPermissionGuard: User not verified`);
-      throw new Error('User not verified');
-    }
-
     // Extract permissions from the user object if available
     // Permissions are already filtered by store_id in JWT strategy
     if (user.roles?.store_role_permissions) {
