@@ -51,7 +51,7 @@ async function bootstrap() {
   /**
    * Set Swagger
    */
-  if(process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production') {
     swaggerSetup(app, appConfigurations);
   }
 
