@@ -19,6 +19,7 @@ import { CategoriesService } from '../../categories/categories.service';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
 import { ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { SelfOrderSignUpDto } from '../dtos/self-order-signup.dto';
+import { ValidateStoreTableDto } from '../dtos/validate-store-table.dto';
 import { PaymentMethodService } from '../../payment-methods/services/payment-method.service';
 import {
   CalculationEstimationDto,
@@ -30,7 +31,6 @@ import {
 import { InvoiceService } from '../../invoices/services/invoices.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ProductsService } from '../../products/products.service';
-import { KitchenService } from '../../kitchen/services/kitchen.service';
 import {
   GetInvoiceSettingDto,
   SettingInvoiceDto,
@@ -47,7 +47,6 @@ export class SelfOrderController {
     private readonly invoiceService: InvoiceService,
     private readonly prisma: PrismaService,
     private readonly productsService: ProductsService,
-    private readonly kitchenService: KitchenService,
     private readonly storeService: StoresService,
   ) {}
 
@@ -278,36 +277,16 @@ export class SelfOrderController {
     };
   }
 
-  /* ---------------------- // * Invoice Process Payment ---------------------- */
-  @Post('invoice/process/payment')
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
+  /* ----------------- // * Get invoice by ID (Detail Invoice) ---------------- */
+  @Get('invoice/:invoiceId')
   @ApiOperation({
-    summary: 'Pay the unpaid invoice',
+    summary: 'Get invoice by invoice ID',
   })
-  public async processPayment(
-    @Req() req: ICustomRequestHeaders,
-    @Body() body: ProceedPaymentDto,
-  ) {
-    const response = await this.invoiceService.proceedPayment(req, body);
-    return {
-      result: toCamelCase(response),
-    };
-  }
-
-  /* --------------------------- // * Kitchen Ticket -------------------------- */
-  @Get('kitchen/ticket/:invoiceId')
-  @ApiOperation({
-    summary: 'Get Kitchen Ticket in Invoice Detail',
-  })
-  public async getTicketByInvoiceId(@Param('invoiceId') invoiceId: string) {
-    const response = await this.kitchenService.ticketByInvoiceId({
-      invoiceId,
+  public async invoiceByKey(@Param('invoiceId') invoiceId: string) {
+    const response = await this.invoiceService.getInvoicePreview({
+      invoiceId: invoiceId,
     });
+
     return {
       result: toCamelCase(response),
     };
@@ -337,5 +316,59 @@ export class SelfOrderController {
       };
     }
     return { result: response };
+  }
+
+  @Post()
+  @ApiOperation({
+    summary: 'Validate store and table for self-order access',
+  })
+  async validateStoreAndTable(@Body() body: ValidateStoreTableDto) {
+    try {
+      const { storeId, tablesName } = body;
+
+      // Check if store exists and has the specified table
+      const storeTable = await this.prisma.store_tables.findFirst({
+        where: {
+          name: tablesName,
+          store_floors: {
+            store_id: storeId,
+          },
+        },
+        include: {
+          store_floors: {
+            include: {
+              stores: true,
+            },
+          },
+        },
+      });
+
+      if (!storeTable) {
+        throw new HttpException(
+          'Store or table not found',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      return {
+        statusCode: 200,
+        message: 'Store and table validation successful',
+        result: {
+          storeId: storeTable.store_floors.store_id,
+          storeName: storeTable.store_floors.stores.name,
+          floorName: storeTable.store_floors.floor_name,
+          tableName: storeTable.name,
+          tableId: storeTable.id,
+        },
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Store or table not found',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

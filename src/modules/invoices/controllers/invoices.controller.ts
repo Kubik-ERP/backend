@@ -49,11 +49,20 @@ export class InvoiceController {
   @RequirePermissions('daily_sales')
   @ApiBearerAuth()
   @Get('')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @ApiOperation({
     summary: 'Get List of invoices',
   })
-  public async invoiceList(@Query() query: GetListInvoiceDto) {
-    const response = await this.invoiceService.getInvoices(query);
+  public async invoiceList(
+    @Req() req: ICustomRequestHeaders,
+    @Query() query: GetListInvoiceDto,
+  ) {
+    const response = await this.invoiceService.getInvoices(req, query);
     return {
       result: toCamelCase(response),
     };
