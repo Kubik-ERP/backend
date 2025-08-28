@@ -479,7 +479,7 @@ export class InvoiceService {
           tax_amount: null,
           service_charge_amount: null,
           grand_total: null,
-          cashier_id: header.user.id,
+          cashier_id: header.user?.id || null,
           invoice_number: invoiceNumber,
           order_status: order_status.placed,
           store_id: storeId,
@@ -598,7 +598,7 @@ export class InvoiceService {
               calculation.changeAmount,
               2,
               '', // notes still empty
-              header.user.id,
+              header.user?.id,
             );
           }
         }
@@ -657,7 +657,7 @@ export class InvoiceService {
         tax_amount: null,
         service_charge_amount: null,
         grand_total: null,
-        cashier_id: header.user.id,
+        cashier_id: header.user?.id || null,
         invoice_number: invoiceNumber,
         order_status: order_status.placed,
         store_id: storeId,
@@ -1279,7 +1279,7 @@ export class InvoiceService {
         changeAmount,
         2,
         '', // notes still empty
-        header.user.id,
+        header.user?.id,
       );
     }
 
