@@ -15,7 +15,8 @@ import {
 
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
 import { point_type } from '@prisma/client';
-import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { CustomerService } from './customer.service';
 import { CreateCustomerPointDto } from './dto/create-customer-point.dto';
@@ -29,7 +30,8 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 export class CustomersController {
   constructor(private readonly customersService: CustomerService) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('customer_management')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -61,7 +63,12 @@ export class CustomersController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'process_unpaid_invoice',
+    'check_out_sales',
+    'customer_management',
+  )
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -103,6 +110,9 @@ export class CustomersController {
     }
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('customer_management', 'view_customer_profile')
+  @ApiBearerAuth()
   @Get('details/:id')
   async getCustomerDetails(
     @Param('id') id: string,
@@ -127,7 +137,8 @@ export class CustomersController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('management_customer_loyalty_point')
   @ApiBearerAuth()
   @Get('/loyalty-points/:id')
   async loyaltyPoints(
@@ -141,7 +152,8 @@ export class CustomersController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('management_customer_loyalty_point')
   @ApiBearerAuth()
   @Post('/loyalty-points/:type')
   async createLoyaltyPoint(
@@ -155,7 +167,8 @@ export class CustomersController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('management_customer_loyalty_point')
   @ApiBearerAuth()
   @Patch('/loyalty-points/:id')
   async updateLoyaltyPoints(
@@ -169,6 +182,9 @@ export class CustomersController {
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('customer_management', 'view_customer_profile')
+  @ApiBearerAuth()
   @Get(':idOrName')
   async findOne(@Param('idOrName') idOrName: string) {
     try {
@@ -196,6 +212,9 @@ export class CustomersController {
     }
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('customer_management')
+  @ApiBearerAuth()
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -229,6 +248,9 @@ export class CustomersController {
     }
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('customer_management')
+  @ApiBearerAuth()
   @Delete(':id')
   async remove(@Param('id') id: string) {
     try {
@@ -252,7 +274,8 @@ export class CustomersController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('queue')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get Customer Waiting List Orders (Only for today and dine-in)',

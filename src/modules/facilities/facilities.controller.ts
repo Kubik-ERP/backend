@@ -11,7 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CreateFacilityDto } from './dto/create-facility.dto';
 import { QueryFacility } from './dto/query-facility.dto';
@@ -24,7 +25,8 @@ export class FacilitiesController {
 
   @ApiOperation({ summary: 'Create Store Facilities' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -45,7 +47,8 @@ export class FacilitiesController {
 
   @ApiOperation({ summary: 'Get Store Facilities' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -64,6 +67,15 @@ export class FacilitiesController {
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const data = await this.facilitiesService.findOne(+id);
@@ -75,7 +87,8 @@ export class FacilitiesController {
 
   @ApiOperation({ summary: 'Update Store Facilities' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -90,7 +103,8 @@ export class FacilitiesController {
 
   @ApiOperation({ summary: 'Delete Store Facilities' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',

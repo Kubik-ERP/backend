@@ -11,7 +11,8 @@ import {
   Req,
 } from '@nestjs/common';
 import { SuppliersService } from '../services/suppliers.service';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -32,7 +33,8 @@ import {
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('supplier_management')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -58,7 +60,12 @@ export class SuppliersController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'supplier_management',
+    'manage_purchase_order',
+    'manage_item',
+  )
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -84,7 +91,8 @@ export class SuppliersController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('supplier_management', 'view_supplier_details')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -107,7 +115,8 @@ export class SuppliersController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('supplier_management')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -135,7 +144,8 @@ export class SuppliersController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('supplier_management')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -158,7 +168,8 @@ export class SuppliersController {
   }
 
   /* -------------------------- Item Supplies listing -------------------------- */
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('supplier_management', 'view_supplier_details')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',

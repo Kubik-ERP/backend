@@ -26,6 +26,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { IsOptional, IsUUID } from 'class-validator';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import {
   CreateInventoryItemDto,
@@ -46,7 +48,8 @@ import { InventoryItemsService } from '../services/inventory-items.service';
 export class InventoryItemsController {
   constructor(private readonly inventoryItemsService: InventoryItemsService) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_item', 'manage_purchase_order')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -135,7 +138,8 @@ export class InventoryItemsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_item')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -156,7 +160,8 @@ export class InventoryItemsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_item', 'stock_adjustment')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -178,7 +183,8 @@ export class InventoryItemsController {
   }
 
   // Detail for Stock Adjustment page header (with joined info)
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('stock_adjustment')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -205,7 +211,8 @@ export class InventoryItemsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_item')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -227,7 +234,8 @@ export class InventoryItemsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_item')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -246,7 +254,8 @@ export class InventoryItemsController {
   }
 
   // Tracking log list
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('stock_adjustment')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -273,7 +282,8 @@ export class InventoryItemsController {
   }
 
   // Add stock adjustment
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('stock_adjustment')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -300,7 +310,8 @@ export class InventoryItemsController {
   }
 
   // Update stock adjustment
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('stock_adjustment')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',

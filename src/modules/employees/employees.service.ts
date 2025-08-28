@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { StorageService } from '../storage-service/services/storage-service.service';
+import { AssignEmployeeDto } from './dto/assign-employee.dto';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -34,7 +35,7 @@ export class EmployeesService {
       permission,
       socialMedia,
       shift,
-      comissions,
+      commissions,
     } = dto;
     const store_id = header.store_id;
     let profilePicture = null;
@@ -71,6 +72,10 @@ export class EmployeesService {
         gender,
         title,
         permission,
+        default_commission_product: dto.defaultCommissionProduct,
+        default_commission_product_type: dto.defaultCommissionProductType,
+        default_commission_voucher: dto.defaultCommissionVoucher,
+        default_commission_voucher_type: dto.defaultCommissionVoucherType,
       },
     });
 
@@ -130,13 +135,13 @@ export class EmployeesService {
     const insertedProductCommissions = [];
     const insertedVoucherCommissions = [];
 
-    if (comissions) {
+    if (commissions) {
       // Product Commissions
       if (
-        Array.isArray(comissions.productComission) &&
-        comissions.productComission.length > 0
+        Array.isArray(commissions.productCommission) &&
+        commissions.productCommission.length > 0
       ) {
-        for (const pc of comissions.productComission) {
+        for (const pc of commissions.productCommission) {
           if (!pc.product_id || pc.amount === undefined) continue;
 
           try {
@@ -156,10 +161,10 @@ export class EmployeesService {
       }
 
       if (
-        Array.isArray(comissions.voucherCommission) &&
-        comissions.voucherCommission.length > 0
+        Array.isArray(commissions.voucherCommission) &&
+        commissions.voucherCommission.length > 0
       ) {
-        for (const vc of comissions.voucherCommission) {
+        for (const vc of commissions.voucherCommission) {
           if (!vc.voucher_id || vc.amount === undefined) continue;
 
           try {
@@ -333,8 +338,9 @@ export class EmployeesService {
       permission,
       socialMedia,
       shift,
-      comissions,
+      commissions,
     } = dto;
+
     const existing = await this.prisma.employees.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Employee with ID ${id} not found`);
@@ -362,6 +368,10 @@ export class EmployeesService {
         gender,
         title,
         permission,
+        default_commission_product: dto.defaultCommissionProduct,
+        default_commission_product_type: dto.defaultCommissionProductType,
+        default_commission_voucher: dto.defaultCommissionVoucher,
+        default_commission_voucher_type: dto.defaultCommissionVoucherType,
       },
     });
 
@@ -403,9 +413,9 @@ export class EmployeesService {
       where: { employees_id: id },
     });
 
-    if (comissions) {
-      if (Array.isArray(comissions.productComission)) {
-        for (const pc of comissions.productComission) {
+    if (commissions) {
+      if (Array.isArray(commissions.productCommission)) {
+        for (const pc of commissions.productCommission) {
           if (!pc.product_id || pc.amount === undefined) continue;
           await this.prisma.product_commissions.create({
             data: {
@@ -418,8 +428,8 @@ export class EmployeesService {
         }
       }
 
-      if (Array.isArray(comissions.voucherCommission)) {
-        for (const vc of comissions.voucherCommission) {
+      if (Array.isArray(commissions.voucherCommission)) {
+        for (const vc of commissions.voucherCommission) {
           if (!vc.voucher_id || vc.amount === undefined) continue;
           await this.prisma.voucher_commissions.create({
             data: {
@@ -442,5 +452,62 @@ export class EmployeesService {
     return this.prisma.employees.delete({
       where: { id },
     });
+  }
+
+  async assignToStore(
+    assignEmployeeDto: AssignEmployeeDto,
+    req: ICustomRequestHeaders,
+  ) {
+    const { employeeId, type } = assignEmployeeDto;
+    const storeId = req.store_id;
+    if (!storeId) {
+      throw new BadRequestException('Store ID is required');
+    }
+
+    const employee = await this.findOne(employeeId);
+    if (!employee) {
+      throw new NotFoundException(`Employee with ID ${employeeId} not found`);
+    }
+
+    const existingAssignment = await this.prisma.stores_has_employees.findFirst(
+      {
+        where: {
+          AND: [{ employees_id: employeeId }, { stores_id: storeId }],
+        },
+      },
+    );
+
+    if (type === 'ASSIGN') {
+      if (existingAssignment) {
+        throw new BadRequestException(
+          `Employee with ID ${employeeId} is already assigned to store ${storeId}`,
+        );
+      }
+
+      await this.prisma.stores_has_employees.create({
+        data: {
+          employees_id: employeeId,
+          stores_id: storeId,
+        },
+      });
+
+      return {
+        message: 'Employee assigned to store successfully',
+      };
+    } else {
+      if (!existingAssignment) {
+        throw new BadRequestException(
+          `Employee with ID ${employeeId} is not assigned to store ${storeId}`,
+        );
+      }
+      await this.prisma.stores_has_employees.deleteMany({
+        where: {
+          AND: [{ employees_id: employeeId }, { stores_id: storeId }],
+        },
+      });
+      return {
+        message: 'Employee unassigned from store successfully',
+      };
+    }
   }
 }

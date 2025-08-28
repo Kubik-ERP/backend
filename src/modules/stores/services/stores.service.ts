@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -52,6 +52,35 @@ export class StoresService {
           })),
         });
       }
+
+      // clone role_permissions to store_role_permissions
+      const templateRolePermissions = await prisma.role_permissions.findMany({
+        where: {
+          // hide permission yang tidak sesuai dengan paket langganan yang dimiliki user
+          permissions: {
+            sub_package_access: {
+              some: {
+                subs_package: {
+                  users: {
+                    some: {
+                      id: userId,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const storeRolePermissions = templateRolePermissions.map((rp) => ({
+        store_id: store.id,
+        role_id: rp.role_id,
+        permission_id: rp.permission_id,
+      }));
+      await prisma.store_role_permissions.createMany({
+        data: storeRolePermissions,
+      });
     });
   }
 

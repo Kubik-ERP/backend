@@ -19,13 +19,51 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: _jwtConfigService.jwtSecret,
+      passReqToCallback: true,
     });
   }
 
-  async validate(payload: IValidateJWTStrategy) {
+  async validate(req: ICustomRequestHeaders, payload: IValidateJWTStrategy) {
+    const storeId = req.store_id;
+
     const user = await this.prisma.users.findUnique({
       where: {
         id: parseInt(payload.sub),
+      },
+      include: {
+        ...(storeId === undefined
+          ? {
+              roles: true,
+            }
+          : // fetch permission wajib ada store_id
+            {
+              roles: {
+                include: {
+                  store_role_permissions: {
+                    where: {
+                      store_id: storeId,
+                      // hide permission yang tidak sesuai dengan paket langganan yang dimiliki user
+                      permissions: {
+                        sub_package_access: {
+                          some: {
+                            subs_package: {
+                              users: {
+                                some: {
+                                  id: parseInt(payload.sub),
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                    include: {
+                      permissions: true,
+                    },
+                  },
+                },
+              },
+            }),
       },
     });
     return user;

@@ -311,4 +311,7 @@ export class InvoiceUpdateDto {
   complete_order_at?: Date;
   payment_amount?: number;
   change_amount?: number;
+  // voucher applied
+  voucher_id?: string;
+  voucher_amount?: number;
 }

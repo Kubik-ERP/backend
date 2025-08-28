@@ -18,10 +18,12 @@ import {
   ApiHeader,
   ApiOperation,
 } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import { StorageService } from '../storage-service/services/storage-service.service';
+import { AssignEmployeeDto } from './dto/assign-employee.dto';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -39,7 +41,8 @@ export class EmployeesController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create Employee' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -62,7 +65,12 @@ export class EmployeesController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'manage_staff_member',
+    'check_out_sales',
+    'process_unpaid_invoice',
+  )
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -82,6 +90,9 @@ export class EmployeesController {
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
+  @ApiBearerAuth()
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const employee = await this.employeesService.findOne(id);
@@ -112,6 +123,9 @@ export class EmployeesController {
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
+  @ApiBearerAuth()
   @Delete(':id')
   async remove(@Param('id') id: string) {
     await this.employeesService.remove(id);
@@ -119,5 +133,22 @@ export class EmployeesController {
       message: 'Employee deleted successfully',
       result: null,
     };
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Post('assign-to-store')
+  async assignToStore(
+    @Req() req: ICustomRequestHeaders,
+    @Body() assignEmployeeDto: AssignEmployeeDto,
+  ) {
+    return await this.employeesService.assignToStore(assignEmployeeDto, req);
   }
 }

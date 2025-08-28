@@ -3,13 +3,15 @@ import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { UpsertChargeDto } from '../dtos/charges.dto';
 import { ChargesService } from '../services/charges.service';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 
 @Controller('charges')
 export class ChargesController {
   constructor(private readonly chargeService: ChargesService) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('tax_and_service_charge_configuration')
   @ApiBearerAuth()
   @Post('/upsert')
   @ApiOperation({
@@ -22,7 +24,8 @@ export class ChargesController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('tax_and_service_charge_configuration')
   @ApiBearerAuth()
   @Get('')
   @ApiOperation({

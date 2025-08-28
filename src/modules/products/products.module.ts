@@ -3,11 +3,12 @@ import { ProductsService } from './products.service';
 import { ProductsController } from './products.controller';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { StorageServiceModule } from '../storage-service/storage-service.module';
+import { Reflector } from '@nestjs/core';
 
 @Module({
   imports: [PrismaModule, StorageServiceModule],
   controllers: [ProductsController],
-  providers: [ProductsService],
+  providers: [ProductsService, Reflector],
   exports: [ProductsService],
 })
 export class ProductsModule {}

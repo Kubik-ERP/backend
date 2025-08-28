@@ -15,13 +15,15 @@ import { payment_methods } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 
 @Controller('payment/method')
 export class PaymentMethodController {
   constructor(private readonly paymentMethodService: PaymentMethodService) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('payment_method_configuration')
   @ApiBearerAuth()
   @Post('')
   @ApiOperation({
@@ -41,7 +43,8 @@ export class PaymentMethodController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('payment_method_configuration')
   @ApiBearerAuth()
   @Put('')
   @ApiOperation({
@@ -64,7 +67,12 @@ export class PaymentMethodController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'payment_method_configuration',
+    'check_out_sales',
+    'process_unpaid_invoice',
+  )
   @ApiBearerAuth()
   @Get('')
   @ApiOperation({
@@ -89,7 +97,8 @@ export class PaymentMethodController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('payment_method_configuration')
   @ApiBearerAuth()
   @Delete('')
   @ApiOperation({

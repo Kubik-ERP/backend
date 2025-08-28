@@ -12,36 +12,6 @@ services:
     networks:
       - kubik-net
 
-  # minio:
-  #   image: minio/minio
-  #   container_name: minio
-  #   ports:
-  #     - "9000:9000"
-  #     - "9001:9001"
-  #   environment:
-  #     MINIO_ROOT_USER: admin
-  #     MINIO_ROOT_PASSWORD: password123
-  #   command: server /data --console-address ":9001"
-  #   volumes:
-  #     - minio-data:/data
-  #   restart: unless-stopped
-  #   networks:
-  #     - kubik-net
-
-  # minio-init:
-  #   image: minio/mc
-  #   depends_on:
-  #     - minio
-  #   networks:
-  #     - kubik-net
-  #   entrypoint: >
-  #     /bin/sh -c "
-  #       sleep 5;
-  #       mc alias set local http://minio:9000 admin password123 &&
-  #       mc mb -p local/my-dev-bucket || true &&
-  #       mc anonymous set download local/my-dev-bucket
-  #     "
-
   kubik-backend:
     build: .
     container_name: kubik-backend
@@ -52,14 +22,11 @@ services:
     restart: always
     depends_on:
       - redis
-      # - minio
-      # - minio-init
     networks:
       - kubik-net
 
 volumes:
   redis-data:
-  # minio-data:
 
 networks:
   kubik-net:

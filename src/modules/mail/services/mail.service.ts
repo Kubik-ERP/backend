@@ -112,29 +112,10 @@ export class MailService {
 
   private async loadTemplate(templateName: string, data: any): Promise<string> {
     try {
-      // Tentukan path untuk folder partials
-      const partialsPath = path.resolve(
-        __dirname,
-        '../../../../src/common/htmls/partials',
-      );
-
-      // Path untuk header dan footer
-      const headerPath = path.join(partialsPath, 'header.ejs'); // Ganti dengan .ejs
-      const footerPath = path.join(partialsPath, 'footer.ejs'); // Ganti dengan .ejs
-
-      // Membaca file header dan footer
-      const header = await fs.promises.readFile(headerPath, 'utf-8');
-      const footer = await fs.promises.readFile(footerPath, 'utf-8');
-
-      // Mendaftarkan partials untuk EJS
-      // EJS tidak membutuhkan register partial seperti Handlebars, jadi kita bisa langsung memasukkan header dan footer ke dalam data.
-      data.header = header;
-      data.footer = footer;
-
-      // Path untuk template utama
+      // Path untuk template utama - selalu gunakan path ke source, bukan dist
       const filePath = path.resolve(
-        __dirname,
-        '../../../../src/common/htmls',
+        process.cwd(),
+        'src/common/htmls',
         `${templateName}`,
       );
 

@@ -6,152 +6,157 @@ import {
   Patch,
   Param,
   Delete,
-  HttpException,
   HttpStatus,
+  UseGuards,
+  Req,
+  Query,
 } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
+import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
+import { RolesListDto } from './dto/roles-list.dto';
 
 @Controller('roles')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
+  @ApiOperation({ summary: 'Create role' })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Post()
-  async create(@Body() createRoleDto: CreateRoleDto) {
-    try {
-      const newRole = await this.rolesService.create(createRoleDto);
-      return {
-        statusCode: 201,
-        message: 'Role created successfully',
-        result: toCamelCase(newRole),
-      };
-    } catch (error) {
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.CONFLICT,
-          message: error.message || 'Failed to create role',
-          result: null,
-        },
-        HttpStatus.CONFLICT,
-      );
-    }
+  async create(@Req() req: ICustomRequestHeaders, @Body() dto: CreateRoleDto) {
+    const newRole = await this.rolesService.create(dto, req);
+
+    return {
+      statusCode: HttpStatus.CREATED,
+      message: 'Role created successfully',
+      result: toCamelCase(newRole),
+    };
   }
 
+  @ApiOperation({ summary: 'Get all roles' })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Get()
-  async findAll() {
+  async findAll(@Req() req: ICustomRequestHeaders, @Query() dto: RolesListDto) {
     try {
-      const roles = await this.rolesService.findAll();
+      const roles = await this.rolesService.findAll(dto, req);
       return {
-        statusCode: 200,
-        message: 'Success',
+        statusCode: HttpStatus.OK,
+        message: 'Roles fetched successfully',
         result: toCamelCase(roles),
       };
     } catch (error) {
-      console.error('Error fetching roles:', error);
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to fetch roles',
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      return {
+        statusCode: error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        message: error.message,
+        result: null,
+      };
     }
   }
 
+  @ApiOperation({ summary: 'Get role by id' })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string, @Req() req: ICustomRequestHeaders) {
     try {
-      const role = await this.rolesService.findOne(id);
+      const role = await this.rolesService.findOne(id, req);
       return {
         statusCode: 200,
-        message: 'Success',
+        message: 'Role fetched successfully',
         result: toCamelCase(role),
       };
     } catch (error) {
-      if (error.status === HttpStatus.NOT_FOUND) {
-        throw new HttpException(
-          {
-            statusCode: HttpStatus.NOT_FOUND,
-            message: error.message,
-          },
-          HttpStatus.NOT_FOUND,
-        );
-      }
-
-      console.error('Error finding role:', error);
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to fetch role',
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      return {
+        statusCode: error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        message: error.message,
+        result: null,
+      };
     }
   }
 
+  @ApiOperation({ summary: 'Update role by id' })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateRoleDto: UpdateRoleDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateRoleDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
     try {
-      const updatedRole = await this.rolesService.update(id, updateRoleDto);
+      const updatedRole = await this.rolesService.update(id, dto, req);
       return {
         statusCode: 200,
         message: 'Role updated successfully',
         result: toCamelCase(updatedRole),
       };
     } catch (error) {
-      if (
-        error.status === HttpStatus.NOT_FOUND ||
-        error.status === HttpStatus.CONFLICT
-      ) {
-        throw new HttpException(
-          {
-            statusCode: error.status,
-            message: error.message,
-          },
-          error.status,
-        );
-      }
-
-      console.error('Error updating role:', error);
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to update role',
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      return {
+        statusCode: error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        message: error.message,
+        result: null,
+      };
     }
   }
 
+  @ApiOperation({ summary: 'Delete role by id' })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_staff_member')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string, @Req() req: ICustomRequestHeaders) {
     try {
-      await this.rolesService.remove(id);
+      await this.rolesService.remove(id, req);
       return {
         statusCode: 200,
         message: 'Role deleted successfully',
       };
     } catch (error) {
-      if (error.status === HttpStatus.NOT_FOUND) {
-        throw new HttpException(
-          {
-            statusCode: HttpStatus.NOT_FOUND,
-            message: error.message,
-          },
-          HttpStatus.NOT_FOUND,
-        );
-      }
-
-      console.error('Error deleting role:', error);
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to delete role',
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      return {
+        statusCode: error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        message: error.message,
+        result: null,
+      };
     }
   }
 }

@@ -51,7 +51,9 @@ async function bootstrap() {
   /**
    * Set Swagger
    */
-  swaggerSetup(app, appConfigurations);
+  if (process.env.NODE_ENV !== 'production') {
+    swaggerSetup(app, appConfigurations);
+  }
 
   /**
    * Global Serializer

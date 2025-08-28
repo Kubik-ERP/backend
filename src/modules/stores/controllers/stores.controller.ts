@@ -32,7 +32,9 @@ import {
   UpdateProfileDto,
 } from '../dtos/request.dto';
 import { StoresService } from '../services/stores.service';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { OwnerOrPermissionGuard } from 'src/common/guards/owner-or-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import {
   convertFromUnixTimestamp,
   formatDate,
@@ -46,6 +48,7 @@ import { PinGuard } from 'src/common/guards/authentication-pin.guard';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
 import { UpdateProductDto } from '../../products/dto/update-product.dto';
 import { StoresListDto } from '../dtos/stores-list.dto';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 
 @Controller('store')
 @ApiTags('Stores')
@@ -55,7 +58,8 @@ export class StoresController {
     private readonly storageService: StorageService,
   ) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(OwnerOrPermissionGuard)
+  @RequirePermissions('store_management')
   @Post('/')
   @HttpCode(200)
   @ApiBearerAuth()
@@ -169,7 +173,8 @@ export class StoresController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(OwnerOrPermissionGuard)
+  @RequirePermissions('store_management')
   @Put('manage/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update store by ID' })
@@ -282,7 +287,8 @@ export class StoresController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @Get('/store/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get store by ID' })
@@ -343,7 +349,8 @@ export class StoresController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @Delete('/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete store by ID' })
@@ -365,7 +372,8 @@ export class StoresController {
 
   @Get('/profile')
   @ApiOperation({ summary: 'Get store(s) by user ID' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @ApiBearerAuth()
   public async getStoreByUser(@Req() req: ICustomRequestHeaders) {
     try {
@@ -386,7 +394,8 @@ export class StoresController {
 
   @Put('/profile')
   @ApiOperation({ summary: 'Update Profile For User' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @ApiBearerAuth()
   @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiConsumes('multipart/form-data')
@@ -422,7 +431,8 @@ export class StoresController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @Get('/operational-hours')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get operational hours by store ID' })
@@ -451,7 +461,8 @@ export class StoresController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('store_management')
   @Put(':id/operational-hours')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update operational hours for store' })

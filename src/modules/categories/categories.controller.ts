@@ -21,7 +21,8 @@ import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { ApiBearerAuth, ApiConsumes, ApiHeader } from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import { StorageService } from '../storage-service/services/storage-service.service';
-import { AuthenticationJWTGuard } from '../../common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('categories')
 export class CategoriesController {
@@ -30,7 +31,8 @@ export class CategoriesController {
     private readonly storageService: StorageService,
   ) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_category')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -78,7 +80,13 @@ export class CategoriesController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'product_category',
+    'product_management',
+    'process_unpaid_invoice',
+    'check_out_sales',
+  )
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
