@@ -33,14 +33,14 @@ export class InventoryItemsService {
     const store_id = header.store_id;
     if (!store_id) throw new BadRequestException('store_id is required');
 
-    // Fetch master data filtered by store
+    // Fetch master data filtered by store with code field
     const [brands, categories, storageLocations, suppliers] = await Promise.all(
       [
         this._prisma.master_brands.findMany({
           where: {
             stores_has_master_brands: { some: { stores_id: store_id } },
           },
-          select: { id: true, brand_name: true },
+          select: { id: true, brand_name: true, code: true },
         }),
         this._prisma.master_inventory_categories.findMany({
           where: {
@@ -48,7 +48,7 @@ export class InventoryItemsService {
               some: { stores_id: store_id },
             },
           },
-          select: { id: true, name: true },
+          select: { id: true, name: true, code: true },
         }),
         this._prisma.master_storage_locations.findMany({
           where: {
@@ -56,13 +56,13 @@ export class InventoryItemsService {
               some: { stores_id: store_id },
             },
           },
-          select: { id: true, name: true },
+          select: { id: true, name: true, code: true },
         }),
         this._prisma.master_suppliers.findMany({
           where: {
             stores_has_master_suppliers: { some: { stores_id: store_id } },
           },
-          select: { id: true, supplier_name: true },
+          select: { id: true, supplier_name: true, code: true },
         }),
       ],
     );
@@ -73,27 +73,46 @@ export class InventoryItemsService {
     const sheet = workbook.addWorksheet('Inventory Items');
     const columns = [
       { header: 'Item Name', key: 'item_name', width: 30 },
-      { header: 'Brand', key: 'brand', width: 25 },
+      { header: 'Brand', key: 'brand', width: 35 },
       { header: 'Barcode', key: 'barcode', width: 20 },
       { header: 'SKU', key: 'sku', width: 20 },
-      { header: 'Category', key: 'category', width: 25 },
+      { header: 'Category', key: 'category', width: 35 },
       { header: 'Unit', key: 'unit', width: 15 },
       { header: 'Notes', key: 'notes', width: 30 },
       { header: 'Stock Quantity', key: 'stock_quantity', width: 18 },
       {
         header: 'Minimum Stock Quantity',
         key: 'minimum_stock_quantity',
-        width: 22,
+        width: 25,
       },
       { header: 'Reorder Level', key: 'reorder_level', width: 15 },
       { header: 'Expiry Date', key: 'expiry_date', width: 18 },
-      { header: 'Storage Location', key: 'storage_location', width: 25 },
+      { header: 'Storage Location', key: 'storage_location', width: 35 },
       { header: 'Price Per Unit', key: 'price_per_unit', width: 18 },
-      { header: 'Supplier', key: 'supplier', width: 25 },
+      { header: 'Supplier', key: 'supplier', width: 35 },
     ];
     sheet.columns = columns;
 
-    // Add dropdowns for master data columns with proper validation
+    // Style header row - Set alignment and wrapping for better visibility
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.alignment = {
+      wrapText: true,
+      vertical: 'middle',
+      horizontal: 'center',
+    };
+    headerRow.height = 40; // Increased height for auto-wrapped text
+
+    // Apply background color to all columns with data (A to N = 14 columns)
+    for (let col = 1; col <= 14; col++) {
+      headerRow.getCell(col).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFB6FFB6' },
+      };
+    }
+
+    // Add dropdowns for master data columns with proper validation using "code | name" format
     const addDropdown = (
       col: number,
       refSheet: string,
@@ -114,75 +133,130 @@ export class InventoryItemsService {
       }
     };
 
-    // Sheet 2: Brand Reference
+    // Sheet 2: Brand Reference with 2 columns (Code and Name)
     const brandSheet = workbook.addWorksheet('Brand Reference');
     brandSheet.columns = [
-      { header: 'ID | Brand Name', key: 'id_name', width: 40 },
+      { header: 'Code', key: 'code', width: 15 },
+      { header: 'Brand Name', key: 'name', width: 35 },
     ];
     brands.forEach((b) =>
       brandSheet.addRow({
-        id_name: `${b.id} | ${b.brand_name}`,
+        code: b.code,
+        name: b.brand_name,
       }),
     );
-    addDropdown(2, 'Brand Reference', 'A', brands.length); // Brand moved to column 2, reference column A
 
-    // Sheet 3: Category Reference
+    // Sheet 3: Category Reference with 2 columns (Code and Name)
     const catSheet = workbook.addWorksheet('Category Reference');
     catSheet.columns = [
-      { header: 'ID | Category Name', key: 'id_name', width: 40 },
+      { header: 'Code', key: 'code', width: 15 },
+      { header: 'Category Name', key: 'name', width: 35 },
     ];
     categories.forEach((c) =>
       catSheet.addRow({
-        id_name: `${c.id} | ${c.name}`,
+        code: c.code,
+        name: c.name,
       }),
     );
-    addDropdown(5, 'Category Reference', 'A', categories.length); // Category moved to column 5, reference column A
 
-    // Sheet 4: Storage Location Reference
+    // Sheet 4: Storage Location Reference with 2 columns (Code and Name)
     const storageSheet = workbook.addWorksheet('Storage Location Reference');
     storageSheet.columns = [
-      { header: 'ID | Storage Location Name', key: 'id_name', width: 45 },
+      { header: 'Code', key: 'code', width: 15 },
+      { header: 'Storage Location Name', key: 'name', width: 40 },
     ];
     storageLocations.forEach((s) =>
       storageSheet.addRow({
-        id_name: `${s.id} | ${s.name}`,
+        code: s.code,
+        name: s.name,
       }),
     );
-    addDropdown(12, 'Storage Location Reference', 'A', storageLocations.length); // Storage Location moved to column 12, reference column A
 
-    // Sheet 5: Supplier Reference
+    // Sheet 5: Supplier Reference with 2 columns (Code and Name)
     const supplierSheet = workbook.addWorksheet('Supplier Reference');
     supplierSheet.columns = [
-      { header: 'ID | Supplier Name', key: 'id_name', width: 40 },
+      { header: 'Code', key: 'code', width: 15 },
+      { header: 'Supplier Name', key: 'name', width: 35 },
     ];
     suppliers.forEach((s) =>
       supplierSheet.addRow({
-        id_name: `${s.id} | ${s.supplier_name}`,
+        code: s.code,
+        name: s.supplier_name,
       }),
     );
-    addDropdown(14, 'Supplier Reference', 'A', suppliers.length); // Supplier moved to column 14, reference column A
 
-    // Style header row (only for columns with data)
-    const headerRow = sheet.getRow(1);
-    headerRow.font = { bold: true };
-    // Apply background color only to columns with data (A to N = 14 columns)
-    for (let col = 1; col <= 14; col++) {
-      headerRow.getCell(col).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFB6FFB6' },
-      };
-    }
+    // Create hidden dropdown lists with "code | name" format for validation
+    const brandDropdownSheet = workbook.addWorksheet('Brand_Dropdown', {
+      state: 'hidden',
+    });
+    brandDropdownSheet.columns = [
+      { header: 'Brand List', key: 'brand_list', width: 50 },
+    ];
+    brands.forEach((b) =>
+      brandDropdownSheet.addRow({
+        brand_list: `${b.code} | ${b.brand_name}`,
+      }),
+    );
+
+    const categoryDropdownSheet = workbook.addWorksheet('Category_Dropdown', {
+      state: 'hidden',
+    });
+    categoryDropdownSheet.columns = [
+      { header: 'Category List', key: 'category_list', width: 50 },
+    ];
+    categories.forEach((c) =>
+      categoryDropdownSheet.addRow({
+        category_list: `${c.code} | ${c.name}`,
+      }),
+    );
+
+    const storageDropdownSheet = workbook.addWorksheet('Storage_Dropdown', {
+      state: 'hidden',
+    });
+    storageDropdownSheet.columns = [
+      { header: 'Storage List', key: 'storage_list', width: 55 },
+    ];
+    storageLocations.forEach((s) =>
+      storageDropdownSheet.addRow({
+        storage_list: `${s.code} | ${s.name}`,
+      }),
+    );
+
+    const supplierDropdownSheet = workbook.addWorksheet('Supplier_Dropdown', {
+      state: 'hidden',
+    });
+    supplierDropdownSheet.columns = [
+      { header: 'Supplier List', key: 'supplier_list', width: 50 },
+    ];
+    suppliers.forEach((s) =>
+      supplierDropdownSheet.addRow({
+        supplier_list: `${s.code} | ${s.supplier_name}`,
+      }),
+    );
+
+    // Add dropdown validation using hidden sheets with "code | name" format
+    addDropdown(2, 'Brand_Dropdown', 'A', brands.length); // Brand column 2
+    addDropdown(5, 'Category_Dropdown', 'A', categories.length); // Category column 5
+    addDropdown(12, 'Storage_Dropdown', 'A', storageLocations.length); // Storage Location column 12
+    addDropdown(14, 'Supplier_Dropdown', 'A', suppliers.length); // Supplier column 14
 
     // Add notes row
     sheet.insertRow(1, ['TEMPLATE FOR IMPORT INVENTORY ITEMS']);
     sheet.mergeCells('A1:N1'); // Updated to N1 for 14 columns
     sheet.getRow(1).font = { bold: true, color: { argb: 'FFFF0000' } };
+    sheet.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
     // Add required label row
-    sheet.insertRow(2, ['The label (*) is required to be filled']);
+    sheet.insertRow(2, [
+      'The label (*) is required to be filled. For Brand, Category, Storage Location, and Supplier columns, please select from dropdown list using "code | name" format (check reference sheets)',
+    ]);
     sheet.mergeCells('A2:N2'); // Updated to N2 for 14 columns
     sheet.getRow(2).font = { italic: true, color: { argb: 'FFFF6600' } };
+    sheet.getRow(2).alignment = {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    };
 
     // Mark required columns in header - updated column positions (without Store ID)
     const requiredCols = [1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]; // Item Name, Brand, SKU, Category, Unit, Stock Qty, Min Stock, Reorder, Storage, Price, Supplier
@@ -192,38 +266,38 @@ export class InventoryItemsService {
       cell.font = { ...cell.font, color: { argb: 'FF008000' } };
     });
 
-    // Prepare sample data using first item from each reference
+    // Prepare sample data using first item from each reference for dropdown validation with "code | name" format
     const sampleBrand =
-      brands.length > 0 ? `${brands[0].id} | ${brands[0].brand_name}` : '';
+      brands.length > 0 ? `${brands[0].code} | ${brands[0].brand_name}` : '';
     const sampleCategory =
       categories.length > 0
-        ? `${categories[0].id} | ${categories[0].name}`
+        ? `${categories[0].code} | ${categories[0].name}`
         : '';
     const sampleStorage =
       storageLocations.length > 0
-        ? `${storageLocations[0].id} | ${storageLocations[0].name}`
+        ? `${storageLocations[0].code} | ${storageLocations[0].name}`
         : '';
     const sampleSupplier =
       suppliers.length > 0
-        ? `${suppliers[0].id} | ${suppliers[0].supplier_name}`
+        ? `${suppliers[0].code} | ${suppliers[0].supplier_name}`
         : '';
 
-    // Add sample row at row 4 using insertRow to ensure it stays at position 4
+    // Add sample row at row 4 using dropdown-compatible data with "code | name" format
     sheet.insertRow(4, [
       'Sample Item Name', // Item Name
-      sampleBrand, // Brand - use first brand from reference
+      sampleBrand, // Brand - use first brand from database for dropdown compatibility
       'SAMPLE123', // Barcode
       'SKU001', // SKU
-      sampleCategory, // Category - use first category from reference
+      sampleCategory, // Category - use first category from database for dropdown compatibility
       'pcs', // Unit
       'Sample notes', // Notes
       100, // Stock Quantity
       10, // Minimum Stock Quantity
       20, // Reorder Level
       '2025-12-30', // Expiry Date
-      sampleStorage, // Storage Location - use first storage from reference
+      sampleStorage, // Storage Location - use first storage from database for dropdown compatibility
       15000, // Price Per Unit
-      sampleSupplier, // Supplier - use first supplier from reference
+      sampleSupplier, // Supplier - use first supplier from database for dropdown compatibility
     ]);
 
     // Return as buffer
