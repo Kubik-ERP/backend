@@ -42,6 +42,7 @@ import { StockOpnamesModule } from './modules/stock-opnames/stock-opnames.module
 import { FacilitiesModule } from './modules/facilities/facilities.module';
 import { ProductBundlingModule } from './modules/product-bundling/product-bundling.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -96,6 +97,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
     FacilitiesModule,
     ProductBundlingModule,
     PermissionsModule,
+    DashboardModule,
   ],
   providers: [
     {
