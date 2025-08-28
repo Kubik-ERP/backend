@@ -1249,6 +1249,7 @@ export class InvoiceService {
         payment_method_id: request.paymentMethodId,
         payment_amount: calculation.paymentAmount,
         change_amount: calculation.changeAmount,
+        voucher_amount: calculation.voucherAmount ?? 0,
       });
     });
 
@@ -1493,6 +1494,8 @@ export class InvoiceService {
         request.products.map((product) => product.productId),
         // grand total
         total,
+        // biar tidak ngitung max quota
+        true,
       );
 
       // set voucher amount
@@ -1836,6 +1839,9 @@ export class InvoiceService {
           order_status: invoice.order_status,
           store_id: invoice.store_id,
           complete_order_at: invoice.complete_order_at,
+          // apply voucher
+          voucher_id: invoice.voucher_id ?? null,
+          voucher_amount: invoice.voucher_amount ?? 0,
         },
       });
     } catch (error) {
@@ -1858,6 +1864,7 @@ export class InvoiceService {
         service_charge_id,
         customer_id,
         payment_method_id,
+        voucher_id,
         ...rest
       } = data;
 
@@ -1887,6 +1894,12 @@ export class InvoiceService {
       if (payment_method_id) {
         updateData.payment_methods = {
           connect: { id: payment_method_id },
+        };
+      }
+
+      if (voucher_id) {
+        updateData.voucher = {
+          connect: { id: voucher_id },
         };
       }
 

@@ -533,6 +533,7 @@ export class VouchersService {
     voucherId: string,
     productIds: string[],
     grandTotal: number,
+    isCalculate = false,
   ) {
     let voucherAmount = 0;
     // check valid voucher
@@ -575,18 +576,21 @@ export class VouchersService {
       );
     }
 
-    // check voucher is max usage
-    const voucherUsage = await this._prisma.invoice.count({
-      where: {
-        voucher_id: voucher.id,
-      },
-    });
+    // Jika dipanggil di process calculate, maka tidak perlu ngitung max quota
+    if (!isCalculate) {
+      // check voucher is max usage
+      const voucherUsage = await this._prisma.invoice.count({
+        where: {
+          voucher_id: voucher.id,
+        },
+      });
 
-    if (voucherUsage >= voucher.quota) {
-      this.logger.error(`Voucher with ID ${voucherId} is max usage`);
-      throw new BadRequestException(
-        `Voucher with ID ${voucherId} is max usage`,
-      );
+      if (voucherUsage >= voucher.quota) {
+        this.logger.error(`Voucher with ID ${voucherId} is max usage`);
+        throw new BadRequestException(
+          `Voucher with ID ${voucherId} is max usage`,
+        );
+      }
     }
 
     // Voucher amount
