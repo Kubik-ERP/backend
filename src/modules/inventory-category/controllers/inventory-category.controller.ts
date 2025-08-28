@@ -11,7 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { InventoryCategoryService } from '../services/inventory-category.service';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import {
   ApiBearerAuth,
   ApiHeader,
@@ -32,7 +33,8 @@ export class InventoryCategoryController {
     private readonly inventoryCategoryService: InventoryCategoryService,
   ) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('category_management')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -53,7 +55,8 @@ export class InventoryCategoryController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('category_management', 'manage_item')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -74,7 +77,8 @@ export class InventoryCategoryController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('category_management')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -92,7 +96,8 @@ export class InventoryCategoryController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('category_management')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -114,7 +119,8 @@ export class InventoryCategoryController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('category_management')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',

@@ -10,7 +10,8 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import {
   ApiBearerAuth,
   ApiHeader,
@@ -32,7 +33,8 @@ export class StorageLocationsController {
     private readonly storageLocationsService: StorageLocationsService,
   ) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_storage_location')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -53,7 +55,8 @@ export class StorageLocationsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_storage_location', 'manage_item')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -74,7 +77,8 @@ export class StorageLocationsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_storage_location')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -92,7 +96,8 @@ export class StorageLocationsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_storage_location')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -114,7 +119,8 @@ export class StorageLocationsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_storage_location')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',

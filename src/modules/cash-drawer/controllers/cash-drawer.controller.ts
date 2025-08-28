@@ -27,7 +27,8 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { UsersService } from 'src/modules/users/services/users.service';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import {
@@ -37,7 +38,7 @@ import {
 import { formatPaginatedResult } from 'src/common/helpers/pagination.helpers';
 
 @Controller('cash-drawer')
-@UseGuards(AuthenticationJWTGuard)
+@UseGuards(AuthPermissionGuard)
 @ApiBearerAuth()
 export class CashDrawerController {
   // Controller methods will be defined here in the future
@@ -50,6 +51,7 @@ export class CashDrawerController {
 
   @HttpCode(200)
   @ApiOperation({ summary: 'Get Cash Drawer List' })
+  @RequirePermissions('set_up_cash_drawer', 'close_cash_register')
   @Get('list/:storeId')
   @ApiParam({
     name: 'storeId',
@@ -85,6 +87,7 @@ export class CashDrawerController {
 
   @HttpCode(200)
   @ApiOperation({ summary: 'Get Today Status' })
+  @RequirePermissions('set_up_cash_drawer', 'close_cash_register')
   @Get('status/:storeId')
   @ApiParam({
     name: 'storeId',
@@ -118,6 +121,7 @@ export class CashDrawerController {
     description:
       'Owner user id dari payload, cashier: user id dari login information',
   })
+  @RequirePermissions('set_up_cash_drawer')
   @ApiParam({
     name: 'storeId',
     description: 'ID of the store where the cash drawer is opened',
@@ -154,6 +158,7 @@ export class CashDrawerController {
   @Put('edit/:cashDrawerId')
   @HttpCode(200)
   @ApiOperation({ summary: 'Edit cash drawer details' })
+  @RequirePermissions('set_up_cash_drawer')
   @ApiParam({
     name: 'cashDrawerId',
     description: 'ID of the cash drawer to edit',
@@ -182,6 +187,7 @@ export class CashDrawerController {
 
   //Implement the addTransaction method to handle adding transactions to the cash drawer
   @HttpCode(200)
+  @RequirePermissions('cash_in_out')
   @ApiParam({
     name: 'type',
     enum: ['in', 'out'],
@@ -227,6 +233,7 @@ export class CashDrawerController {
     summary: 'Close cash drawer',
     description: 'Close Case Drawer',
   })
+  @RequirePermissions('close_cash_register')
   @Post('close/:cashDrawerId')
   @ApiParam({
     name: 'cashDrawerId',
@@ -245,6 +252,7 @@ export class CashDrawerController {
     description:
       'type: 0=> opening, 1 => cash in, 2 => sale, 3 => cash out, 4 => refund, 5 =>closing',
   })
+  @RequirePermissions('cash_in_out')
   @Get('transactions/:cashDrawerId')
   async getCashDrawerTransactions(
     @Param('cashDrawerId') cashDrawerId: string,
@@ -271,6 +279,7 @@ export class CashDrawerController {
   }
 
   @Get('details/:cashDrawerId')
+  @RequirePermissions('set_up_cash_drawer', 'close_cash_register')
   @ApiParam({
     name: 'cashDrawerId',
     description: 'ID of the cash drawer to retrieve details for',
@@ -292,6 +301,7 @@ export class CashDrawerController {
   }
 
   @Get('transaction/summary/:cashDrawerId')
+  @RequirePermissions('cash_in_out')
   @ApiParam({
     name: 'cashDrawerId',
     description: 'ID of the cash drawer',
@@ -322,6 +332,7 @@ export class CashDrawerController {
   }
 
   @Get('transaction/cashflow')
+  @RequirePermissions('cash_in_out')
   async getCashFlow(
     @Req() req: ICustomRequestHeaders,
     @Query() params: CashFlowParamsDto,

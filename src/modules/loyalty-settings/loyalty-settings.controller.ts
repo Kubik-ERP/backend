@@ -12,7 +12,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CreateLoyaltySettingDto } from './dto/create-loyalty-setting.dto';
 import { LoyaltyProductItemQueryDto } from './dto/loyalty-product-items-query.dto';
@@ -28,7 +29,8 @@ export class LoyaltySettingsController {
 
   @ApiOperation({ summary: 'Create Loyalty Setting' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -52,7 +54,8 @@ export class LoyaltySettingsController {
 
   @ApiOperation({ summary: 'Get All Loyalty Settings' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -70,7 +73,8 @@ export class LoyaltySettingsController {
 
   @ApiOperation({ summary: 'Get All Loyalty Product Settings' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
   @Get(':id/product')
   async findAllProductSettings(
     @Query() query: LoyaltyProductItemQueryDto,
@@ -86,6 +90,9 @@ export class LoyaltySettingsController {
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
+  @ApiBearerAuth()
   @Get(':storeId')
   findOne(@Param('storeId') storeId: string) {
     return this.loyaltySettingsService.findOne(+storeId);
@@ -93,7 +100,8 @@ export class LoyaltySettingsController {
 
   @ApiOperation({ summary: 'Update Loyalty Setting' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -111,7 +119,8 @@ export class LoyaltySettingsController {
 
   @ApiOperation({ summary: 'Update Loyalty Setting Item' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
   @Put('item/:id')
   async updateSettingItem(
     @Param('id') id: string,
@@ -127,6 +136,9 @@ export class LoyaltySettingsController {
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('general_loyalty_point_configuration')
+  @ApiBearerAuth()
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.loyaltySettingsService.remove(+id);

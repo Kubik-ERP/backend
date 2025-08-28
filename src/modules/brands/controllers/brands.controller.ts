@@ -11,7 +11,8 @@ import {
   Req,
 } from '@nestjs/common';
 import { BrandsService } from '../services/brands.service';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -26,7 +27,8 @@ import { CreateBrandDto, UpdateBrandDto, GetBrandsDto } from '../dtos';
 export class BrandsController {
   constructor(private readonly brandsService: BrandsService) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_brand')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -49,7 +51,8 @@ export class BrandsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_brand', 'manage_item')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -72,7 +75,8 @@ export class BrandsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_brand')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -95,7 +99,8 @@ export class BrandsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_brand')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -119,7 +124,8 @@ export class BrandsController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_brand')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',

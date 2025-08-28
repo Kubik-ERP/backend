@@ -34,6 +34,8 @@ import { TemplatesEmailService } from '../../templates-email/services/templates-
 // Enum
 import { EmailTemplateType } from '../../../enum/EmailTemplateType-enum';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 
 @Controller('invoice')
 export class InvoiceController {
@@ -43,19 +45,35 @@ export class InvoiceController {
     private readonly templatesEmailService: TemplatesEmailService,
   ) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('daily_sales')
   @ApiBearerAuth()
   @Get('')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @ApiOperation({
     summary: 'Get List of invoices',
   })
-  public async invoiceList(@Query() query: GetListInvoiceDto) {
-    const response = await this.invoiceService.getInvoices(query);
+  public async invoiceList(
+    @Req() req: ICustomRequestHeaders,
+    @Query() query: GetListInvoiceDto,
+  ) {
+    const response = await this.invoiceService.getInvoices(req, query);
     return {
       result: toCamelCase(response),
     };
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'check_out_sales',
+    'process_unpaid_invoice',
+    'daily_sales',
+  )
   @Get(':invoiceId')
   @ApiOperation({
     summary: 'Get invoice by invoice ID',
@@ -70,7 +88,8 @@ export class InvoiceController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('queue')
   @ApiBearerAuth()
   @Put('order/status/:invoiceId')
   @ApiOperation({
@@ -90,7 +109,12 @@ export class InvoiceController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'check_out_sales',
+    'process_unpaid_invoice',
+    'daily_sales',
+  )
   @ApiBearerAuth()
   @Post('sent-email/:invoiceId')
   @ApiOperation({
@@ -125,7 +149,8 @@ export class InvoiceController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('check_out_sales')
   @ApiBearerAuth()
   @Post('process/instant')
   @ApiHeader({
@@ -147,7 +172,8 @@ export class InvoiceController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('check_out_sales')
   @ApiBearerAuth()
   @Post('process/checkout')
   @ApiHeader({
@@ -169,7 +195,8 @@ export class InvoiceController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('check_out_sales')
   @ApiBearerAuth()
   @Put(':invoiceId')
   @ApiHeader({
@@ -197,7 +224,8 @@ export class InvoiceController {
     };
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('process_unpaid_invoice')
   @ApiBearerAuth()
   @Post('process/payment')
   @ApiHeader({
@@ -245,7 +273,8 @@ export class InvoiceController {
     return await this.invoiceService.handlePaymentCoreCallback(callbackData);
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('process_unpaid_invoice', 'check_out_sales')
   @ApiBearerAuth()
   @Post('calculate/estimation')
   @ApiOperation({

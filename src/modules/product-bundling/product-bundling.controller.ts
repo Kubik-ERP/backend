@@ -11,7 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { CreateProductBundlingDto } from './dto/create-product-bundling.dto';
 import { QueryProductBundling } from './dto/query-product-bundling.dto';
 import { UpdateProductBundlingDto } from './dto/update-product-bundling.dto';
@@ -25,7 +26,8 @@ export class ProductBundlingController {
 
   @ApiOperation({ summary: 'Create Product Bundling' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -49,7 +51,8 @@ export class ProductBundlingController {
 
   @ApiOperation({ summary: 'Get Product Bundling' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -70,7 +73,8 @@ export class ProductBundlingController {
 
   @ApiOperation({ summary: 'Detail Product Bundling' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const data = await this.productBundlingService.findOne(id);
@@ -82,7 +86,8 @@ export class ProductBundlingController {
 
   @ApiOperation({ summary: 'Update Product Bundling' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -100,7 +105,8 @@ export class ProductBundlingController {
 
   @ApiOperation({ summary: 'Delete Product Bundling' })
   @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
   @Delete(':id')
   async remove(@Param('id') id: string) {
     const data = await this.productBundlingService.remove(id);

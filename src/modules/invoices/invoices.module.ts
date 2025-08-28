@@ -18,6 +18,7 @@ import { CashDrawerService } from '../cash-drawer/services/cash-drawer.service';
 import { VariantsService } from '../variants/variants.service';
 import { ProductsService } from '../products/products.service';
 import { VouchersService } from '../vouchers/vouchers.service';
+import { Reflector } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { VouchersService } from '../vouchers/vouchers.service';
     VariantsService,
     ProductsService,
     VouchersService,
+    Reflector,
   ],
   controllers: [InvoiceSettingController, InvoiceController],
   exports: [

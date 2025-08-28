@@ -65,15 +65,51 @@ export class PermissionsService {
     });
   }
 
-  async findAll() {
+  async findAll(header: ICustomRequestHeaders) {
+    const store_id = requireStoreId(header);
     this.logger.log('Fetching all permission categories with permissions');
     const result = await this._prisma.permission_categories.findMany({
+      where: {
+        // hide kategori yang tidak sesuai dengan paket langganan yang dimiliki user
+        permissions: {
+          some: {
+            sub_package_access: {
+              some: {
+                subs_package: {
+                  users: {
+                    some: {
+                      id: header.user.id,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       include: {
         permissions: {
+          where: {
+            // hide permission yang tidak sesuai dengan paket langganan yang dimiliki user
+            sub_package_access: {
+              some: {
+                subs_package: {
+                  users: {
+                    some: {
+                      id: header.user.id,
+                    },
+                  },
+                },
+              },
+            },
+          },
           include: {
             store_role_permissions: {
-              include: {
-                roles: true,
+              where: {
+                store_id: store_id,
+              },
+              select: {
+                role_id: true,
               },
             },
           },
@@ -82,5 +118,48 @@ export class PermissionsService {
     });
     this.logger.log(`Found ${result.length} permission categories`);
     return result;
+  }
+
+  async me(header: ICustomRequestHeaders) {
+    const store_id = requireStoreId(header);
+    const result = await this._prisma.users.findUnique({
+      where: { id: header.user.id },
+      select: {
+        roles: {
+          select: {
+            store_role_permissions: {
+              select: {
+                permissions: {
+                  select: {
+                    key: true,
+                  },
+                },
+              },
+              where: {
+                store_id: store_id,
+                // hide permission yang tidak sesuai dengan paket langganan yang dimiliki user
+                permissions: {
+                  sub_package_access: {
+                    some: {
+                      subs_package: {
+                        users: {
+                          some: {
+                            id: header.user.id,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return result?.roles.store_role_permissions.map(
+      (item) => item.permissions.key,
+    );
   }
 }

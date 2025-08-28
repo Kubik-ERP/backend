@@ -75,7 +75,12 @@ export class InvoiceService {
     private readonly _voucherService: VouchersService,
   ) {}
 
-  public async getInvoices(request: GetListInvoiceDto) {
+  public async getInvoices(
+    header: ICustomRequestHeaders,
+    request: GetListInvoiceDto,
+  ) {
+    const storeId = validateStoreId(header.store_id);
+
     const {
       page,
       pageSize,
@@ -111,6 +116,7 @@ export class InvoiceService {
         order_type: { in: Array.isArray(orderType) ? orderType : [orderType] },
       }),
       ...(invoiceNumber && { invoice_number: { equals: invoiceNumber } }),
+      store_id: storeId, // Filter by store ID
     };
 
     const [items, total] = await Promise.all([
@@ -130,8 +136,44 @@ export class InvoiceService {
       }),
     ]);
 
+    // Add queue number for each invoice based on created_at order in the same day
+    const itemsWithQueue = await Promise.all(
+      items.map(async (invoice) => {
+        if (!invoice.created_at) {
+          return {
+            ...invoice,
+            queue: 0, // If no created_at, set queue to 0
+          };
+        }
+
+        const invoiceDate = new Date(invoice.created_at);
+        const startOfDay = new Date(invoiceDate);
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const endOfDay = new Date(invoiceDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // Count invoices created before this invoice on the same day in the same store
+        const queueNumber = await this._prisma.invoice.count({
+          where: {
+            store_id: storeId,
+            created_at: {
+              gte: startOfDay,
+              lte: endOfDay,
+              lt: invoice.created_at,
+            },
+          },
+        });
+
+        return {
+          ...invoice,
+          queue: queueNumber + 1, // Queue starts from 1
+        };
+      }),
+    );
+
     return {
-      items,
+      items: itemsWithQueue,
       meta: {
         page,
         pageSize,
@@ -170,9 +212,35 @@ export class InvoiceService {
       );
     }
 
+    // Calculate queue number for this invoice based on created_at order in the same day
+    let queueNumber = 0;
+    if (invoice.created_at && invoice.store_id) {
+      const invoiceDate = new Date(invoice.created_at);
+      const startOfDay = new Date(invoiceDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(invoiceDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Count invoices created before this invoice on the same day in the same store
+      const count = await this._prisma.invoice.count({
+        where: {
+          store_id: invoice.store_id,
+          created_at: {
+            gte: startOfDay,
+            lte: endOfDay,
+            lt: invoice.created_at,
+          },
+        },
+      });
+
+      queueNumber = count + 1; // Queue starts from 1
+    }
+
     // formatting returned response
     const formatted = {
       ...invoice,
+      queue: queueNumber,
       invoiceCharges: invoice.invoice_charges.map((c) => ({
         ...c,
         percentage: (c.percentage as Prisma.Decimal).toNumber(),
@@ -411,7 +479,7 @@ export class InvoiceService {
           tax_amount: null,
           service_charge_amount: null,
           grand_total: null,
-          cashier_id: header.user.id,
+          cashier_id: header.user?.id || null,
           invoice_number: invoiceNumber,
           order_status: order_status.placed,
           store_id: storeId,
@@ -521,15 +589,18 @@ export class InvoiceService {
             );
           }
 
-          // add cash drawer transaction
-          await this._cashDrawer.addCashDrawerTransaction(
-            cashDrawer?.id,
-            calculation.paymentAmount,
-            calculation.changeAmount,
-            2,
-            '', // notes still empty
-            header.user.id,
-          );
+          // Skip if cashDrawerId is undefined or null
+          if (cashDrawer) {
+            // add cash drawer transaction
+            await this._cashDrawer.addCashDrawerTransaction(
+              cashDrawer?.id,
+              calculation.paymentAmount,
+              calculation.changeAmount,
+              2,
+              '', // notes still empty
+              header.user?.id,
+            );
+          }
         }
       },
       { timeout: 500_000 },
@@ -586,7 +657,7 @@ export class InvoiceService {
         tax_amount: null,
         service_charge_amount: null,
         grand_total: null,
-        cashier_id: header.user.id,
+        cashier_id: header.user?.id || null,
         invoice_number: invoiceNumber,
         order_status: order_status.placed,
         store_id: storeId,
@@ -1199,15 +1270,18 @@ export class InvoiceService {
       );
     }
 
-    // add cash drawer transaction
-    await this._cashDrawer.addCashDrawerTransaction(
-      cashDrawer?.id,
-      paymentAmount,
-      changeAmount,
-      2,
-      '', // notes still empty
-      header.user.id,
-    );
+    // Skip if cashDrawerId is undefined or null
+    if (cashDrawer) {
+      // add cash drawer transaction
+      await this._cashDrawer.addCashDrawerTransaction(
+        cashDrawer?.id,
+        paymentAmount,
+        changeAmount,
+        2,
+        '', // notes still empty
+        header.user?.id,
+      );
+    }
 
     return {
       paymentMethodId: request.paymentMethodId,

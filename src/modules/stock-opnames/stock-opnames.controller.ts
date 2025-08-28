@@ -16,7 +16,8 @@ import { UpdateStockOpnameDto } from './dto/update-stock-opname.dto';
 import { ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { ApiHeader } from '@nestjs/swagger';
 import { ApiOperation } from '@nestjs/swagger';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { StockOpnamesListDto } from './dto/stock-opnames-list.dto';
 
@@ -25,7 +26,8 @@ export class StockOpnamesController {
   constructor(private readonly stockOpnamesService: StockOpnamesService) {}
 
   @ApiOperation({ summary: 'Create stock opname' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_stock_opname')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -48,7 +50,8 @@ export class StockOpnamesController {
   }
 
   @ApiOperation({ summary: 'Get all stock opnames' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_stock_opname')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -78,7 +81,8 @@ export class StockOpnamesController {
   }
 
   @ApiOperation({ summary: 'Get stock opname by id' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_stock_opname')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -111,7 +115,8 @@ export class StockOpnamesController {
   }
 
   @ApiOperation({ summary: 'Update stock opname' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_stock_opname')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -139,7 +144,8 @@ export class StockOpnamesController {
   }
 
   @ApiOperation({ summary: 'Cancel purchase order' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_stock_opname')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -166,7 +172,8 @@ export class StockOpnamesController {
   }
 
   @ApiOperation({ summary: 'Verify stock opname' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_stock_opname')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
