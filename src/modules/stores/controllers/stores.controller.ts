@@ -373,7 +373,7 @@ export class StoresController {
   @Get('/profile')
   @ApiOperation({ summary: 'Get store(s) by user ID' })
   @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('store_management')
+  @RequirePermissions('accounts')
   @ApiBearerAuth()
   public async getStoreByUser(@Req() req: ICustomRequestHeaders) {
     try {
@@ -395,7 +395,7 @@ export class StoresController {
   @Put('/profile')
   @ApiOperation({ summary: 'Update Profile For User' })
   @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('store_management')
+  @RequirePermissions('accounts')
   @ApiBearerAuth()
   @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiConsumes('multipart/form-data')
