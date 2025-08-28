@@ -236,8 +236,10 @@ export class DashboardService {
     endDate: Date,
     req: ICustomRequestHeaders,
   ) {
-    if (startDate >= endDate) {
-      throw new BadRequestException('endDate must be after startDate.');
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Start date must be earlier than or equal to end date',
+      );
     }
 
     const durationMs = endDate.getTime() - startDate.getTime();
