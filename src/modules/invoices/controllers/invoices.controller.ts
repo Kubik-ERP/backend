@@ -273,8 +273,9 @@ export class InvoiceController {
     return await this.invoiceService.handlePaymentCoreCallback(callbackData);
   }
 
-  @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('process_unpaid_invoice', 'check_out_sales')
+  // TODO: Nanti dibuka lagi
+  // @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('process_unpaid_invoice', 'check_out_sales')
   @ApiBearerAuth()
   @Post('calculate/estimation')
   @ApiOperation({

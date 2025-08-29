@@ -1465,7 +1465,7 @@ export class InvoiceService {
       }
 
       const discountAmount = (originalPrice - discountedPrice) * item.quantity;
-      const lineTotal = (productPrice + variantPrice) * item.quantity;
+      const lineTotal = (originalPrice + variantPrice) * item.quantity;
       discountTotal += discountAmount;
       total += lineTotal;
 
@@ -1473,6 +1473,7 @@ export class InvoiceService {
         productId: item.productId,
         variantId: item.variantId,
         productPrice,
+        originalPrice,
         variantPrice,
         qty: item.quantity,
         discountAmount: discountAmount,
