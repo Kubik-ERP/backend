@@ -68,12 +68,13 @@ export class InvoiceController {
     };
   }
 
-  @UseGuards(AuthPermissionGuard)
-  @RequirePermissions(
-    'check_out_sales',
-    'process_unpaid_invoice',
-    'daily_sales',
-  )
+  // TODO: Nanti dibuka lagi
+  // @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions(
+  //   'check_out_sales',
+  //   'process_unpaid_invoice',
+  //   'daily_sales',
+  // )
   @Get(':invoiceId')
   @ApiOperation({
     summary: 'Get invoice by invoice ID',
