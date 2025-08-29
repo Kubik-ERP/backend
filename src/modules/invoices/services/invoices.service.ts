@@ -1501,12 +1501,12 @@ export class InvoiceService {
 
       // set voucher amount
       voucherAmount = voucherCalculation.voucherAmount;
-
-      // replace it with grand total after voucher
-      total = voucherCalculation.grandTotal;
     }
 
     // --- end apply voucher
+
+    // Update total calculation: subTotal - discountTotal - voucherAmount
+    total = subTotal - discountTotal - voucherAmount;
 
     // applied tax and service
     // bacause tax and service only set one term, this part
@@ -1565,6 +1565,8 @@ export class InvoiceService {
         if (!serviceType) {
           taxBase += serviceAmount;
         }
+        // if Tax is always calculated from the total (after voucher deduction)
+        // const taxBase = total;
 
         if (tax.is_include) {
           // If tax include, count tax portion has included in taxBase
@@ -1607,20 +1609,20 @@ export class InvoiceService {
     }
 
     return {
-      total,
+      subTotal,
       discountTotal,
-      taxId: taxId,
+      voucherAmount,
+      total,
       tax: taxAmount,
+      serviceCharge: serviceAmount,
+      grandTotal,
+      taxId: taxId,
       taxInclude: taxType,
       serviceChargeId: serviceChargeId,
-      serviceCharge: serviceAmount,
       serviceChargeInclude: serviceType,
-      grandTotal,
       paymentAmount,
       changeAmount,
       items,
-      voucherAmount,
-      subTotal,
     };
   }
 
