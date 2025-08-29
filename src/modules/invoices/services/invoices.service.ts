@@ -703,8 +703,58 @@ export class InvoiceService {
     const invoiceId = uuidv4();
     const now = new Date();
     const invoiceNumber = await this.generateInvoiceNumber(storeId);
+    let totalProductDiscount: number = 0;
     let kitchenQueue: KitchenQueueAdd[] = [];
+
     await this._prisma.$transaction(async (tx) => {
+      // Calculate subtotal from original prices and total product discount
+      let originalSubtotal = 0;
+      let calculatedTotalProductDiscount = 0;
+
+      for (const detail of request.products) {
+        const product = await this._prisma.products.findUnique({
+          where: { id: detail.productId },
+          select: { price: true, discount_price: true },
+        });
+
+        if (!product) {
+          this.logger.error(`Product with ID ${detail.productId} not found`);
+          throw new NotFoundException(
+            `Product with ID ${detail.productId} not found`,
+          );
+        }
+
+        const originalPrice = product.price ?? 0;
+        const discountPrice = product.discount_price ?? 0;
+        const productDiscount = originalPrice - discountPrice;
+
+        // Get variant price if variant exists
+        let variantPrice = 0;
+        const validVariantId = await this.validateProductVariant(
+          detail.productId,
+          detail.variantId,
+        );
+
+        if (validVariantId) {
+          const variant = await this._prisma.variant.findUnique({
+            where: { id: validVariantId },
+            select: { price: true },
+          });
+
+          if (variant) {
+            variantPrice = variant.price ?? 0;
+          }
+        }
+
+        // Calculate subtotal including variant price
+        const itemSubtotal = (originalPrice + variantPrice) * detail.quantity;
+        originalSubtotal += itemSubtotal;
+        calculatedTotalProductDiscount += productDiscount * detail.quantity;
+      }
+
+      // Set the total product discount to be used outside transaction
+      totalProductDiscount = calculatedTotalProductDiscount;
+
       const calculation = await this.calculateTotal(tx, request);
 
       const invoiceData = {
@@ -715,7 +765,7 @@ export class InvoiceService {
         payment_status: invoice_type.unpaid,
         discount_amount: 0, // need to confirm
         order_type: request.orderType,
-        subtotal: calculation.subTotal, // harga sebelum potongan voucher
+        subtotal: originalSubtotal, // subtotal dari original price + variant
         created_at: now,
         update_at: now,
         delete_at: null,
@@ -733,27 +783,51 @@ export class InvoiceService {
         payment_amount: null,
         change_amount: null,
         // voucher applied
-        voucher_id: request.voucherId ?? null,
+        voucher_id:
+          request.voucherId && request.voucherId.trim() !== ''
+            ? request.voucherId
+            : null,
         voucher_amount: calculation.voucherAmount ?? 0,
-        total_product_discount: 0,
+        total_product_discount: calculatedTotalProductDiscount,
       };
 
       // create invoice with status unpaid
       await this.create(tx, invoiceData);
 
-      request.products.forEach(async (detail) => {
+      for (const detail of request.products) {
+        // Get product data for prices
+        const product = await this._prisma.products.findUnique({
+          where: { id: detail.productId },
+          select: { price: true, discount_price: true },
+        });
+
+        if (!product) {
+          this.logger.error(`Product with ID ${detail.productId} not found`);
+          throw new NotFoundException(
+            `Product with ID ${detail.productId} not found`,
+          );
+        }
+
+        const originalPrice = product.price ?? 0;
+        const discountPrice = product.discount_price ?? 0;
+        const productDiscount = originalPrice - discountPrice;
+
         // find the price
-        let productPrice = 0,
-          variantPrice = 0;
+        let variantPrice = 0;
         const found = calculation.items.find(
           (p) =>
             p.productId === detail.productId &&
             p.variantId === detail.variantId,
         );
         if (found) {
-          productPrice = found.productPrice;
           variantPrice = found.variantPrice;
         }
+
+        // validate product has variant
+        const validVariantId = await this.validateProductVariant(
+          detail.productId,
+          detail.variantId,
+        );
 
         // create invoice detail ID
         const invoiceDetailId = uuidv4();
@@ -761,13 +835,13 @@ export class InvoiceService {
           id: invoiceDetailId,
           invoice_id: invoiceId,
           product_id: detail.productId,
-          product_price: productPrice,
+          product_price: originalPrice, // menggunakan original price
           notes: detail.notes,
           order_type: request.orderType,
           qty: detail.quantity,
-          variant_id: detail.variantId,
+          variant_id: validVariantId,
           variant_price: variantPrice,
-          product_discount: 0,
+          product_discount: productDiscount, // discount per unit
         };
 
         // create invoice with status unpaid
@@ -792,7 +866,7 @@ export class InvoiceService {
 
           kitchenQueue.push(queue);
         }
-      });
+      }
 
       // insert the customer has invoice
       await this.createCustomerInvoice(tx, invoiceId, request.customerId);
@@ -803,6 +877,7 @@ export class InvoiceService {
 
     const result = {
       orderId: invoiceId,
+      totalProductDiscount: totalProductDiscount,
     };
 
     // notify the FE
