@@ -99,12 +99,12 @@ export class StoresService {
 
   public async updateStore(
     storeId: string,
-    userId: number,
+    ownerId: number,
     data: CreateStoreDto,
   ): Promise<void> {
     await this.prisma.$transaction(async (prisma) => {
       const store = await prisma.stores.findUnique({
-        where: { id: storeId, user_has_stores: { some: { user_id: userId } } },
+        where: { id: storeId, user_has_stores: { some: { user_id: ownerId } } },
       });
 
       if (!store) {
@@ -278,14 +278,17 @@ export class StoresService {
   }
 
   public async getAllStores(dto: StoresListDto, header: ICustomRequestHeaders) {
-    const userId = header.user.id;
+    const ownerId = header.user.ownerId;
+    if (!ownerId) {
+      throw new BadRequestException('Owner not found');
+    }
 
     // --- Fetch data
     const [items, total] = await Promise.all([
       this.prisma.stores.findMany({
         where: {
           user_has_stores: {
-            some: { user_id: userId },
+            some: { user_id: ownerId },
           },
         },
         skip: getOffset(dto.page, dto.pageSize),
@@ -297,7 +300,7 @@ export class StoresService {
       this.prisma.stores.count({
         where: {
           user_has_stores: {
-            some: { user_id: userId },
+            some: { user_id: ownerId },
           },
         },
       }),
@@ -390,11 +393,11 @@ export class StoresService {
 
   public async updateOperationalHours(
     header: ICustomRequestHeaders,
-    userId: number,
+    ownerId: number,
     businessHours: CreateStoreDto['businessHours'],
   ): Promise<void> {
     const storeID = header.store_id;
-    const isValid = await this.validateStore(storeID!, userId);
+    const isValid = await this.validateStore(storeID!, ownerId);
     if (!isValid) {
       throw new BadRequestException('Unauthorized or store not found');
     }
@@ -416,10 +419,10 @@ export class StoresService {
 
   public async validateStore(
     storeId: string,
-    userId: number,
+    ownerId: number,
   ): Promise<boolean> {
     const store = await this.prisma.stores.findUnique({
-      where: { id: storeId, user_has_stores: { some: { user_id: userId } } },
+      where: { id: storeId, user_has_stores: { some: { user_id: ownerId } } },
     });
     return !!store;
   }

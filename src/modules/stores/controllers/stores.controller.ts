@@ -158,7 +158,7 @@ export class StoresController {
 
       const createdStore = await this._storeService.createStore(
         { ...body, photo: relativePath },
-        req.user.id,
+        req.user.ownerId,
       );
       return {
         message: 'Store created successfully',
@@ -248,7 +248,7 @@ export class StoresController {
         relativePath = result.filename;
       }
 
-      await this._storeService.updateStore(id, req.user.id, {
+      await this._storeService.updateStore(id, req.user.ownerId, {
         ...body,
         photo: relativePath,
       });
@@ -264,7 +264,8 @@ export class StoresController {
   }
 
   @ApiOperation({ summary: 'Get all stores' })
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(OwnerOrPermissionGuard)
+  @RequirePermissions('access_all_store')
   @ApiBearerAuth()
   @Get('/')
   public async getAllStores(
@@ -359,7 +360,7 @@ export class StoresController {
     @Param('id') id: string,
   ) {
     try {
-      await this._storeService.deleteStore(id, req.user.id);
+      await this._storeService.deleteStore(id, req.user.ownerId);
       return { message: 'Store deleted successfully' };
     } catch (error) {
       console.log(error);
@@ -373,7 +374,7 @@ export class StoresController {
   @Get('/profile')
   @ApiOperation({ summary: 'Get store(s) by user ID' })
   @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('store_management')
+  @RequirePermissions('accounts')
   @ApiBearerAuth()
   public async getStoreByUser(@Req() req: ICustomRequestHeaders) {
     try {
@@ -395,7 +396,7 @@ export class StoresController {
   @Put('/profile')
   @ApiOperation({ summary: 'Update Profile For User' })
   @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('store_management')
+  @RequirePermissions('accounts')
   @ApiBearerAuth()
   @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiConsumes('multipart/form-data')
@@ -475,7 +476,7 @@ export class StoresController {
     try {
       await this._storeService.updateOperationalHours(
         req,
-        req.user.id,
+        req.user.ownerId,
         body.businessHours,
       );
 

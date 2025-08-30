@@ -74,6 +74,7 @@ export class SubscriptionService {
     email: string,
     subscriptionId: string,
     expiredAt: Date,
+    quantity: number,
   ) {
     const sub = await this.prisma.subs_package.findUnique({
       where: {
@@ -85,13 +86,54 @@ export class SubscriptionService {
       throw new BadRequestException('Subscription not found');
     }
 
-    return await this.prisma.users.update({
+    const user = await this.prisma.users.findUnique({
+      where: { email: email },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      await tx.user_sub_logs.create({
+        data: {
+          expired_at: new Date(expiredAt),
+          user_id: user.id,
+          package_id: subscriptionId,
+          store_quota: quantity,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      });
+
+      return await tx.users.update({
+        where: {
+          email: email,
+        },
+        data: {
+          subs_id: subscriptionId,
+          sub_expired_at: new Date(expiredAt),
+          store_quota: quantity,
+        },
+      });
+    });
+  }
+
+  async getUserSubscriptionHistory(email: string) {
+    const user = await this.prisma.users.findUnique({
+      where: { email: email },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    return await this.prisma.user_sub_logs.findMany({
       where: {
-        email: email,
+        user_id: user.id,
       },
-      data: {
-        subs_id: subscriptionId,
-        sub_expired_at: new Date(expiredAt),
+      orderBy: {
+        created_at: 'desc',
       },
     });
   }

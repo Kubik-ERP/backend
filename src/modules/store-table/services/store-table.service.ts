@@ -14,7 +14,7 @@ export class StoreTableService {
   async createConfiguration(
     dto: CreateAccountStoreConfigurationDto,
     storeId: string,
-    userId: number,
+    ownerId: number,
   ) {
     const result = [];
 
@@ -23,7 +23,7 @@ export class StoreTableService {
       const createdFloor = await this.prisma.store_floors.create({
         data: {
           id: floorId,
-          uid: userId,
+          uid: ownerId,
           store_id: storeId,
           floor_name: floor.floorName,
         },
@@ -32,7 +32,7 @@ export class StoreTableService {
       if (floor.tables?.length) {
         const tableData = floor.tables.map((table) => ({
           id: uuidv4(),
-          uid: userId,
+          uid: ownerId,
           store_id: storeId,
           floor_id: floorId,
           name: table.name,
@@ -58,10 +58,10 @@ export class StoreTableService {
     floorId: string,
     dto: CreateAccountStoreConfigurationDto,
     storeId: string,
-    userId: number,
+    ownerId: number,
   ) {
     const floor = await this.prisma.store_floors.findFirst({
-      where: { id: floorId, store_id: storeId, uid: userId },
+      where: { id: floorId, store_id: storeId, uid: ownerId },
     });
 
     if (!floor)
@@ -84,7 +84,7 @@ export class StoreTableService {
     if (config.tables?.length) {
       const tableData = config.tables.map((table) => ({
         id: uuidv4(),
-        uid: userId,
+        uid: ownerId,
         store_id: storeId,
         floor_id: floorId,
         name: table.name,
@@ -103,18 +103,18 @@ export class StoreTableService {
     return { success: true, updatedFloorId: floorId };
   }
 
-  async findAll(storeId: string, userId: number) {
+  async findAll(storeId: string, ownerId: number) {
     return this.prisma.store_floors.findMany({
-      where: { store_id: storeId, uid: userId },
+      where: { store_id: storeId, uid: ownerId },
       include: {
         store_tables: true,
       },
     });
   }
 
-  async findOne(id: string, storeId: string, userId: number) {
+  async findOne(id: string, storeId: string, ownerId: number) {
     const floor = await this.prisma.store_floors.findFirst({
-      where: { id, store_id: storeId, uid: userId },
+      where: { id, store_id: storeId, uid: ownerId },
       include: { store_tables: true },
     });
 
@@ -123,9 +123,9 @@ export class StoreTableService {
     return floor;
   }
 
-  async delete(id: string, storeId: string, userId: number) {
+  async delete(id: string, storeId: string, ownerId: number) {
     const floor = await this.prisma.store_floors.findFirst({
-      where: { id, store_id: storeId, uid: userId },
+      where: { id, store_id: storeId, uid: ownerId },
     });
 
     if (!floor)
