@@ -489,6 +489,7 @@ export class InvoiceService {
           // voucher applied
           voucher_id: request.voucherId ?? null,
           voucher_amount: 0,
+          total_product_discount: 0,
         };
 
         // create invoice with status unpaid
@@ -548,6 +549,7 @@ export class InvoiceService {
             qty: detail.quantity,
             variant_id: validVariantId,
             variant_price: variantPrice,
+            product_discount: 0,
           };
 
           // create invoice with status unpaid
@@ -667,6 +669,7 @@ export class InvoiceService {
         // voucher applied
         voucher_id: request.voucherId ?? null,
         voucher_amount: calculation.voucherAmount ?? 0,
+        total_product_discount: 0,
       };
 
       // create invoice with status unpaid
@@ -698,6 +701,7 @@ export class InvoiceService {
           qty: detail.quantity,
           variant_id: detail.variantId,
           variant_price: variantPrice,
+          product_discount: 0,
         };
 
         // create invoice with status unpaid
@@ -1067,6 +1071,7 @@ export class InvoiceService {
       qty: product.quantity,
       variant_id: product.variantId ?? null,
       variant_price: variantPrice ?? 0,
+      product_discount: 0,
     };
 
     await this.createInvoiceDetail(tx, invoiceDetailData);
