@@ -35,6 +35,10 @@ import {
   UpdateInventoryItemDto,
   PreviewImportDto,
   ImportPreviewResponseDto,
+  ExecuteImportDto,
+  ExecuteImportResponseDto,
+  DeleteBatchDto,
+  DeleteBatchResponseDto,
 } from '../dtos';
 import {
   CreateStockAdjustmentDto,
@@ -114,6 +118,54 @@ export class InventoryItemsController {
     return {
       message: 'Import preview processed successfully',
       result: toCamelCase(result),
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('import/execute')
+  @ApiOperation({
+    summary: 'Execute import of inventory items from temp table',
+  })
+  async executeImport(
+    @Body() dto: ExecuteImportDto,
+    @Req() req: ICustomRequestHeaders,
+  ): Promise<{ message: string; result: ExecuteImportResponseDto }> {
+    const result = await this.inventoryItemsService.executeImport(
+      dto.batchId,
+      req,
+    );
+    return {
+      message: 'Import executed successfully',
+      result: toCamelCase(result) as ExecuteImportResponseDto,
+    };
+  }
+
+  @ApiBearerAuth()
+  @Delete('import/batch')
+  @ApiOperation({
+    summary: 'Delete import batch from temp table',
+    description:
+      'Delete all records in temp_import_inventory_items table for the specified batch_id',
+  })
+  @ApiBody({ type: DeleteBatchDto })
+  async deleteBatch(
+    @Body() dto: DeleteBatchDto,
+  ): Promise<{ message: string; result: DeleteBatchResponseDto }> {
+    const result = await this.inventoryItemsService.deleteBatch(dto.batchId);
+    return {
+      message: 'Import batch deleted successfully',
+      result: {
+        success: true,
+        message: `Successfully deleted ${result.deletedCount} records`,
+        deletedCount: result.deletedCount,
+      },
     };
   }
 

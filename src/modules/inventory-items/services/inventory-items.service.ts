@@ -12,6 +12,7 @@ import {
   GetInventoryItemsDto,
   UpdateInventoryItemDto,
   ImportPreviewResponseDto,
+  DeleteBatchResponseDto,
 } from '../dtos';
 import {
   CreateStockAdjustmentDto,
@@ -283,7 +284,7 @@ export class InventoryItemsService {
         : '';
 
     // Add sample row at row 4 using dropdown-compatible data with "code | name" format
-    sheet.insertRow(4, [
+    const sampleRow = sheet.insertRow(4, [
       'Sample Item Name', // Item Name
       sampleBrand, // Brand - use first brand from database for dropdown compatibility
       'SAMPLE123', // Barcode
@@ -294,11 +295,21 @@ export class InventoryItemsService {
       100, // Stock Quantity
       10, // Minimum Stock Quantity
       20, // Reorder Level
-      '2025-12-30', // Expiry Date
+      new Date('2025-12-12'), // Expiry Date - as Date object
       sampleStorage, // Storage Location - use first storage from database for dropdown compatibility
       15000, // Price Per Unit
       sampleSupplier, // Supplier - use first supplier from database for dropdown compatibility
     ]);
+
+    // Format the expiry date column (column 11) as date with YYYY-MM-DD format
+    const expiryDateCell = sampleRow.getCell(11);
+    expiryDateCell.numFmt = 'yyyy-mm-dd';
+
+    // Apply date formatting to the entire expiry date column for future entries
+    for (let row = 5; row <= 1000; row++) {
+      const cell = sheet.getCell(`K${row}`); // Column K is the 11th column (Expiry Date)
+      cell.numFmt = 'yyyy-mm-dd';
+    }
 
     // Return as buffer
     const buf = await workbook.xlsx.writeBuffer();
@@ -426,13 +437,13 @@ export class InventoryItemsService {
         }
 
         if (processedRow.brand?.trim()) {
-          // Extract ID from "ID | Name" format
-          const brandId = this.extractIdFromReference(processedRow.brand);
-          if (brandId) {
+          // Extract code from "code | Name" format
+          const brandCode = this.extractCodeFromReference(processedRow.brand);
+          if (brandCode) {
             // Verify brand exists and belongs to store
             const brandExists = await this._prisma.master_brands.findFirst({
               where: {
-                id: brandId,
+                code: brandCode,
                 stores_has_master_brands: { some: { stores_id: store_id } },
               },
             });
@@ -440,7 +451,7 @@ export class InventoryItemsService {
               errors.push('Brand not found or does not belong to this store');
             }
           } else {
-            errors.push('Invalid brand format. Expected format: "ID | Name"');
+            errors.push('Invalid brand format. Expected format: "code | Name"');
           }
         } else {
           errors.push('Brand is required');
@@ -516,12 +527,14 @@ export class InventoryItemsService {
         }
 
         if (processedRow.category?.trim()) {
-          const categoryId = this.extractIdFromReference(processedRow.category);
-          if (categoryId) {
+          const categoryCode = this.extractCodeFromReference(
+            processedRow.category,
+          );
+          if (categoryCode) {
             const categoryExists =
               await this._prisma.master_inventory_categories.findFirst({
                 where: {
-                  id: categoryId,
+                  code: categoryCode,
                   stores_has_master_inventory_categories: {
                     some: { stores_id: store_id },
                   },
@@ -534,7 +547,7 @@ export class InventoryItemsService {
             }
           } else {
             errors.push(
-              'Invalid category format. Expected format: "ID | Name"',
+              'Invalid category format. Expected format: "code | Name"',
             );
           }
         } else {
@@ -578,14 +591,14 @@ export class InventoryItemsService {
         }
 
         if (processedRow.storage_location?.trim()) {
-          const storageId = this.extractIdFromReference(
+          const storageCode = this.extractCodeFromReference(
             processedRow.storage_location,
           );
-          if (storageId) {
+          if (storageCode) {
             const storageExists =
               await this._prisma.master_storage_locations.findFirst({
                 where: {
-                  id: storageId,
+                  code: storageCode,
                   stores_has_master_storage_locations: {
                     some: { stores_id: store_id },
                   },
@@ -598,7 +611,7 @@ export class InventoryItemsService {
             }
           } else {
             errors.push(
-              'Invalid storage location format. Expected format: "ID | Name"',
+              'Invalid storage location format. Expected format: "code | Name"',
             );
           }
         } else {
@@ -615,23 +628,29 @@ export class InventoryItemsService {
           errors.push('Price per unit must be greater than 0');
         }
 
-        // Validate expiry_date format if provided
+        // Validate expiry_date if provided
         if (processedRow.expiry_date) {
-          const expiryDate = new Date(processedRow.expiry_date);
-          if (isNaN(expiryDate.getTime())) {
+          // processedRow.expiry_date is already a Date object from getDateValue()
+          if (processedRow.expiry_date instanceof Date) {
+            if (isNaN(processedRow.expiry_date.getTime())) {
+              errors.push('Invalid expiry date format');
+            } else if (processedRow.expiry_date < new Date()) {
+              errors.push('Expiry date cannot be in the past');
+            }
+          } else {
             errors.push('Invalid expiry date format');
-          } else if (expiryDate < new Date()) {
-            errors.push('Expiry date cannot be in the past');
           }
         }
 
         if (processedRow.supplier?.trim()) {
-          const supplierId = this.extractIdFromReference(processedRow.supplier);
-          if (supplierId) {
+          const supplierCode = this.extractCodeFromReference(
+            processedRow.supplier,
+          );
+          if (supplierCode) {
             const supplierExists =
               await this._prisma.master_suppliers.findFirst({
                 where: {
-                  id: supplierId,
+                  code: supplierCode,
                   stores_has_master_suppliers: {
                     some: { stores_id: store_id },
                   },
@@ -644,7 +663,7 @@ export class InventoryItemsService {
             }
           } else {
             errors.push(
-              'Invalid supplier format. Expected format: "ID | Name"',
+              'Invalid supplier format. Expected format: "code | Name"',
             );
           }
         } else {
@@ -722,7 +741,7 @@ export class InventoryItemsService {
         stock_quantity: row.stock_quantity,
         minimum_stock_quantity: row.minimum_stock_quantity,
         reorder_level: row.reorder_level,
-        expiry_date: row.expiry_date,
+        expiry_date: this.formatDateToYYYYMMDD(row.expiry_date),
         storage_location: row.storage_location,
         price_per_unit: row.price_per_unit,
         supplier: row.supplier,
@@ -740,12 +759,204 @@ export class InventoryItemsService {
         stock_quantity: row.stock_quantity,
         minimum_stock_quantity: row.minimum_stock_quantity,
         reorder_level: row.reorder_level,
-        expiry_date: row.expiry_date,
+        expiry_date: this.formatDateToYYYYMMDD(row.expiry_date),
         storage_location: row.storage_location,
         price_per_unit: row.price_per_unit,
         supplier: row.supplier,
         error_messages: row.error_messages,
       })),
+    };
+  }
+
+  /**
+   * Execute import of inventory items from temp table to master table
+   */
+  public async executeImport(batchId: string, header: ICustomRequestHeaders) {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+
+    // Validate that batch exists
+    const batchCount = await this._prisma.temp_import_inventory_items.count({
+      where: { batch_id: batchId },
+    });
+
+    if (batchCount === 0) {
+      throw new NotFoundException(`Batch with ID ${batchId} not found`);
+    }
+
+    // Check if there are any invalid records in the batch
+    const invalidRecords =
+      await this._prisma.temp_import_inventory_items.findMany({
+        where: {
+          batch_id: batchId,
+          status: 'invalid',
+        },
+        select: {
+          row_number: true,
+        },
+        orderBy: {
+          row_number: 'asc',
+        },
+      });
+
+    if (invalidRecords.length > 0) {
+      const invalidRows = invalidRecords
+        .map((r) => r.row_number.toString())
+        .join(', ');
+      throw new BadRequestException(
+        `Cannot import batch with invalid records. Found ${invalidRecords.length} invalid record(s) at row(s): ${invalidRows}. Please fix the errors and re-upload the file.`,
+      );
+    }
+
+    // Get all valid items from temp table
+    const tempItems = await this._prisma.temp_import_inventory_items.findMany({
+      where: {
+        batch_id: batchId,
+        status: 'valid',
+      },
+      orderBy: {
+        row_number: 'asc',
+      },
+    });
+
+    let successCount = 0;
+    let failureCount = 0;
+    const failedItems: Array<{
+      rowNumber: number;
+      itemName: string;
+      sku: string;
+      errorMessage: string;
+    }> = [];
+
+    // Process each item
+    for (const tempItem of tempItems) {
+      try {
+        // Extract codes from reference strings and get IDs
+        const brandCode = this.extractCodeFromReference(tempItem.brand || '');
+        const categoryCode = this.extractCodeFromReference(
+          tempItem.category || '',
+        );
+        const storageLocationCode = this.extractCodeFromReference(
+          tempItem.storage_location || '',
+        );
+        const supplierCode = this.extractCodeFromReference(
+          tempItem.supplier || '',
+        );
+
+        // Validate extracted codes
+        if (
+          !brandCode ||
+          !categoryCode ||
+          !storageLocationCode ||
+          !supplierCode
+        ) {
+          throw new Error('Invalid reference format in master data');
+        }
+
+        // Validate required fields
+        if (!tempItem.item_name || !tempItem.sku) {
+          throw new Error('Required fields are missing');
+        }
+
+        // Get brand_id
+        const brand = await this._prisma.master_brands.findFirst({
+          where: {
+            code: brandCode,
+            stores_has_master_brands: { some: { stores_id: store_id } },
+          },
+          select: { id: true },
+        });
+
+        // Get category_id
+        const category =
+          await this._prisma.master_inventory_categories.findFirst({
+            where: {
+              code: categoryCode,
+              stores_has_master_inventory_categories: {
+                some: { stores_id: store_id },
+              },
+            },
+            select: { id: true },
+          });
+
+        // Get storage_location_id
+        const storageLocation =
+          await this._prisma.master_storage_locations.findFirst({
+            where: {
+              code: storageLocationCode,
+              stores_has_master_storage_locations: {
+                some: { stores_id: store_id },
+              },
+            },
+            select: { id: true },
+          });
+
+        // Get supplier_id
+        const supplier = await this._prisma.master_suppliers.findFirst({
+          where: {
+            code: supplierCode,
+            stores_has_master_suppliers: { some: { stores_id: store_id } },
+          },
+          select: { id: true },
+        });
+
+        if (!brand || !category || !storageLocation || !supplier) {
+          throw new Error('Required master data not found');
+        }
+
+        // Create DTO for the existing create method
+        const createDto = {
+          name: tempItem.item_name,
+          brandId: brand.id,
+          barcode: tempItem.barcode || undefined,
+          sku: tempItem.sku,
+          categoryId: category.id,
+          unit: tempItem.unit || '',
+          notes: tempItem.notes || undefined,
+          stockQuantity: tempItem.stock_quantity || 0,
+          reorderLevel: tempItem.reorder_level || 0,
+          minimumStockQuantity: tempItem.minimum_stock_quantity || 0,
+          expiryDate: tempItem.expiry_date
+            ? (this.formatDateToYYYYMMDD(tempItem.expiry_date) ?? undefined)
+            : undefined,
+          storageLocationId: storageLocation.id,
+          pricePerUnit: Number(tempItem.price_per_unit) || 0,
+          supplierId: supplier.id,
+        };
+
+        // Use the existing create method
+        await this.create(createDto, header);
+        successCount += 1;
+      } catch (error) {
+        failureCount += 1;
+        failedItems.push({
+          rowNumber: tempItem.row_number,
+          itemName: tempItem.item_name || 'Unknown',
+          sku: tempItem.sku || 'Unknown',
+          errorMessage: error.message || 'Unknown error occurred',
+        });
+
+        this.logger.error(
+          `Failed to import item at row ${tempItem.row_number}: ${error.message}`,
+        );
+      }
+    }
+
+    // Clean up: Delete imported data from temp table
+    await this._prisma.$executeRaw`
+      DELETE FROM temp_import_inventory_items 
+      WHERE batch_id = ${batchId}::uuid
+    `;
+
+    this.logger.log(
+      `Import completed: ${successCount} success, ${failureCount} failed`,
+    );
+
+    return {
+      totalProcessed: successCount + failureCount,
+      successCount,
+      failureCount,
+      failedItems,
     };
   }
 
@@ -777,10 +988,18 @@ export class InventoryItemsService {
     return isNaN(parsedDate.getTime()) ? null : parsedDate;
   }
 
-  private extractIdFromReference(reference: string): string | null {
+  private extractCodeFromReference(reference: string): string | null {
     if (!reference) return null;
     const parts = reference.split(' | ');
     return parts.length >= 2 ? parts[0].trim() : null;
+  }
+
+  private formatDateToYYYYMMDD(date: Date | null): string | null {
+    if (!date) return null;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private readonly logger = new Logger(InventoryItemsService.name);
@@ -954,6 +1173,7 @@ export class InventoryItemsService {
         price_per_unit: true,
         master_suppliers: { select: { id: true, supplier_name: true } },
         created_at: true,
+        notes: true,
       },
     });
     if (!item)
@@ -981,6 +1201,7 @@ export class InventoryItemsService {
       supplier_id: item.master_suppliers?.id ?? null,
       storage_location_id: item.master_storage_locations?.id ?? null,
       created_at: item.created_at,
+      notes: item.notes,
     };
 
     return this.toPlainItem(mapped);
@@ -1109,7 +1330,9 @@ export class InventoryItemsService {
       stockQuantity: item.stock_quantity,
       reorderLevel: item.reorder_level,
       minimumStockQuantity: item.minimum_stock_quantity,
-      expiryDate: item.expiry_date,
+      expiryDate: item.expiry_date
+        ? item.expiry_date.toISOString().split('T')[0]
+        : null, // Format as YYYY-MM-DD
       storageLocationName: item.master_storage_locations?.name ?? null,
       pricePerUnit,
       supplierName: item.master_suppliers?.supplier_name ?? null,
@@ -1367,5 +1590,28 @@ export class InventoryItemsService {
         ? price.toNumber()
         : price;
     return { ...item, price_per_unit: priceNumber };
+  }
+
+  async deleteBatch(batchId: string): Promise<{ deletedCount: number }> {
+    // Validate batch exists
+    const batchExists = await this._prisma.temp_import_inventory_items.count({
+      where: { batch_id: batchId },
+    });
+
+    if (batchExists === 0) {
+      throw new NotFoundException(`Batch with ID ${batchId} not found`);
+    }
+
+    // Delete all records with the given batch_id
+    const deleteResult =
+      await this._prisma.temp_import_inventory_items.deleteMany({
+        where: { batch_id: batchId },
+      });
+
+    this.logger.log(
+      `Deleted ${deleteResult.count} records for batch ${batchId}`,
+    );
+
+    return { deletedCount: deleteResult.count };
   }
 }
