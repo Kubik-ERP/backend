@@ -10,6 +10,7 @@ import { SALT_OR_ROUND } from '../../../common/constants/common.constant';
 
 // DTOs
 import { RegisterEmailDto } from '../dtos/register.dto';
+import { StaffLoginDto } from '../dtos/staff-signin.dto';
 
 // Entities
 import { users } from '@prisma/client';
@@ -39,6 +40,7 @@ import { JwtService } from '@nestjs/jwt';
 // Services
 import { MailService } from 'src/modules/mail/services/mail.service';
 import { UsersService } from '../../users/services/users.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 // Speaksy
 import * as speakeasy from 'speakeasy';
@@ -52,6 +54,7 @@ export class AuthenticationService {
     private readonly _jwtService: JwtService,
     private readonly _mailService: MailService,
     private readonly templatesEmailService: TemplatesEmailService,
+    private readonly _prisma: PrismaService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
     // this._secret = process.env.OTP_SECRET || speakeasy.generateSecret().base32;
@@ -91,6 +94,7 @@ export class AuthenticationService {
       fullname: user.fullname,
       verified_at: parseInt(user.verified_at?.toString() || '0'),
       role: user.role,
+      is_staff: false,
     };
     return {
       accessToken: this._jwtService.sign(payload),
@@ -255,5 +259,223 @@ export class AuthenticationService {
 
     //delete token
     await this.cacheManager.del(`forgot_token:${email}`);
+  }
+
+  /**
+   * @description Handle staff sign-in with email and device code
+   */
+  public async staffLogin(payload: StaffLoginDto): Promise<ILogin> {
+    const { email, deviceCode } = payload;
+
+    // Validate email exists in employees table and get user data
+    const employee = await this._prisma.employees.findFirst({
+      where: {
+        email: email.toLowerCase(),
+      },
+      include: {
+        users: true, // Get user data for JWT payload
+        stores_has_employees: {
+          take: 1, // 1 employee = 1 store
+        },
+      },
+    });
+
+    if (!employee || employee.stores_has_employees.length === 0) {
+      throw new BadRequestException('Invalid email or device code');
+    }
+
+    // Validate device code and check if employee is available in store including store ID
+    const deviceCodeRecord = await this._prisma.device_codes.findFirst({
+      where: {
+        code: deviceCode,
+        store_id: employee.stores_has_employees[0].stores_id,
+        OR: [
+          // Employee sudah punya device code yang di-assign
+          {
+            employee_id: employee.id,
+          },
+          // Device code masih pending (belum di-assign ke siapa pun)
+          {
+            employee_id: null,
+            status: 'pending',
+          },
+        ],
+      },
+    });
+
+    if (!deviceCodeRecord) {
+      throw new BadRequestException('Invalid email or device code');
+    }
+
+    // Check if employee is trying to use a different device
+    // than the one they're already assigned to
+    const employeeAssignedDevice = await this._prisma.device_codes.findFirst({
+      where: {
+        employee_id: employee.id,
+        store_id: employee.stores_has_employees[0].stores_id,
+      },
+    });
+
+    if (
+      employeeAssignedDevice &&
+      employeeAssignedDevice.id !== deviceCodeRecord.id
+    ) {
+      throw new BadRequestException(`Device code not found`);
+    }
+
+    // Check if employee already has an active session (1 employee = 1 browser)
+    // If yes, delete the existing session (this will also disconnect the device)
+    const existingSession =
+      await this._prisma.employee_login_sessions.findUnique({
+        where: {
+          employee_id: employee.id,
+        },
+      });
+
+    if (existingSession) {
+      // Update the old device code status to disconnected (keep employee_id)
+      await this._prisma.device_codes.update({
+        where: {
+          id: existingSession.device_code_id,
+        },
+        data: {
+          status: 'disconnected',
+          // employee_id tetap tidak di-set null
+        },
+      });
+
+      // Delete the existing session
+      await this._prisma.employee_login_sessions.delete({
+        where: {
+          employee_id: employee.id,
+        },
+      });
+    }
+
+    const owner = await this._prisma.users.findFirst({
+      where: {
+        user_has_stores: {
+          some: {
+            stores: {
+              stores_has_employees: {
+                some: {
+                  employees_id: employee.id,
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!owner) {
+      throw new BadRequestException('Owner not found');
+    }
+
+    // Generate session token with user data (same as regular login)
+    const accessToken = this._jwtService.sign({
+      username: employee.users.username,
+      sub: employee.users.id,
+      email: employee.users.email,
+      phone: employee.users.phone,
+      ext: employee.users.ext,
+      fullname: employee.users.fullname,
+      verified_at: parseInt(employee.users.verified_at?.toString() || '0'),
+      role: employee.users.role_id,
+      is_staff: true, // Flag to identify staff login
+      // Staff specific data
+
+      employeeId: employee.id,
+      storeId: deviceCodeRecord.store_id,
+      deviceCodeId: deviceCodeRecord.id,
+      ownerId: owner.id,
+    });
+
+    // Create login session
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 8); // 8 hours session
+
+    await this._prisma.employee_login_sessions.create({
+      data: {
+        employee_id: employee.id,
+        device_code_id: deviceCodeRecord.id,
+        store_id: deviceCodeRecord.store_id,
+        access_token: accessToken,
+        expires_at: expiresAt,
+      },
+    });
+
+    // Update device code status to connected and set last_connected_at
+    await this._prisma.device_codes.update({
+      where: {
+        id: deviceCodeRecord.id,
+      },
+      data: {
+        status: 'connected',
+        last_connected_at: new Date(),
+        employee_id: employee.id,
+      },
+    });
+
+    return {
+      accessToken: accessToken,
+      storeId: deviceCodeRecord.store_id,
+    };
+  }
+
+  /**
+   * @description Handle staff logout
+   */
+  public async staffLogout(req: ICustomRequestHeaders): Promise<void> {
+    if (!req.user.is_staff) {
+      throw new BadRequestException('Invalid session');
+    }
+
+    const employee = await this._prisma.employees.findFirst({
+      select: {
+        id: true,
+      },
+      where: {
+        user_id: req.user.id,
+      },
+    });
+    if (!employee) {
+      throw new BadRequestException('Invalid session');
+    }
+
+    const accessToken = req.headers.authorization?.split(' ')[1];
+
+    // Find the session
+    const session = await this._prisma.employee_login_sessions.findFirst({
+      where: {
+        employee_id: employee.id,
+        access_token: accessToken,
+      },
+    });
+
+    if (!session) {
+      throw new BadRequestException('Invalid session');
+    }
+
+    // Update device code status to disconnected (keep employee_id assigned)
+    await this._prisma.device_codes.update({
+      where: {
+        id: session.device_code_id,
+      },
+      data: {
+        status: 'disconnected',
+        // employee_id tetap tidak di-set null, jadi employee tetap assigned ke device ini
+        employee_login_sessions: {
+          // Delete the session
+          delete: true,
+        },
+      },
+    });
+
+    // await this._prisma.employee_login_sessions.delete({
+    //   where: {
+    //     id: session.id,
+    //   },
+    // });
   }
 }

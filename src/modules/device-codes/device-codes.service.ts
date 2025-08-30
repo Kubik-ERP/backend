@@ -153,6 +153,36 @@ export class DeviceCodesService {
     const store_id = requireStoreId(header);
     this.logger.log(`Disconnecting device code ${id} from store ${store_id}`);
 
-    // TODO(deviceCodes): Implement disconnect device code
+    const deviceCode = await this._prisma.device_codes.findFirst({
+      where: {
+        id,
+        store_id,
+      },
+    });
+
+    if (!deviceCode) {
+      this.logger.error(`Device code with ID ${id} not found`);
+      throw new NotFoundException(`Device code with ID ${id} not found`);
+    }
+
+    if (deviceCode.status === 'disconnected') {
+      this.logger.error(`Device code with ID ${id} is already disconnected`);
+      throw new BadRequestException(
+        `Device code with ID ${id} is already disconnected`,
+      );
+    }
+
+    const updatedDeviceCode = await this._prisma.device_codes.update({
+      where: { id, store_id },
+      data: {
+        status: 'disconnected',
+        employee_login_sessions: {
+          delete: true,
+        },
+      },
+    });
+
+    this.logger.log(`Successfully disconnected device code ${id}`);
+    return updatedDeviceCode;
   }
 }

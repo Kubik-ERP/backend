@@ -160,12 +160,17 @@ model employees {
   gender                          gender?
   title                           String?                      @db.VarChar(45)
   phone_code                      String?                      @db.VarChar(45)
-  permission                      String?                      @db.VarChar(45)
+  permission                      String                       @db.Uuid
   default_commission_product_type commission_type?
   default_commission_voucher_type commission_type?
   default_commission_voucher      Float?
   default_commission_product      Float?
+  user_id                         Int                          @unique(map: "employees_user_id_unique")
   cash_drawers                    cash_drawers[]
+  device_codes                    device_codes?
+  employee_login_sessions         employee_login_sessions?
+  roles                           roles                        @relation(fields: [permission], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_roles_fk")
+  users                           users                        @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_users_fk")
   employees_has_roles             employees_has_roles[]
   employees_has_social_media      employees_has_social_media[]
   employees_shift                 employees_shift[]
@@ -496,6 +501,7 @@ model roles {
   is_system              Boolean                  @default(false)
   created_at             DateTime                 @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
   updated_at             DateTime?                @db.Timestamp(6)
+  employees              employees[]
   employees_has_roles    employees_has_roles[]
   role_permissions       role_permissions[]
   store_role_permissions store_role_permissions[]
@@ -561,6 +567,8 @@ model stores {
   cash_drawers                           cash_drawers[]
   catalog_bundling                       catalog_bundling[]
   customer_has_stores                    customer_has_stores[]
+  device_codes                           device_codes[]
+  employee_login_sessions                employee_login_sessions[]
   floor                                  floor[]
   inventory_stock_adjustments            inventory_stock_adjustments[]
   invoice                                invoice[]
@@ -665,8 +673,10 @@ model users {
   picture_url              String?                    @db.VarChar(45)
   subs_id                  String?                    @db.Uuid
   sub_expired_at           DateTime?                  @db.Timestamp(6)
+  is_staff                 Boolean                    @default(false)
   cash_drawer_transactions cash_drawer_transactions[]
   cash_drawers             cash_drawers[]
+  employees                employees?
   invoice                  invoice[]
   stock_opnames            stock_opnames[]
   user_has_stores          user_has_stores[]
@@ -1165,13 +1175,29 @@ model user_sub_logs {
 }
 
 model device_codes {
-  id                String             @id(map: "device_codes_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name              String             @db.VarChar(45)
-  code              String             @unique(map: "device_codes_code_unique") @db.VarChar(9)
-  employee_id       String?            @unique(map: "device_codes_employee_id_unique") @db.Uuid
-  store_id          String             @db.Uuid
-  status            device_code_status @default(pending)
-  last_connected_at DateTime?          @db.Timestamp(6)
+  id                      String                   @id(map: "device_codes_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String                   @db.VarChar(45)
+  code                    String                   @unique(map: "device_codes_code_unique") @db.VarChar(9)
+  employee_id             String?                  @unique(map: "device_codes_employee_id_unique") @db.Uuid
+  store_id                String                   @db.Uuid
+  status                  device_code_status       @default(pending)
+  last_connected_at       DateTime?                @db.Timestamp(6)
+  employees               employees?               @relation(fields: [employee_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "device_codes_employees_fk")
+  stores                  stores                   @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "device_codes_stores_fk")
+  employee_login_sessions employee_login_sessions?
+}
+
+model employee_login_sessions {
+  id             String       @id(map: "employee_login_sessions_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id    String       @unique(map: "employee_login_sessions_employee_id_unique") @db.Uuid
+  device_code_id String       @unique(map: "employee_login_sessions_device_code_id_unique") @db.Uuid
+  store_id       String       @db.Uuid
+  login_at       DateTime     @default(dbgenerated("clock_timestamp()")) @db.Timestamp(6)
+  access_token   String       @unique(map: "employee_login_sessions_access_token_unique")
+  expires_at     DateTime     @db.Timestamp(6)
+  device_codes   device_codes @relation(fields: [device_code_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_login_sessions_device_codes_fk")
+  employees      employees    @relation(fields: [employee_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_login_sessions_employees_fk")
+  stores         stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_login_sessions_stores_fk")
 }
 
 enum cash_drawer_type {

@@ -111,7 +111,10 @@ export class BankController {
     @Body() dto: AttachUserBankDto,
   ) {
     try {
-      const result = await this.bankService.attachBankToUser(req.user.id, dto);
+      const result = await this.bankService.attachBankToUser(
+        req.user.ownerId,
+        dto,
+      );
       return {
         statusCode: HttpStatus.CREATED,
         message: 'Bank attached to user successfully',
@@ -132,7 +135,7 @@ export class BankController {
   @ApiOperation({ summary: 'Get all banks for the authenticated user' })
   async getUserBanks(@Req() req: ICustomRequestHeaders) {
     try {
-      const result = await this.bankService.getUserBanks(req.user.id);
+      const result = await this.bankService.getUserBanks(req.user.ownerId);
       return {
         statusCode: HttpStatus.OK,
         message: 'User banks retrieved successfully',
@@ -159,7 +162,7 @@ export class BankController {
     try {
       const result = await this.bankService.updateUserBank(
         id,
-        req.user.id,
+        req.user.ownerId,
         dto,
       );
       return {

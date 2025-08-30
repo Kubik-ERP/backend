@@ -6,6 +6,7 @@ import { GenerateOtpDto } from '../dtos/generate-otp.dto';
 import { LoginUsernameDto, LoginWithAccessToken } from '../dtos/login.dto';
 import { RegisterEmailDto, SetPinDto } from '../dtos/register.dto';
 import { VerifyOtpDto } from '../dtos/verify-otp.dto';
+import { StaffLoginDto } from '../dtos/staff-signin.dto';
 
 // Entities
 import { UsersEntity } from '../../users/entities/users.entity';
@@ -109,6 +110,7 @@ export class AuthenticationController {
       id: result.id,
       username: result.email,
       ext: result.ext,
+      ownerId: result.id,
     });
 
     return {
@@ -136,6 +138,7 @@ export class AuthenticationController {
           ? true
           : false,
       id: result.id,
+      is_staff: result.is_staff,
     };
     return {
       success: true,
@@ -303,5 +306,57 @@ export class AuthenticationController {
       message: 'User logged in successfully',
       result,
     };
+  }
+
+  @ApiOperation({
+    summary: 'Staff login with email and device code',
+    description:
+      'Authenticate staff member using email and device code. This validates the staff member, device code, and store association.',
+  })
+  @Post('staff/login')
+  public async staffLogin(@Body() body: StaffLoginDto) {
+    try {
+      const result = await this._authenticationService.staffLogin(body);
+      return {
+        statusCode: 200,
+        message: 'Staff logged in successfully',
+        result,
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @ApiOperation({
+    summary: 'Staff logout',
+    description: 'Logout staff member and deactivate session',
+  })
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @Post('staff/logout')
+  public async staffLogout(@Req() req: ICustomRequestHeaders) {
+    try {
+      await this._authenticationService.staffLogout(req);
+      return {
+        statusCode: 200,
+        message: 'Staff logged out successfully',
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }
