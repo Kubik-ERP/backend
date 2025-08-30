@@ -90,6 +90,7 @@ export class SubscriptionController {
         body.email,
         body.subscriptionId,
         body.expiredAt,
+        body.quantity,
       );
       return {
         message: 'Successfully assign subscription',
@@ -101,5 +102,15 @@ export class SubscriptionController {
         error,
       };
     }
+  }
+
+  @Get('/user-subscription-history/:email')
+  @HttpCode(200)
+  async getUserSubscriptionHistory(@Param('email') email: string) {
+    const result = await this._service.getUserSubscriptionHistory(email);
+    return {
+      message: 'Successfully retrieve data',
+      result,
+    };
   }
 }

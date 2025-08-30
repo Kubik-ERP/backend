@@ -245,6 +245,7 @@ model invoice {
   change_amount                              Float?
   voucher_amount                             Float                    @default(0)
   voucher_id                                 String?                  @db.Uuid
+  total_product_discount                     Float?
   customers_has_invoices                     customers_has_invoices[]
   customer                                   customer                 @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods                            payment_methods?         @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
@@ -275,17 +276,18 @@ model invoice_charges {
 }
 
 model invoice_details {
-  id            String    @db.Uuid
-  product_id    String?   @db.Uuid
-  product_price Float?
-  variant_id    String?   @db.Uuid
-  notes         String?   @db.VarChar(45)
-  qty           Int?
-  invoice_id    String    @db.Uuid
-  variant_price Float?
-  invoice       invoice   @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
-  products      products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
-  variant       variant?  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
+  id               String    @db.Uuid
+  product_id       String?   @db.Uuid
+  product_price    Float?
+  variant_id       String?   @db.Uuid
+  notes            String?   @db.VarChar(45)
+  qty              Int?
+  invoice_id       String    @db.Uuid
+  variant_price    Float?
+  product_discount Float?
+  invoice          invoice   @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  products         products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
+  variant          variant?  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
@@ -659,7 +661,7 @@ model user_has_stores {
 model users {
   id                       Int                        @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
   username                 String?                    @db.VarChar
-  email                    String                     @unique(map: "users_unique") @db.VarChar
+  email                    String                     @unique(map: "mail_unq") @db.VarChar
   password                 String                     @db.VarChar
   phone                    String                     @default(dbgenerated("0")) @db.VarChar
   ext                      Int                        @default(62)
@@ -674,6 +676,7 @@ model users {
   subs_id                  String?                    @db.Uuid
   sub_expired_at           DateTime?                  @db.Timestamp(6)
   is_staff                 Boolean                    @default(false)
+  store_quota              Int                        @default(0)
   cash_drawer_transactions cash_drawer_transactions[]
   cash_drawers             cash_drawers[]
   employees                employees?
@@ -1172,6 +1175,7 @@ model user_sub_logs {
   created_at   DateTime? @db.Timestamp(6)
   updated_at   DateTime? @db.Timestamp(6)
   expired_at   DateTime  @db.Timestamp(6)
+  store_quota  Int?
 }
 
 model device_codes {
