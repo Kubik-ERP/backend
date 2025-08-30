@@ -160,12 +160,17 @@ model employees {
   gender                          gender?
   title                           String?                      @db.VarChar(45)
   phone_code                      String?                      @db.VarChar(45)
-  permission                      String?                      @db.VarChar(45)
+  permission                      String                       @db.Uuid
   default_commission_product_type commission_type?
   default_commission_voucher_type commission_type?
   default_commission_voucher      Float?
   default_commission_product      Float?
+  user_id                         Int?                         @unique(map: "employees_user_id_unique")
   cash_drawers                    cash_drawers[]
+  device_codes                    device_codes?
+  employee_login_sessions         employee_login_sessions?
+  roles                           roles                        @relation(fields: [permission], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_roles_fk")
+  users                           users?                       @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_users_fk")
   employees_has_roles             employees_has_roles[]
   employees_has_social_media      employees_has_social_media[]
   employees_shift                 employees_shift[]
@@ -240,6 +245,7 @@ model invoice {
   change_amount                              Float?
   voucher_amount                             Float                    @default(0)
   voucher_id                                 String?                  @db.Uuid
+  total_product_discount                     Float?
   customers_has_invoices                     customers_has_invoices[]
   customer                                   customer                 @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods                            payment_methods?         @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
@@ -270,17 +276,18 @@ model invoice_charges {
 }
 
 model invoice_details {
-  id            String    @db.Uuid
-  product_id    String?   @db.Uuid
-  product_price Float?
-  variant_id    String?   @db.Uuid
-  notes         String?   @db.VarChar(45)
-  qty           Int?
-  invoice_id    String    @db.Uuid
-  variant_price Float?
-  invoice       invoice   @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
-  products      products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
-  variant       variant?  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
+  id               String    @db.Uuid
+  product_id       String?   @db.Uuid
+  product_price    Float?
+  variant_id       String?   @db.Uuid
+  notes            String?   @db.VarChar(45)
+  qty              Int?
+  invoice_id       String    @db.Uuid
+  variant_price    Float?
+  product_discount Float?
+  invoice          invoice   @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  products         products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
+  variant          variant?  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
@@ -496,6 +503,7 @@ model roles {
   is_system              Boolean                  @default(false)
   created_at             DateTime                 @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
   updated_at             DateTime?                @db.Timestamp(6)
+  employees              employees[]
   employees_has_roles    employees_has_roles[]
   role_permissions       role_permissions[]
   store_role_permissions store_role_permissions[]
@@ -561,6 +569,8 @@ model stores {
   cash_drawers                           cash_drawers[]
   catalog_bundling                       catalog_bundling[]
   customer_has_stores                    customer_has_stores[]
+  device_codes                           device_codes[]
+  employee_login_sessions                employee_login_sessions[]
   floor                                  floor[]
   inventory_stock_adjustments            inventory_stock_adjustments[]
   invoice                                invoice[]
@@ -651,7 +661,7 @@ model user_has_stores {
 model users {
   id                       Int                        @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
   username                 String?                    @db.VarChar
-  email                    String                     @unique(map: "users_unique") @db.VarChar
+  email                    String                     @unique(map: "mail_unq") @db.VarChar
   password                 String                     @db.VarChar
   phone                    String                     @default(dbgenerated("0")) @db.VarChar
   ext                      Int                        @default(62)
@@ -665,8 +675,11 @@ model users {
   picture_url              String?                    @db.VarChar(45)
   subs_id                  String?                    @db.Uuid
   sub_expired_at           DateTime?                  @db.Timestamp(6)
+  is_staff                 Boolean                    @default(false)
+  store_quota              Int                        @default(0)
   cash_drawer_transactions cash_drawer_transactions[]
   cash_drawers             cash_drawers[]
+  employees                employees?
   invoice                  invoice[]
   stock_opnames            stock_opnames[]
   user_has_stores          user_has_stores[]
@@ -1162,6 +1175,33 @@ model user_sub_logs {
   created_at   DateTime? @db.Timestamp(6)
   updated_at   DateTime? @db.Timestamp(6)
   expired_at   DateTime  @db.Timestamp(6)
+  store_quota  Int?
+}
+
+model device_codes {
+  id                      String                   @id(map: "device_codes_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String                   @db.VarChar(45)
+  code                    String                   @unique(map: "device_codes_code_unique") @db.VarChar(9)
+  employee_id             String?                  @unique(map: "device_codes_employee_id_unique") @db.Uuid
+  store_id                String                   @db.Uuid
+  status                  device_code_status       @default(pending)
+  last_connected_at       DateTime?                @db.Timestamp(6)
+  employees               employees?               @relation(fields: [employee_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "device_codes_employees_fk")
+  stores                  stores                   @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "device_codes_stores_fk")
+  employee_login_sessions employee_login_sessions?
+}
+
+model employee_login_sessions {
+  id             String       @id(map: "employee_login_sessions_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id    String       @unique(map: "employee_login_sessions_employee_id_unique") @db.Uuid
+  device_code_id String       @unique(map: "employee_login_sessions_device_code_id_unique") @db.Uuid
+  store_id       String       @db.Uuid
+  login_at       DateTime     @default(dbgenerated("clock_timestamp()")) @db.Timestamp(6)
+  access_token   String       @unique(map: "employee_login_sessions_access_token_unique")
+  expires_at     DateTime     @db.Timestamp(6)
+  device_codes   device_codes @relation(fields: [device_code_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_login_sessions_device_codes_fk")
+  employees      employees    @relation(fields: [employee_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_login_sessions_employees_fk")
+  stores         stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_login_sessions_stores_fk")
 }
 
 enum cash_drawer_type {
@@ -1264,4 +1304,10 @@ enum bundling_price_type {
 enum commission_type {
   amount
   percentage
+}
+
+enum device_code_status {
+  pending
+  connected
+  disconnected
 }
