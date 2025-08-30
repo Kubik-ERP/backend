@@ -89,8 +89,8 @@ export class DashboardService {
     return lastYearMetrics.totalSales;
   }
 
-  async getMonthlySalesThisYear(req: ICustomRequestHeaders) {
-    const year = new Date().getFullYear();
+  async getMonthlySalesThisYear(req: ICustomRequestHeaders, date: Date) {
+    const year = date.getFullYear();
     const salesByMonth = [];
     const monthNames = [
       'January',
@@ -128,8 +128,8 @@ export class DashboardService {
   }
 
   async getTopProductSales(
-    // startDate: Date,
-    // endDate: Date,
+    startDate: Date,
+    endDate: Date,
     req: ICustomRequestHeaders,
   ) {
     const storeId = req.store_id;
@@ -138,10 +138,10 @@ export class DashboardService {
       where: {
         invoice: {
           store_id: storeId,
-          // complete_order_at: {
-          //   gte: startDate,
-          //   lte: endDate,
-          // },
+          complete_order_at: {
+            gte: startDate,
+            lte: endDate,
+          },
           payment_status: 'paid',
         },
       },
@@ -231,9 +231,85 @@ export class DashboardService {
     };
   }
 
+  async getDailySalesInRange(
+    startDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const dailySales = [];
+    let currentDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+      const dayStart = new Date(currentDate);
+      dayStart.setHours(0, 0, 0, 0);
+
+      const dayEnd = new Date(currentDate);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const metrics = await this.getMetricsForPeriod(dayStart, dayEnd, req);
+
+      dailySales.push({
+        // Format date as YYYY-MM-DD
+        date: dayStart.toISOString().split('T')[0],
+        sales: metrics.totalSales,
+      });
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return dailySales;
+  }
+
+  async getSalesByTimeOnDate(date: Date, req: ICustomRequestHeaders) {
+    const storeId = req.store_id;
+
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        store_id: storeId,
+        payment_status: 'paid',
+        complete_order_at: {
+          gte: dayStart,
+          lte: dayEnd,
+        },
+      },
+      include: {
+        invoice_details: {
+          select: {
+            product_price: true,
+            qty: true,
+          },
+        },
+      },
+      orderBy: {
+        complete_order_at: 'asc',
+      },
+    });
+
+    // Map over invoices to calculate total sales for each and format the output
+    const salesByTime = invoices.map((invoice) => {
+      const totalSales = invoice.invoice_details.reduce((acc, detail) => {
+        return acc + (detail.product_price ?? 0) * (detail.qty ?? 1);
+      }, 0);
+
+      return {
+        time: invoice.complete_order_at?.toLocaleTimeString('en-GB'),
+        sales: totalSales,
+      };
+    });
+
+    return salesByTime;
+  }
+
   async getDashboardSummary(
     startDate: Date,
     endDate: Date,
+    type: string,
     req: ICustomRequestHeaders,
   ) {
     if (startDate > endDate) {
@@ -251,6 +327,8 @@ export class DashboardService {
     const [
       currentMetrics,
       previousMetrics,
+      timeBasedSales,
+      dailySalesData,
       monthlySalesData,
       yearlySalesData,
       previousYearSalesData,
@@ -263,10 +341,12 @@ export class DashboardService {
         previousPeriodEndDate,
         req,
       ),
-      this.getMonthlySalesThisYear(req),
+      this.getSalesByTimeOnDate(startDate, req),
+      this.getDailySalesInRange(startDate, endDate, req),
+      this.getMonthlySalesThisYear(req, startDate),
       this.getTotalSalesThisYear(req),
       this.getTotalSalesLastYear(req),
-      this.getTopProductSales(req),
+      this.getTopProductSales(startDate, endDate, req),
       this.getProductStockStatus(req),
     ]);
 
@@ -315,6 +395,8 @@ export class DashboardService {
 
     return {
       summary,
+      timeBasedSales,
+      dailySalesData,
       monthlySalesData,
       latestSales: {
         value: yearlySalesData,

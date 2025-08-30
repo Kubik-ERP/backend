@@ -30,11 +30,13 @@ export class DashboardController {
   async getDashboardSummary(
     @Query('startDate', new ParseDatePipe()) startDate: Date,
     @Query('endDate', new ParseDatePipe()) endDate: Date,
+    @Query('type') type: string,
     @Req() req: ICustomRequestHeaders,
   ) {
     const data = await this.dashboardService.getDashboardSummary(
       startDate,
       endDate,
+      type,
       req,
     );
     return {
