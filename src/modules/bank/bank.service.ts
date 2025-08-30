@@ -33,9 +33,9 @@ export class BankService {
     return this.prisma.banks.delete({ where: { id } });
   }
 
-  async getUserBanks(userId: number) {
+  async getUserBanks(ownerId: number) {
     const rawBanks = await this.prisma.users_has_banks.findMany({
-      where: { users_id: userId },
+      where: { users_id: ownerId },
     });
 
     return rawBanks.map((b) => ({
@@ -46,10 +46,10 @@ export class BankService {
     }));
   }
 
-  async attachBankToUser(userId: number, dto: AttachUserBankDto) {
+  async attachBankToUser(ownerId: number, dto: AttachUserBankDto) {
     return await this.prisma.users_has_banks.create({
       data: {
-        users_id: userId,
+        users_id: ownerId,
         bank_name: dto.bankName,
         account_number: dto.accountNumber,
         account_name: dto.accountName,
@@ -59,14 +59,14 @@ export class BankService {
 
   async updateUserBank(
     userBankId: string,
-    userId: number,
+    ownerId: number,
     dto: UpdateUserBankDto,
   ) {
     const existing = await this.prisma.users_has_banks.findUnique({
       where: { id: userBankId },
     });
 
-    if (!existing || existing.users_id !== userId) {
+    if (!existing || existing.users_id !== ownerId) {
       throw new Error('Unauthorized or record not found');
     }
 

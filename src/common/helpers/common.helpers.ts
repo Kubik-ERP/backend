@@ -127,3 +127,13 @@ export const requireStoreId = (header: ICustomRequestHeaders): string => {
   if (!store_id) throw new BadRequestException('store_id is required');
   return store_id;
 };
+
+export const randomBase16 = (length: number): string => {
+  const array = new Uint8Array(length / 2); // 2 hex chars = 1 byte
+  crypto.getRandomValues(array); // works in Browser/Deno
+
+  return Array.from(array, (b) => b.toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase()
+    .slice(0, length);
+};

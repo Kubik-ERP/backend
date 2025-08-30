@@ -60,129 +60,160 @@ export class EmployeesService {
     if (existingEmployee) {
       throw new BadRequestException(`Email "${email}" is already in use.`);
     }
-    const employee = await this.prisma.employees.create({
-      data: {
-        name,
-        email,
-        profile_url: profilePicture,
-        phone_code: phoneCode,
-        phone_number: phoneNumber,
-        start_date: startDate,
-        end_date: endDate,
-        gender,
-        title,
-        permission,
-        default_commission_product: dto.defaultCommissionProduct,
-        default_commission_product_type: dto.defaultCommissionProductType,
-        default_commission_voucher: dto.defaultCommissionVoucher,
-        default_commission_voucher_type: dto.defaultCommissionVoucherType,
-      },
-    });
 
-    const employeeId = employee.id;
-
-    await this.prisma.stores_has_employees.create({
-      data: {
-        employees_id: employeeId,
-        stores_id: store_id,
-      },
-    });
-
-    // Social media
-    try {
-      if (socialMedia && socialMedia.length > 0) {
-        const socialMediaData = socialMedia.map((sm) => ({
-          employees_id: employeeId,
-          media_name: sm.name,
-          account_name: sm.account,
-        }));
-        await this.prisma.employees_has_social_media.createMany({
-          data: socialMediaData,
-        });
-      }
-    } catch (error) {
-      console.error('Error inserting social media:', error);
-    }
-
-    if (shift && shift.length > 0) {
-      shift.map((s) => {
-        return this.prisma.employees_shift.create({
+    const { employee, insertedProductCommissions, insertedVoucherCommissions } =
+      await this.prisma.$transaction(async (tx) => {
+        // user dibuat untuk keperluan login
+        const user = await tx.users.create({
           data: {
+            is_staff: true,
+            email: email || '',
+            password: '-',
+            phone: phoneNumber,
+            pin: '-',
+            fullname: name,
+            role_id: permission,
+            picture_url: profilePicture,
+            employees: {
+              create: {
+                name,
+                email,
+                profile_url: profilePicture,
+                phone_code: phoneCode,
+                phone_number: phoneNumber,
+                start_date: startDate,
+                end_date: endDate,
+                gender,
+                title,
+                permission,
+                default_commission_product: dto.defaultCommissionProduct,
+                default_commission_product_type:
+                  dto.defaultCommissionProductType,
+                default_commission_voucher: dto.defaultCommissionVoucher,
+                default_commission_voucher_type:
+                  dto.defaultCommissionVoucherType,
+                // assign ke store
+                stores_has_employees: {
+                  create: {
+                    stores_id: store_id,
+                  },
+                },
+              },
+            },
+          },
+          include: {
+            employees: true,
+          },
+        });
+        const employee = user.employees;
+        if (!employee) {
+          throw new BadRequestException('Failed to create employee');
+        }
+
+        const employeeId = employee.id;
+
+        // Social media
+        try {
+          if (socialMedia && socialMedia.length > 0) {
+            const socialMediaData = socialMedia.map((sm) => ({
+              employees_id: employeeId,
+              media_name: sm.name,
+              account_name: sm.account,
+            }));
+            await tx.employees_has_social_media.createMany({
+              data: socialMediaData,
+            });
+          }
+        } catch (error) {
+          console.error('Error inserting social media:', error);
+        }
+
+        if (shift && shift.length > 0) {
+          shift.map((s) => {
+            return tx.employees_shift.create({
+              data: {
+                employees_id: employeeId,
+                days: s.day,
+                start_time: s.start_time,
+                end_time: s.end_time,
+              },
+            });
+          });
+        }
+
+        // Shift
+        if (Array.isArray(shift)) {
+          const shiftData = shift.map((s) => ({
             employees_id: employeeId,
             days: s.day,
             start_time: s.start_time,
             end_time: s.end_time,
-          },
-        });
-      });
-    }
+          }));
 
-    // Shift
-    if (Array.isArray(shift)) {
-      const shiftData = shift.map((s) => ({
-        employees_id: employeeId,
-        days: s.day,
-        start_time: s.start_time,
-        end_time: s.end_time,
-      }));
+          await tx.employees_shift.createMany({
+            data: shiftData,
+          });
+        }
 
-      await this.prisma.employees_shift.createMany({
-        data: shiftData,
-      });
-    }
+        // Commissions
+        const insertedProductCommissions = [];
+        const insertedVoucherCommissions = [];
 
-    // Commissions
-    const insertedProductCommissions = [];
-    const insertedVoucherCommissions = [];
+        if (commissions) {
+          // Product Commissions
+          if (
+            Array.isArray(commissions.productCommission) &&
+            commissions.productCommission.length > 0
+          ) {
+            for (const pc of commissions.productCommission) {
+              if (!pc.product_id || pc.amount === undefined) continue;
 
-    if (commissions) {
-      // Product Commissions
-      if (
-        Array.isArray(commissions.productCommission) &&
-        commissions.productCommission.length > 0
-      ) {
-        for (const pc of commissions.productCommission) {
-          if (!pc.product_id || pc.amount === undefined) continue;
+              try {
+                const result = await tx.product_commissions.create({
+                  data: {
+                    employees_id: employeeId,
+                    is_percent: pc.is_percent ?? false,
+                    products_id: pc.product_id,
+                    amount: pc.amount ?? 0,
+                  },
+                });
+                insertedProductCommissions.push(result);
+              } catch (error) {
+                console.error(`Failed to insert product commission:`, error);
+              }
+            }
+          }
 
-          try {
-            const result = await this.prisma.product_commissions.create({
-              data: {
-                employees_id: employeeId,
-                is_percent: pc.is_percent ?? false,
-                products_id: pc.product_id,
-                amount: pc.amount ?? 0,
-              },
-            });
-            insertedProductCommissions.push(result);
-          } catch (error) {
-            console.error(`Failed to insert product commission:`, error);
+          if (
+            Array.isArray(commissions.voucherCommission) &&
+            commissions.voucherCommission.length > 0
+          ) {
+            for (const vc of commissions.voucherCommission) {
+              if (!vc.voucher_id || vc.amount === undefined) continue;
+
+              try {
+                const result = await tx.voucher_commissions.create({
+                  data: {
+                    employees_id: employeeId,
+                    is_percent: vc.is_percent ?? false,
+                    voucher_id: vc.voucher_id,
+                    amount: vc.amount ?? 0,
+                  },
+                });
+                insertedVoucherCommissions.push(result);
+              } catch (error) {
+                console.error(`Failed to insert voucher commission:`, error);
+              }
+            }
           }
         }
-      }
 
-      if (
-        Array.isArray(commissions.voucherCommission) &&
-        commissions.voucherCommission.length > 0
-      ) {
-        for (const vc of commissions.voucherCommission) {
-          if (!vc.voucher_id || vc.amount === undefined) continue;
-
-          try {
-            const result = await this.prisma.voucher_commissions.create({
-              data: {
-                employees_id: employeeId,
-                is_percent: vc.is_percent ?? false,
-                voucher_id: vc.voucher_id,
-                amount: vc.amount ?? 0,
-              },
-            });
-            insertedVoucherCommissions.push(result);
-          } catch (error) {
-            console.error(`Failed to insert voucher commission:`, error);
-          }
-        }
-      }
-    }
+        return {
+          employee,
+          insertedProductCommissions,
+          insertedVoucherCommissions,
+        };
+      });
 
     return {
       employee: employee,
@@ -355,102 +386,125 @@ export class EmployeesService {
       profilePicture = result.filename;
     }
 
-    const updatedEmployee = await this.prisma.employees.update({
-      where: { id },
-      data: {
-        name,
-        email,
-        profile_url: profilePicture,
-        phone_code: phoneCode,
-        phone_number: phoneNumber,
-        start_date: startDate ? new Date(startDate) : undefined,
-        end_date: endDate ? new Date(endDate) : undefined,
-        gender,
-        title,
-        permission,
-        default_commission_product: dto.defaultCommissionProduct,
-        default_commission_product_type: dto.defaultCommissionProductType,
-        default_commission_voucher: dto.defaultCommissionVoucher,
-        default_commission_voucher_type: dto.defaultCommissionVoucherType,
-      },
-    });
+    const updatedEmployee = await this.prisma.$transaction(async (tx) => {
+      const updatedEmployee = await tx.employees.update({
+        where: { id },
+        data: {
+          name,
+          email,
+          profile_url: profilePicture,
+          phone_code: phoneCode,
+          phone_number: phoneNumber,
+          start_date: startDate ? new Date(startDate) : undefined,
+          end_date: endDate ? new Date(endDate) : undefined,
+          gender,
+          title,
+          permission,
+          default_commission_product: dto.defaultCommissionProduct,
+          default_commission_product_type: dto.defaultCommissionProductType,
+          default_commission_voucher: dto.defaultCommissionVoucher,
+          default_commission_voucher_type: dto.defaultCommissionVoucherType,
+        },
+      });
 
-    await this.prisma.employees_has_social_media.deleteMany({
-      where: { employees_id: id },
-    });
-    if (Array.isArray(socialMedia)) {
-      for (const sm of socialMedia) {
-        await this.prisma.employees_has_social_media.create({
-          data: {
-            employees_id: id,
-            media_name: sm.name,
-            account_name: sm.account,
-          },
+      // update user biar datanya sama dengan employee
+      await tx.users.update({
+        where: { id: updatedEmployee.user_id },
+        data: {
+          fullname: name,
+          email,
+          phone: phoneNumber,
+          picture_url: profilePicture,
+          role_id: permission,
+        },
+      });
+
+      await tx.employees_has_social_media.deleteMany({
+        where: { employees_id: id },
+      });
+      if (Array.isArray(socialMedia)) {
+        for (const sm of socialMedia) {
+          await tx.employees_has_social_media.create({
+            data: {
+              employees_id: id,
+              media_name: sm.name,
+              account_name: sm.account,
+            },
+          });
+        }
+      }
+
+      await tx.employees_shift.deleteMany({
+        where: { employees_id: id },
+      });
+      if (Array.isArray(shift)) {
+        const shiftData = shift.map((s) => ({
+          employees_id: id,
+          days: s.day,
+          start_time: s.start_time,
+          end_time: s.end_time,
+        }));
+
+        await tx.employees_shift.createMany({
+          data: shiftData,
         });
       }
-    }
 
-    await this.prisma.employees_shift.deleteMany({
-      where: { employees_id: id },
-    });
-    if (Array.isArray(shift)) {
-      const shiftData = shift.map((s) => ({
-        employees_id: id,
-        days: s.day,
-        start_time: s.start_time,
-        end_time: s.end_time,
-      }));
-
-      await this.prisma.employees_shift.createMany({
-        data: shiftData,
+      await tx.product_commissions.deleteMany({
+        where: { employees_id: id },
       });
-    }
+      await tx.voucher_commissions.deleteMany({
+        where: { employees_id: id },
+      });
 
-    await this.prisma.product_commissions.deleteMany({
-      where: { employees_id: id },
-    });
-    await this.prisma.voucher_commissions.deleteMany({
-      where: { employees_id: id },
-    });
+      if (commissions) {
+        if (Array.isArray(commissions.productCommission)) {
+          for (const pc of commissions.productCommission) {
+            if (!pc.product_id || pc.amount === undefined) continue;
+            await tx.product_commissions.create({
+              data: {
+                employees_id: id,
+                is_percent: pc.is_percent ?? false,
+                products_id: pc.product_id,
+                amount: pc.amount ?? 0,
+              },
+            });
+          }
+        }
 
-    if (commissions) {
-      if (Array.isArray(commissions.productCommission)) {
-        for (const pc of commissions.productCommission) {
-          if (!pc.product_id || pc.amount === undefined) continue;
-          await this.prisma.product_commissions.create({
-            data: {
-              employees_id: id,
-              is_percent: pc.is_percent ?? false,
-              products_id: pc.product_id,
-              amount: pc.amount ?? 0,
-            },
-          });
+        if (Array.isArray(commissions.voucherCommission)) {
+          for (const vc of commissions.voucherCommission) {
+            if (!vc.voucher_id || vc.amount === undefined) continue;
+            await tx.voucher_commissions.create({
+              data: {
+                employees_id: id,
+                is_percent: vc.is_percent ?? false,
+                voucher_id: vc.voucher_id,
+                amount: vc.amount ?? 0,
+              },
+            });
+          }
         }
       }
 
-      if (Array.isArray(commissions.voucherCommission)) {
-        for (const vc of commissions.voucherCommission) {
-          if (!vc.voucher_id || vc.amount === undefined) continue;
-          await this.prisma.voucher_commissions.create({
-            data: {
-              employees_id: id,
-              is_percent: vc.is_percent ?? false,
-              voucher_id: vc.voucher_id,
-              amount: vc.amount ?? 0,
-            },
-          });
-        }
-      }
-    }
-
+      return updatedEmployee;
+    });
     return updatedEmployee;
   }
 
   async remove(id: string) {
     await this.findOne(id);
 
-    return this.prisma.employees.delete({
-      where: { id },
+    return this.prisma.$transaction(async (tx) => {
+      const deletedEmployee = await tx.employees.delete({
+        where: { id },
+      });
+
+      await tx.users.delete({
+        where: { id: deletedEmployee.user_id },
+      });
+
+      return deletedEmployee;
     });
   }
 

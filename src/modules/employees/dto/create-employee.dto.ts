@@ -151,10 +151,11 @@ export class CreateEmployeeDto {
   @IsString()
   title?: string;
 
+  // TODO(employess): disarankan ganti jadi role_id
   @ApiProperty({ example: 'SUPERVISOR', required: false })
   @IsOptional()
   @IsString()
-  permission?: string;
+  permission: string;
 
   @ApiProperty({ type: [SocialMediaDto], required: false })
   @IsOptional()
