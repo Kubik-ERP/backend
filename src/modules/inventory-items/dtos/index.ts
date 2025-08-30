@@ -4,3 +4,6 @@ export * from './get-inventory-items.dto';
 export * from './create-stock-adjustment.dto';
 export * from './update-stock-adjustment.dto';
 export * from './get-stock-adjustments.dto';
+export * from './import-preview.dto';
+export * from './execute-import.dto';
+export * from './delete-batch.dto';
