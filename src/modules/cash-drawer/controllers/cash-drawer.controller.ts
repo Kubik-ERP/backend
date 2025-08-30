@@ -168,6 +168,7 @@ export class CashDrawerController {
     @Param('cashDrawerId') cashDrawerId: string,
     @Body() body: Partial<OpenCashDrawerDto>,
   ) {
+    // TODO: perlu konfirmasi, dengan adanya RBAC, apakah bener ini tetep only owner can edit cash drawer details?
     const role = await this.userService.getUserRole(req.user.id);
     if (role !== 'Owner') {
       throw new Error('Only owner can edit cash drawer details');

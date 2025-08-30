@@ -15,6 +15,10 @@ declare global {
     verified_at?: Date;
     pin?: string;
     role?: string;
+
+    // kebutuhan login staff
+    is_staff?: boolean;
+    ownerId: number;
   }
 
   interface IResultFilter {
@@ -51,5 +55,10 @@ declare global {
     ext: string;
     role: string;
     pin: string;
+
+    // kebutuhan login staff
+    is_staff: boolean;
+    ownerId: string;
+    employeeId: string;
   }
 }
