@@ -245,7 +245,7 @@ model invoice {
   change_amount                              Float?
   voucher_amount                             Float                    @default(0)
   voucher_id                                 String?                  @db.Uuid
-  total_product_discount                     Float?
+  // total_product_discount                     Float?
   customers_has_invoices                     customers_has_invoices[]
   customer                                   customer                 @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods                            payment_methods?         @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
@@ -284,7 +284,7 @@ model invoice_details {
   qty              Int?
   invoice_id       String    @db.Uuid
   variant_price    Float?
-  product_discount Float?
+  // product_discount Float?
   invoice          invoice   @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
   products         products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
   variant          variant?  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
