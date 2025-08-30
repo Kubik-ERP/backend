@@ -265,7 +265,7 @@ export class StoresController {
 
   @ApiOperation({ summary: 'Get all stores' })
   @UseGuards(OwnerOrPermissionGuard)
-  @RequirePermissions('access_all_store')
+  @RequirePermissions('access_all_store', 'store_management')
   @ApiBearerAuth()
   @Get('/')
   public async getAllStores(

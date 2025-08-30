@@ -59,6 +59,9 @@ export class SelfOrderController {
     @Body() dto: SelfOrderSignUpDto,
     @Req() req: ICustomRequestHeaders,
   ) {
+    // Memastikan store memiliki akses self-order
+    await this.selfOrderService.storePermission(dto.storeId);
+
     const { customer, created } = await this.selfOrderService.signUp(dto, req);
     return {
       statusCode: created ? 201 : 200,
@@ -97,6 +100,9 @@ export class SelfOrderController {
     @Query('limit') limit: number = 10,
     @Query('search') search?: string,
   ) {
+    // Memastikan store memiliki akses self-order
+    await this.selfOrderService.storePermission(req.store_id!);
+
     try {
       const result = await this.categoriesService.findAll(
         {
@@ -247,6 +253,9 @@ export class SelfOrderController {
     @Req() req: ICustomRequestHeaders,
     @Body() body: ProceedInstantPaymentDto,
   ) {
+    // Memastikan store memiliki akses self-order
+    await this.selfOrderService.storePermission(req.store_id!);
+
     const response = await this.invoiceService.proceedInstantPayment(req, body);
     return {
       result: toCamelCase(response),
@@ -271,6 +280,9 @@ export class SelfOrderController {
     @Req() req: ICustomRequestHeaders,
     @Body() body: ProceedCheckoutInvoiceDto,
   ) {
+    // Memastikan store memiliki akses self-order
+    await this.selfOrderService.storePermission(req.store_id!);
+
     const response = await this.invoiceService.proceedCheckout(req, body);
     return {
       result: toCamelCase(response),

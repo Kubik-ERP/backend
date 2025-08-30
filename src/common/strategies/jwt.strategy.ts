@@ -83,6 +83,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
                       store_id: storeId,
                       // hide permission yang tidak sesuai dengan paket langganan yang dimiliki user
                       permissions: {
+                        key: {
+                          // list ini gak bakal / gak butuh di tampilkan di UI
+                          notIn: ['self_order'],
+                        },
                         sub_package_access: {
                           some: {
                             subs_package: {
