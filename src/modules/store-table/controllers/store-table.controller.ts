@@ -38,8 +38,8 @@ export class StoreTableController {
     @Headers('x-store-id') storeId: string,
   ) {
     if (!storeId) throw new BadRequestException('x-store-id wajib');
-    const userId = req.user.id;
-    const result = await this.storeTableService.findAll(storeId, userId);
+    const ownerId = req.user.ownerId;
+    const result = await this.storeTableService.findAll(storeId, ownerId);
     return {
       message: 'Success get all store tables',
       result: toCamelCase(result),
@@ -55,11 +55,11 @@ export class StoreTableController {
     @Headers('x-store-id') storeId: string,
   ) {
     if (!storeId) throw new BadRequestException('x-store-id wajib');
-    const userId = req.user.id;
+    const ownerId = req.user.ownerId;
     const result = await this.storeTableService.createConfiguration(
       dto,
       storeId,
-      userId,
+      ownerId,
     );
     return {
       message: 'Store tables created successfully',
@@ -77,12 +77,12 @@ export class StoreTableController {
     @Headers('x-store-id') storeId: string,
   ) {
     if (!storeId) throw new BadRequestException('x-store-id wajib');
-    const userId = req.user.id;
+    const ownerId = req.user.ownerId;
     const result = await this.storeTableService.update(
       id,
       dto,
       storeId,
-      userId,
+      ownerId,
     );
     return {
       message: 'Store table updated successfully',
@@ -99,8 +99,8 @@ export class StoreTableController {
     @Headers('x-store-id') storeId: string,
   ) {
     if (!storeId) throw new BadRequestException('x-store-id wajib');
-    const userId = req.user.id;
-    const result = await this.storeTableService.delete(id, storeId, userId);
+    const ownerId = req.user.ownerId;
+    const result = await this.storeTableService.delete(id, storeId, ownerId);
     return {
       message: 'Store table deleted successfully',
       result: toCamelCase(result),

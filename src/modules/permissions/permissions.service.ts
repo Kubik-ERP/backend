@@ -78,7 +78,7 @@ export class PermissionsService {
                 subs_package: {
                   users: {
                     some: {
-                      id: header.user.id,
+                      id: header.user.ownerId,
                     },
                   },
                 },
@@ -96,7 +96,7 @@ export class PermissionsService {
                 subs_package: {
                   users: {
                     some: {
-                      id: header.user.id,
+                      id: header.user.ownerId,
                     },
                   },
                 },
@@ -144,7 +144,7 @@ export class PermissionsService {
                       subs_package: {
                         users: {
                           some: {
-                            id: header.user.id,
+                            id: header.user.ownerId,
                           },
                         },
                       },

@@ -1,5 +1,9 @@
 // NestJS Libraries
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 
 // Passport
@@ -25,6 +29,41 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(req: ICustomRequestHeaders, payload: IValidateJWTStrategy) {
     const storeId = req.store_id;
+    let ownerId = payload.sub;
+
+    // Jika yang login adalah staff
+    if (payload.is_staff) {
+      const accessToken = req.headers.authorization?.split(' ')[1];
+      // pastikan tokennya ada dan valid
+      const validToken = await this.prisma.employee_login_sessions.findFirst({
+        where: {
+          employee_id: payload.employeeId,
+          expires_at: {
+            gt: new Date(),
+          },
+          access_token: accessToken,
+        },
+      });
+
+      if (!validToken) {
+        throw new UnauthorizedException('Invalid token');
+      }
+
+      // pastikan staff tidak mengakses store yang tidak diberi izin
+      const storeEmployee = await this.prisma.stores_has_employees.findFirst({
+        where: {
+          employees_id: payload.employeeId,
+          stores_id: storeId,
+        },
+      });
+      if (!storeEmployee) {
+        throw new ForbiddenException(
+          'You are not authorized to access this store',
+        );
+      }
+
+      ownerId = payload.ownerId;
+    }
 
     const user = await this.prisma.users.findUnique({
       where: {
@@ -49,7 +88,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
                             subs_package: {
                               users: {
                                 some: {
-                                  id: parseInt(payload.sub),
+                                  id: parseInt(ownerId),
                                 },
                               },
                             },
@@ -66,6 +105,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             }),
       },
     });
-    return user;
+    return {
+      ...user,
+      ownerId,
+    };
   }
 }

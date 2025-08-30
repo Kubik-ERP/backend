@@ -165,12 +165,12 @@ model employees {
   default_commission_voucher_type commission_type?
   default_commission_voucher      Float?
   default_commission_product      Float?
-  user_id                         Int?                         @unique(map: "employees_user_id_unique")
+  user_id                         Int                          @unique(map: "employees_user_id_unique")
   cash_drawers                    cash_drawers[]
   device_codes                    device_codes?
   employee_login_sessions         employee_login_sessions?
   roles                           roles                        @relation(fields: [permission], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_roles_fk")
-  users                           users?                       @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_users_fk")
+  users                           users                        @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_users_fk")
   employees_has_roles             employees_has_roles[]
   employees_has_social_media      employees_has_social_media[]
   employees_shift                 employees_shift[]
