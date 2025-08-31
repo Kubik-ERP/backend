@@ -343,8 +343,6 @@ export class DashboardService {
       this.getSalesByTimeOnDate(wibStartDate, wibEndDate, req),
       this.getDailySalesInRange(wibStartDate, wibEndDate, req),
       this.getMonthlySalesThisYear(req, wibStartDate),
-      this.getTotalSalesThisYear(req),
-      this.getTotalSalesLastYear(req),
       this.getTopProductSales(wibStartDate, wibEndDate, req),
       this.getProductStockStatus(req),
     ]);
