@@ -11,6 +11,14 @@ import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.gua
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { DashboardService } from './dashboard.service';
 
+export type FinancialReportType =
+  | 'profit-loss'
+  | 'cashin-out'
+  | 'payment-method'
+  | 'tax-service';
+
+export type SummaryType = 'time' | 'days' | 'month';
+
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
@@ -30,7 +38,7 @@ export class DashboardController {
   async getDashboardSummary(
     @Query('startDate', new ParseDatePipe()) startDate: Date,
     @Query('endDate', new ParseDatePipe()) endDate: Date,
-    @Query('type') type: string,
+    @Query('type') type: SummaryType,
     @Req() req: ICustomRequestHeaders,
   ) {
     const data = await this.dashboardService.getDashboardSummary(
@@ -41,6 +49,37 @@ export class DashboardController {
     );
     return {
       message: 'Dashboard summary retrieved successfully',
+      result: toCamelCase(data),
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('financial-report')
+  @ApiOperation({
+    summary:
+      'Get financial report data for the main dashboard within a date range.',
+  })
+  async getFinancialReport(
+    @Query('startDate', new ParseDatePipe()) startDate: Date,
+    @Query('endDate', new ParseDatePipe()) endDate: Date,
+    @Query('type') type: FinancialReportType,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const data = await this.dashboardService.getFinancialReport(
+      startDate,
+      endDate,
+      type,
+      req,
+    );
+    return {
+      message: 'Financial report retrieved successfully',
       result: toCamelCase(data),
     };
   }

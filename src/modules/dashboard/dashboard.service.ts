@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { FinancialReportType, SummaryType } from './dashboard.controller';
 
 @Injectable()
 export class DashboardService {
@@ -119,8 +120,8 @@ export class DashboardService {
       );
 
       salesByMonth.push({
-        month: monthNames[month],
-        sales: monthlyMetrics.totalSales,
+        label: monthNames[month],
+        value: monthlyMetrics.totalSales,
       });
     }
 
@@ -250,8 +251,8 @@ export class DashboardService {
 
       dailySales.push({
         // Format date as YYYY-MM-DD
-        date: dayStart.toISOString().split('T')[0],
-        sales: metrics.totalSales,
+        label: dayStart.toISOString().split('T')[0],
+        value: metrics.totalSales,
       });
 
       currentDate.setDate(currentDate.getDate() + 1);
@@ -298,8 +299,8 @@ export class DashboardService {
       }, 0);
 
       return {
-        time: invoice.complete_order_at?.toLocaleTimeString('en-GB'),
-        sales: totalSales,
+        label: invoice.complete_order_at?.toLocaleTimeString('en-GB'),
+        value: totalSales,
       };
     });
 
@@ -309,7 +310,7 @@ export class DashboardService {
   async getDashboardSummary(
     startDate: Date,
     endDate: Date,
-    type: string,
+    type: SummaryType,
     req: ICustomRequestHeaders,
   ) {
     if (startDate > endDate) {
@@ -392,21 +393,86 @@ export class DashboardService {
         ),
       },
     };
-
+    let salesData;
+    if (type === 'time') {
+      salesData = timeBasedSales;
+    } else if (type === 'days') {
+      salesData = dailySalesData;
+    } else if (type === 'month') {
+      salesData = monthlySalesData;
+    }
     return {
       summary,
-      timeBasedSales,
-      dailySalesData,
-      monthlySalesData,
-      latestSales: {
-        value: yearlySalesData,
-        percentageChange: this.calculatePercentageChange(
-          yearlySalesData,
-          previousYearSalesData,
-        ),
-      },
+      salesData,
       productSales,
       stockStatus,
     };
+  }
+
+  private async _profitLossReport(
+    startDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const [currentMetrics, previousMetrics] = await Promise.all([
+      this.getMetricsForPeriod(startDate, endDate, req),
+      this.getMetricsForPeriod(
+        new Date(startDate.getTime() - 1),
+        new Date(endDate.getTime() - 1),
+        req,
+      ),
+    ]);
+
+    const currentGrossProfit =
+      currentMetrics.totalSales - currentMetrics.totalGross;
+    const previousGrossProfit =
+      previousMetrics.totalSales - previousMetrics.totalGross;
+
+    const currentNettProfit = currentGrossProfit;
+    const previousNettProfit = previousGrossProfit;
+
+    return {
+      totalSales: {
+        value: currentMetrics.totalSales,
+        percentageChange: this.calculatePercentageChange(
+          currentMetrics.totalSales,
+          previousMetrics.totalSales,
+        ),
+      },
+      totalCostOfGoodSold: {
+        value: currentMetrics.totalGross,
+        percentageChange: this.calculatePercentageChange(
+          currentMetrics.totalGross,
+          previousMetrics.totalGross,
+        ),
+      },
+      totalGrossProfit: {
+        value: currentGrossProfit,
+        percentageChange: this.calculatePercentageChange(
+          currentGrossProfit,
+          previousGrossProfit,
+        ),
+      },
+      totalNettProfit: {
+        value: currentNettProfit,
+        percentageChange: this.calculatePercentageChange(
+          currentNettProfit,
+          previousNettProfit,
+        ),
+      },
+    };
+  }
+
+  async getFinancialReport(
+    startDate: Date,
+    endDate: Date,
+    type: FinancialReportType,
+    req: ICustomRequestHeaders,
+  ) {
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Start date must be earlier than or equal to end date',
+      );
+    }
   }
 }
