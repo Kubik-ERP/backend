@@ -5,6 +5,12 @@ import { FinancialReportType, SummaryType } from './dashboard.controller';
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private adjustDateForWIB(date: Date): Date {
+    const sevenHoursInMs = 7 * 60 * 60 * 1000;
+    return new Date(date.getTime() - sevenHoursInMs);
+  }
+
   private calculatePercentageChange(current: number, previous: number): number {
     if (previous === 0) {
       return current > 0 ? 100 : 0;
@@ -94,18 +100,18 @@ export class DashboardService {
     const year = date.getFullYear();
     const salesByMonth = [];
     const monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
       'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
 
     for (let month = 0; month < 12; month++) {
@@ -238,20 +244,26 @@ export class DashboardService {
     req: ICustomRequestHeaders,
   ) {
     const dailySales = [];
-    let currentDate = new Date(startDate);
+    const currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-      const dayStart = new Date(currentDate);
-      dayStart.setHours(0, 0, 0, 0);
+      const dayStartForQuery = new Date(currentDate);
 
-      const dayEnd = new Date(currentDate);
-      dayEnd.setHours(23, 59, 59, 999);
+      const dayEndForQuery = new Date(dayStartForQuery);
+      dayEndForQuery.setHours(dayEndForQuery.getHours() + 24);
+      dayEndForQuery.setMilliseconds(dayEndForQuery.getMilliseconds() - 1);
 
-      const metrics = await this.getMetricsForPeriod(dayStart, dayEnd, req);
+      const metrics = await this.getMetricsForPeriod(
+        dayStartForQuery,
+        dayEndForQuery,
+        req,
+      );
+
+      const sevenHoursInMs = 7 * 60 * 60 * 1000;
+      const displayDate = new Date(currentDate.getTime() + sevenHoursInMs);
 
       dailySales.push({
-        // Format date as YYYY-MM-DD
-        label: dayStart.toISOString().split('T')[0],
+        label: displayDate.toISOString().split('T')[0],
         value: metrics.totalSales,
       });
 
@@ -261,50 +273,36 @@ export class DashboardService {
     return dailySales;
   }
 
-  async getSalesByTimeOnDate(date: Date, req: ICustomRequestHeaders) {
-    const storeId = req.store_id;
+  async getSalesByTimeOnDate(
+    startDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const hourlySales = [];
+    const currentDate = new Date(startDate);
 
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
+    while (currentDate <= endDate) {
+      const hourStart = new Date(currentDate);
+      hourStart.setMinutes(0, 0, 0);
 
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
+      const hourEnd = new Date(currentDate);
+      hourEnd.setMinutes(59, 59, 999);
 
-    const invoices = await this.prisma.invoice.findMany({
-      where: {
-        store_id: storeId,
-        payment_status: 'paid',
-        complete_order_at: {
-          gte: dayStart,
-          lte: dayEnd,
-        },
-      },
-      include: {
-        invoice_details: {
-          select: {
-            product_price: true,
-            qty: true,
-          },
-        },
-      },
-      orderBy: {
-        complete_order_at: 'asc',
-      },
-    });
+      const metrics = await this.getMetricsForPeriod(hourStart, hourEnd, req);
 
-    // Map over invoices to calculate total sales for each and format the output
-    const salesByTime = invoices.map((invoice) => {
-      const totalSales = invoice.invoice_details.reduce((acc, detail) => {
-        return acc + (detail.product_price ?? 0) * (detail.qty ?? 1);
-      }, 0);
+      hourlySales.push({
+        label: hourStart.toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }),
+        value: metrics.totalSales,
+      });
 
-      return {
-        label: invoice.complete_order_at?.toLocaleTimeString('en-GB'),
-        value: totalSales,
-      };
-    });
+      currentDate.setHours(currentDate.getHours() + 1);
+    }
 
-    return salesByTime;
+    return hourlySales;
   }
 
   async getDashboardSummary(
@@ -313,14 +311,16 @@ export class DashboardService {
     type: SummaryType,
     req: ICustomRequestHeaders,
   ) {
-    if (startDate > endDate) {
+    const wibStartDate = this.adjustDateForWIB(startDate);
+    const wibEndDate = this.adjustDateForWIB(endDate);
+    if (wibStartDate > wibEndDate) {
       throw new BadRequestException(
         'Start date must be earlier than or equal to end date',
       );
     }
 
-    const durationMs = endDate.getTime() - startDate.getTime();
-    const previousPeriodEndDate = new Date(startDate.getTime() - 1);
+    const durationMs = wibEndDate.getTime() - wibStartDate.getTime();
+    const previousPeriodEndDate = new Date(wibStartDate.getTime() - 1);
     const previousPeriodStartDate = new Date(
       previousPeriodEndDate.getTime() - durationMs,
     );
@@ -331,23 +331,21 @@ export class DashboardService {
       timeBasedSales,
       dailySalesData,
       monthlySalesData,
-      yearlySalesData,
-      previousYearSalesData,
       productSales,
       stockStatus,
     ] = await Promise.all([
-      this.getMetricsForPeriod(startDate, endDate, req),
+      this.getMetricsForPeriod(wibStartDate, wibEndDate, req),
       this.getMetricsForPeriod(
         previousPeriodStartDate,
         previousPeriodEndDate,
         req,
       ),
-      this.getSalesByTimeOnDate(startDate, req),
-      this.getDailySalesInRange(startDate, endDate, req),
-      this.getMonthlySalesThisYear(req, startDate),
+      this.getSalesByTimeOnDate(wibStartDate, wibEndDate, req),
+      this.getDailySalesInRange(wibStartDate, wibEndDate, req),
+      this.getMonthlySalesThisYear(req, wibStartDate),
       this.getTotalSalesThisYear(req),
       this.getTotalSalesLastYear(req),
-      this.getTopProductSales(startDate, endDate, req),
+      this.getTopProductSales(wibStartDate, wibEndDate, req),
       this.getProductStockStatus(req),
     ]);
 
@@ -406,60 +404,6 @@ export class DashboardService {
       salesData,
       productSales,
       stockStatus,
-    };
-  }
-
-  private async _profitLossReport(
-    startDate: Date,
-    endDate: Date,
-    req: ICustomRequestHeaders,
-  ) {
-    const [currentMetrics, previousMetrics] = await Promise.all([
-      this.getMetricsForPeriod(startDate, endDate, req),
-      this.getMetricsForPeriod(
-        new Date(startDate.getTime() - 1),
-        new Date(endDate.getTime() - 1),
-        req,
-      ),
-    ]);
-
-    const currentGrossProfit =
-      currentMetrics.totalSales - currentMetrics.totalGross;
-    const previousGrossProfit =
-      previousMetrics.totalSales - previousMetrics.totalGross;
-
-    const currentNettProfit = currentGrossProfit;
-    const previousNettProfit = previousGrossProfit;
-
-    return {
-      totalSales: {
-        value: currentMetrics.totalSales,
-        percentageChange: this.calculatePercentageChange(
-          currentMetrics.totalSales,
-          previousMetrics.totalSales,
-        ),
-      },
-      totalCostOfGoodSold: {
-        value: currentMetrics.totalGross,
-        percentageChange: this.calculatePercentageChange(
-          currentMetrics.totalGross,
-          previousMetrics.totalGross,
-        ),
-      },
-      totalGrossProfit: {
-        value: currentGrossProfit,
-        percentageChange: this.calculatePercentageChange(
-          currentGrossProfit,
-          previousGrossProfit,
-        ),
-      },
-      totalNettProfit: {
-        value: currentNettProfit,
-        percentageChange: this.calculatePercentageChange(
-          currentNettProfit,
-          previousNettProfit,
-        ),
-      },
     };
   }
 
