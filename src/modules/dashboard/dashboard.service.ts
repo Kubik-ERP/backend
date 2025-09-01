@@ -405,6 +405,98 @@ export class DashboardService {
     };
   }
 
+  private async getCashInData(
+    begDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const invoiceData = await this.prisma.invoice.findMany({
+      where: {
+        complete_order_at: {
+          gte: begDate,
+          lte: endDate,
+        },
+        store_id: req.store_id,
+      },
+    });
+    const mappedInvoiceData = invoiceData.map((invoice) => ({
+      id: invoice.id,
+      date: invoice.complete_order_at,
+      type: 'Cash In',
+      notes: 'Transaction ' + invoice.invoice_number,
+      nominal: invoice.grand_total,
+    }));
+    return mappedInvoiceData;
+  }
+
+  private async getPaymentMethodData(
+    begDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const paymentData = await this.prisma.invoice.findMany({
+      where: {
+        complete_order_at: {
+          gte: begDate,
+          lte: endDate,
+        },
+        store_id: req.store_id,
+      },
+      include: {
+        payment_methods: true,
+      },
+    });
+    return paymentData;
+  }
+
+  private async getTaxAndServiceChargeReport(
+    startDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const aggregation = await this.prisma.invoice.aggregate({
+      where: {
+        store_id: req.store_id,
+        complete_order_at: {
+          gte: startDate,
+          lte: endDate,
+          not: null,
+        },
+      },
+      _sum: {
+        subtotal: true,
+        tax_amount: true,
+        service_charge_amount: true,
+      },
+    });
+
+    const chargeDetails = await this.prisma.charges.findMany({
+      where: {
+        type: { in: ['tax', 'service'] },
+      },
+    });
+
+    const taxInfo = chargeDetails.find((c) => c.type === 'tax');
+    const serviceInfo = chargeDetails.find((c) => c.type === 'service');
+
+    const reportData = [
+      {
+        type: 'Tax',
+        rate: taxInfo ? Number(taxInfo.percentage) * 100 : 0,
+        subtotalApplied: aggregation._sum.subtotal || 0,
+        nominal: aggregation._sum.tax_amount || 0,
+      },
+      {
+        type: 'Service Charge',
+        rate: serviceInfo ? Number(serviceInfo.percentage) * 100 : 0,
+        subtotalApplied: aggregation._sum.subtotal || 0,
+        nominal: aggregation._sum.service_charge_amount || 0,
+      },
+    ];
+
+    return reportData;
+  }
+
   async getFinancialReport(
     startDate: Date,
     endDate: Date,
@@ -415,6 +507,73 @@ export class DashboardService {
       throw new BadRequestException(
         'Start date must be earlier than or equal to end date',
       );
+    }
+
+    if (type === 'profit-loss') {
+      const [profitLossData] = await Promise.all([
+        this.getMetricsForPeriod(startDate, endDate, req),
+      ]);
+      return {
+        totalPenjualan: profitLossData.totalSales,
+        costOfGoodsSold: profitLossData.totalGross,
+        grossProfit: profitLossData.totalSales - profitLossData.totalGross,
+        operatingExpenses: 0,
+        netProfit: profitLossData.totalSales - profitLossData.totalGross - 0,
+      };
+    } else if (type === 'cashin-out') {
+      const [cashIn] = await Promise.all([
+        this.getCashInData(startDate, endDate, req),
+      ]);
+      return cashIn;
+    } else if (type === 'payment-method') {
+      const paymentData = await this.getPaymentMethodData(
+        startDate,
+        endDate,
+        req,
+      );
+      const report = new Map<
+        string,
+        { transaction: number; nominal: number }
+      >();
+
+      for (const invoice of paymentData) {
+        if (invoice.payment_methods && invoice.payment_methods.name) {
+          const methodName = invoice.payment_methods.name;
+          const amount = invoice.grand_total || 0;
+
+          if (!report.has(methodName)) {
+            report.set(methodName, { transaction: 0, nominal: 0 });
+          }
+
+          const currentTotals = report.get(methodName)!;
+          currentTotals.transaction += 1;
+          currentTotals.nominal += amount;
+        }
+      }
+
+      const reportData = Array.from(report.entries()).map(([method, data]) => ({
+        paymentMethod: method,
+        transaction: data.transaction,
+        nominal: data.nominal,
+      }));
+
+      const totals = reportData.reduce(
+        (acc, item) => {
+          acc.transaction += item.transaction;
+          acc.nominal += item.nominal;
+          return acc;
+        },
+        { transaction: 0, nominal: 0 },
+      );
+
+      return { reportData, totals };
+    } else if (type === 'tax-service') {
+      const productSales = await this.getTaxAndServiceChargeReport(
+        startDate,
+        endDate,
+        req,
+      );
+      return productSales;
     }
   }
 }
