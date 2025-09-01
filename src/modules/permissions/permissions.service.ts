@@ -175,12 +175,24 @@ export class PermissionsService {
     );
   }
 
-  async ids() {
+  async findByIds(ids: string[]) {
     const result = await this._prisma.permissions.findMany({
+      where: {
+        id: {
+          in: ids,
+        },
+      },
       select: {
         id: true,
+        name: true,
+        permission_categories: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
-    return result.map((item) => item.id);
+    return result;
   }
 }

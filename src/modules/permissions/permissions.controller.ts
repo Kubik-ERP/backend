@@ -6,12 +6,14 @@ import {
   UseGuards,
   Req,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { PermissionsService } from './permissions.service';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { AssignPermissionsToRolesDto } from './dto/assign-permissions-to-roles.dto';
+import { GetPermissionsByIdsDto } from './dto/get-permissions-by-ids.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 
@@ -98,16 +100,27 @@ export class PermissionsController {
     };
   }
 
-  @ApiOperation({ summary: 'Get permissions ids (public)' })
+  @ApiOperation({ summary: 'Get permissions by ids array' })
+  @ApiHeader({
+    name: 'x-server-key',
+    description: 'Custom API Key',
+  })
   @ApiBearerAuth()
-  @Get('ids')
-  async ids() {
-    const permissions = await this.permissionsService.ids();
-
-    return {
-      statusCode: 200,
-      message: 'Permissions ids fetched successfully',
-      result: permissions,
-    };
+  @Get('by-ids')
+  async getByIds(@Query() query: GetPermissionsByIdsDto) {
+    try {
+      const permissions = await this.permissionsService.findByIds(query.ids);
+      return {
+        statusCode: 200,
+        message: 'Permissions fetched successfully',
+        result: toCamelCase(permissions),
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        message: error.message,
+        result: null,
+      };
+    }
   }
 }
