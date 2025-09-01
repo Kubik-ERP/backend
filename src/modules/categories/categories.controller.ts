@@ -18,7 +18,13 @@ import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
-import { ApiBearerAuth, ApiConsumes, ApiHeader } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiHeader,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import { StorageService } from '../storage-service/services/storage-service.service';
 import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
@@ -121,6 +127,118 @@ export class CategoriesController {
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           message: 'Failed to fetch categories',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions(
+  //   'product_category',
+  //   'product_management',
+  //   'process_unpaid_invoice',
+  //   'check_out_sales',
+  // )
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('all')
+  @ApiOperation({
+    summary: 'Get all categories',
+    description:
+      'Retrieve all categories from the categories table with optional search by name',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search categories by name',
+    type: String,
+  })
+  async findAllCategories(
+    @Req() req: ICustomRequestHeaders,
+    @Query('search') search?: string,
+  ) {
+    try {
+      const result = await this.categoriesService.findAllCategories(
+        search,
+        req,
+      );
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(result),
+      };
+    } catch (error) {
+      console.error('Error fetching all categories:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch categories',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions(
+  //   'product_category',
+  //   'product_management',
+  //   'process_unpaid_invoice',
+  //   'check_out_sales',
+  // )
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('products')
+  @ApiOperation({
+    summary: 'Get catalog products',
+    description:
+      'Retrieve products from categories_has_products table related to products table',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search products by name',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'categoryId',
+    required: false,
+    description: 'Filter by category ID',
+    type: String,
+  })
+  async findCatalogProducts(
+    @Req() req: ICustomRequestHeaders,
+    @Query('search') search?: string,
+    @Query('categoryId') categoryId?: string,
+  ) {
+    try {
+      const result = await this.categoriesService.findCatalogProducts(
+        search,
+        categoryId,
+        req,
+      );
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(result),
+      };
+    } catch (error) {
+      console.error('Error fetching catalog products:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch catalog products',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
