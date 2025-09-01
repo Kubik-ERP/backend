@@ -1206,6 +1206,16 @@ model employee_login_sessions {
   stores         stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_login_sessions_stores_fk")
 }
 
+model device_codes {
+  id                String             @id(map: "device_codes_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String             @db.VarChar(45)
+  code              String             @unique(map: "device_codes_code_unique") @db.VarChar(9)
+  employee_id       String?            @unique(map: "device_codes_employee_id_unique") @db.Uuid
+  store_id          String             @db.Uuid
+  status            device_code_status @default(pending)
+  last_connected_at DateTime?          @db.Timestamp(6)
+}
+
 enum cash_drawer_type {
   open
   close

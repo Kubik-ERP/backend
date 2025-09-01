@@ -68,12 +68,13 @@ export class InvoiceController {
     };
   }
 
-  @UseGuards(AuthPermissionGuard)
-  @RequirePermissions(
-    'check_out_sales',
-    'process_unpaid_invoice',
-    'daily_sales',
-  )
+  // TODO: Nanti dibuka lagi
+  // @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions(
+  //   'check_out_sales',
+  //   'process_unpaid_invoice',
+  //   'daily_sales',
+  // )
   @Get(':invoiceId')
   @ApiOperation({
     summary: 'Get invoice by invoice ID',
@@ -273,8 +274,9 @@ export class InvoiceController {
     return await this.invoiceService.handlePaymentCoreCallback(callbackData);
   }
 
-  @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('process_unpaid_invoice', 'check_out_sales')
+  // TODO: Nanti dibuka lagi
+  // @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('process_unpaid_invoice', 'check_out_sales')
   @ApiBearerAuth()
   @Post('calculate/estimation')
   @ApiOperation({
