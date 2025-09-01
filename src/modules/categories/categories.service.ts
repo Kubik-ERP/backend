@@ -251,4 +251,136 @@ export class CategoriesService {
       throw new Error('Failed to delete category');
     }
   }
+
+  async findAllCategories(search?: string, header?: ICustomRequestHeaders) {
+    const store_id = header?.store_id;
+
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
+    const categories = await this.prisma.categories.findMany({
+      where: {
+        store_has_categories: {
+          some: {
+            stores_id: store_id,
+          },
+        },
+        ...(search && {
+          category: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        }),
+      },
+      include: {
+        store_has_categories: {
+          where: {
+            stores_id: store_id,
+          },
+        },
+        categories_has_products: {
+          include: {
+            products: true,
+          },
+        },
+      },
+      orderBy: {
+        category: 'asc',
+      },
+    });
+
+    // Transform the data to match the required format
+    const transformedCategories = categories.map((category) => ({
+      id: category.id,
+      category: category.category,
+      description: category.description,
+      pictureUrl: category.picture_url,
+      totalItems: category.categories_has_products.length,
+    }));
+
+    return transformedCategories;
+  }
+
+  async findCatalogProducts(
+    search?: string,
+    categoryId?: string,
+    header?: ICustomRequestHeaders,
+  ) {
+    const store_id = header?.store_id;
+
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
+    // Get categories with their products
+    const categories = await this.prisma.categories.findMany({
+      where: {
+        store_has_categories: {
+          some: {
+            stores_id: store_id,
+          },
+        },
+        ...(categoryId && {
+          id: categoryId,
+        }),
+      },
+      include: {
+        categories_has_products: {
+          where: {
+            ...(search && {
+              products: {
+                name: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
+              },
+            }),
+          },
+          include: {
+            products: {
+              include: {
+                variant_has_products: {
+                  include: {
+                    variant: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        category: 'asc',
+      },
+    });
+
+    // Transform the data to match the required format
+    const transformedData = categories.map((category) => ({
+      id: category.id,
+      category: category.category,
+      description: category.description,
+      items: category.categories_has_products.map((categoryProduct) => ({
+        id: categoryProduct.products.id,
+        name: categoryProduct.products.name,
+        price: categoryProduct.products.price,
+        discountPrice: categoryProduct.products.discount_price,
+        pictureUrl: categoryProduct.products.picture_url,
+        isPercent: categoryProduct.products.is_percent,
+        variant: categoryProduct.products.variant_has_products.map(
+          (variantProduct) => ({
+            id: variantProduct.variant.id,
+            productsId: variantProduct.products_id,
+            name: variantProduct.variant.name,
+            price: variantProduct.variant.price,
+          }),
+        ),
+      })),
+    }));
+
+    // Filter out categories with no items if search is applied
+    return transformedData.filter(
+      (category) => !search || category.items.length > 0,
+    );
+  }
 }
