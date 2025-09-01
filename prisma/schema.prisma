@@ -1128,6 +1128,8 @@ model temp_import_inventory_items {
   supplier               String?   @db.VarChar(100)
   error_messages         String?
   imported_at            DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@map("temp_import_inventory_items")
 }
 
 model permission_categories {

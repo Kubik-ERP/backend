@@ -129,11 +129,11 @@ export const requireStoreId = (header: ICustomRequestHeaders): string => {
 };
 
 export const randomBase16 = (length: number): string => {
-  const array = new Uint8Array(length / 2); // 2 hex chars = 1 byte
-  crypto.getRandomValues(array); // works in Browser/Deno
+  const array = new Uint8Array(Math.ceil(length / 2)); // ceil instead of /
+  crypto.getRandomValues(array);
 
   return Array.from(array, (b) => b.toString(16).padStart(2, '0'))
     .join('')
     .toUpperCase()
-    .slice(0, length);
+    .slice(0, length); // safe now
 };

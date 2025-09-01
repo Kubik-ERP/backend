@@ -30,7 +30,7 @@ export class StoreTableController {
   @RequirePermissions(
     'process_unpaid_invoice',
     'check_out_sales',
-    'store_management',
+    'table_management',
   )
   @Get()
   async getAll(
@@ -47,7 +47,7 @@ export class StoreTableController {
   }
 
   @HttpCode(200)
-  @RequirePermissions('store_management')
+  @RequirePermissions('table_management')
   @Post()
   async create(
     @Req() req: ICustomRequestHeaders,
@@ -68,7 +68,7 @@ export class StoreTableController {
   }
 
   @HttpCode(200)
-  @RequirePermissions('store_management')
+  @RequirePermissions('table_management')
   @Put(':id')
   async update(
     @Req() req: ICustomRequestHeaders,
@@ -91,7 +91,7 @@ export class StoreTableController {
   }
 
   @HttpCode(200)
-  @RequirePermissions('store_management')
+  @RequirePermissions('table_management')
   @Delete(':id')
   async delete(
     @Req() req: ICustomRequestHeaders,
