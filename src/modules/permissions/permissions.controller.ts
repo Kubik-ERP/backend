@@ -97,4 +97,17 @@ export class PermissionsController {
       result: permissions,
     };
   }
+
+  @ApiOperation({ summary: 'Get permissions ids (public)' })
+  @ApiBearerAuth()
+  @Get('ids')
+  async ids() {
+    const permissions = await this.permissionsService.ids();
+
+    return {
+      statusCode: 200,
+      message: 'Permissions ids fetched successfully',
+      result: permissions,
+    };
+  }
 }

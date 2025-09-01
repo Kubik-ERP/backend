@@ -174,4 +174,13 @@ export class PermissionsService {
       (item) => item.permissions.key,
     );
   }
+
+  async ids() {
+    const result = await this._prisma.permissions.findMany({
+      select: {
+        id: true,
+      },
+    });
+    return result.map((item) => item.id);
+  }
 }
