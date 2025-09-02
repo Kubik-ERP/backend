@@ -197,7 +197,7 @@ export class PurchaseOrdersService {
           master_supplier_id: dto.supplierId,
           order_date: dto.orderDate,
           total_price: totalPrice,
-          suppier_info: {
+          supplier_info: {
             supplier_name: supplier.supplier_name,
             contact_person: supplier.contact_person,
             phone_number: supplier.phone_number,
@@ -359,7 +359,7 @@ export class PurchaseOrdersService {
           master_supplier_id: dto.supplierId,
           order_date: dto.orderDate,
           total_price: totalPrice,
-          suppier_info: {
+          supplier_info: {
             supplier_name: supplier.supplier_name,
             contact_person: supplier.contact_person,
             phone_number: supplier.phone_number,
@@ -483,6 +483,9 @@ export class PurchaseOrdersService {
     // Generate next DO number
     const lastDO = await this._prisma.purchase_orders.findFirst({
       orderBy: { created_at: 'desc' },
+      where: {
+        delivery_number: { not: null },
+      },
       select: { delivery_number: true },
     });
 

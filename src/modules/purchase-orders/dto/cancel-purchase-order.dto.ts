@@ -5,9 +5,8 @@ export class CancelPurchaseOrderDto {
   @ApiProperty({
     description: 'Reason for cancelling the purchase order',
     example: 'Customer cancelled the order',
-    required: true,
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  reason: string;
+  reason: string = '';
 }
