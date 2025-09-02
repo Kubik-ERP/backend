@@ -39,6 +39,10 @@ export class VouchersService {
 
     // --- Filter
     const filters: Prisma.voucherWhereInput = {
+      // voucher yang kuotanya habis akan di hide
+      quota: {
+        gt: 0,
+      },
       // active voucher
       start_period: {
         lte: new Date(today),
@@ -83,25 +87,9 @@ export class VouchersService {
       orderBy: {
         name: 'asc',
       },
-      include: {
-        invoice: {
-          select: {
-            voucher_id: true,
-          },
-        },
-      },
     });
 
-    return (
-      vouchers
-        // Hide voucher yang kuotanya habis
-        .filter(({ invoice, ...voucher }) => invoice.length < voucher.quota)
-        // menambahkan field remaining_quota
-        .map(({ invoice, ...voucher }) => ({
-          ...voucher,
-          remaining_quota: voucher.quota - invoice.length,
-        }))
-    );
+    return vouchers;
   }
 
   async findAll(query: VouchersListDto, header: ICustomRequestHeaders) {
@@ -578,14 +566,7 @@ export class VouchersService {
 
     // Jika dipanggil di process calculate, maka tidak perlu ngitung max quota
     if (!isCalculate) {
-      // check voucher is max usage
-      const voucherUsage = await this._prisma.invoice.count({
-        where: {
-          voucher_id: voucher.id,
-        },
-      });
-
-      if (voucherUsage >= voucher.quota) {
+      if (voucher.quota === 0) {
         this.logger.error(`Voucher with ID ${voucherId} is max usage`);
         throw new BadRequestException(
           `Voucher with ID ${voucherId} is max usage`,
