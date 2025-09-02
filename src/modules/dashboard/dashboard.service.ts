@@ -1,6 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { FinancialReportType, SummaryType } from './dashboard.controller';
+import {
+  FinancialReportType,
+  SalesReportType,
+  StockReportType,
+  SummaryType,
+} from './dashboard.controller';
 
 @Injectable()
 export class DashboardService {
@@ -574,6 +579,255 @@ export class DashboardService {
         req,
       );
       return productSales;
+    }
+  }
+
+  private async getItemSalesReport(
+    startDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const storeProducts = await this.prisma.products.findMany({
+      where: {
+        stores_has_products: {
+          // This is the relation to the pivot table
+          some: {
+            stores_id: req.store_id,
+          },
+        },
+      },
+      include: {
+        categories_has_products: {
+          include: {
+            categories: true,
+          },
+        },
+      },
+    });
+
+    if (storeProducts.length === 0) {
+      return []; // This store has no products assigned
+    }
+
+    // 2. Get the sales aggregations ONLY for those products within the date range
+    const productIds = storeProducts.map((p) => p.id);
+    const aggregations = await this.prisma.invoice_details.groupBy({
+      by: ['product_id'],
+      where: {
+        product_id: { in: productIds }, // Important: Only check relevant products
+        invoice: {
+          store_id: req.store_id,
+          complete_order_at: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+      },
+      _sum: {
+        qty: true,
+        product_price: true,
+      },
+      _avg: {
+        product_price: true,
+      },
+    });
+
+    // Create a Map of the sales data for easy lookup
+    const salesDataMap = new Map(
+      aggregations.map((agg) => [agg.product_id, agg]),
+    );
+
+    // Get the store's tax rate once
+    const taxInfo = await this.prisma.charges.findFirst({
+      where: { type: 'tax' },
+    });
+    const taxRate = taxInfo ? Number(taxInfo.percentage) : 0;
+
+    // 3. Create the summary by merging the full product list with the sales data
+    const formattedData = storeProducts.map((product) => {
+      const sales = salesDataMap.get(product.id);
+
+      if (sales) {
+        // This item was sold in the period
+        const grossSales = sales._sum.product_price || 0;
+        // const discount = sales._sum.discount_amount || 0;
+        const netSales = grossSales - 0;
+        const tax = netSales * taxRate;
+        const totalSales = netSales + tax;
+
+        return {
+          productId: product.id || 'N/A',
+          itemName: product.name,
+          category:
+            product.categories_has_products
+              .map((cat) => cat.categories.category)
+              .join(', ') || 'Uncategorized',
+          qtySold: sales._sum.qty || 0,
+          unitPrice: sales._avg.product_price || 0,
+          grossSales,
+          discount: 0,
+          netSales,
+          tax,
+          totalSales,
+        };
+      } else {
+        // This item exists in the store but had zero sales in the period
+        return {
+          productId: product.id || 'N/A',
+          itemName: product.name,
+          category:
+            product.categories_has_products
+              .map((cat) => cat.categories.category)
+              .join(', ') || 'Uncategorized',
+          qtySold: 0,
+          unitPrice: 0, // Or you could fetch the product's default price
+          grossSales: 0,
+          discount: 0,
+          netSales: 0,
+          tax: 0,
+          totalSales: 0,
+        };
+      }
+    });
+
+    return formattedData;
+  }
+
+  private async getOrderSalesReport(
+    startDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        store_id: req.store_id,
+        complete_order_at: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        invoice_number: true,
+        order_type: true,
+        subtotal: true,
+        tax_amount: true,
+        discount_amount: true,
+        grand_total: true,
+      },
+    });
+
+    // Format the data for the response
+    const formattedData = invoices.map((inv) => ({
+      invoiceId: inv.invoice_number,
+      orderType: inv.order_type,
+      grossSales: inv.subtotal,
+      tax: inv.tax_amount || 0,
+      discount: inv.discount_amount || 0,
+      netSales: inv.grand_total,
+    }));
+
+    return formattedData;
+  }
+
+  async getSalesReport(
+    startDate: Date,
+    endDate: Date,
+    type: SalesReportType,
+    req: ICustomRequestHeaders,
+  ) {
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Start date must be earlier than or equal to end date',
+      );
+    }
+    if (type === 'item') {
+      const [itemSales] = await Promise.all([
+        this.getItemSalesReport(startDate, endDate, req),
+      ]);
+      return itemSales;
+    } else if (type === 'order') {
+      const orderSales = await this.getOrderSalesReport(
+        startDate,
+        endDate,
+        req,
+      );
+      return orderSales;
+    }
+  }
+
+  async getVoucherReport(
+    startDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Start date must be earlier than or equal to end date',
+      );
+    }
+
+    const vouchers = await this.prisma.voucher.findMany({
+      where: {
+        store_id: req.store_id,
+      },
+      include: {
+        invoice: {
+          where: {
+            complete_order_at: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+        },
+      },
+    });
+
+    return vouchers.map((voucher) => ({
+      voucherName: voucher.name,
+      validityPeriod: voucher.start_period + ' - ' + voucher.end_period,
+      usage: voucher.invoice.length,
+      quota: voucher.quota,
+    }));
+  }
+
+  async getStockReport(
+    startDate: Date,
+    endDate: Date,
+    type: StockReportType,
+    req: ICustomRequestHeaders,
+  ) {
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Start date must be earlier than or equal to end date',
+      );
+    }
+
+    if (type === 'stock') {
+      const stock = await this.prisma.master_inventory_items.findMany({
+        where: {
+          stores_has_master_inventory_items: {
+            some: {
+              stores_id: req.store_id,
+            },
+          },
+        },
+        include: {
+          master_inventory_categories: true,
+          master_storage_locations: true,
+        },
+      });
+      return stock.map((item) => ({
+        sku: item.sku,
+        itemName: item.name,
+        category: item.master_inventory_categories.name,
+        stock: item.stock_quantity,
+        reorderLevel: item.reorder_level,
+        minimumStock: item.minimum_stock_quantity,
+        unit: item.unit,
+        storageLocation: item.master_storage_locations.name,
+      }));
+    } else if (type === 'movement') {
+      // Fetch stock movement data
     }
   }
 }
