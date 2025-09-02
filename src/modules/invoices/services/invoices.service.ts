@@ -547,7 +547,12 @@ export class InvoiceService {
         totalProductDiscount = calculatedTotalProductDiscount;
 
         // calculate the grand total
-        const calculation = await this.calculateTotal(tx, request, invoiceId);
+        const calculation = await this.calculateTotal(
+          tx,
+          request,
+          storeId,
+          invoiceId,
+        );
         grandTotal = calculation.grandTotal;
 
         // update invoice with original subtotal and total product discount
@@ -757,7 +762,7 @@ export class InvoiceService {
       // Set the total product discount to be used outside transaction
       totalProductDiscount = calculatedTotalProductDiscount;
 
-      const calculation = await this.calculateTotal(tx, request);
+      const calculation = await this.calculateTotal(tx, request, storeId);
 
       const invoiceData = {
         id: invoiceId,
@@ -1380,6 +1385,7 @@ export class InvoiceService {
       const calculation = await this.calculateTotal(
         tx,
         calculationEstimationDto,
+        invoice.store_id ?? undefined,
         invoice.id,
       );
 
@@ -1558,6 +1564,7 @@ export class InvoiceService {
   public async calculateTotal(
     tx: Prisma.TransactionClient,
     request: CalculationEstimationDto,
+    storeId?: string,
     invoiceId?: string,
   ): Promise<CalculationResult> {
     let total = 0;
@@ -1758,6 +1765,50 @@ export class InvoiceService {
       paymentAmount = grandTotal;
     }
 
+    // Apply payment rounding if store ID is provided
+    let roundingAdjustment = 0;
+    let paymentRoundingSetting = null;
+
+    if (storeId) {
+      const setting = await tx.payment_rounding_settings.findFirst({
+        where: {
+          store_id: storeId,
+          is_enabled: true,
+        },
+      });
+
+      if (setting) {
+        const roundingValue = setting.rounding_value;
+        const remainder = grandTotal % roundingValue;
+
+        if (remainder !== 0) {
+          if (setting.rounding_type === 'up') {
+            // Round up: add remainder to reach target
+            roundingAdjustment = roundingValue - remainder;
+          } else if (setting.rounding_type === 'down') {
+            // Round down: subtract remainder
+            roundingAdjustment = -remainder;
+          }
+
+          // Apply rounding adjustment to grand total
+          grandTotal += roundingAdjustment;
+
+          // Update payment amount if it was equal to original grandTotal
+          if (paymentAmount === grandTotal - roundingAdjustment) {
+            paymentAmount = grandTotal;
+            changeAmount = paymentAmount - grandTotal;
+          }
+        }
+
+        paymentRoundingSetting = {
+          id: setting.id,
+          roundingType: setting.rounding_type,
+          roundingValue: setting.rounding_value,
+          isEnabled: setting.is_enabled,
+        };
+      }
+    }
+
     return {
       subTotal,
       discountTotal,
@@ -1773,6 +1824,8 @@ export class InvoiceService {
       paymentAmount,
       changeAmount,
       items,
+      roundingAdjustment,
+      paymentRoundingSetting,
     };
   }
 
