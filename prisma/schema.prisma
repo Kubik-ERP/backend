@@ -1211,16 +1211,16 @@ model employee_login_sessions {
 }
 
 model payment_rounding_settings {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  store_id       String    @db.Uuid
-  is_enabled     Boolean   @default(false)
-  rounding_type  String    @db.VarChar(10)
-  rounding_value Int       @default(100)
-  created_at     DateTime? @default(now()) @db.Timestamp(6)
-  updated_at     DateTime? @default(now()) @db.Timestamp(6)
-  deleted_at     DateTime? @db.Timestamp(6)
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  store_id       String        @db.Uuid
+  is_enabled     Boolean       @default(false)
+  rounding_type  rounding_type
+  rounding_value Int           @default(100)
+  created_at     DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?     @default(now()) @db.Timestamp(6)
+  deleted_at     DateTime?     @db.Timestamp(6)
   invoice        invoice[]
-  stores         stores    @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_payment_rounding_store")
+  stores         stores        @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_payment_rounding_store")
 }
 
 enum cash_drawer_type {
@@ -1329,4 +1329,9 @@ enum device_code_status {
   pending
   connected
   disconnected
+}
+
+enum rounding_type {
+  up
+  down
 }

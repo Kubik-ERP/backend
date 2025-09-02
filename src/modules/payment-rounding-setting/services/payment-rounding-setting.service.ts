@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import {
   CreateOrUpdatePaymentRoundingSettingDto,
   PaymentRoundingSettingResponseDto,
+  RoundingType,
 } from '../dtos';
 
 @Injectable()
@@ -55,7 +56,7 @@ export class PaymentRoundingSettingService {
       id: result.id,
       storeId: result.store_id,
       isEnabled: result.is_enabled,
-      roundingType: result.rounding_type,
+      roundingType: result.rounding_type as RoundingType,
       roundingValue: result.rounding_value,
       createdAt: result.created_at || new Date(),
       updatedAt: result.updated_at || new Date(),
@@ -84,7 +85,7 @@ export class PaymentRoundingSettingService {
       id: setting.id,
       storeId: setting.store_id,
       isEnabled: setting.is_enabled,
-      roundingType: setting.rounding_type,
+      roundingType: setting.rounding_type as RoundingType,
       roundingValue: setting.rounding_value,
       createdAt: setting.created_at || new Date(),
       updatedAt: setting.updated_at || new Date(),

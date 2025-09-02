@@ -1,5 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsString,
+  Min,
+  IsEnum,
+} from 'class-validator';
+
+export enum RoundingType {
+  UP = 'up',
+  DOWN = 'down',
+}
 
 export class CreateOrUpdatePaymentRoundingSettingDto {
   @ApiProperty({
@@ -10,13 +22,14 @@ export class CreateOrUpdatePaymentRoundingSettingDto {
   isEnabled: boolean;
 
   @ApiProperty({
-    description: 'Type of rounding (up, down, nearest)',
-    example: 'nearest',
-    enum: ['up', 'down', 'nearest'],
+    description: 'Type of rounding (up or down)',
+    example: 'up',
+    enum: RoundingType,
+    enumName: 'RoundingType',
   })
-  @IsString()
+  @IsEnum(RoundingType)
   @IsNotEmpty()
-  roundingType: string;
+  roundingType: RoundingType;
 
   @ApiProperty({
     description: 'Rounding value (e.g., 100 for round to nearest 100)',
@@ -38,8 +51,12 @@ export class PaymentRoundingSettingResponseDto {
   @ApiProperty({ description: 'Whether rounding is enabled' })
   isEnabled: boolean;
 
-  @ApiProperty({ description: 'Rounding type' })
-  roundingType: string;
+  @ApiProperty({
+    description: 'Rounding type',
+    enum: RoundingType,
+    enumName: 'RoundingType',
+  })
+  roundingType: RoundingType;
 
   @ApiProperty({ description: 'Rounding value' })
   roundingValue: number;
