@@ -491,6 +491,8 @@ export class InvoiceService {
           voucher_id: request.voucherId ?? null,
           voucher_amount: 0,
           total_product_discount: 0,
+          rounding_setting_id: null,
+          rounding_amount: null,
         };
 
         // create invoice with status unpaid
@@ -789,6 +791,8 @@ export class InvoiceService {
             : null,
         voucher_amount: calculation.voucherAmount ?? 0,
         total_product_discount: calculatedTotalProductDiscount,
+        rounding_setting_id: null,
+        rounding_amount: null,
       };
 
       // create invoice with status unpaid

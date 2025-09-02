@@ -46,6 +46,7 @@ import { ServerKeyMiddleware } from './common/middleware/server-middleware';
 import { SubscriptionController } from './modules/subscription/controllers/subscription.controller';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { DeviceCodesModule } from './modules/device-codes/device-codes.module';
+import { PaymentRoundingSettingModule } from './modules/payment-rounding-setting/payment-rounding-setting.module';
 
 @Module({
   imports: [
@@ -102,6 +103,7 @@ import { DeviceCodesModule } from './modules/device-codes/device-codes.module';
     PermissionsModule,
     SubscriptionModule,
     DeviceCodesModule,
+    PaymentRoundingSettingModule,
   ],
   providers: [
     {
