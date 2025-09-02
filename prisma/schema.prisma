@@ -921,7 +921,7 @@ model purchase_orders {
   order_date           DateTime               @db.Date
   order_status         purchase_order_status
   store_id             String                 @db.Uuid
-  suppier_info         Json?
+  supplier_info        Json?
   delivery_date        DateTime?              @db.Date
   delivery_number      String?                @unique(map: "purchase_orders_delivery_number_unique") @db.VarChar(100)
   shipped_at           DateTime?              @db.Date

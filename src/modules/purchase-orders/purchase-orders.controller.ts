@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   Put,
+  HttpStatus,
 } from '@nestjs/common';
 import { PurchaseOrdersService } from './purchase-orders.service';
 import { CreatePurchaseOrdersDto } from './dto/create-purchase-orders.dto';
@@ -54,7 +55,7 @@ export class PurchaseOrdersController {
       };
     } catch (error) {
       return {
-        statusCode: 500,
+        statusCode: error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
         message: error.message,
         result: null,
       };
@@ -82,7 +83,7 @@ export class PurchaseOrdersController {
       };
     } catch (error) {
       return {
-        statusCode: 500,
+        statusCode: error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
         message: error.message,
         result: null,
       };
