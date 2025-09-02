@@ -639,4 +639,11 @@ export class VouchersService {
 
     return !!isVoucherApplied;
   }
+
+  async decreaseQuota(tx: Prisma.TransactionClient, voucherId: string) {
+    await tx.voucher.update({
+      where: { id: voucherId },
+      data: { quota: { decrement: 1 } },
+    });
+  }
 }

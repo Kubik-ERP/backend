@@ -1966,7 +1966,7 @@ export class InvoiceService {
     invoice: invoice,
   ): Promise<invoice> {
     try {
-      return await tx.invoice.create({
+      const result = await tx.invoice.create({
         data: {
           id: invoice.id,
           payment_methods_id: invoice.payment_methods_id,
@@ -1999,6 +1999,13 @@ export class InvoiceService {
           total_product_discount: invoice.total_product_discount ?? 0,
         },
       });
+
+      // jika ada voucher, kurangi quota voucher
+      if (result.voucher_id) {
+        await this._voucherService.decreaseQuota(tx, result.voucher_id);
+      }
+
+      return result;
     } catch (error) {
       this.logger.error('Failed to create invoice');
       throw new BadRequestException('Failed to create invoice', {
