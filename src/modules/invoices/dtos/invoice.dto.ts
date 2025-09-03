@@ -314,4 +314,6 @@ export class InvoiceUpdateDto {
   // voucher applied
   voucher_id?: string;
   voucher_amount?: number;
+  // product discount
+  total_product_discount?: number;
 }

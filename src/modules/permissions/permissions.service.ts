@@ -73,6 +73,10 @@ export class PermissionsService {
         // hide kategori yang tidak sesuai dengan paket langganan yang dimiliki user
         permissions: {
           some: {
+            key: {
+              // list ini gak bakal / gak butuh di tampilkan di UI
+              notIn: ['self_order'],
+            },
             sub_package_access: {
               some: {
                 subs_package: {
@@ -90,6 +94,10 @@ export class PermissionsService {
       include: {
         permissions: {
           where: {
+            key: {
+              // list ini gak bakal / gak butuh di tampilkan di UI
+              notIn: ['self_order'],
+            },
             // hide permission yang tidak sesuai dengan paket langganan yang dimiliki user
             sub_package_access: {
               some: {
@@ -139,6 +147,10 @@ export class PermissionsService {
                 store_id: store_id,
                 // hide permission yang tidak sesuai dengan paket langganan yang dimiliki user
                 permissions: {
+                  key: {
+                    // list ini gak bakal / gak butuh di tampilkan di UI
+                    notIn: ['self_order'],
+                  },
                   sub_package_access: {
                     some: {
                       subs_package: {
@@ -161,5 +173,26 @@ export class PermissionsService {
     return result?.roles.store_role_permissions.map(
       (item) => item.permissions.key,
     );
+  }
+
+  async findByIds(ids: string[]) {
+    const result = await this._prisma.permissions.findMany({
+      where: {
+        id: {
+          in: ids,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        permission_categories: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+    return result;
   }
 }

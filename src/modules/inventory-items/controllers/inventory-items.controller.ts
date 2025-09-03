@@ -1,4 +1,6 @@
+import { Response } from 'express';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,13 +11,21 @@ import {
   Query,
   UseGuards,
   Req,
+  Res,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiHeader,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { IsOptional, IsUUID } from 'class-validator';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
@@ -23,6 +33,12 @@ import {
   CreateInventoryItemDto,
   GetInventoryItemsDto,
   UpdateInventoryItemDto,
+  PreviewImportDto,
+  ImportPreviewResponseDto,
+  ExecuteImportDto,
+  ExecuteImportResponseDto,
+  DeleteBatchDto,
+  DeleteBatchResponseDto,
 } from '../dtos';
 import {
   CreateStockAdjustmentDto,
@@ -38,6 +54,122 @@ export class InventoryItemsController {
 
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('manage_item', 'manage_purchase_order')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('import/generate-template')
+  @ApiOperation({ summary: 'Generate import template for inventory items' })
+  async generateImportTemplate(
+    @Req() req: ICustomRequestHeaders,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.inventoryItemsService.generateImportTemplate(req);
+    res.set({
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition':
+        'attachment; filename="inventory-items-import-template.xlsx"',
+    });
+    res.end(buffer);
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('import/preview-data')
+  @ApiOperation({ summary: 'Preview import data from Excel file' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Excel file to import',
+    type: PreviewImportDto,
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  async previewImport(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: ICustomRequestHeaders,
+    @Body('batchId') batchId?: string,
+  ) {
+    // Validate batch_id if provided
+    if (
+      batchId &&
+      !batchId.match(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      )
+    ) {
+      throw new BadRequestException(
+        'Invalid batch ID format. Must be a valid UUID v4',
+      );
+    }
+
+    const result = await this.inventoryItemsService.previewImport(
+      file,
+      req,
+      batchId,
+    );
+    return {
+      message: 'Import preview processed successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('import/execute')
+  @ApiOperation({
+    summary: 'Execute import of inventory items from temp table',
+  })
+  async executeImport(
+    @Body() dto: ExecuteImportDto,
+    @Req() req: ICustomRequestHeaders,
+  ): Promise<{ message: string; result: ExecuteImportResponseDto }> {
+    const result = await this.inventoryItemsService.executeImport(
+      dto.batchId,
+      req,
+    );
+    return {
+      message: 'Import executed successfully',
+      result: toCamelCase(result) as ExecuteImportResponseDto,
+    };
+  }
+
+  @ApiBearerAuth()
+  @Delete('import/batch')
+  @ApiOperation({
+    summary: 'Delete import batch from temp table',
+    description:
+      'Delete all records in temp_import_inventory_items table for the specified batch_id',
+  })
+  @ApiBody({ type: DeleteBatchDto })
+  async deleteBatch(
+    @Body() dto: DeleteBatchDto,
+  ): Promise<{ message: string; result: DeleteBatchResponseDto }> {
+    const result = await this.inventoryItemsService.deleteBatch(dto.batchId);
+    return {
+      message: 'Import batch deleted successfully',
+      result: {
+        success: true,
+        message: `Successfully deleted ${result.deletedCount} records`,
+        deletedCount: result.deletedCount,
+      },
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',

@@ -281,38 +281,36 @@ export class AuthenticationService {
     });
 
     if (!employee || employee.stores_has_employees.length === 0) {
-      throw new BadRequestException('Invalid email or device code');
+      throw new BadRequestException('Eamil not found');
     }
 
-    // Validate device code and check if employee is available in store including store ID
+    const storeId = employee.stores_has_employees[0].stores_id;
+
+    // Memastikan device code ada di store yang sama dengan employee
     const deviceCodeRecord = await this._prisma.device_codes.findFirst({
       where: {
         code: deviceCode,
-        store_id: employee.stores_has_employees[0].stores_id,
-        OR: [
-          // Employee sudah punya device code yang di-assign
-          {
-            employee_id: employee.id,
-          },
-          // Device code masih pending (belum di-assign ke siapa pun)
-          {
-            employee_id: null,
-            status: 'pending',
-          },
-        ],
+        store_id: storeId,
       },
     });
-
     if (!deviceCodeRecord) {
-      throw new BadRequestException('Invalid email or device code');
+      throw new BadRequestException('Device code not found');
     }
 
-    // Check if employee is trying to use a different device
-    // than the one they're already assigned to
+    // Memastikan device code belum terhubung dengan employee lain
+    if (
+      deviceCodeRecord.status === 'connected' &&
+      deviceCodeRecord.employee_id !== employee.id
+    ) {
+      throw new BadRequestException(
+        'Device code already connected to another employee',
+      );
+    }
+
     const employeeAssignedDevice = await this._prisma.device_codes.findFirst({
       where: {
         employee_id: employee.id,
-        store_id: employee.stores_has_employees[0].stores_id,
+        store_id: storeId,
       },
     });
 
@@ -320,11 +318,13 @@ export class AuthenticationService {
       employeeAssignedDevice &&
       employeeAssignedDevice.id !== deviceCodeRecord.id
     ) {
-      throw new BadRequestException(`Device code not found`);
+      throw new BadRequestException(
+        'You already have an active session with different device code',
+      );
     }
 
-    // Check if employee already has an active session (1 employee = 1 browser)
-    // If yes, delete the existing session (this will also disconnect the device)
+    // Memastikan employee belum memiliki sesi aktif (1 employee = 1 browser)
+    // Jika ada, hapus sesi yang sudah ada (ini juga akan memutus device)
     const existingSession =
       await this._prisma.employee_login_sessions.findUnique({
         where: {
@@ -333,18 +333,18 @@ export class AuthenticationService {
       });
 
     if (existingSession) {
-      // Update the old device code status to disconnected (keep employee_id)
+      // Update status device code menjadi disconnected dan hapus employee_id
       await this._prisma.device_codes.update({
         where: {
           id: existingSession.device_code_id,
         },
         data: {
           status: 'disconnected',
-          // employee_id tetap tidak di-set null
+          employee_id: null,
         },
       });
 
-      // Delete the existing session
+      // Hapus sesi yang sudah ada
       await this._prisma.employee_login_sessions.delete({
         where: {
           employee_id: employee.id,
@@ -372,7 +372,6 @@ export class AuthenticationService {
       throw new BadRequestException('Owner not found');
     }
 
-    // Generate session token with user data (same as regular login)
     const accessToken = this._jwtService.sign({
       username: employee.users.username,
       sub: employee.users.id,
@@ -383,17 +382,17 @@ export class AuthenticationService {
       verified_at: parseInt(employee.users.verified_at?.toString() || '0'),
       role: employee.users.role_id,
       is_staff: true, // Flag to identify staff login
-      // Staff specific data
 
+      // Staff specific data
       employeeId: employee.id,
       storeId: deviceCodeRecord.store_id,
       deviceCodeId: deviceCodeRecord.id,
       ownerId: owner.id,
     });
 
-    // Create login session
+    // Buat sesi login
     const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 8); // 8 hours session
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days session
 
     await this._prisma.employee_login_sessions.create({
       data: {
@@ -405,7 +404,7 @@ export class AuthenticationService {
       },
     });
 
-    // Update device code status to connected and set last_connected_at
+    // Update status device code menjadi connected dan set last_connected_at
     await this._prisma.device_codes.update({
       where: {
         id: deviceCodeRecord.id,
@@ -464,7 +463,7 @@ export class AuthenticationService {
       },
       data: {
         status: 'disconnected',
-        // employee_id tetap tidak di-set null, jadi employee tetap assigned ke device ini
+        employee_id: null,
         employee_login_sessions: {
           // Delete the session
           delete: true,

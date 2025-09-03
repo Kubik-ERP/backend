@@ -1,7 +1,7 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CustomerService } from '../../customer/customer.service';
@@ -56,5 +56,49 @@ export class SelfOrderService {
     );
 
     return { customer: created, created: true } as const;
+  }
+
+  async storePermission(storeId: string) {
+    // Get store's owner
+    const owner = await this.prisma.users.findFirst({
+      select: {
+        id: true,
+      },
+      where: {
+        user_has_stores: {
+          some: {
+            store_id: storeId,
+          },
+        },
+      },
+    });
+
+    if (!owner) {
+      throw new BadRequestException('Owner not found');
+    }
+
+    const storeHasSelfOrderPermission =
+      await this.prisma.sub_package_access.findFirst({
+        where: {
+          permissions: {
+            key: 'self_order',
+          },
+          subs_package: {
+            users: {
+              some: {
+                id: owner.id,
+              },
+            },
+          },
+        },
+      });
+
+    if (!storeHasSelfOrderPermission) {
+      throw new ForbiddenException(
+        `Access denied. Required permissions (at least one): self_order`,
+      );
+    }
+
+    return true;
   }
 }

@@ -176,6 +176,7 @@ export class DeviceCodesService {
       where: { id, store_id },
       data: {
         status: 'disconnected',
+        employee_id: null,
         employee_login_sessions: {
           delete: true,
         },

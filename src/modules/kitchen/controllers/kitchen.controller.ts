@@ -72,7 +72,7 @@ export class KitchenController {
   }
 
   @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('queue')
+  @RequirePermissions('queue', 'check_out_sales', 'process_unpaid_invoice')
   @ApiBearerAuth()
   @Get('ticket/:invoiceId')
   @ApiOperation({

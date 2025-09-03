@@ -17,7 +17,13 @@ import {
 import { SelfOrderService } from '../services/self-order.service';
 import { CategoriesService } from '../../categories/categories.service';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
-import { ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SelfOrderSignUpDto } from '../dtos/self-order-signup.dto';
 import { ValidateStoreTableDto } from '../dtos/validate-store-table.dto';
 import { PaymentMethodService } from '../../payment-methods/services/payment-method.service';
@@ -59,101 +65,15 @@ export class SelfOrderController {
     @Body() dto: SelfOrderSignUpDto,
     @Req() req: ICustomRequestHeaders,
   ) {
+    // Memastikan store memiliki akses self-order
+    await this.selfOrderService.storePermission(dto.storeId);
+
     const { customer, created } = await this.selfOrderService.signUp(dto, req);
     return {
       statusCode: created ? 201 : 200,
       message: created ? 'Customer created successfully' : 'Customer found',
       result: toCamelCase(customer),
     };
-  }
-
-  /* ------------------- // * Get categories for self-order ------------------- */
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @ApiOperation({
-    summary: 'Get All Categories',
-  })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    example: 1,
-    type: Number,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    example: 10,
-    type: Number,
-  })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @Get('categories')
-  async findAllCategories(
-    @Req() req: ICustomRequestHeaders,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('search') search?: string,
-  ) {
-    try {
-      const result = await this.categoriesService.findAll(
-        {
-          page,
-          limit,
-          search,
-        },
-        req,
-      );
-      return {
-        statusCode: 200,
-        message: 'Success',
-        result: toCamelCase(result),
-      };
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to fetch categories',
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  // * Get Categories Detail by id categories
-  @Get('categories/:idOrName')
-  @ApiOperation({
-    summary: 'Get Categories Detail by ID or Name',
-  })
-  async findCategory(@Param('idOrName') idOrName: string) {
-    try {
-      const category = await this.categoriesService.findOne(idOrName);
-
-      if (!category) {
-        throw new HttpException(
-          { statusCode: HttpStatus.NOT_FOUND, message: 'Category not found' },
-          HttpStatus.NOT_FOUND,
-        );
-      }
-
-      return {
-        statusCode: 200,
-        message: 'Success',
-        result: toCamelCase(category),
-      };
-    } catch (error) {
-      console.error('Error finding category:', error);
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to fetch category',
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
   }
 
   /* ------------------------- // * Get Payment Method ------------------------ */
@@ -247,6 +167,9 @@ export class SelfOrderController {
     @Req() req: ICustomRequestHeaders,
     @Body() body: ProceedInstantPaymentDto,
   ) {
+    // Memastikan store memiliki akses self-order
+    await this.selfOrderService.storePermission(req.store_id!);
+
     const response = await this.invoiceService.proceedInstantPayment(req, body);
     return {
       result: toCamelCase(response),
@@ -271,6 +194,9 @@ export class SelfOrderController {
     @Req() req: ICustomRequestHeaders,
     @Body() body: ProceedCheckoutInvoiceDto,
   ) {
+    // Memastikan store memiliki akses self-order
+    await this.selfOrderService.storePermission(req.store_id!);
+
     const response = await this.invoiceService.proceedCheckout(req, body);
     return {
       result: toCamelCase(response),
@@ -367,6 +293,104 @@ export class SelfOrderController {
       }
       throw new HttpException(
         'Store or table not found',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /* ------------------- // * Get categories for self-order ------------------- */
+  @Get('categories/all')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiOperation({
+    summary: 'Get all categories',
+    description:
+      'Retrieve all categories from the categories table with optional search by name',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search categories by name',
+    type: String,
+  })
+  async findAllCategory(
+    @Req() req: ICustomRequestHeaders,
+    @Query('search') search?: string,
+  ) {
+    try {
+      const result = await this.categoriesService.findAllCategories(
+        search,
+        req,
+      );
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(result),
+      };
+    } catch (error) {
+      console.error('Error fetching all categories:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch categories',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /* ------------------- // * Get catalog products category ------------------- */
+  @Get('categories/products')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiOperation({
+    summary: 'Get catalog products',
+    description:
+      'Retrieve products from categories_has_products table related to products table',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search products by name',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'categoryId',
+    required: false,
+    description: 'Filter by category ID',
+    type: String,
+  })
+  async findCatalogProducts(
+    @Req() req: ICustomRequestHeaders,
+    @Query('search') search?: string,
+    @Query('categoryId') categoryId?: string,
+  ) {
+    try {
+      const result = await this.categoriesService.findCatalogProducts(
+        search,
+        categoryId,
+        req,
+      );
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(result),
+      };
+    } catch (error) {
+      console.error('Error fetching catalog products:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch catalog products',
+        },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
