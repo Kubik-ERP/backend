@@ -202,6 +202,7 @@ export class InvoiceService {
         },
         invoice_charges: true,
         payment_methods: true,
+        payment_rounding_settings: true,
       },
     });
 
