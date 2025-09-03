@@ -18,33 +18,34 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import KeyvRedis, { createKeyv } from '@keyv/redis';
 import Keyv from 'keyv';
 import { HeaderMiddleware } from './common/middleware/header-middleware';
+import { ServerKeyMiddleware } from './common/middleware/server-middleware';
 import { BankModule } from './modules/bank/bank.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { CashDrawerModule } from './modules/cash-drawer/cash-drawer.module';
 import { ChargesModule } from './modules/charges/charges.module';
 import { CustomerModule } from './modules/customer/customer.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EmployeesModule } from './modules/employees/employees.module';
+import { FacilitiesModule } from './modules/facilities/facilities.module';
 import { InventoryCategoryModule } from './modules/inventory-category/inventory-category.module';
 import { InventoryItemsModule } from './modules/inventory-items/inventory-items.module';
 import { KitchenModule } from './modules/kitchen/kitchen.module';
 import { LoyaltySettingsModule } from './modules/loyalty-settings/loyalty-settings.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
+import { ProductBundlingModule } from './modules/product-bundling/product-bundling.module';
 import { ProductsModule } from './modules/products/products.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { SelfOrderModule } from './modules/self-order/self-order.module';
+import { StockOpnamesModule } from './modules/stock-opnames/stock-opnames.module';
 import { StorageLocationsModule } from './modules/storage-locations/storage-locations.module';
 import { StoreTableModule } from './modules/store-table/store-table.module';
 import { StoresModule } from './modules/stores/stores.module';
+import { SubscriptionController } from './modules/subscription/controllers/subscription.controller';
+import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { TablesModule } from './modules/tables/tables.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
-import { SelfOrderModule } from './modules/self-order/self-order.module';
-import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
-import { StockOpnamesModule } from './modules/stock-opnames/stock-opnames.module';
-import { FacilitiesModule } from './modules/facilities/facilities.module';
-import { ProductBundlingModule } from './modules/product-bundling/product-bundling.module';
-import { PermissionsModule } from './modules/permissions/permissions.module';
-import { ServerKeyMiddleware } from './common/middleware/server-middleware';
-import { SubscriptionController } from './modules/subscription/controllers/subscription.controller';
-import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { DeviceCodesModule } from './modules/device-codes/device-codes.module';
 import { PaymentRoundingSettingModule } from './modules/payment-rounding-setting/payment-rounding-setting.module';
 
@@ -104,6 +105,7 @@ import { PaymentRoundingSettingModule } from './modules/payment-rounding-setting
     SubscriptionModule,
     DeviceCodesModule,
     PaymentRoundingSettingModule,
+    DashboardModule,
   ],
   providers: [
     {
