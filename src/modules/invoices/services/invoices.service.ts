@@ -555,6 +555,15 @@ export class InvoiceService {
         );
         grandTotal = calculation.grandTotal;
 
+        // Get payment rounding setting for this store
+        const paymentRoundingSetting =
+          await tx.payment_rounding_settings.findFirst({
+            where: {
+              store_id: storeId,
+              is_enabled: true,
+            },
+          });
+
         // update invoice with original subtotal and total product discount
         await this.update(tx, invoiceId, {
           subtotal: originalSubtotal, // subtotal dari original price
@@ -569,6 +578,9 @@ export class InvoiceService {
           voucher_id: request.voucherId ?? undefined,
           voucher_amount: calculation.voucherAmount,
           total_product_discount: calculatedTotalProductDiscount, // total product discount
+          // payment rounding
+          rounding_setting_id: paymentRoundingSetting?.id ?? undefined,
+          rounding_amount: request.rounding_amount ?? undefined,
         });
 
         // insert the customer has invoice
@@ -764,6 +776,15 @@ export class InvoiceService {
 
       const calculation = await this.calculateTotal(tx, request, storeId);
 
+      // Get payment rounding setting for this store
+      const paymentRoundingSetting =
+        await tx.payment_rounding_settings.findFirst({
+          where: {
+            store_id: storeId,
+            is_enabled: true,
+          },
+        });
+
       const invoiceData = {
         id: invoiceId,
         payment_methods_id: null,
@@ -796,8 +817,8 @@ export class InvoiceService {
             : null,
         voucher_amount: calculation.voucherAmount ?? 0,
         total_product_discount: calculatedTotalProductDiscount,
-        rounding_setting_id: null,
-        rounding_amount: null,
+        rounding_setting_id: paymentRoundingSetting?.id ?? null,
+        rounding_amount: request.rounding_amount ?? null,
       };
 
       // create invoice with status unpaid
@@ -2050,6 +2071,9 @@ export class InvoiceService {
           voucher_amount: invoice.voucher_amount ?? 0,
           // product discount
           total_product_discount: invoice.total_product_discount ?? 0,
+          // payment rounding
+          rounding_setting_id: invoice.rounding_setting_id ?? null,
+          rounding_amount: invoice.rounding_amount ?? null,
         },
       });
 
@@ -2080,6 +2104,7 @@ export class InvoiceService {
         customer_id,
         payment_method_id,
         voucher_id,
+        rounding_setting_id,
         ...rest
       } = data;
 
@@ -2115,6 +2140,12 @@ export class InvoiceService {
       if (voucher_id) {
         updateData.voucher = {
           connect: { id: voucher_id },
+        };
+      }
+
+      if (rounding_setting_id) {
+        updateData.payment_rounding_settings = {
+          connect: { id: rounding_setting_id },
         };
       }
 
