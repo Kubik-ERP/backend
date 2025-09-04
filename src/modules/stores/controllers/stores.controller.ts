@@ -288,8 +288,9 @@ export class StoresController {
     }
   }
 
-  @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('store_management')
+  // NOTE: sengaja tidak dikasih permissions
+  // karena butuh untuk di panggil staff setelah login sebelum masuk ke dashboard
+  @UseGuards(AuthenticationJWTGuard)
   @Get('/store/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get store by ID' })
