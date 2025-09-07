@@ -4,6 +4,7 @@ import { ListOptionDto } from '../../../common/dtos/list-options.dto';
 import { PaginateDto } from '../../../common/dtos/paginate.dto';
 import { PageMetaDto } from '../../../common/dtos/page-meta.dto';
 import { UpdateUserDto } from '../dtos/update-user.dto';
+import * as bcrypt from 'bcrypt';
 
 // NestJS Libraries
 import {
@@ -15,6 +16,7 @@ import {
 // Prisma
 import { PrismaService } from '../../../prisma/prisma.service';
 import { users as UserModel } from '@prisma/client';
+import { UUID } from 'crypto';
 
 @Injectable()
 export class UsersService {
@@ -30,6 +32,10 @@ export class UsersService {
           username: payload.username,
           email: payload.email,
           password: payload.password,
+          fullname: payload.fullname,
+          role_id: payload.role_id,
+          phone: payload.phone,
+          ext: payload.ext || 62,
         },
       });
     } catch (error) {
@@ -106,8 +112,13 @@ export class UsersService {
   /**
    * @description Find user by ID
    */
-  public async findOneById(id: number): Promise<UserModel> {
-    const user = await this.prisma.users.findUnique({ where: { id } });
+  public async findOneById(id: number) {
+    const user = await this.prisma.users.findUnique({
+      where: { id },
+      include: {
+        roles: true, // Include roles if needed
+      },
+    });
 
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found.`);
@@ -180,6 +191,60 @@ export class UsersService {
       });
     } catch (error) {
       throw new BadRequestException('Failed to restore user', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description set or unset a pin
+   */
+  public async handlePin(id: number, pin?: string | null): Promise<boolean> {
+    try {
+      const hashPin = pin ? await bcrypt.hash(pin, 10) : null;
+      await this.prisma.users.update({
+        where: { id },
+        data: {
+          pin: hashPin,
+        },
+      });
+      return true;
+    } catch (error) {
+      throw new BadRequestException('Failed to set/unset pin', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  public async getUserRole(userId: number): Promise<string | null> {
+    try {
+      const user = await this.prisma.users.findUnique({
+        where: { id: userId },
+        include: {
+          roles: true,
+        },
+      });
+
+      return user?.roles?.name || null;
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch user role', {
+        cause: new Error(),
+        description: error.message,
+      });
+    }
+  }
+
+  public async getRoleIdByRoleName(name: string): Promise<string | null> {
+    try {
+      const ownerRole = await this.prisma.roles.findFirst({
+        where: { name: name },
+      });
+
+      return ownerRole?.id || null;
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch owner role ID', {
         cause: new Error(),
         description: error.message,
       });

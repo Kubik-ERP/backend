@@ -8,23 +8,68 @@ import {
   HttpException,
   HttpStatus,
   Delete,
+  UseInterceptors,
+  UploadedFile,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { Query } from '@nestjs/common';
+import { toCamelCase } from '../../common/helpers/object-transformer.helper';
+import { FindAllProductsQueryDto } from './dto/find-product.dto';
+import { ApiBearerAuth, ApiConsumes, ApiHeader } from '@nestjs/swagger';
+import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
+import { StorageService } from '../storage-service/services/storage-service.service';
+import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly storageService: StorageService,
+  ) {}
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
   @Post()
-  async create(@Body() createProductDto: CreateProductDto) {
+  async create(
+    @Req() req: ICustomRequestHeaders,
+    @Body() createProductDto: CreateProductDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
     try {
-      const newProducts = await this.productsService.create(createProductDto);
+      let relativePath = '';
+      if (file) {
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+        relativePath = result.filename;
+      }
+      const newProducts = await this.productsService.create(
+        {
+          ...createProductDto,
+          image: relativePath || '',
+        },
+        req,
+      );
+
       return {
         statusCode: 201,
         message: 'Products created successfully',
-        result: newProducts,
+        result: toCamelCase(newProducts),
       };
     } catch (error) {
       return {
@@ -34,23 +79,55 @@ export class ProductsController {
       };
     }
   }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'product_management',
+    'process_unpaid_invoice',
+    'check_out_sales',
+  )
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Get()
-  async findAll() {
+  async findAll(
+    @Query() query: FindAllProductsQueryDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
     try {
-      const products = await this.productsService.findAll();
-      return { statusCode: 200, message: 'Success', result: products };
+      const result = await this.productsService.findAll(
+        {
+          page: Number(query.page),
+          limit: Number(query.limit),
+          search: query.search,
+          category_id: query.category_id ?? [],
+        },
+        req,
+      );
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(result),
+      };
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      console.error('Error fetching products:', error);
       throw new HttpException(
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to fetch categories',
+          message: 'Failed to fetch products',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiBearerAuth()
   @Get(':idOrName')
   async findOne(@Param('idOrName') idOrName: string) {
     try {
@@ -61,7 +138,11 @@ export class ProductsController {
           HttpStatus.NOT_FOUND,
         );
       }
-      return { statusCode: 200, message: 'Success', result: products };
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(products),
+      };
     } catch (error) {
       console.error('Error finding products:', error);
       throw new HttpException(
@@ -74,17 +155,36 @@ export class ProductsController {
     }
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiBearerAuth()
   @Patch(':id')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
   async update(
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     try {
-      const result = await this.productsService.update(id, updateProductDto);
+      if (file) {
+        const result = await this.storageService.uploadImage(
+          file.buffer,
+          file.originalname,
+        );
+
+        updateProductDto.image = result.filename;
+      }
+
+      const updatedProduct = await this.productsService.update(
+        id,
+        updateProductDto,
+      );
+
       return {
         statusCode: 200,
         message: 'Product updated successfully',
-        result,
+        result: toCamelCase(updatedProduct),
       };
     } catch (error) {
       return {
@@ -94,6 +194,9 @@ export class ProductsController {
     }
   }
 
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiBearerAuth()
   @Delete(':id')
   async remove(@Param('id') id: string) {
     try {
@@ -101,7 +204,7 @@ export class ProductsController {
       return {
         statusCode: 200,
         message: 'Product deleted successfully',
-        result,
+        result: toCamelCase(result),
       };
     } catch (error) {
       return {

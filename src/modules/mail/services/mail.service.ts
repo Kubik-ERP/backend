@@ -6,7 +6,9 @@ import * as nodemailer from 'nodemailer';
 import { Injectable } from '@nestjs/common';
 import * as path from 'path';
 import * as handlebars from 'handlebars';
-import * as fs from 'fs-extra';
+
+import * as ejs from 'ejs';
+import * as fs from 'fs';
 
 dotenv.config();
 
@@ -15,13 +17,26 @@ export class MailService {
   private _transporter;
 
   constructor() {
+    const port = Number(process.env.MAIL_PORT) || 587;
+    // Gmail / most providers:
+    // - Port 465 -> implicit TLS (secure true)
+    // - Port 587 -> STARTTLS (secure false, upgrade later)
+    const secure = port === 465; // only use true for implicit TLS
+
     this._transporter = nodemailer.createTransport({
       host: process.env.MAIL_HOST,
-      port: Number(process.env.MAIL_PORT),
-      secure: false,
-      auth: {
-        user: process.env.MAIL_USERNAME,
-        pass: process.env.MAIL_PASSWORD,
+      port,
+      secure,
+      auth: process.env.MAIL_USERNAME
+        ? {
+            user: process.env.MAIL_USERNAME,
+            pass: process.env.MAIL_PASSWORD,
+          }
+        : undefined,
+      tls: {
+        // Allow STARTTLS upgrade; can relax cert checking if needed via env
+        rejectUnauthorized:
+          process.env.MAIL_TLS_REJECT_UNAUTHORIZED === 'false' ? false : true,
       },
     });
   }
@@ -34,6 +49,50 @@ export class MailService {
       text: `Your OTP code is: ${otp}`,
       html: `<p>Your OTP code is: <strong>${otp}</strong></p>`,
     });
+  }
+
+  async sendEmailInvoiceById(
+    to: string,
+    invoice: {
+      created_at: string | Date;
+      customer_name?: string;
+      [key: string]: any;
+    },
+    invoiceId: string,
+    pdfBuffer?: Buffer,
+  ): Promise<void> {
+    const createdAt = new Date(invoice.created_at);
+    const formattedDate = createdAt.toLocaleDateString('id-ID'); // Format DD/MM/YYYY
+    const formattedTime = createdAt.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const customer_name = invoice.customer.name || 'Valued Customer';
+
+    const mailOptions: any = {
+      from: process.env.SMTP_FROM,
+      to,
+      subject: 'Invoice Details',
+      text: `Dear Customer,\n\nYour invoice details are as follows:\n\nInvoice ID: ${invoiceId}\nDate: ${formattedDate} ${formattedTime}`,
+      html: `
+      <p>Dear Customer, ${customer_name}</p>
+      <p>Your invoice details are as follows:</p>
+      <p><strong>Invoice ID:</strong> ${invoiceId}</p>
+      <p><strong>Date:</strong> ${formattedDate} ${formattedTime}</p>
+    `,
+    };
+
+    if (pdfBuffer) {
+      mailOptions.attachments = [
+        {
+          filename: `invoice-${invoiceId}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        },
+      ];
+    }
+
+    await this._transporter.sendMail(mailOptions);
   }
 
   async sendMailWithTemplate(
@@ -49,21 +108,29 @@ export class MailService {
       subject: subject,
       html: htmlTemplate,
     });
-
-    console.log(`mail send to ${to} with subject ${subject}`);
   }
 
   private async loadTemplate(templateName: string, data: any): Promise<string> {
     try {
+      // Path untuk template utama - selalu gunakan path ke source, bukan dist
       const filePath = path.resolve(
-        __dirname,
-        '../../../../src/common/htmls',
-        `${templateName}.html`,
+        process.cwd(),
+        'src/common/htmls',
+        `${templateName}`,
       );
-      console.log(data);
-      const templateFile = await fs.readFile(filePath, 'utf-8');
-      const compiledTemplate = handlebars.compile(templateFile);
-      return compiledTemplate(data);
+
+      console.log('Bugging filePath', filePath);
+
+      // Membaca file template
+      // console.log('data in template email', data);
+      const templateFile = await fs.promises.readFile(filePath, 'utf-8');
+
+      // Render template dengan EJS
+      const html = ejs.render(templateFile, data);
+
+      console.log('Success to load template');
+
+      return html;
     } catch (error) {
       console.log(error);
       throw new Error('Failed to load template');

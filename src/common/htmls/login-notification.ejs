@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" style="margin: 0; padding: 0; background-color: #f3f6f9">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Logi Notification</title>
+</head>
+
+<body style="margin: 0; padding: 0; background-color: #f3f6f9; font-family: Inter">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f6f9; padding: 20px 0">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="
+              background-color: #ffffff;
+              border-radius: 6px;
+              overflow: hidden;
+            ">
+          <!-- //start: Header -->
+          <tr>
+            <td style="background-color: #16658a; padding: 20px">
+              <!-- KUBIK Logo -->
+              <img class="logo" src="<%= frontendUrl %>/app-logo.png" alt="KUBIK"
+                style="display: block; object-fit: contain" />
+            </td>
+          </tr>
+          <!-- //end: Header -->
+
+          <!-- //start: Content -->
+          <tr>
+            <td style="padding: 30px; font-size: 15px; line-height: 1.6">
+              <h2><strong>Hi <%= fullname %>,</strong></h2>
+
+              <p>We noticed a new login to your KUBIK POS account.</p>
+
+              <p style="margin: 20px 0 10px; font-weight: bolder">
+                <strong>Login Details</strong>
+              </p>
+              <p>
+                <strong>Date & Time:</strong><br />
+                <%= loginDateTime %>
+              </p>
+              <p>
+                <strong>Device:</strong><br />
+                <%= deviceType %> / <%= browser %>
+              </p>
+              <p>
+                <strong>Location:</strong><br />
+                <%= city %>, <%= country %>
+              </p>
+
+              <p>If this was you, no further action is needed.</p>
+
+              <p>
+                If this wasn't you, we recommend changing your password
+                immediately to secure your account.
+              </p>
+            </td>
+          </tr>
+          <!-- //end: Content -->
+
+          <!-- //start: Footer -->
+          <tr>
+            <td style="padding: 40px; background-color: #f9fafc">
+              <p style="font-size: 14px; color: #000000; margin: 0 0 16px">
+                If you need any assistance, feel free to contact our support team
+                <a href="#" style="color: #16658a; text-decoration: none">Contact us</a>
+              </p>
+              <p style="font-size: 14px; color: #000000; margin: 0 0 24px">
+                Best,<br />
+                <strong>KUBIK POS</strong>
+              </p>
+
+              <!-- Logo + Socials -->
+              <table width="100%" style="margin-top: 10px">
+                <tr>
+                  <td align="left">
+                    <img src="<%= frontendUrl %>/app-icon.png" alt="KUBIK Logo" width="24" />
+                  </td>
+                  <td align="right">
+                    <a href="https://twitter.com" target="_blank" style="text-decoration: none">
+                      <img src="<%= frontendUrl %>/twitter.png" alt="Twitter" width="24" style="margin: 0 6px" />
+                    </a>
+                    <a href="https://facebook.com" target="_blank" style="text-decoration: none">
+                      <img src="<%= frontendUrl %>/facebook.png" alt="Facebook" width="24" style="margin: 0 6px" />
+                    </a>
+                    <a href="https://linkedin.com" target="_blank" style="text-decoration: none">
+                      <img src="<%= frontendUrl %>/linkedin.png" alt="LinkedIn" width="24" style="margin: 0 6px" />
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- //end Footer -->
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

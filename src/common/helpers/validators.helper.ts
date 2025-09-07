@@ -1,7 +1,9 @@
+import { BadRequestException } from '@nestjs/common';
 import {
   registerDecorator,
   ValidationOptions,
   ValidationArguments,
+  isUUID,
 } from 'class-validator';
 
 export function Match(property: string, validationOptions?: ValidationOptions) {
@@ -23,4 +25,11 @@ export function Match(property: string, validationOptions?: ValidationOptions) {
       },
     });
   };
+}
+
+export function validateStoreId(storeId: any): string {
+  if (!storeId || typeof storeId !== 'string' || !isUUID(storeId)) {
+    throw new BadRequestException('X-STORE-ID header must be a valid UUID');
+  }
+  return storeId;
 }

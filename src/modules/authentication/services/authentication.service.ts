@@ -10,6 +10,7 @@ import { SALT_OR_ROUND } from '../../../common/constants/common.constant';
 
 // DTOs
 import { RegisterEmailDto } from '../dtos/register.dto';
+import { StaffLoginDto } from '../dtos/staff-signin.dto';
 
 // Entities
 import { users } from '@prisma/client';
@@ -22,6 +23,9 @@ import { ILogin } from '../interfaces/authentication.interface';
 
 //UUID
 import { v4 as uuidv4 } from 'uuid';
+
+import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
+import { EmailTemplateType } from '../../../enum/EmailTemplateType-enum';
 
 // NestJS Libraries
 import {
@@ -36,6 +40,7 @@ import { JwtService } from '@nestjs/jwt';
 // Services
 import { MailService } from 'src/modules/mail/services/mail.service';
 import { UsersService } from '../../users/services/users.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 // Speaksy
 import * as speakeasy from 'speakeasy';
@@ -48,6 +53,8 @@ export class AuthenticationService {
     private readonly _usersService: UsersService,
     private readonly _jwtService: JwtService,
     private readonly _mailService: MailService,
+    private readonly templatesEmailService: TemplatesEmailService,
+    private readonly _prisma: PrismaService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
     // this._secret = process.env.OTP_SECRET || speakeasy.generateSecret().base32;
@@ -80,11 +87,14 @@ export class AuthenticationService {
   public async login(user: IRequestUser): Promise<ILogin> {
     const payload = {
       username: user.username,
-      sub: user.id,
+      sub: parseInt(user.id.toString()),
       email: user.email,
       phone: user.phone,
       ext: user.ext,
+      fullname: user.fullname,
+      verified_at: parseInt(user.verified_at?.toString() || '0'),
       role: user.role,
+      is_staff: false,
     };
     return {
       accessToken: this._jwtService.sign(payload),
@@ -95,7 +105,8 @@ export class AuthenticationService {
    * @description Handle business logic for registering a user
    */
   public async register(payload: RegisterEmailDto): Promise<users> {
-    const { email, phoneNumber, phoneCountryCode, password } = payload;
+    const { email, phoneNumber, phoneCountryCode, password, fullName } =
+      payload;
 
     const emailExists = await this._usersService.findOneByEmail(email);
     if (emailExists) {
@@ -106,12 +117,14 @@ export class AuthenticationService {
      * Hash Password
      */
     const passwordHashed = await bcrypt.hash(password, SALT_OR_ROUND);
-
+    const role_id = await this._usersService.getRoleIdByRoleName('Owner');
     return await this._usersService.create({
       email: email,
       phone: parseInt(phoneNumber.toString()).toString(),
       ext: parseInt(phoneCountryCode.toString()),
       password: passwordHashed,
+      fullname: fullName,
+      role_id: role_id!,
     });
   }
 
@@ -120,25 +133,11 @@ export class AuthenticationService {
    */
   public async generateOtp(email: string): Promise<object> {
     try {
-      const newSecret = speakeasy.generateSecret({ length: 20 }).base32;
-
-      // Save OTP Secret
-      await this.cacheManager.set(`otp_secret:${email}`, newSecret, 300_000);
-
-      // Generate OTP
-      const otp = speakeasy.totp({
-        secret: newSecret,
-        encoding: 'base32',
-        step: 300,
-        digits: 4,
-      });
-
       // Kirim OTP ke email
-      await this._mailService.sendOtpEmail(email, otp);
-
-      const result = {
-        otp: otp,
-      };
+      const result = await this.templatesEmailService.sendEmailGenerateOtp(
+        EmailTemplateType.VERIFICATION_EMAIL,
+        email, //note: Email
+      );
 
       return result;
     } catch (error) {
@@ -212,14 +211,14 @@ export class AuthenticationService {
 
   public async forgotPassword(email: string): Promise<void> {
     //validate user email
-    const user = this._usersService.findOneByEmail(email);
+    const user = await this._usersService.findOneByEmail(email);
     if (!user) {
       throw new BadRequestException('User not found');
     }
 
     //generate token
     const token = uuidv4();
-    const ttl = 900;
+    const ttl = 15 * 60 * 1000;
 
     //set token to cache with 15 minutes expiration
     await this.cacheManager.set(`forgot_token:${email}`, token, ttl);
@@ -228,7 +227,7 @@ export class AuthenticationService {
     this._mailService.sendMailWithTemplate(
       'forgot-password',
       'Forgot Password',
-      { token: token, name: 'Kontol' },
+      { token: token, name: user.fullname, base_url: process.env.FRONTEND_URL },
       email,
     );
   }
@@ -242,9 +241,9 @@ export class AuthenticationService {
     const cacheToken = await this.cacheManager.get<string>(
       `forgot_token:${email}`,
     );
-
+    console.log('cacheToken', cacheToken);
     if (!cacheToken || cacheToken !== token) {
-      throw new BadRequestException('Invalid token');
+      throw new BadRequestException('Expired / Invalid token');
     }
 
     //hash password
@@ -260,5 +259,222 @@ export class AuthenticationService {
 
     //delete token
     await this.cacheManager.del(`forgot_token:${email}`);
+  }
+
+  /**
+   * @description Handle staff sign-in with email and device code
+   */
+  public async staffLogin(payload: StaffLoginDto): Promise<ILogin> {
+    const { email, deviceCode } = payload;
+
+    // Validate email exists in employees table and get user data
+    const employee = await this._prisma.employees.findFirst({
+      where: {
+        email: email.toLowerCase(),
+      },
+      include: {
+        users: true, // Get user data for JWT payload
+        stores_has_employees: {
+          take: 1, // 1 employee = 1 store
+        },
+      },
+    });
+
+    if (!employee || employee.stores_has_employees.length === 0) {
+      throw new BadRequestException('Eamil not found');
+    }
+
+    const storeId = employee.stores_has_employees[0].stores_id;
+
+    // Memastikan device code ada di store yang sama dengan employee
+    const deviceCodeRecord = await this._prisma.device_codes.findFirst({
+      where: {
+        code: deviceCode,
+        store_id: storeId,
+      },
+    });
+    if (!deviceCodeRecord) {
+      throw new BadRequestException('Device code not found');
+    }
+
+    // Memastikan device code belum terhubung dengan employee lain
+    if (
+      deviceCodeRecord.status === 'connected' &&
+      deviceCodeRecord.employee_id !== employee.id
+    ) {
+      throw new BadRequestException(
+        'Device code already connected to another employee',
+      );
+    }
+
+    const employeeAssignedDevice = await this._prisma.device_codes.findFirst({
+      where: {
+        employee_id: employee.id,
+        store_id: storeId,
+      },
+    });
+
+    if (
+      employeeAssignedDevice &&
+      employeeAssignedDevice.id !== deviceCodeRecord.id
+    ) {
+      throw new BadRequestException(
+        'You already have an active session with different device code',
+      );
+    }
+
+    // Memastikan employee belum memiliki sesi aktif (1 employee = 1 browser)
+    // Jika ada, hapus sesi yang sudah ada (ini juga akan memutus device)
+    const existingSession =
+      await this._prisma.employee_login_sessions.findUnique({
+        where: {
+          employee_id: employee.id,
+        },
+      });
+
+    if (existingSession) {
+      // Update status device code menjadi disconnected dan hapus employee_id
+      await this._prisma.device_codes.update({
+        where: {
+          id: existingSession.device_code_id,
+        },
+        data: {
+          status: 'disconnected',
+          employee_id: null,
+        },
+      });
+
+      // Hapus sesi yang sudah ada
+      await this._prisma.employee_login_sessions.delete({
+        where: {
+          employee_id: employee.id,
+        },
+      });
+    }
+
+    const owner = await this._prisma.users.findFirst({
+      where: {
+        user_has_stores: {
+          some: {
+            stores: {
+              stores_has_employees: {
+                some: {
+                  employees_id: employee.id,
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!owner) {
+      throw new BadRequestException('Owner not found');
+    }
+
+    const accessToken = this._jwtService.sign({
+      username: employee.users.username,
+      sub: employee.users.id,
+      email: employee.users.email,
+      phone: employee.users.phone,
+      ext: employee.users.ext,
+      fullname: employee.users.fullname,
+      verified_at: parseInt(employee.users.verified_at?.toString() || '0'),
+      role: employee.users.role_id,
+      is_staff: true, // Flag to identify staff login
+
+      // Staff specific data
+      employeeId: employee.id,
+      storeId: deviceCodeRecord.store_id,
+      deviceCodeId: deviceCodeRecord.id,
+      ownerId: owner.id,
+    });
+
+    // Buat sesi login
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days session
+
+    await this._prisma.employee_login_sessions.create({
+      data: {
+        employee_id: employee.id,
+        device_code_id: deviceCodeRecord.id,
+        store_id: deviceCodeRecord.store_id,
+        access_token: accessToken,
+        expires_at: expiresAt,
+      },
+    });
+
+    // Update status device code menjadi connected dan set last_connected_at
+    await this._prisma.device_codes.update({
+      where: {
+        id: deviceCodeRecord.id,
+      },
+      data: {
+        status: 'connected',
+        last_connected_at: new Date(),
+        employee_id: employee.id,
+      },
+    });
+
+    return {
+      accessToken: accessToken,
+      storeId: deviceCodeRecord.store_id,
+    };
+  }
+
+  /**
+   * @description Handle staff logout
+   */
+  public async staffLogout(req: ICustomRequestHeaders): Promise<void> {
+    if (!req.user.is_staff) {
+      throw new BadRequestException('Invalid session');
+    }
+
+    const employee = await this._prisma.employees.findFirst({
+      select: {
+        id: true,
+      },
+      where: {
+        user_id: req.user.id,
+      },
+    });
+    if (!employee) {
+      throw new BadRequestException('Invalid session');
+    }
+
+    const accessToken = req.headers.authorization?.split(' ')[1];
+
+    // Find the session
+    const session = await this._prisma.employee_login_sessions.findFirst({
+      where: {
+        employee_id: employee.id,
+        access_token: accessToken,
+      },
+    });
+
+    if (!session) {
+      throw new BadRequestException('Invalid session');
+    }
+
+    // Update device code status to disconnected (keep employee_id assigned)
+    await this._prisma.device_codes.update({
+      where: {
+        id: session.device_code_id,
+      },
+      data: {
+        status: 'disconnected',
+        employee_id: null,
+        employee_login_sessions: {
+          // Delete the session
+          delete: true,
+        },
+      },
+    });
+
+    // await this._prisma.employee_login_sessions.delete({
+    //   where: {
+    //     id: session.id,
+    //   },
+    // });
   }
 }

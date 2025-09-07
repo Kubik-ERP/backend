@@ -25,8 +25,18 @@ import { AppConfigurationsService } from './configurations/app/app-configuration
 // Setups
 import { swaggerSetup } from './configurations/swagger/swagger.setup';
 
+import * as express from 'express';
+
+import { join } from 'path';
+import { CustomLogger } from './common/logger/custom.logger';
+
 async function bootstrap() {
-  const app: INestApplication = await NestFactory.create(AppModule);
+  const app: INestApplication = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+  });
+
+  const customLogger = app.get(CustomLogger);
+  app.useLogger(customLogger);
 
   // Get app config for cors settings and starting the app.
   const appConfigurations: AppConfigurationsService = app.get(
@@ -41,7 +51,9 @@ async function bootstrap() {
   /**
    * Set Swagger
    */
-  swaggerSetup(app, appConfigurations);
+  if (process.env.NODE_ENV !== 'production') {
+    swaggerSetup(app, appConfigurations);
+  }
 
   /**
    * Global Serializer
@@ -71,6 +83,8 @@ async function bootstrap() {
    * Enable Cors
    */
   app.enableCors();
+
+  app.use('/public', express.static(join(__dirname, '..', 'public')));
 
   await app.listen(appConfigurations.appPort, appConfigurations.appHost, () => {
     console.log(

@@ -5,12 +5,12 @@ import { AuthenticationController } from './controllers/authentication.controlle
 import { JwtConfigModule } from '../../configurations/jwt/jwt-configuration.module';
 import { MailModule } from '../mail/mail.module';
 import { UsersModule } from '../users/users.module';
+import { TemplatesEmailModule } from '../templates-email/templates-email.module';
 
 // NestJS Libraries
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { CacheModule } from '@nestjs/cache-manager';
 
 // Services
 import { JwtConfigService } from '../../configurations/jwt/jwt-configuration.service';
@@ -19,17 +19,16 @@ import { AuthenticationService } from './services/authentication.service';
 // Strategies
 import { JwtStrategy } from '../../common/strategies/jwt.strategy';
 import { LocalStrategy } from '../../common/strategies/local.strategy';
+import { GoogleStrategy } from 'src/common/strategies/google.strategy';
+import { PrismaModule } from 'src/prisma/prisma.module';
 
 @Module({
   imports: [
-    CacheModule.register({
-      ttl: 300, // time to save the OTP
-      max: 1000, // maximum 1000 data
-    }),
     JwtConfigModule,
     MailModule,
     UsersModule,
     PassportModule,
+    PrismaModule,
     JwtModule.registerAsync({
       imports: [JwtConfigModule],
       useFactory: async (configService: JwtConfigService) => ({
@@ -41,8 +40,14 @@ import { LocalStrategy } from '../../common/strategies/local.strategy';
       }),
       inject: [JwtConfigService],
     }),
+    TemplatesEmailModule,
   ],
   controllers: [AuthenticationController],
-  providers: [AuthenticationService, LocalStrategy, JwtStrategy],
+  providers: [
+    AuthenticationService,
+    LocalStrategy,
+    JwtStrategy,
+    GoogleStrategy,
+  ],
 })
 export class AuthenticationModule {}

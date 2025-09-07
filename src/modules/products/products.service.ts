@@ -15,27 +15,107 @@ import { validate as isUUID } from 'uuid';
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createProductDto: CreateProductDto): Promise<ProductModel> {
+  async create(
+    createProductDto: CreateProductDto,
+    header: ICustomRequestHeaders,
+  ): Promise<ProductModel> {
     try {
+      const store_id = header.store_id;
+
+      if (!store_id) {
+        throw new BadRequestException('store_id is required');
+      }
+
       const existingProduct = await this.prisma.products.findFirst({
         where: { name: createProductDto.name },
       });
-
       if (existingProduct) {
-        throw new BadRequestException('Product name must be unique');
+        throw new Error('Product with this name already exists');
       }
 
-      return await this.prisma.products.create({
-        data: {
-          name: createProductDto.name,
-          price: createProductDto.price,
-          discount_price: createProductDto.discount_price,
-          picture_url: createProductDto.picture_url,
+      // jika discount_price tidak ada, maka discountValue = price
+      const discountValue = createProductDto?.isDiscount
+        ? createProductDto.discount_price
+        : createProductDto.price;
+
+      const productWithCategories = await this.prisma.$transaction(
+        async (tx) => {
+          const createdProduct = await tx.products.create({
+            data: {
+              name: createProductDto.name,
+              price: createProductDto.price,
+              discount_price: discountValue,
+              picture_url: createProductDto.image,
+              is_percent: createProductDto.is_percent,
+            },
+          });
+
+          await tx.stores_has_products.create({
+            data: {
+              stores_id: store_id,
+              products_id: createdProduct.id,
+            },
+          });
+
+          if (createProductDto.categories?.length) {
+            for (const category of createProductDto.categories) {
+              await tx.categories_has_products.create({
+                data: {
+                  products_id: createdProduct.id,
+                  categories_id: category.id,
+                },
+              });
+            }
+          }
+
+          if (createProductDto.variants?.length) {
+            for (const variant of createProductDto.variants) {
+              const createdVariant = await tx.variant.create({
+                data: {
+                  name: variant.name,
+                  price: variant.price,
+                },
+              });
+
+              await tx.variant_has_products.create({
+                data: {
+                  products_id: createdProduct.id,
+                  variant_id: createdVariant.id,
+                },
+              });
+            }
+          }
+
+          // Apply product ke voucher yang diterapkan untuk semua product
+          // memiliki is_apply_all_products = true
+          const vouchers = await tx.voucher.findMany({
+            where: {
+              is_apply_all_products: true,
+              store_id: store_id,
+            },
+          });
+          await tx.voucher_has_products.createMany({
+            data: vouchers.map((voucher) => ({
+              voucher_id: voucher.id,
+              products_id: createdProduct.id,
+            })),
+          });
+
+          return await tx.products.findUnique({
+            where: { id: createdProduct.id },
+            include: {
+              categories_has_products: true,
+              variant_has_products: {
+                include: {
+                  variant: true,
+                },
+              },
+            },
+          });
         },
-        include: {
-          categories_has_products: true,
-        },
-      });
+      );
+
+      return productWithCategories!;
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to create product',
@@ -44,23 +124,121 @@ export class ProductsService {
     }
   }
 
-  async findAll(): Promise<ProductModel[]> {
-    return await this.prisma.products.findMany({
-      include: { categories_has_products: true },
-    });
+  async findAll(
+    {
+      page = 1,
+      limit = 10,
+      search = '',
+      category_id = [],
+    }: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      category_id?: string[];
+    },
+    header: ICustomRequestHeaders,
+  ) {
+    const skip = (page - 1) * limit;
+    const store_id = header.store_id;
+
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
+    const whereCondition: any = {
+      ...(search && {
+        name: {
+          contains: search,
+          mode: 'insensitive',
+        },
+      }),
+      ...(category_id.length > 0 && {
+        categories_has_products: {
+          some: {
+            categories_id: {
+              in: category_id,
+            },
+          },
+        },
+      }),
+      stores_has_products: {
+        some: {
+          stores_id: store_id,
+        },
+      },
+    };
+
+    const [products, total] = await Promise.all([
+      this.prisma.products.findMany({
+        where: whereCondition,
+        skip,
+        take: limit,
+        include: {
+          categories_has_products: {
+            include: {
+              categories: true,
+            },
+          },
+          variant_has_products: {
+            include: {
+              variant: true,
+            },
+          },
+        },
+      }),
+      this.prisma.products.count({
+        where: whereCondition,
+      }),
+    ]);
+
+    return {
+      products,
+      total,
+      page,
+      lastPage: Math.ceil(total / limit),
+    };
   }
+
   async findOne(
     idOrNames: string | string[],
   ): Promise<ProductModel | ProductModel[] | null> {
     if (typeof idOrNames === 'string') {
-      return isUUID(idOrNames)
-        ? await this.prisma.products.findUnique({ where: { id: idOrNames } })
-        : await this.prisma.products.findMany({
-            where: { name: { contains: idOrNames, mode: 'insensitive' } },
-          });
+      if (isUUID(idOrNames)) {
+        return this.prisma.products.findUnique({
+          where: { id: idOrNames },
+          include: {
+            categories_has_products: {
+              include: {
+                categories: true,
+              },
+            },
+            variant_has_products: {
+              include: {
+                variant: true,
+              },
+            },
+          },
+        });
+      } else {
+        return this.prisma.products.findMany({
+          where: { name: { contains: idOrNames, mode: 'insensitive' } },
+          include: {
+            categories_has_products: {
+              include: {
+                categories: true,
+              },
+            },
+            variant_has_products: {
+              include: {
+                variant: true,
+              },
+            },
+          },
+        });
+      }
     }
 
-    return await this.prisma.products.findMany({
+    return this.prisma.products.findMany({
       where: {
         name: { in: idOrNames, mode: 'insensitive' },
       },
@@ -82,19 +260,76 @@ export class ProductsService {
 
       if (updateProductDto.name) {
         const duplicateProduct = await this.prisma.products.findFirst({
-          where: { name: updateProductDto.name, NOT: { id } },
+          where: {
+            name: updateProductDto.name,
+            NOT: { id },
+          },
         });
-
         if (duplicateProduct) {
           throw new BadRequestException('Product name must be unique');
         }
       }
 
-      return await this.prisma.products.update({
-        where: { id },
-        data: { ...updateProductDto },
+      const updatedProduct = await this.prisma.$transaction(async (tx) => {
+        if (updateProductDto.categories?.length) {
+          await tx.categories_has_products.deleteMany({
+            where: { products_id: id },
+          });
+
+          await tx.categories_has_products.createMany({
+            data: updateProductDto.categories.map((cat) => ({
+              products_id: id,
+              categories_id: cat.id,
+            })),
+          });
+        }
+
+        // Update variants: hapus semua -> buat ulang
+        if (updateProductDto.variants?.length) {
+          await tx.variant_has_products.deleteMany({
+            where: { products_id: id },
+          });
+
+          for (const variant of updateProductDto.variants) {
+            const createdVariant = await tx.variant.create({
+              data: {
+                name: variant.name,
+                price: variant.price ?? 0,
+              },
+            });
+
+            await tx.variant_has_products.create({
+              data: {
+                products_id: id,
+                variant_id: createdVariant.id,
+              },
+            });
+          }
+        }
+
+        // jika discount_price tidak ada, maka discountValue = price
+        const discountValue = updateProductDto?.isDiscount
+          ? updateProductDto.discount_price
+          : updateProductDto.price;
+
+        return await tx.products.update({
+          where: { id },
+          data: {
+            name: updateProductDto.name,
+            price: updateProductDto.price,
+            discount_price: discountValue,
+            picture_url: updateProductDto.image,
+            is_percent: updateProductDto.is_percent,
+          },
+          include: {
+            categories_has_products: true,
+          },
+        });
       });
+
+      return updatedProduct;
     } catch (error) {
+      console.error('Update product error:', error);
       throw new HttpException(
         error.message || 'Failed to update product',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -112,13 +347,60 @@ export class ProductsService {
         throw new NotFoundException('Product not found');
       }
 
-      await this.prisma.products.delete({ where: { id } });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.voucher_has_products.deleteMany({
+          where: {
+            products_id: id,
+          },
+        });
+
+        await tx.categories_has_products.deleteMany({
+          where: {
+            products_id: id,
+          },
+        });
+
+        await tx.variant_has_products.deleteMany({
+          where: {
+            products_id: id,
+          },
+        });
+
+        await tx.products.delete({
+          where: { id },
+        });
+      });
+
       return true;
     } catch (error) {
+      console.error(error);
       throw new HttpException(
         'Failed to delete product',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  async getProduct(productId: string) {
+    const result = await this.prisma.products.findFirst({
+      where: { id: productId },
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        discount_price: true,
+      },
+    });
+    if (!result) {
+      throw new BadRequestException(`Variant with id ${productId} not found`);
+    }
+
+    const safeResult = {
+      ...result,
+      price: result.price ?? 0,
+      discount_price: result.discount_price ?? 0,
+    };
+
+    return safeResult;
   }
 }

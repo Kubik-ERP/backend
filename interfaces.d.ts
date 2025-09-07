@@ -1,3 +1,4 @@
+import { Request } from 'express';
 export {};
 
 /**
@@ -10,7 +11,14 @@ declare global {
     username: string;
     phone: number;
     ext: number;
+    fullname?: string;
+    verified_at?: Date;
+    pin?: string;
     role?: string;
+
+    // kebutuhan login staff
+    is_staff?: boolean;
+    ownerId: number;
   }
 
   interface IResultFilter {
@@ -35,10 +43,22 @@ declare global {
 
   interface ICustomRequestHeaders extends Request {
     user: IRequestUser;
+    store_id?: string;
   }
 
   interface IValidateJWTStrategy {
     sub: string;
-    name: string;
+    fullname: string;
+    verified_at: Date;
+    email: string;
+    phone: string;
+    ext: string;
+    role: string;
+    pin: string;
+
+    // kebutuhan login staff
+    is_staff: boolean;
+    ownerId: string;
+    employeeId: string;
   }
 }

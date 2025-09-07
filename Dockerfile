@@ -16,7 +16,7 @@ COPY . .
 # Pastikan folder prisma sudah ada
 RUN ls -la prisma
 
-# Jalankan perintah Prisma
+# # Jalankan perintah Prisma
 RUN npm run db:pull && npm run db:generate
 
 # Build aplikasi

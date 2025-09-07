@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en" style="margin: 0; padding: 0; background-color: #f3f6f9">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Received PO</title>
+  </head>
+
+  <body
+    style="margin: 0; padding: 0; background-color: #f3f6f9; font-family: Inter"
+  >
+    <table
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="background-color: #f3f6f9; padding: 20px 0"
+    >
+      <tr>
+        <td align="center">
+          <table
+            width="600"
+            cellpadding="0"
+            cellspacing="0"
+            style="
+              background-color: #ffffff;
+              border-radius: 6px;
+              overflow: hidden;
+            "
+          >
+            <!-- Header -->
+            {{> header }}
+
+            <!-- Content -->
+            <tr>
+              <td style="padding: 30px; font-size: 15px; line-height: 1.6">
+                <p><strong>Order for PO-001 Successfully Received</strong></p>
+
+                <p>
+                  Here’s the register summary for the shift closed on
+                  <strong>[date]</strong> at <strong>[storeName]</strong>
+                </p>
+
+                <p><strong>Purchase Order Summary</strong></p>
+                <table
+                  width="100%"
+                  cellpadding="8"
+                  cellspacing="0"
+                  style="
+                    border: 1px solid #ccc;
+                    border-radius: 6px;
+                    margin-top: 20px;
+                  "
+                >
+                  <tr>
+                    <td><strong>PO Number</strong></td>
+                    <td>: [poNumber]</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Supplier</strong></td>
+                    <td>: [supplierName]</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Received By</strong></td>
+                    <td>: [storeName]</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Received Date</strong></td>
+                    <td>: [receivedDate], [receivedTime]</td>
+                  </tr>
+                </table>
+
+                <p style="margin-top: 24px; font-weight: bold">
+                  Items Received:
+                </p>
+
+                <table
+                  width="100%"
+                  cellpadding="8"
+                  cellspacing="0"
+                  style="
+                    border: 1px solid #ccc;
+                    border-radius: 6px;
+                    margin-top: 20px;
+                  "
+                >
+                  <tr>
+                    <th>Item name</th>
+                    <th>Brand</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Sub Total Price</th>
+                  </tr>
+                  <tr>
+                    <td>Beras Premium 5kg</td>
+                    <td>Sumo</td>
+                    <td>10</td>
+                    <td>Rp 80.000</td>
+                    <td>Rp 800.000</td>
+                  </tr>
+                  <tr>
+                    <td>Minyak Goreng 1L</td>
+                    <td>Barco</td>
+                    <td>10</td>
+                    <td>Rp 54.500</td>
+                    <td>Rp 545.000</td>
+                  </tr>
+                  <tr>
+                    <td>Gula Pasir 1kg</td>
+                    <td>Gulaku</td>
+                    <td>10</td>
+                    <td>Rp 17.800</td>
+                    <td>Rp 178.000</td>
+                  </tr>
+                  <tr>
+                    <td>Tepung Terigu Segitiga Biru</td>
+                    <td>Bogasari</td>
+                    <td>10</td>
+                    <td>Rp 18.900</td>
+                    <td>Rp 189.000</td>
+                  </tr>
+                  <tr>
+                    <td
+                      colspan="4"
+                      style="text-align: right; font-weight: bold"
+                    >
+                      Total Price
+                    </td>
+                    <td>Rp 1.712.000</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            {{> footer }}
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

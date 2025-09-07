@@ -1,11 +1,11 @@
 // Class Validator
-import { IsNotEmpty } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 // Interfaces
 import { ILogin } from '../interfaces/authentication.interface';
 
 // NestJS Libraries
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
 
 export class LoginUsernameDto {
   @ApiProperty()
@@ -15,6 +15,26 @@ export class LoginUsernameDto {
   @ApiProperty()
   @IsNotEmpty()
   public password: string;
+
+  @ApiHideProperty()
+  @IsOptional()
+  @IsString()
+  public deviceType?: string;
+
+  @ApiHideProperty()
+  @IsOptional()
+  @IsString()
+  public browser: string;
+
+  @ApiHideProperty()
+  @IsOptional()
+  @IsString()
+  public city: string;
+
+  @ApiHideProperty()
+  @IsOptional()
+  @IsString()
+  public country: string;
 }
 
 export class LoginWithAccessToken implements ILogin {
