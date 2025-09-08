@@ -1,5 +1,5 @@
 import { CacheModule } from '@nestjs/cache-manager';
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtConfigModule } from 'src/configurations/jwt/jwt-configuration.module';
 import { JwtConfigService } from 'src/configurations/jwt/jwt-configuration.service';
@@ -10,6 +10,7 @@ import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { StorageServiceModule } from '../storage-service/storage-service.module';
+import { InvoicesModule } from '../invoices/invoices.module';
 import { Reflector } from '@nestjs/core';
 import { OwnerOrPermissionGuard } from 'src/common/guards/owner-or-permission.guard';
 
@@ -34,6 +35,7 @@ import { OwnerOrPermissionGuard } from 'src/common/guards/owner-or-permission.gu
       inject: [JwtConfigService],
     }),
     StorageServiceModule,
+    forwardRef(() => InvoicesModule),
   ],
   controllers: [StoresController],
   providers: [StoresService, JwtStrategy, Reflector, OwnerOrPermissionGuard],

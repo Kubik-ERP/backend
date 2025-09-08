@@ -1,6 +1,12 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { InvoiceService } from 'src/modules/invoices/services/invoices.service';
 import { v4 as uuidv4 } from 'uuid';
 import { formatDate, formatTime } from 'src/common/helpers/common.helpers';
 import { Prisma } from '@prisma/client';
@@ -12,7 +18,11 @@ import { StoresListDto } from '../dtos/stores-list.dto';
 
 @Injectable()
 export class StoresService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => InvoiceService))
+    private readonly invoiceService: InvoiceService,
+  ) {}
 
   public async createStore(
     data: CreateStoreDto,
@@ -64,6 +74,9 @@ export class StoresService {
       await prisma.store_role_permissions.createMany({
         data: storeRolePermissions,
       });
+
+      // Create default invoice settings for the new store
+      await this.invoiceService.createDefaultInvoiceSettings(store.id, prisma);
     });
   }
 
@@ -133,6 +146,9 @@ export class StoresService {
           })),
         });
       }
+
+      // Create default invoice settings if not exists
+      await this.invoiceService.createDefaultInvoiceSettings(storeId, prisma);
     });
   }
 
