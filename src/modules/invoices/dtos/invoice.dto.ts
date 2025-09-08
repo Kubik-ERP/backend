@@ -316,4 +316,7 @@ export class InvoiceUpdateDto {
   voucher_amount?: number;
   // product discount
   total_product_discount?: number;
+  // payment rounding
+  rounding_setting_id?: string;
+  rounding_amount?: number;
 }

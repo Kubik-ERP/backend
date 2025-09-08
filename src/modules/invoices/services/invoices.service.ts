@@ -202,6 +202,7 @@ export class InvoiceService {
         },
         invoice_charges: true,
         payment_methods: true,
+        payment_rounding_settings: true,
       },
     });
 
@@ -547,8 +548,22 @@ export class InvoiceService {
         totalProductDiscount = calculatedTotalProductDiscount;
 
         // calculate the grand total
-        const calculation = await this.calculateTotal(tx, request, invoiceId);
+        const calculation = await this.calculateTotal(
+          tx,
+          request,
+          storeId,
+          invoiceId,
+        );
         grandTotal = calculation.grandTotal;
+
+        // Get payment rounding setting for this store
+        const paymentRoundingSetting =
+          await tx.payment_rounding_settings.findFirst({
+            where: {
+              store_id: storeId,
+              is_enabled: true,
+            },
+          });
 
         // update invoice with original subtotal and total product discount
         await this.update(tx, invoiceId, {
@@ -564,6 +579,9 @@ export class InvoiceService {
           voucher_id: request.voucherId ?? undefined,
           voucher_amount: calculation.voucherAmount,
           total_product_discount: calculatedTotalProductDiscount, // total product discount
+          // payment rounding
+          rounding_setting_id: paymentRoundingSetting?.id ?? undefined,
+          rounding_amount: request.rounding_amount ?? undefined,
         });
 
         // insert the customer has invoice
@@ -757,7 +775,16 @@ export class InvoiceService {
       // Set the total product discount to be used outside transaction
       totalProductDiscount = calculatedTotalProductDiscount;
 
-      const calculation = await this.calculateTotal(tx, request);
+      const calculation = await this.calculateTotal(tx, request, storeId);
+
+      // Get payment rounding setting for this store
+      const paymentRoundingSetting =
+        await tx.payment_rounding_settings.findFirst({
+          where: {
+            store_id: storeId,
+            is_enabled: true,
+          },
+        });
 
       const invoiceData = {
         id: invoiceId,
@@ -791,8 +818,8 @@ export class InvoiceService {
             : null,
         voucher_amount: calculation.voucherAmount ?? 0,
         total_product_discount: calculatedTotalProductDiscount,
-        rounding_setting_id: null,
-        rounding_amount: null,
+        rounding_setting_id: paymentRoundingSetting?.id ?? null,
+        rounding_amount: request.rounding_amount ?? null,
       };
 
       // create invoice with status unpaid
@@ -1380,6 +1407,7 @@ export class InvoiceService {
       const calculation = await this.calculateTotal(
         tx,
         calculationEstimationDto,
+        invoice.store_id ?? undefined,
         invoice.id,
       );
 
@@ -1558,6 +1586,7 @@ export class InvoiceService {
   public async calculateTotal(
     tx: Prisma.TransactionClient,
     request: CalculationEstimationDto,
+    storeId?: string,
     invoiceId?: string,
   ): Promise<CalculationResult> {
     let total = 0;
@@ -1677,10 +1706,10 @@ export class InvoiceService {
         const percentage = Number(serviceCharge.percentage);
         if (serviceCharge.is_include) {
           // If service include, means has include total
-          serviceAmount = total - total / (1 + percentage);
+          serviceAmount = subTotal - subTotal / (1 + percentage);
         } else {
           // If service exclude, count service as an additional
-          serviceAmount = total * percentage;
+          serviceAmount = subTotal * percentage;
           grandTotal += serviceAmount;
         }
 
@@ -1709,14 +1738,14 @@ export class InvoiceService {
 
       if (taxApplicable) {
         // Base tax counting
-        let taxBase = total;
+        let taxBase = subTotal;
 
-        // If service charge exclude, then tax counted as total + service
+        // If service charge exclude, then tax counted as subTotal + service
         if (!serviceType) {
           taxBase += serviceAmount;
         }
-        // if Tax is always calculated from the total (after voucher deduction)
-        // const taxBase = total;
+        // if Tax is always calculated from the subTotal (before voucher deduction)
+        // const taxBase = subTotal;
 
         if (tax.is_include) {
           // If tax include, count tax portion has included in taxBase
@@ -1758,6 +1787,50 @@ export class InvoiceService {
       paymentAmount = grandTotal;
     }
 
+    // Apply payment rounding if store ID is provided
+    let roundingAdjustment = 0;
+    let paymentRoundingSetting = null;
+
+    if (storeId) {
+      const setting = await tx.payment_rounding_settings.findFirst({
+        where: {
+          store_id: storeId,
+          is_enabled: true,
+        },
+      });
+
+      if (setting) {
+        const roundingValue = setting.rounding_value;
+        const remainder = grandTotal % roundingValue;
+
+        if (remainder !== 0) {
+          if (setting.rounding_type === 'up') {
+            // Round up: add remainder to reach target
+            roundingAdjustment = roundingValue - remainder;
+          } else if (setting.rounding_type === 'down') {
+            // Round down: subtract remainder
+            roundingAdjustment = -remainder;
+          }
+
+          // Apply rounding adjustment to grand total
+          grandTotal += roundingAdjustment;
+
+          // Update payment amount if it was equal to original grandTotal
+          if (paymentAmount === grandTotal - roundingAdjustment) {
+            paymentAmount = grandTotal;
+            changeAmount = paymentAmount - grandTotal;
+          }
+        }
+
+        paymentRoundingSetting = {
+          id: setting.id,
+          roundingType: setting.rounding_type,
+          roundingValue: setting.rounding_value,
+          isEnabled: setting.is_enabled,
+        };
+      }
+    }
+
     return {
       subTotal,
       discountTotal,
@@ -1773,6 +1846,8 @@ export class InvoiceService {
       paymentAmount,
       changeAmount,
       items,
+      roundingAdjustment,
+      paymentRoundingSetting,
     };
   }
 
@@ -1997,6 +2072,9 @@ export class InvoiceService {
           voucher_amount: invoice.voucher_amount ?? 0,
           // product discount
           total_product_discount: invoice.total_product_discount ?? 0,
+          // payment rounding
+          rounding_setting_id: invoice.rounding_setting_id ?? null,
+          rounding_amount: invoice.rounding_amount ?? null,
         },
       });
 
@@ -2027,6 +2105,7 @@ export class InvoiceService {
         customer_id,
         payment_method_id,
         voucher_id,
+        rounding_setting_id,
         ...rest
       } = data;
 
@@ -2062,6 +2141,12 @@ export class InvoiceService {
       if (voucher_id) {
         updateData.voucher = {
           connect: { id: voucher_id },
+        };
+      }
+
+      if (rounding_setting_id) {
+        updateData.payment_rounding_settings = {
+          connect: { id: rounding_setting_id },
         };
       }
 
