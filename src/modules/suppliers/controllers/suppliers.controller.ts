@@ -83,7 +83,7 @@ export class SuppliersController {
     required: true,
     schema: { type: 'string' },
   })
-  @Get('import/template')
+  @Post('import/generate-template')
   @ApiOperation({ summary: 'Download supplier import template' })
   async downloadImportTemplate(
     @Req() req: ICustomRequestHeaders,
