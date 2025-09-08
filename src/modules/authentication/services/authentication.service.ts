@@ -470,11 +470,5 @@ export class AuthenticationService {
         },
       },
     });
-
-    // await this._prisma.employee_login_sessions.delete({
-    //   where: {
-    //     id: session.id,
-    //   },
-    // });
   }
 }
