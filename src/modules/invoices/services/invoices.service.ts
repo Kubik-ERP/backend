@@ -1706,10 +1706,10 @@ export class InvoiceService {
         const percentage = Number(serviceCharge.percentage);
         if (serviceCharge.is_include) {
           // If service include, means has include total
-          serviceAmount = total - total / (1 + percentage);
+          serviceAmount = subTotal - subTotal / (1 + percentage);
         } else {
           // If service exclude, count service as an additional
-          serviceAmount = total * percentage;
+          serviceAmount = subTotal * percentage;
           grandTotal += serviceAmount;
         }
 
@@ -1738,14 +1738,14 @@ export class InvoiceService {
 
       if (taxApplicable) {
         // Base tax counting
-        let taxBase = total;
+        let taxBase = subTotal;
 
-        // If service charge exclude, then tax counted as total + service
+        // If service charge exclude, then tax counted as subTotal + service
         if (!serviceType) {
           taxBase += serviceAmount;
         }
-        // if Tax is always calculated from the total (after voucher deduction)
-        // const taxBase = total;
+        // if Tax is always calculated from the subTotal (before voucher deduction)
+        // const taxBase = subTotal;
 
         if (tax.is_include) {
           // If tax include, count tax portion has included in taxBase
