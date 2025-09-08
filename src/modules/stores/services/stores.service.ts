@@ -64,6 +64,35 @@ export class StoresService {
       await prisma.store_role_permissions.createMany({
         data: storeRolePermissions,
       });
+
+      const existingSetting = await prisma.invoice_settings.findUnique({
+        where: { store_id: store.id },
+      });
+      if (!existingSetting) {
+        // note: Create default invoice settings for the new store
+        await prisma.invoice_settings.create({
+          data: {
+            store_id: store.id,
+            uid: null,
+            company_logo_url: null,
+            footer_text: 'footer text',
+            is_automatically_print_receipt: true,
+            is_automatically_print_kitchen: false,
+            is_automatically_print_table: false,
+            is_show_company_logo: true,
+            is_show_store_location: true,
+            is_hide_cashier_name: false,
+            is_hide_order_type: false,
+            is_hide_queue_number: false,
+            is_show_table_number: true,
+            is_hide_item_prices: false,
+            is_show_footer: true,
+            increment_by: 1,
+            reset_sequence: 'Daily',
+            starting_number: 1,
+          },
+        });
+      }
     });
   }
 
@@ -131,6 +160,33 @@ export class StoresService {
             close_time: formatTime(bh.closeTime),
             stores_id: storeId,
           })),
+        });
+      }
+
+      const existingSetting = await prisma.invoice_settings.findUnique({
+        where: { store_id: store.id },
+      });
+      if (!existingSetting) {
+        await prisma.invoice_settings.create({
+          data: {
+            store_id: store.id,
+            uid: null,
+            company_logo_url: null,
+            footer_text: 'footer text',
+            is_automatically_print_receipt: true,
+            is_automatically_print_kitchen: false,
+            is_automatically_print_table: false,
+            is_show_company_logo: true,
+            is_show_store_location: true,
+            is_hide_order_type: false,
+            is_hide_queue_number: false,
+            is_show_table_number: true,
+            is_hide_item_prices: false,
+            is_show_footer: true,
+            increment_by: 1,
+            reset_sequence: 'Daily',
+            starting_number: 1,
+          },
         });
       }
     });
