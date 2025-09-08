@@ -65,19 +65,22 @@ export class VouchersService {
           }),
         },
         {
-          // OR condition for product filter or apply all
-          OR: [
-            {
-              voucher_has_products: {
-                some: {
-                  products_id: { in: query.productIds },
+          // OR condition for product filter or apply all (only if productIds exists)
+          ...(query.productIds?.length &&
+            query.productIds?.length > 0 && {
+              OR: [
+                {
+                  voucher_has_products: {
+                    some: {
+                      products_id: { in: query.productIds },
+                    },
+                  },
                 },
-              },
-            },
-            {
-              is_apply_all_products: true,
-            },
-          ],
+                {
+                  is_apply_all_products: true,
+                },
+              ],
+            }),
         },
       ],
     };
