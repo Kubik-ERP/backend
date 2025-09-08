@@ -1,6 +1,12 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { InvoiceService } from 'src/modules/invoices/services/invoices.service';
 import { v4 as uuidv4 } from 'uuid';
 import { formatDate, formatTime } from 'src/common/helpers/common.helpers';
 import { Prisma } from '@prisma/client';
@@ -12,7 +18,11 @@ import { StoresListDto } from '../dtos/stores-list.dto';
 
 @Injectable()
 export class StoresService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => InvoiceService))
+    private readonly invoiceService: InvoiceService,
+  ) {}
 
   public async createStore(
     data: CreateStoreDto,
@@ -65,34 +75,8 @@ export class StoresService {
         data: storeRolePermissions,
       });
 
-      const existingSetting = await prisma.invoice_settings.findUnique({
-        where: { store_id: store.id },
-      });
-      if (!existingSetting) {
-        // note: Create default invoice settings for the new store
-        await prisma.invoice_settings.create({
-          data: {
-            store_id: store.id,
-            uid: null,
-            company_logo_url: null,
-            footer_text: 'footer text',
-            is_automatically_print_receipt: true,
-            is_automatically_print_kitchen: false,
-            is_automatically_print_table: false,
-            is_show_company_logo: true,
-            is_show_store_location: true,
-            is_hide_cashier_name: false,
-            is_hide_order_type: false,
-            is_hide_queue_number: false,
-            is_show_table_number: true,
-            is_hide_item_prices: false,
-            is_show_footer: true,
-            increment_by: 1,
-            reset_sequence: 'Daily',
-            starting_number: 1,
-          },
-        });
-      }
+      // Create default invoice settings for the new store
+      await this.invoiceService.createDefaultInvoiceSettings(store.id, prisma);
     });
   }
 
@@ -163,32 +147,8 @@ export class StoresService {
         });
       }
 
-      const existingSetting = await prisma.invoice_settings.findUnique({
-        where: { store_id: store.id },
-      });
-      if (!existingSetting) {
-        await prisma.invoice_settings.create({
-          data: {
-            store_id: store.id,
-            uid: null,
-            company_logo_url: null,
-            footer_text: 'footer text',
-            is_automatically_print_receipt: true,
-            is_automatically_print_kitchen: false,
-            is_automatically_print_table: false,
-            is_show_company_logo: true,
-            is_show_store_location: true,
-            is_hide_order_type: false,
-            is_hide_queue_number: false,
-            is_show_table_number: true,
-            is_hide_item_prices: false,
-            is_show_footer: true,
-            increment_by: 1,
-            reset_sequence: 'Daily',
-            starting_number: 1,
-          },
-        });
-      }
+      // Create default invoice settings if not exists
+      await this.invoiceService.createDefaultInvoiceSettings(storeId, prisma);
     });
   }
 

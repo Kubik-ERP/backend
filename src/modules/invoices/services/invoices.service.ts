@@ -2349,5 +2349,44 @@ export class InvoiceService {
     }
   }
 
+  /**
+   * @description Create default invoice settings for a store
+   */
+  public async createDefaultInvoiceSettings(
+    storeId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const prisma = tx || this._prisma;
+
+    const existingSetting = await prisma.invoice_settings.findUnique({
+      where: { store_id: storeId },
+    });
+
+    if (!existingSetting) {
+      await prisma.invoice_settings.create({
+        data: {
+          store_id: storeId,
+          uid: null,
+          company_logo_url: null,
+          footer_text: 'footer text',
+          is_automatically_print_receipt: true,
+          is_automatically_print_kitchen: false,
+          is_automatically_print_table: false,
+          is_show_company_logo: true,
+          is_show_store_location: true,
+          is_hide_cashier_name: false,
+          is_hide_order_type: false,
+          is_hide_queue_number: false,
+          is_show_table_number: true,
+          is_hide_item_prices: false,
+          is_show_footer: true,
+          increment_by: 1,
+          reset_sequence: 'Daily',
+          starting_number: 1,
+        },
+      });
+    }
+  }
+
   // End of query section
 }
