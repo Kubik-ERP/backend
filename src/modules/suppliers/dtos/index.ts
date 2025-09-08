@@ -5,3 +5,6 @@ export * from './supplier-response.dto';
 export * from './suppliers-list-response.dto';
 export * from './supplier-param.dto';
 export * from './get-item-supplies.dto';
+export * from './import-preview.dto';
+export * from './execute-import.dto';
+export * from './delete-batch.dto';
