@@ -294,9 +294,12 @@ export class StoresController {
   @Get('/store/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get store by ID' })
-  public async getStoreById(@Param('id') id: string) {
+  public async getStoreById(
+    @Param('id') id: string,
+    @Req() req: ICustomRequestHeaders,
+  ) {
     try {
-      const result = await this._storeService.getStoreById(id);
+      const result = await this._storeService.getStoreById(id, req);
       const groupedOperationalHours = result.operational_hours.reduce(
         (acc: any, item: any) => {
           const day = item.days;
@@ -343,11 +346,12 @@ export class StoresController {
         result: toCamelCase(response),
       };
     } catch (error) {
-      console.log(error);
-      throw new HttpException(
-        'Internal Server Error',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      return {
+        statusCode:
+          error.statusCode || error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        message: error.message,
+        result: null,
+      };
     }
   }
 
