@@ -1245,25 +1245,6 @@ model temp_import_suppliers {
   imported_at         DateTime? @default(now()) @db.Timestamptz(6)
 }
 
-model temp_import_suppliers {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  batch_id            String    @db.Uuid
-  row_number          Int
-  status              String    @db.VarChar(20)
-  supplier_name       String    @db.VarChar(150)
-  contact_person      String?   @db.VarChar(100)
-  phone_number        String?   @db.VarChar(50)
-  email               String?   @db.VarChar(150)
-  address             String?
-  supplier_code       String?   @db.VarChar(50)
-  bank_name           String?   @db.VarChar(100)
-  bank_account_number String?   @db.VarChar(50)
-  bank_account_name   String?   @db.VarChar(150)
-  npwp                String?   @db.VarChar(50)
-  error_messages      String?
-  imported_at         DateTime? @default(now()) @db.Timestamptz(6)
-}
-
 model temp_import_brands {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   batch_id       String    @db.Uuid
