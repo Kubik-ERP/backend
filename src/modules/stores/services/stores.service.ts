@@ -183,7 +183,7 @@ export class StoresService {
   ): Promise<any> {
     // jika staff, pastikan hanya bisa akses data store yang di assign ke staff
     if (header.user.is_staff) {
-      const store = await this.prisma.employees.findFirst({
+      const employee = await this.prisma.employees.findFirst({
         select: {
           stores_id: true,
         },
@@ -191,7 +191,7 @@ export class StoresService {
           id: header.user.employeeId,
         },
       });
-      if (store?.stores_id !== storeId) {
+      if (employee?.stores_id !== storeId) {
         throw new ForbiddenException(
           'You are not authorized to access this store',
         );

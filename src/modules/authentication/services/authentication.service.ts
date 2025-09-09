@@ -274,7 +274,6 @@ export class AuthenticationService {
       },
       include: {
         users: true, // Get user data for JWT payload
-        stores: true,
       },
     });
 
