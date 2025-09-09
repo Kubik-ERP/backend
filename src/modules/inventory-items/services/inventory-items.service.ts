@@ -1221,37 +1221,78 @@ export class InventoryItemsService {
       await this.ensureNotDuplicateSku(dto.sku, id, store_id);
     }
 
+    // Helper function to validate UUID or return null
+    const validateUUID = (value: string | null | undefined): string | null => {
+      if (value === null || value === undefined || value === '') {
+        return null;
+      }
+      // Check if it's a valid UUID format (36 characters with dashes)
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(value) ? value : null;
+    };
+
+    // Build update data object dynamically to avoid TypeScript issues
+    const updateData: any = {
+      updated_at: new Date(),
+    };
+
+    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.brandId !== undefined) {
+      const validatedBrandId = validateUUID(dto.brandId);
+      if (validatedBrandId === null) {
+        updateData.brand_id = null;
+      } else {
+        updateData.brand_id = validatedBrandId;
+      }
+    }
+    if (dto.barcode !== undefined) updateData.barcode = dto.barcode;
+    if (dto.sku !== undefined) updateData.sku = dto.sku;
+    if (dto.categoryId !== undefined) {
+      const validatedCategoryId = validateUUID(dto.categoryId);
+      if (validatedCategoryId === null) {
+        updateData.category_id = null;
+      } else {
+        updateData.category_id = validatedCategoryId;
+      }
+    }
+    if (dto.unit !== undefined) updateData.unit = dto.unit;
+    if (dto.notes !== undefined) updateData.notes = dto.notes;
+    if (dto.stockQuantity !== undefined) {
+      updateData.stock_quantity = dto.stockQuantity;
+    }
+    if (dto.reorderLevel !== undefined) {
+      updateData.reorder_level = dto.reorderLevel;
+    }
+    if (dto.minimumStockQuantity !== undefined) {
+      updateData.minimum_stock_quantity = dto.minimumStockQuantity;
+    }
+    if (dto.expiryDate !== undefined) {
+      updateData.expiry_date = dto.expiryDate ? new Date(dto.expiryDate) : null;
+    }
+    if (dto.storageLocationId !== undefined) {
+      const validatedStorageId = validateUUID(dto.storageLocationId);
+      if (validatedStorageId === null) {
+        updateData.storage_location_id = null;
+      } else {
+        updateData.storage_location_id = validatedStorageId;
+      }
+    }
+    if (dto.pricePerUnit !== undefined) {
+      updateData.price_per_unit = dto.pricePerUnit;
+    }
+    if (dto.supplierId !== undefined) {
+      const validatedSupplierId = validateUUID(dto.supplierId);
+      if (validatedSupplierId === null) {
+        updateData.supplier_id = null;
+      } else {
+        updateData.supplier_id = validatedSupplierId;
+      }
+    }
+
     const updated = await this._prisma.master_inventory_items.update({
       where: { id },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.brandId !== undefined && { brand_id: dto.brandId }),
-        ...(dto.barcode !== undefined && { barcode: dto.barcode }),
-        ...(dto.sku !== undefined && { sku: dto.sku }),
-        ...(dto.categoryId !== undefined && { category_id: dto.categoryId }),
-        ...(dto.unit !== undefined && { unit: dto.unit }),
-        ...(dto.notes !== undefined && { notes: dto.notes }),
-        ...(dto.stockQuantity !== undefined && {
-          stock_quantity: dto.stockQuantity,
-        }),
-        ...(dto.reorderLevel !== undefined && {
-          reorder_level: dto.reorderLevel,
-        }),
-        ...(dto.minimumStockQuantity !== undefined && {
-          minimum_stock_quantity: dto.minimumStockQuantity,
-        }),
-        ...(dto.expiryDate !== undefined && {
-          expiry_date: dto.expiryDate ? new Date(dto.expiryDate) : null,
-        }),
-        ...(dto.storageLocationId !== undefined && {
-          storage_location_id: dto.storageLocationId,
-        }),
-        ...(dto.pricePerUnit !== undefined && {
-          price_per_unit: dto.pricePerUnit,
-        }),
-        ...(dto.supplierId !== undefined && { supplier_id: dto.supplierId }),
-        updated_at: new Date(),
-      },
+      data: updateData,
     });
     this.logger.log(`Inventory item updated: ${updated.name}`);
     return this.toPlainItem(updated);
