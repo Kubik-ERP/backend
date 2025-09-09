@@ -5,16 +5,16 @@ import {
   Inject,
   Injectable,
 } from '@nestjs/common';
-import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { InvoiceService } from 'src/modules/invoices/services/invoices.service';
-import { v4 as uuidv4 } from 'uuid';
-import { formatDate, formatTime } from 'src/common/helpers/common.helpers';
 import { Prisma } from '@prisma/client';
+import { formatDate, formatTime } from 'src/common/helpers/common.helpers';
 import {
   getOffset,
   getTotalPages,
 } from 'src/common/helpers/pagination.helpers';
+import { InvoiceService } from 'src/modules/invoices/services/invoices.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { v4 as uuidv4 } from 'uuid';
+import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
 import { StoresListDto } from '../dtos/stores-list.dto';
 
 @Injectable()
@@ -183,15 +183,15 @@ export class StoresService {
   ): Promise<any> {
     // jika staff, pastikan hanya bisa akses data store yang di assign ke staff
     if (header.user.is_staff) {
-      const store = await this.prisma.stores_has_employees.findFirst({
+      const employee = await this.prisma.employees.findFirst({
         select: {
           stores_id: true,
         },
         where: {
-          employees_id: header.user.employeeId,
+          id: header.user.employeeId,
         },
       });
-      if (store?.stores_id !== storeId) {
+      if (employee?.stores_id !== storeId) {
         throw new ForbiddenException(
           'You are not authorized to access this store',
         );

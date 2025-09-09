@@ -73,10 +73,9 @@ model categories {
   category                String?                   @unique(map: "categories_name_key") @db.VarChar(45)
   description             String?                   @db.VarChar(45)
   picture_url             String?                   @db.VarChar(45)
-  stores_id               String?                   @db.Uuid
-  stores                  stores?                   @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_categories_fk")
+  stores_id               String                    @db.Uuid
+  stores                  stores                    @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_categories_fk")
   categories_has_products categories_has_products[]
-  store_has_categories    store_has_categories[]
 }
 
 model categories_has_products {
@@ -168,17 +167,18 @@ model employees {
   default_commission_voucher      Float?
   default_commission_product      Float?
   user_id                         Int                          @unique(map: "employees_user_id_unique")
+  stores_id                       String                       @db.Uuid
   cash_drawers                    cash_drawers[]
   device_codes                    device_codes?
   employee_login_sessions         employee_login_sessions?
   roles                           roles                        @relation(fields: [permission], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_roles_fk")
   users                           users                        @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_users_fk")
+  stores                          stores                       @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_employees_fk")
   employees_has_roles             employees_has_roles[]
   employees_has_social_media      employees_has_social_media[]
   employees_shift                 employees_shift[]
   platforms_has_employees         platforms_has_employees[]
   product_commissions             product_commissions[]
-  stores_has_employees            stores_has_employees[]
   voucher_commissions             voucher_commissions[]
 }
 
@@ -318,6 +318,7 @@ model invoice_settings {
   increment_by                   Int?
   reset_sequence                 String?
   starting_number                Int?
+  stores                         stores  @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_invoice_settings_store")
 }
 
 model kitchen_queue {
@@ -452,6 +453,7 @@ model products {
   discount_price               Float?
   picture_url                  String?                        @db.VarChar(45)
   is_percent                   Boolean?                       @default(false)
+  stores_id                    String                         @db.Uuid
   benefit_free_items           benefit_free_items[]
   catalog_bundling_has_product catalog_bundling_has_product[]
   categories_has_products      categories_has_products[]
@@ -459,8 +461,8 @@ model products {
   kitchen_queue                kitchen_queue[]
   loyalty_product_item         loyalty_product_item[]
   product_commissions          product_commissions[]
+  stores                       stores                         @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_products_fk")
   recipe                       recipe[]
-  stores_has_products          stores_has_products[]
   variant_has_products         variant_has_products[]
   voucher_has_products         voucher_has_products[]
 }
@@ -529,14 +531,6 @@ model store_floors {
   store_tables store_tables[]
 }
 
-model store_has_categories {
-  id            String      @id(map: "store_has_categories_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  categories_id String?     @db.Uuid
-  stores_id     String?     @db.Uuid
-  categories    categories? @relation(fields: [categories_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_categories_categories_id_fk")
-  stores        stores?     @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_categories_stores_id_fk")
-}
-
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model store_tables {
   id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -577,51 +571,29 @@ model stores {
   customer_has_stores                    customer_has_stores[]
   device_codes                           device_codes[]
   employee_login_sessions                employee_login_sessions[]
+  employees                              employees[]
   floor                                  floor[]
   inventory_stock_adjustments            inventory_stock_adjustments[]
   invoice                                invoice[]
+  invoice_settings                       invoice_settings?
   kitchen_queue                          kitchen_queue[]
   loyalty_point_settings                 loyalty_point_settings[]
   operational_hours                      operational_hours[]
   payment_rounding_settings              payment_rounding_settings[]
+  products                               products[]
   purchase_orders                        purchase_orders[]
   stock_opnames                          stock_opnames[]
   store_facilities                       store_facilities[]
   store_floors                           store_floors[]
-  store_has_categories                   store_has_categories[]
   store_role_permissions                 store_role_permissions[]
-  stores_has_employees                   stores_has_employees[]
   stores_has_master_brands               stores_has_master_brands[]
   stores_has_master_inventory_categories stores_has_master_inventory_categories[]
   stores_has_master_inventory_items      stores_has_master_inventory_items[]
   stores_has_master_storage_locations    stores_has_master_storage_locations[]
   stores_has_master_suppliers            stores_has_master_suppliers[]
-  stores_has_products                    stores_has_products[]
   tables                                 tables[]
   user_has_stores                        user_has_stores[]
   voucher                                voucher[]
-}
-
-model stores_has_employees {
-  stores_id    String    @db.Uuid
-  employees_id String    @db.Uuid
-  employees    employees @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stores_has_employees_employees1")
-  stores       stores    @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stores_has_employees_stores1")
-
-  @@id([stores_id, employees_id])
-  @@index([employees_id], map: "fk_stores_has_employees_employees1_idx")
-  @@index([stores_id], map: "fk_stores_has_employees_stores1_idx")
-}
-
-model stores_has_products {
-  stores_id   String   @db.Uuid
-  products_id String   @db.Uuid
-  products    products @relation(fields: [products_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stores_has_products_products1")
-  stores      stores   @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stores_has_products_stores1")
-
-  @@id([stores_id, products_id])
-  @@index([products_id], map: "fk_stores_has_products_products1_idx")
-  @@index([stores_id], map: "fk_stores_has_products_stores1_idx")
 }
 
 model tables {
