@@ -589,12 +589,7 @@ export class DashboardService {
   ) {
     const storeProducts = await this.prisma.products.findMany({
       where: {
-        stores_has_products: {
-          // This is the relation to the pivot table
-          some: {
-            stores_id: req.store_id,
-          },
-        },
+        stores_id: req.store_id,
       },
       include: {
         categories_has_products: {
@@ -824,7 +819,7 @@ export class DashboardService {
         reorderLevel: item.reorder_level,
         minimumStock: item.minimum_stock_quantity,
         unit: item.unit,
-        storageLocation: item.master_storage_locations.name,
+        storageLocation: item.master_storage_locations?.name,
       }));
     } else if (type === 'movement') {
       // Fetch stock movement data
