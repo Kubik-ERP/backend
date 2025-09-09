@@ -960,7 +960,7 @@ model stores_has_master_inventory_categories {
 model master_inventory_items {
   id                                String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                              String                              @db.VarChar(150)
-  brand_id                          String                              @db.Uuid
+  brand_id                          String?                             @db.Uuid
   barcode                           String?                             @db.VarChar(64)
   sku                               String                              @db.VarChar(64)
   category_id                       String                              @db.Uuid
@@ -970,15 +970,15 @@ model master_inventory_items {
   reorder_level                     Int
   minimum_stock_quantity            Int
   expiry_date                       DateTime?                           @db.Date
-  storage_location_id               String                              @db.Uuid
+  storage_location_id               String?                             @db.Uuid
   price_per_unit                    Decimal                             @db.Decimal(18, 2)
   supplier_id                       String                              @db.Uuid
   created_at                        DateTime                            @default(now()) @db.Timestamptz(6)
   updated_at                        DateTime                            @default(now()) @db.Timestamptz(6)
   inventory_stock_adjustments       inventory_stock_adjustments[]
-  master_brands                     master_brands                       @relation(fields: [brand_id], references: [id], onUpdate: NoAction)
+  master_brands                     master_brands?                      @relation(fields: [brand_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   master_inventory_categories       master_inventory_categories         @relation(fields: [category_id], references: [id], onUpdate: NoAction)
-  master_storage_locations          master_storage_locations            @relation(fields: [storage_location_id], references: [id], onUpdate: NoAction)
+  master_storage_locations          master_storage_locations?           @relation(fields: [storage_location_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   master_suppliers                  master_suppliers                    @relation(fields: [supplier_id], references: [id], onUpdate: NoAction)
   purchase_order_items              purchase_order_items[]
   stock_opname_items                stock_opname_items[]
@@ -1258,6 +1258,18 @@ model temp_import_brands {
 }
 
 model temp_import_inventory_categories {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id       String    @db.Uuid
+  row_number     Int
+  status         String    @db.VarChar(20)
+  name           String    @db.VarChar(150)
+  code           String?   @db.VarChar(50)
+  notes          String?
+  error_messages String?
+  imported_at    DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model temp_import_inventory_storage_locations {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   batch_id       String    @db.Uuid
   row_number     Int
