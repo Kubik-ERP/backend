@@ -824,7 +824,7 @@ export class DashboardService {
         reorderLevel: item.reorder_level,
         minimumStock: item.minimum_stock_quantity,
         unit: item.unit,
-        storageLocation: item.master_storage_locations.name,
+        storageLocation: item.master_storage_locations?.name || 'No Location',
       }));
     } else if (type === 'movement') {
       // Fetch stock movement data
