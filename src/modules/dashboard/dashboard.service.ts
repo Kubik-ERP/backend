@@ -34,7 +34,7 @@ export class DashboardService {
     const salesItems = await this.prisma.invoice_details.findMany({
       where: {
         invoice: {
-          complete_order_at: {
+          paid_at: {
             gte: startDate,
             lte: endDate,
           },
@@ -57,7 +57,7 @@ export class DashboardService {
     const items = await this.prisma.invoice_details.findMany({
       where: {
         invoice: {
-          complete_order_at: {
+          paid_at: {
             gte: startDate,
             lte: endDate,
           },
@@ -150,7 +150,7 @@ export class DashboardService {
       where: {
         invoice: {
           store_id: storeId,
-          complete_order_at: {
+          paid_at: {
             gte: startDate,
             lte: endDate,
           },
@@ -417,7 +417,7 @@ export class DashboardService {
   ) {
     const invoiceData = await this.prisma.invoice.findMany({
       where: {
-        complete_order_at: {
+        paid_at: {
           gte: begDate,
           lte: endDate,
         },
@@ -426,7 +426,7 @@ export class DashboardService {
     });
     const mappedInvoiceData = invoiceData.map((invoice) => ({
       id: invoice.id,
-      date: invoice.complete_order_at,
+      date: invoice.paid_at,
       type: 'Cash In',
       notes: 'Transaction ' + invoice.invoice_number,
       nominal: invoice.grand_total,
@@ -441,7 +441,7 @@ export class DashboardService {
   ) {
     const paymentData = await this.prisma.invoice.findMany({
       where: {
-        complete_order_at: {
+        paid_at: {
           gte: begDate,
           lte: endDate,
         },
@@ -462,7 +462,7 @@ export class DashboardService {
     const aggregation = await this.prisma.invoice.aggregate({
       where: {
         store_id: req.store_id,
-        complete_order_at: {
+        paid_at: {
           gte: startDate,
           lte: endDate,
           not: null,
@@ -617,7 +617,7 @@ export class DashboardService {
         product_id: { in: productIds }, // Important: Only check relevant products
         invoice: {
           store_id: req.store_id,
-          complete_order_at: {
+          paid_at: {
             gte: startDate,
             lte: endDate,
           },
@@ -701,7 +701,7 @@ export class DashboardService {
     const invoices = await this.prisma.invoice.findMany({
       where: {
         store_id: req.store_id,
-        complete_order_at: {
+        paid_at: {
           gte: startDate,
           lte: endDate,
         },
@@ -773,7 +773,7 @@ export class DashboardService {
       include: {
         invoice: {
           where: {
-            complete_order_at: {
+            paid_at: {
               gte: startDate,
               lte: endDate,
             },
