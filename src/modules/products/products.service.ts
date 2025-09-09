@@ -51,12 +51,6 @@ export class ProductsService {
             } as any,
           });
 
-          await tx.stores_has_products.create({
-            data: {
-              stores_id: store_id,
-            },
-          });
-
           if (createProductDto.categories?.length) {
             for (const category of createProductDto.categories) {
               await tx.categories_has_products.create({
