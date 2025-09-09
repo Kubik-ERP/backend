@@ -92,12 +92,7 @@ export class EmployeesService {
                 default_commission_voucher: dto.defaultCommissionVoucher,
                 default_commission_voucher_type:
                   dto.defaultCommissionVoucherType,
-                // assign ke store
-                stores_has_employees: {
-                  create: {
-                    stores_id: store_id,
-                  },
-                },
+                stores_id: store_id,
               },
             },
           },
@@ -250,11 +245,7 @@ export class EmployeesService {
     }
 
     conditions.push({
-      stores_has_employees: {
-        some: {
-          stores_id: store_id,
-        },
-      },
+      stores_id: store_id,
     });
 
     if (search) {
@@ -320,7 +311,6 @@ export class EmployeesService {
           employees_shift: true,
           product_commissions: true,
           voucher_commissions: true,
-          stores_has_employees: true,
         },
       }),
     ]);
@@ -508,60 +498,58 @@ export class EmployeesService {
     });
   }
 
-  async assignToStore(
-    assignEmployeeDto: AssignEmployeeDto,
-    req: ICustomRequestHeaders,
-  ) {
-    const { employeeId, type } = assignEmployeeDto;
-    const storeId = req.store_id;
-    if (!storeId) {
-      throw new BadRequestException('Store ID is required');
-    }
+  // async assignToStore(
+  //   assignEmployeeDto: AssignEmployeeDto,
+  //   req: ICustomRequestHeaders,
+  // ) {
+  //   const { employeeId, type } = assignEmployeeDto;
+  //   const storeId = req.store_id;
+  //   if (!storeId) {
+  //     throw new BadRequestException('Store ID is required');
+  //   }
 
-    const employee = await this.findOne(employeeId);
-    if (!employee) {
-      throw new NotFoundException(`Employee with ID ${employeeId} not found`);
-    }
+  //   const employee = await this.findOne(employeeId);
+  //   if (!employee) {
+  //     throw new NotFoundException(`Employee with ID ${employeeId} not found`);
+  //   }
 
-    const existingAssignment = await this.prisma.stores_has_employees.findFirst(
-      {
-        where: {
-          AND: [{ employees_id: employeeId }, { stores_id: storeId }],
-        },
-      },
-    );
+  //   const existingAssignment = await this.prisma.employees.findFirst({
+  //     where: {
+  //       AND: [{ id: employeeId }, { stores_id: storeId }],
+  //     },
+  //   });
 
-    if (type === 'ASSIGN') {
-      if (existingAssignment) {
-        throw new BadRequestException(
-          `Employee with ID ${employeeId} is already assigned to store ${storeId}`,
-        );
-      }
+  //   if (type === 'ASSIGN') {
+  //     if (existingAssignment) {
+  //       throw new BadRequestException(
+  //         `Employee with ID ${employeeId} is already assigned to store ${storeId}`,
+  //       );
+  //     }
 
-      await this.prisma.stores_has_employees.create({
-        data: {
-          employees_id: employeeId,
-          stores_id: storeId,
-        },
-      });
+  //     await this.prisma.stores_has_employees.create({
+  //       data: {
+  //         employees_id: employeeId,
+  //         stores_id: storeId,
+  //       },
+  //     });
 
-      return {
-        message: 'Employee assigned to store successfully',
-      };
-    } else {
-      if (!existingAssignment) {
-        throw new BadRequestException(
-          `Employee with ID ${employeeId} is not assigned to store ${storeId}`,
-        );
-      }
-      await this.prisma.stores_has_employees.deleteMany({
-        where: {
-          AND: [{ employees_id: employeeId }, { stores_id: storeId }],
-        },
-      });
-      return {
-        message: 'Employee unassigned from store successfully',
-      };
-    }
-  }
+  //     return {
+  //       message: 'Employee assigned to store successfully',
+  //     };
+  //   } else {
+  //     if (!existingAssignment) {
+  //       throw new BadRequestException(
+  //         `Employee with ID ${employeeId} is not assigned to store ${storeId}`,
+  //       );
+  //     }
+  //     await this.prisma.stores_has_employees.deleteMany({
+  //       where: {
+  //         AND: [{ employees_id: employeeId }, { stores_id: storeId }],
+  //       },
+  //     });
+  //     return {
+  //       message: 'Employee unassigned from store successfully',
+  //     };
+  //   }
+  // }
 }
