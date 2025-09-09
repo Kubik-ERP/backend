@@ -50,9 +50,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
 
       // pastikan staff tidak mengakses store yang tidak diberi izin
-      const storeEmployee = await this.prisma.stores_has_employees.findFirst({
+      const storeEmployee = await this.prisma.employees.findFirst({
         where: {
-          employees_id: payload.employeeId,
+          id: payload.employeeId,
           stores_id: storeId,
         },
       });
