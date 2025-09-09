@@ -318,6 +318,7 @@ model invoice_settings {
   increment_by                   Int?
   reset_sequence                 String?
   starting_number                Int?
+  stores                         stores  @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_invoice_settings_store")
 }
 
 model kitchen_queue {
@@ -580,6 +581,7 @@ model stores {
   floor                                  floor[]
   inventory_stock_adjustments            inventory_stock_adjustments[]
   invoice                                invoice[]
+  invoice_settings                       invoice_settings?
   kitchen_queue                          kitchen_queue[]
   loyalty_point_settings                 loyalty_point_settings[]
   operational_hours                      operational_hours[]

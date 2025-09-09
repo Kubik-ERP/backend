@@ -2350,6 +2350,9 @@ export class InvoiceService {
           store_id: req.storeId,
           uid: userId,
         },
+        include: {
+          stores: true,
+        },
       });
 
       return toCamelCase(response);
