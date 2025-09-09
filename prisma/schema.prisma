@@ -462,7 +462,6 @@ model products {
   product_commissions          product_commissions[]
   stores                       stores                         @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_products_fk")
   recipe                       recipe[]
-  stores_has_products          stores_has_products[]
   variant_has_products         variant_has_products[]
   voucher_has_products         voucher_has_products[]
 }
@@ -591,7 +590,6 @@ model stores {
   stores_has_master_inventory_items      stores_has_master_inventory_items[]
   stores_has_master_storage_locations    stores_has_master_storage_locations[]
   stores_has_master_suppliers            stores_has_master_suppliers[]
-  stores_has_products                    stores_has_products[]
   tables                                 tables[]
   user_has_stores                        user_has_stores[]
   voucher                                voucher[]
@@ -606,17 +604,6 @@ model stores_has_employees {
   @@id([stores_id, employees_id])
   @@index([employees_id], map: "fk_stores_has_employees_employees1_idx")
   @@index([stores_id], map: "fk_stores_has_employees_stores1_idx")
-}
-
-model stores_has_products {
-  stores_id   String   @db.Uuid
-  products_id String   @db.Uuid
-  products    products @relation(fields: [products_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stores_has_products_products1")
-  stores      stores   @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stores_has_products_stores1")
-
-  @@id([stores_id, products_id])
-  @@index([products_id], map: "fk_stores_has_products_products1_idx")
-  @@index([stores_id], map: "fk_stores_has_products_stores1_idx")
 }
 
 model tables {

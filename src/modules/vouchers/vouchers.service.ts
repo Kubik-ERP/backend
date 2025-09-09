@@ -4,27 +4,27 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { VouchersListDto } from './dto/vouchers-list.dto';
 import { Prisma } from '@prisma/client';
-import { getStatus, isVoucherActive } from './vouchers.util';
+import {
+  convertToIsoDate,
+  jakartaTime,
+  percentageToAmount,
+  requireStoreId,
+} from 'src/common/helpers/common.helpers';
 import {
   camelToSnake,
   toSnakeCase,
 } from 'src/common/helpers/object-transformer.helper';
-import { CreateVoucherDto } from './dto/create-voucher.dto';
-import { UpdateVoucherDto } from './dto/update-voucher.dto';
 import {
   getOffset,
   getTotalPages,
 } from 'src/common/helpers/pagination.helpers';
-import {
-  jakartaTime,
-  convertToIsoDate,
-  percentageToAmount,
-  requireStoreId,
-} from 'src/common/helpers/common.helpers';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { CreateVoucherDto } from './dto/create-voucher.dto';
+import { UpdateVoucherDto } from './dto/update-voucher.dto';
 import { VouchersActiveDto } from './dto/vouchers-active';
+import { VouchersListDto } from './dto/vouchers-list.dto';
+import { getStatus, isVoucherActive } from './vouchers.util';
 
 @Injectable()
 export class VouchersService {
@@ -237,21 +237,19 @@ export class VouchersService {
     // Assign ke semua product di store
     if (hasProducts?.type === 'all') {
       // Get semua product yang ada di store
-      const storeProducts = await this._prisma.stores_has_products.findMany({
+      const storeProducts = await this._prisma.products.findMany({
         where: { stores_id: store_id },
-        select: { products_id: true },
+        select: { id: true },
       });
-      hasProducts.products = storeProducts.map(
-        (product) => product.products_id,
-      );
+      hasProducts.products = storeProducts.map((product) => product.id);
     }
     // Spesifik product
     else if (hasProducts?.products?.length) {
       // Verify semua product yang dikirim client ada di store
-      const storeProductsCount = await this._prisma.stores_has_products.count({
+      const storeProductsCount = await this._prisma.products.count({
         where: {
           stores_id: store_id,
-          products_id: { in: hasProducts.products },
+          id: { in: hasProducts.products },
         },
       });
 
@@ -349,11 +347,7 @@ export class VouchersService {
           where: {
             voucher_id: id,
             products: {
-              stores_has_products: {
-                some: {
-                  stores_id: store_id,
-                },
-              },
+              stores_id: store_id,
             },
           },
           select: { products_id: true },
@@ -362,19 +356,17 @@ export class VouchersService {
       // Jika client mengirim hasProducts.type = 'all'
       // Semua product akan di-assign ke voucher
       if (hasProducts?.type === 'all') {
-        const storeProducts = await this._prisma.stores_has_products.findMany({
+        const storeProducts = await this._prisma.products.findMany({
           where: { stores_id: store_id },
-          select: { products_id: true },
+          select: { id: true },
         });
-        hasProducts.products = storeProducts.map(
-          (product) => product.products_id,
-        );
+        hasProducts.products = storeProducts.map((product) => product.id);
       } else if (hasProducts?.products?.length) {
         // Verify semua product yang dikirim client ada di store
-        const storeProducts = await this._prisma.stores_has_products.findMany({
+        const storeProducts = await this._prisma.products.findMany({
           where: {
             stores_id: store_id,
-            products_id: { in: hasProducts.products },
+            id: { in: hasProducts.products },
           },
         });
 

@@ -1,15 +1,15 @@
 import {
-  Injectable,
+  BadRequestException,
   HttpException,
   HttpStatus,
+  Injectable,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
+import { products as ProductModel } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { validate as isUUID } from 'uuid';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { products as ProductModel } from '@prisma/client';
-import { validate as isUUID } from 'uuid';
 
 @Injectable()
 export class ProductsService {
@@ -49,13 +49,6 @@ export class ProductsService {
               picture_url: createProductDto.image ?? null,
               is_percent: createProductDto.is_percent ?? false,
             } as any,
-          });
-
-          await tx.stores_has_products.create({
-            data: {
-              stores_id: store_id,
-              products_id: createdProduct.id,
-            },
           });
 
           if (createProductDto.categories?.length) {
@@ -162,11 +155,7 @@ export class ProductsService {
           },
         },
       }),
-      stores_has_products: {
-        some: {
-          stores_id: store_id,
-        },
-      },
+      stores_id: store_id,
     };
 
     const [products, total] = await Promise.all([
