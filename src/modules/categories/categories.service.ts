@@ -1,16 +1,15 @@
 import {
-  Injectable,
+  BadRequestException,
   HttpException,
   HttpStatus,
+  Injectable,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
+import { categories as CategoryModel } from '@prisma/client';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { validate as isUUID } from 'uuid';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { categories as CategoryModel } from '@prisma/client';
-import { validate as isUUID } from 'uuid';
-import { error } from 'console';
 
 @Injectable()
 export class CategoriesService {
@@ -27,7 +26,10 @@ export class CategoriesService {
       throw new BadRequestException('store_id is required');
     }
     const existingCategory = await this.prisma.categories.findFirst({
-      where: { category },
+      where: {
+        category: category,
+        stores_id: store_id,
+      },
     });
 
     if (existingCategory) {
@@ -45,13 +47,7 @@ export class CategoriesService {
         category,
         description,
         picture_url: image,
-      },
-    });
-
-    await this.prisma.store_has_categories.create({
-      data: {
         stores_id: store_id,
-        categories_id: newCategory.id,
       },
     });
 
@@ -77,32 +73,26 @@ export class CategoriesService {
       throw new BadRequestException('store_id is required');
     }
     const [storeCategories, total] = await Promise.all([
-      this.prisma.store_has_categories.findMany({
+      this.prisma.categories.findMany({
         where: {
           stores_id: store_id,
-          categories: search
-            ? {
-                category: {
-                  contains: search,
-                  mode: 'insensitive',
-                },
-              }
-            : {},
+          ...(search && {
+            category: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }),
         },
         skip,
         take: limit,
         include: {
-          categories: {
+          categories_has_products: {
             include: {
-              categories_has_products: {
+              products: {
                 include: {
-                  products: {
+                  variant_has_products: {
                     include: {
-                      variant_has_products: {
-                        include: {
-                          variant: true,
-                        },
-                      },
+                      variant: true,
                     },
                   },
                 },
@@ -111,23 +101,20 @@ export class CategoriesService {
           },
         },
       }),
-      this.prisma.store_has_categories.count({
+      this.prisma.categories.count({
         where: {
           stores_id: store_id,
-          categories: search
-            ? {
-                category: {
-                  contains: search,
-                  mode: 'insensitive',
-                },
-              }
-            : {},
+          ...(search && {
+            category: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }),
         },
       }),
     ]);
-    const categories = storeCategories.map((item) => item.categories);
     return {
-      categories,
+      data: storeCategories,
       total,
       page,
       lastPage: Math.ceil(total / limit),
@@ -261,11 +248,7 @@ export class CategoriesService {
 
     const categories = await this.prisma.categories.findMany({
       where: {
-        store_has_categories: {
-          some: {
-            stores_id: store_id,
-          },
-        },
+        stores_id: store_id,
         ...(search && {
           category: {
             contains: search,
@@ -274,11 +257,6 @@ export class CategoriesService {
         }),
       },
       include: {
-        store_has_categories: {
-          where: {
-            stores_id: store_id,
-          },
-        },
         categories_has_products: {
           include: {
             products: true,
@@ -316,11 +294,7 @@ export class CategoriesService {
     // Get categories with their products
     const categories = await this.prisma.categories.findMany({
       where: {
-        store_has_categories: {
-          some: {
-            stores_id: store_id,
-          },
-        },
+        stores_id: store_id,
         ...(categoryId && {
           id: categoryId,
         }),
