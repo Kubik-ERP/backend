@@ -19,6 +19,7 @@ declare global {
     // kebutuhan login staff
     is_staff?: boolean;
     ownerId: number;
+    employeeId?: string; // UUID
   }
 
   interface IResultFilter {

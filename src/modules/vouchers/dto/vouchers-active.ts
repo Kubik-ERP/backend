@@ -13,7 +13,7 @@ export class VouchersActiveDto {
   search: string = '';
 
   @ApiProperty({
-    description: 'Product IDs',
+    description: 'Product IDs (optional)',
     required: false,
     // uuid
     example: [
@@ -21,8 +21,9 @@ export class VouchersActiveDto {
       'f0b646e1-e847-4772-b538-e3b66068432d',
     ],
   })
+  @IsOptional()
   @IsArray()
   @IsUUID(undefined, { each: true })
   @Transform(({ value }) => (Array.isArray(value) ? value : Array(value)))
-  productIds: string[];
+  productIds?: string[];
 }

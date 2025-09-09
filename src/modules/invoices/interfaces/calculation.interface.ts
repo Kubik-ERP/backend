@@ -24,4 +24,17 @@ export interface CalculationResult {
    * Harga sebelum potongan voucher
    */
   subTotal: number;
+  /**
+   * Amount adjusted due to payment rounding
+   */
+  roundingAdjustment?: number;
+  /**
+   * Payment rounding setting details
+   */
+  paymentRoundingSetting?: {
+    id: string;
+    roundingType: string;
+    roundingValue: number;
+    isEnabled: boolean;
+  } | null;
 }

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   forwardRef,
   Inject,
   Injectable,
@@ -176,7 +177,26 @@ export class StoresService {
     });
   }
 
-  public async getStoreById(storeId: string): Promise<any> {
+  public async getStoreById(
+    storeId: string,
+    header: ICustomRequestHeaders,
+  ): Promise<any> {
+    // jika staff, pastikan hanya bisa akses data store yang di assign ke staff
+    if (header.user.is_staff) {
+      const store = await this.prisma.stores_has_employees.findFirst({
+        select: {
+          stores_id: true,
+        },
+        where: {
+          employees_id: header.user.employeeId,
+        },
+      });
+      if (store?.stores_id !== storeId) {
+        throw new ForbiddenException(
+          'You are not authorized to access this store',
+        );
+      }
+    }
     return await this.prisma.stores.findUnique({
       where: { id: storeId },
       include: {
