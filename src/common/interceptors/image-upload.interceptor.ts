@@ -7,7 +7,7 @@ export function ImageUploadInterceptor(fieldName = 'file') {
   return FileInterceptor(fieldName, {
     storage: memoryStorage(),
     limits: {
-      fileSize: 5 * 1024 * 1024, // 5MB
+      fileSize: 100 * 1024 * 1024, // 5MB
     },
     fileFilter: (req, file, cb) => {
       if (!file.mimetype.match(/^image\/(jpeg|png|jpg|gif|webp)$/)) {
