@@ -107,6 +107,7 @@ export class CustomerService {
     const searchCondition: Prisma.customerWhereInput = search
       ? {
           OR: [
+            { deleted_at: null },
             { name: { contains: search, mode: 'insensitive' } },
             { email: { contains: search, mode: 'insensitive' } },
             { number: { contains: search, mode: 'insensitive' } },
@@ -611,8 +612,9 @@ export class CustomerService {
         where: { customer_id: id },
       });
 
-      await this.prisma.customer.delete({
+      await this.prisma.customer.update({
         where: { id },
+        data: { deleted_at: new Date() },
       });
 
       return {
