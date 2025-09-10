@@ -54,11 +54,7 @@ export class SuppliersService {
           code: {
             startsWith: prefix,
           },
-          stores_has_master_suppliers: {
-            some: {
-              stores_id: storeId,
-            },
-          },
+          store_id: storeId,
         },
         select: {
           code: true,
@@ -105,11 +101,7 @@ export class SuppliersService {
     }
 
     if (storeId) {
-      whereCondition.stores_has_master_suppliers = {
-        some: {
-          stores_id: storeId,
-        },
-      };
+      whereCondition.store_id = storeId;
     }
 
     const existingSupplier = await this._prisma.master_suppliers.findFirst({
@@ -177,14 +169,7 @@ export class SuppliersService {
           bank_account_name: createSupplierDto.bankAccountName || null,
           tax_identification_number:
             createSupplierDto.taxIdentificationNumber || null,
-        },
-      });
-
-      // Create relation with store
-      await this._prisma.stores_has_master_suppliers.create({
-        data: {
-          stores_id: store_id,
-          master_suppliers_id: supplier.id,
+          store_id: store_id,
         },
       });
 
@@ -370,7 +355,10 @@ export class SuppliersService {
       const skip = (page - 1) * pageSize;
 
       // Build where clause for search within the store
-      const searchConditions: any = {};
+      const searchConditions: any = {
+        store_id: store_id,
+      };
+
       if (search) {
         searchConditions.OR = [
           {
@@ -401,33 +389,19 @@ export class SuppliersService {
       }
 
       // Get total count of suppliers in this store
-      const total = await this._prisma.stores_has_master_suppliers.count({
-        where: {
-          stores_id: store_id,
-          master_suppliers: searchConditions,
-        },
+      const total = await this._prisma.master_suppliers.count({
+        where: searchConditions,
       });
 
       // Get paginated data
-      const storeSuppliers =
-        await this._prisma.stores_has_master_suppliers.findMany({
-          where: {
-            stores_id: store_id,
-            master_suppliers: searchConditions,
-          },
-          include: {
-            master_suppliers: true,
-          },
-          skip,
-          take: pageSize,
-          orderBy: {
-            master_suppliers: {
-              [orderBy]: orderDirection,
-            },
-          },
-        });
-
-      const suppliers = storeSuppliers.map((item) => item.master_suppliers);
+      const suppliers = await this._prisma.master_suppliers.findMany({
+        where: searchConditions,
+        skip,
+        take: pageSize,
+        orderBy: {
+          [orderBy]: orderDirection,
+        },
+      });
       const totalPages = Math.ceil(total / pageSize);
 
       this.logger.log(
@@ -469,18 +443,14 @@ export class SuppliersService {
         throw new BadRequestException('store_id is required');
       }
 
-      const storeSupplier =
-        await this._prisma.stores_has_master_suppliers.findFirst({
-          where: {
-            stores_id: store_id,
-            master_suppliers_id: id,
-          },
-          include: {
-            master_suppliers: true,
-          },
-        });
+      const supplier = await this._prisma.master_suppliers.findFirst({
+        where: {
+          id: id,
+          store_id: store_id,
+        },
+      });
 
-      if (!storeSupplier || !storeSupplier.master_suppliers) {
+      if (!supplier) {
         throw new NotFoundException(
           `Supplier with ID ${id} not found in this store`,
         );
@@ -489,7 +459,7 @@ export class SuppliersService {
       this.logger.log(
         `Retrieved supplier with ID: ${id} from store: ${store_id}`,
       );
-      return storeSupplier.master_suppliers;
+      return supplier;
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -657,26 +627,13 @@ export class SuppliersService {
         );
       }
 
-      // Remove supplier from store relation first
-      await this._prisma.stores_has_master_suppliers.deleteMany({
+      // Delete supplier directly
+      await this._prisma.master_suppliers.delete({
         where: {
-          stores_id: store_id,
-          master_suppliers_id: id,
+          id: id,
+          store_id: store_id,
         },
       });
-      // Check if supplier is used in other stores
-      const otherStoreRelations =
-        await this._prisma.stores_has_master_suppliers.count({
-          where: {
-            master_suppliers_id: id,
-          },
-        });
-
-      if (otherStoreRelations === 0) {
-        await this._prisma.master_suppliers.delete({
-          where: { id },
-        });
-      }
 
       this.logger.log(
         `Supplier deleted successfully with ID: ${id} from store: ${store_id}`,
@@ -734,22 +691,16 @@ export class SuppliersService {
     }
 
     // Query suppliers within the same store
-    const storeSuppliers =
-      await this._prisma.stores_has_master_suppliers.findMany({
-        where: {
-          stores_id: storeId,
-          master_suppliers: {
-            OR: whereConditions,
-            ...(excludeId && { id: { not: excludeId } }),
-          },
-        },
-        include: {
-          master_suppliers: true,
-        },
-      });
+    const suppliers = await this._prisma.master_suppliers.findMany({
+      where: {
+        store_id: storeId,
+        OR: whereConditions,
+        ...(excludeId && { id: { not: excludeId } }),
+      },
+    });
 
-    if (storeSuppliers.length > 0) {
-      const existingSupplier = storeSuppliers[0].master_suppliers;
+    if (suppliers.length > 0) {
+      const existingSupplier = suppliers[0];
 
       if (
         existingSupplier &&
@@ -1296,14 +1247,7 @@ export class SuppliersService {
             bank_account_number: tempSupplier.bank_account_number,
             bank_account_name: tempSupplier.bank_account_name,
             tax_identification_number: tempSupplier.npwp,
-          },
-        });
-
-        // Create relation with store
-        await this._prisma.stores_has_master_suppliers.create({
-          data: {
-            stores_id: store_id,
-            master_suppliers_id: supplier.id,
+            store_id: store_id,
           },
         });
 
