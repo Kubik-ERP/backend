@@ -40,6 +40,7 @@ export class CustomerService {
           ? new Date(createCustomerDto.dob)
           : undefined,
         address: createCustomerDto.address,
+        stores_id: store_id,
       };
 
       if (createCustomerDto.tags && createCustomerDto.tags.length > 0) {
@@ -72,18 +73,6 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
-          customer_has_stores: {
-            include: {
-              stores: true,
-            },
-          },
-        },
-      });
-
-      await this.prisma.customer_has_stores.create({
-        data: {
-          stores_id: store_id,
-          customer_id: newCustomer.id,
         },
       });
 
@@ -141,14 +130,9 @@ export class CustomerService {
       AND: [
         searchCondition,
         {
-          customer_has_stores: {
-            some: {
-              stores: {
-                id: store_id,
-              },
-            },
-          },
+          stores_id: store_id,
         },
+        { deleted_at: null },
       ],
     };
 
@@ -157,13 +141,12 @@ export class CustomerService {
         where: whereCondition,
         skip,
         take: limit,
+        orderBy: { created_at: 'desc' },
         include: {
           customers_has_tag: {
             include: { tag: true },
           },
-          customer_has_stores: {
-            include: { stores: true },
-          },
+          stores: true,
         },
       }),
       this.prisma.customer.count({
@@ -199,7 +182,7 @@ export class CustomerService {
       where: { id },
       include: {
         customers_has_tag: { include: { tag: true } },
-        customer_has_stores: { include: { stores: true } },
+        stores: true,
       },
     });
 
@@ -271,7 +254,7 @@ export class CustomerService {
       total_sales: totalSales,
       last_visited: lastVisited,
       tags: customer.customers_has_tag.map((cht) => cht.tag),
-      stores: customer.customer_has_stores.map((chs) => chs.stores),
+      stores: customer.stores,
       invoices: {
         data: invoices,
         meta: {
@@ -291,9 +274,7 @@ export class CustomerService {
         customers_has_tag: {
           include: { tag: true },
         },
-        customer_has_stores: {
-          include: { stores: true },
-        },
+        stores: true,
         trn_customer_points: {
           include: {
             invoice: true,
@@ -376,7 +357,7 @@ export class CustomerService {
       dob: customer.dob,
       address: customer.address,
       tags: customer.customers_has_tag.map((cht) => cht.tag),
-      stores: customer.customer_has_stores.map((chs) => chs.stores),
+      stores: customer.stores,
       points: {
         total: customer.point || 0,
         data: points,
@@ -491,9 +472,7 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
-          customer_has_stores: {
-            include: { stores: true },
-          },
+          stores: true,
         },
       });
     } else {
@@ -505,9 +484,7 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
-          customer_has_stores: {
-            include: { stores: true },
-          },
+          stores: true,
         },
       });
     }
@@ -523,9 +500,7 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
-          customer_has_stores: {
-            include: { stores: true },
-          },
+          stores: true,
         },
       });
     } else {
@@ -537,9 +512,7 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
-          customer_has_stores: {
-            include: { stores: true },
-          },
+          stores: true,
         },
       });
     }
@@ -607,7 +580,7 @@ export class CustomerService {
         data: customerData,
         include: {
           customers_has_tag: { include: { tag: true } },
-          customer_has_stores: { include: { stores: true } },
+          stores: true,
         },
       });
 
@@ -628,9 +601,7 @@ export class CustomerService {
           customers_has_tag: {
             include: { tag: true },
           },
-          customer_has_stores: {
-            include: { stores: true },
-          },
+          stores: true,
         },
       });
 
@@ -642,8 +613,9 @@ export class CustomerService {
         where: { customer_id: id },
       });
 
-      await this.prisma.customer.delete({
+      await this.prisma.customer.update({
         where: { id },
+        data: { deleted_at: new Date() },
       });
 
       return {
@@ -714,13 +686,11 @@ export class CustomerService {
     return this.prisma.customer.findFirst({
       where: {
         number,
-        customer_has_stores: {
-          some: { stores: { id: storeId } },
-        },
+        stores_id: storeId,
       },
       include: {
         customers_has_tag: { include: { tag: true } },
-        customer_has_stores: { include: { stores: true } },
+        stores: true,
       },
     });
   }

@@ -30,13 +30,11 @@ export class SelfOrderService {
       where: {
         number: dto.number ?? undefined,
         ...(dto.code ? { code: dto.code } : {}),
-        customer_has_stores: {
-          some: { stores: { id: dto.storeId } },
-        },
+        stores_id: dto.storeId,
       },
       include: {
         customers_has_tag: { include: { tag: true } },
-        customer_has_stores: { include: { stores: true } },
+        stores: true,
       },
     });
 
