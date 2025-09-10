@@ -1,0 +1,73 @@
+// src/working-hours/dto/create-working-hours.dto.ts
+import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+
+class TimeSlotDto {
+  @ApiProperty({ example: '07:00', nullable: true })
+  @IsOptional()
+  openTime: string | null;
+
+  @ApiProperty({ example: '12:00', nullable: true })
+  @IsOptional()
+  closeTime: string | null;
+}
+
+class CustomRecurrenceDto {
+  @ApiProperty({ example: 'day' })
+  @IsString()
+  frequency: string;
+
+  @ApiProperty({ example: 1 })
+  @IsInt()
+  interval: number;
+
+  @ApiProperty({ example: 'never' })
+  @IsString()
+  endType: string;
+
+  @ApiProperty({ example: '2025-12-31', nullable: true })
+  @IsOptional()
+  @IsDateString()
+  endDate: string | null;
+
+  @ApiProperty({ example: 10, nullable: true })
+  @IsOptional()
+  occurrences: number | null;
+}
+
+export class CreateWorkingHoursDto {
+  @ApiProperty({ example: 1, nullable: true })
+  @IsOptional()
+  staffId: number | null;
+
+  @ApiProperty({ example: '2025-09-10' })
+  @IsDateString()
+  date: string;
+
+  @ApiProperty({ type: [TimeSlotDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TimeSlotDto)
+  timeSlots: TimeSlotDto[];
+
+  @ApiProperty({ example: 'Shift pagi' })
+  @IsOptional()
+  notes: string;
+
+  @ApiProperty({ example: 'daily' })
+  repeatType: string;
+
+  @ApiProperty({ type: CustomRecurrenceDto, nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CustomRecurrenceDto)
+  customRecurrence: CustomRecurrenceDto | null;
+}
