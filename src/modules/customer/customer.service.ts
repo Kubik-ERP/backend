@@ -107,7 +107,6 @@ export class CustomerService {
     const searchCondition: Prisma.customerWhereInput = search
       ? {
           OR: [
-            { deleted_at: null },
             { name: { contains: search, mode: 'insensitive' } },
             { email: { contains: search, mode: 'insensitive' } },
             { number: { contains: search, mode: 'insensitive' } },
@@ -133,6 +132,7 @@ export class CustomerService {
         {
           stores_id: store_id,
         },
+        { deleted_at: null },
       ],
     };
 
