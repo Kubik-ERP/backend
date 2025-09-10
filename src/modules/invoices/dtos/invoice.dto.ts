@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { invoice_type, order_status, order_type } from '@prisma/client';
+import { Expose, Transform, Type } from 'class-transformer';
 import {
   IsDate,
   IsEnum,
@@ -10,7 +11,6 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
-import { Expose, Type, Transform } from 'class-transformer';
 
 export class GetListInvoiceDto {
   @ApiProperty({
@@ -300,6 +300,7 @@ export class InvoiceUpdateDto {
   discount_amount?: number;
   table_code?: string;
   payment_status?: invoice_type;
+  paid_at?: Date;
   subtotal?: number;
   order_type?: order_type;
   tax_id?: string;

@@ -1,13 +1,13 @@
 // Factory
-import { PaymentFactory } from '../factories/payment.factory';
 import { generateInvoiceHtmlPdf } from '../../../common/helpers/invoice-html-pdf.helper';
+import { PaymentFactory } from '../factories/payment.factory';
 
 // NestJS
 import {
-  Injectable,
-  NotFoundException,
-  Logger,
   BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   cash_drawer_type,
@@ -24,7 +24,25 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 
 // Service
+import { NotificationHelper } from 'src/common/helpers/notification.helper';
+import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
+import { validateStoreId } from 'src/common/helpers/validators.helper';
+import { CashDrawerService } from 'src/modules/cash-drawer/services/cash-drawer.service';
+import { ChargesService } from 'src/modules/charges/services/charges.service';
+import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
+import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
+import { MailService } from 'src/modules/mail/services/mail.service';
+import { VouchersService } from 'src/modules/vouchers/vouchers.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ProductsService } from '../../products/products.service';
+import { VariantsService } from '../../variants/variants.service';
+import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
+import {
+  GetInvoiceDto,
+  GetListInvoiceDto,
+  InvoiceUpdateDto,
+  UpdateInvoiceOrderStatusDto,
+} from '../dtos/invoice.dto';
 import {
   CalculationEstimationDto,
   ProceedCheckoutInvoiceDto,
@@ -33,30 +51,12 @@ import {
   ProductDto,
   UpsertInvoiceItemDto,
 } from '../dtos/process-payment.dto';
-import { CalculationResult } from '../interfaces/calculation.interface';
-import { PaymentGateway } from '../interfaces/payments.interface';
-import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
-import {
-  GetInvoiceDto,
-  GetListInvoiceDto,
-  InvoiceUpdateDto,
-  UpdateInvoiceOrderStatusDto,
-} from '../dtos/invoice.dto';
-import { NotificationHelper } from 'src/common/helpers/notification.helper';
-import { ChargesService } from 'src/modules/charges/services/charges.service';
 import {
   GetInvoiceSettingDto,
   SettingInvoiceDto,
 } from '../dtos/setting-invoice.dto';
-import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
-import { MailService } from 'src/modules/mail/services/mail.service';
-import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
-import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
-import { validateStoreId } from 'src/common/helpers/validators.helper';
-import { CashDrawerService } from 'src/modules/cash-drawer/services/cash-drawer.service';
-import { VariantsService } from '../../variants/variants.service';
-import { ProductsService } from '../../products/products.service';
-import { VouchersService } from 'src/modules/vouchers/vouchers.service';
+import { CalculationResult } from '../interfaces/calculation.interface';
+import { PaymentGateway } from '../interfaces/payments.interface';
 
 @Injectable()
 export class InvoiceService {
@@ -1418,6 +1418,7 @@ export class InvoiceService {
       // update invoice
       await this.update(tx, invoice.id, {
         payment_status: invoice_type.paid,
+        paid_at: new Date(),
         subtotal: calculation.subTotal, // harga sebelum potongan voucher
         tax_id: calculation.taxId,
         service_charge_id: calculation.serviceChargeId,
