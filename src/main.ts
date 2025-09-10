@@ -35,6 +35,9 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
+  app.use(json({ limit: '100mb' }));
+  app.use(urlencoded({ extended: true, limit: '100mb' }));
+
   const customLogger = app.get(CustomLogger);
   app.useLogger(customLogger);
 
