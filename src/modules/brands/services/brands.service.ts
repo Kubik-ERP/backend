@@ -52,11 +52,7 @@ export class BrandsService {
           code: {
             startsWith: prefix,
           },
-          stores_has_master_brands: {
-            some: {
-              stores_id: storeId,
-            },
-          },
+          store_id: storeId,
         },
         select: {
           code: true,
@@ -103,11 +99,7 @@ export class BrandsService {
     }
 
     if (storeId) {
-      whereCondition.stores_has_master_brands = {
-        some: {
-          stores_id: storeId,
-        },
-      };
+      whereCondition.store_id = storeId;
     }
 
     const existingBrand = await this._prisma.master_brands.findFirst({
@@ -150,16 +142,9 @@ export class BrandsService {
           brand_name: createBrandDto.brandName,
           code: brandCode,
           notes: createBrandDto.notes,
+          store_id: store_id,
           created_at: new Date(),
           updated_at: new Date(),
-        },
-      });
-
-      // Create relationship with store
-      await this._prisma.stores_has_master_brands.create({
-        data: {
-          stores_id: store_id,
-          master_brands_id: brand.id,
         },
       });
 
@@ -202,11 +187,7 @@ export class BrandsService {
 
       // Build where condition
       const whereCondition: any = {
-        stores_has_master_brands: {
-          some: {
-            stores_id: store_id,
-          },
-        },
+        store_id: store_id,
       };
 
       if (search) {
@@ -275,11 +256,7 @@ export class BrandsService {
       const brand = await this._prisma.master_brands.findFirst({
         where: {
           id,
-          stores_has_master_brands: {
-            some: {
-              stores_id: store_id,
-            },
-          },
+          store_id: store_id,
         },
       });
 
@@ -399,25 +376,13 @@ export class BrandsService {
         );
       }
 
-      // Delete the store-brand relationship first
-      await this._prisma.stores_has_master_brands.deleteMany({
+      // Simply delete the brand directly
+      await this._prisma.master_brands.delete({
         where: {
-          master_brands_id: id,
-          stores_id: store_id,
+          id,
+          store_id: store_id,
         },
       });
-      const otherStoreRelations =
-        await this._prisma.stores_has_master_brands.count({
-          where: {
-            master_brands_id: id,
-          },
-        });
-
-      if (otherStoreRelations === 0) {
-        await this._prisma.master_brands.delete({
-          where: { id },
-        });
-      }
 
       this.logger.log(
         `Brand deleted successfully: ${existingBrand.brand_name}`,
@@ -456,11 +421,7 @@ export class BrandsService {
     }
 
     if (storeId) {
-      whereCondition.stores_has_master_brands = {
-        some: {
-          stores_id: storeId,
-        },
-      };
+      whereCondition.store_id = storeId;
     }
 
     const existingBrand = await this._prisma.master_brands.findFirst({
@@ -703,9 +664,7 @@ export class BrandsService {
             const existingBrand = await this._prisma.master_brands.findFirst({
               where: {
                 brand_name: brandName,
-                stores_has_master_brands: {
-                  some: { stores_id: store_id },
-                },
+                store_id: store_id,
               },
             });
 
@@ -730,9 +689,7 @@ export class BrandsService {
             const existingCode = await this._prisma.master_brands.findFirst({
               where: {
                 code: finalBrandCode,
-                stores_has_master_brands: {
-                  some: { stores_id: store_id },
-                },
+                store_id: store_id,
               },
             });
 
@@ -873,9 +830,7 @@ export class BrandsService {
         const existingBrand = await this._prisma.master_brands.findFirst({
           where: {
             brand_name: tempRecord.brand_name,
-            stores_has_master_brands: {
-              some: { stores_id: store_id },
-            },
+            store_id: store_id,
           },
         });
 
@@ -892,9 +847,7 @@ export class BrandsService {
         const existingCode = await this._prisma.master_brands.findFirst({
           where: {
             code: brandCode,
-            stores_has_master_brands: {
-              some: { stores_id: store_id },
-            },
+            store_id: store_id,
           },
         });
 
