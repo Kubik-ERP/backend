@@ -29,6 +29,7 @@ import * as express from 'express';
 
 import { join } from 'path';
 import { CustomLogger } from './common/logger/custom.logger';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app: INestApplication = await NestFactory.create(AppModule, {
