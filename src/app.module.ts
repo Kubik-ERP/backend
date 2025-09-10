@@ -48,6 +48,8 @@ import { TablesModule } from './modules/tables/tables.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { DeviceCodesModule } from './modules/device-codes/device-codes.module';
 import { PaymentRoundingSettingModule } from './modules/payment-rounding-setting/payment-rounding-setting.module';
+import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 
 @Module({
   imports: [
@@ -106,6 +108,8 @@ import { PaymentRoundingSettingModule } from './modules/payment-rounding-setting
     DeviceCodesModule,
     PaymentRoundingSettingModule,
     DashboardModule,
+    WorkingHoursModule,
+    AttendanceModule,
   ],
   providers: [
     {

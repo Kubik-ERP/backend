@@ -1253,6 +1253,62 @@ model temp_import_inventory_storage_locations {
   imported_at    DateTime? @default(now()) @db.Timestamptz(6)
 }
 
+model attendance {
+  id                Int                 @id @default(autoincrement())
+  staff_id          Int?
+  date              DateTime            @db.Date
+  staff_name        String?             @db.VarChar(100)
+  created_at        DateTime?           @default(now()) @db.Timestamp(6)
+  created_by        String?             @db.VarChar(100)
+  attendance_shifts attendance_shifts[]
+}
+
+model working_hours {
+  id                      Int                       @id @default(autoincrement())
+  staff_id                Int?
+  date                    DateTime                  @db.Date
+  notes                   String?
+  repeat_type             String                    @db.VarChar(50)
+  created_at              DateTime?                 @default(now()) @db.Timestamp(6)
+  updated_at              DateTime?                 @default(now()) @db.Timestamp(6)
+  working_hour_recurrence working_hour_recurrence?
+  working_hour_time_slots working_hour_time_slots[]
+}
+
+model attendance_shifts {
+  id            Int         @id @default(autoincrement())
+  attendance_id Int?
+  shift_start   DateTime    @db.Time(6)
+  shift_end     DateTime    @db.Time(6)
+  clock_in      DateTime?   @db.Time(6)
+  clock_out     DateTime?   @db.Time(6)
+  duration      String?     @db.VarChar(20)
+  early         String?     @db.VarChar(20)
+  late          String?     @db.VarChar(20)
+  overtime      String?     @db.VarChar(20)
+  notes         String?
+  attendance    attendance? @relation(fields: [attendance_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model working_hour_recurrence {
+  id              Int            @id @default(autoincrement())
+  working_hour_id Int?           @unique
+  frequency       String?        @db.VarChar(20)
+  interval        Int?
+  end_type        String?        @db.VarChar(20)
+  end_date        DateTime?      @db.Date
+  occurrences     Int?
+  working_hours   working_hours? @relation(fields: [working_hour_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model working_hour_time_slots {
+  id              Int            @id @default(autoincrement())
+  working_hour_id Int?
+  open_time       DateTime?      @db.Time(6)
+  close_time      DateTime?      @db.Time(6)
+  working_hours   working_hours? @relation(fields: [working_hour_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
 enum cash_drawer_type {
   open
   close
