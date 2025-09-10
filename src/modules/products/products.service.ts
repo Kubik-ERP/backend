@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { products as ProductModel } from '@prisma/client';
+import { products as ProductModel, products } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { validate as isUUID } from 'uuid';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -48,7 +48,8 @@ export class ProductsService {
               discount_price: discountValue ?? 0,
               picture_url: createProductDto.image ?? null,
               is_percent: createProductDto.is_percent ?? false,
-            } as any,
+              stores_id: store_id,
+            } as products,
           });
 
           if (createProductDto.categories?.length) {
