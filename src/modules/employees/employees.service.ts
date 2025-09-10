@@ -6,7 +6,6 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { StorageService } from '../storage-service/services/storage-service.service';
-import { AssignEmployeeDto } from './dto/assign-employee.dto';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -242,6 +241,8 @@ export class EmployeesService {
       orderByClause = {
         [orderBy]: orderDirection || 'asc',
       };
+    } else {
+      orderByClause = { created_at: 'desc' };
     }
 
     conditions.push({

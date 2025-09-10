@@ -141,6 +141,7 @@ export class CustomerService {
         where: whereCondition,
         skip,
         take: limit,
+        orderBy: { created_at: 'desc' },
         include: {
           customers_has_tag: {
             include: { tag: true },
