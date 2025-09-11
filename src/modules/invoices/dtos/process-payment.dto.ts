@@ -94,7 +94,7 @@ export class ProceedInstantPaymentDto extends ProductListDto {
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
   @IsString()
-  public customerId: string;
+  public customerId?: string;
 
   @ApiProperty({
     description: 'Table Code',
@@ -144,7 +144,7 @@ export class ProceedCheckoutInvoiceDto extends ProductListDto {
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
   @IsUUID()
-  public customerId: string;
+  public customerId?: string;
 
   @ApiProperty({
     description: 'Table Code',

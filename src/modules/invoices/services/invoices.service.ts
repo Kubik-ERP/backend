@@ -463,7 +463,7 @@ export class InvoiceService {
         const invoiceData = {
           id: invoiceId,
           payment_methods_id: request.paymentMethodId,
-          customer_id: request.customerId,
+          customer_id: request.customerId ?? null,
           table_code: request.tableCode,
           payment_status:
             request.provider === 'cash'
@@ -584,8 +584,10 @@ export class InvoiceService {
           rounding_amount: request.rounding_amount ?? undefined,
         });
 
-        // insert the customer has invoice
-        await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+        // insert the customer has invoice (if exists)
+        if (request.customerId) {
+          await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+        }
 
         for (const detail of request.products) {
           // Get product data for prices
@@ -789,7 +791,7 @@ export class InvoiceService {
       const invoiceData = {
         id: invoiceId,
         payment_methods_id: null,
-        customer_id: request.customerId,
+        customer_id: request.customerId ?? null,
         table_code: request.tableCode,
         payment_status: invoice_type.unpaid,
         discount_amount: 0, // need to confirm
@@ -899,8 +901,10 @@ export class InvoiceService {
         }
       }
 
-      // insert the customer has invoice
-      await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+      // insert the customer has invoice (if exists)
+      if (request.customerId) {
+        await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+      }
 
       // create kitchen queue
       await this._kitchenQueue.createKitchenQueue(tx, kitchenQueue);
@@ -1262,7 +1266,7 @@ export class InvoiceService {
           order_type: invoice.order_type ?? order_type.dine_in, // dine_in order type is more often
           store_id: invoice.store_id ?? '',
           table_code: invoice.table_code ?? '',
-          customer_id: invoice.customer_id,
+          customer_id: invoice.customer_id ?? undefined,
         },
       ]);
     }
