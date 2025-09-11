@@ -259,11 +259,18 @@ export class ProductsService {
         const duplicateProduct = await this.prisma.products.findFirst({
           where: {
             name: updateProductDto.name,
+            stores_id: existingProduct.stores_id,
             NOT: { id },
           },
         });
         if (duplicateProduct) {
-          throw new BadRequestException('Product name must be unique');
+          throw new HttpException(
+            {
+              statusCode: HttpStatus.BAD_REQUEST,
+              message: 'Product name must be unique',
+            },
+            HttpStatus.BAD_REQUEST,
+          );
         }
       }
 

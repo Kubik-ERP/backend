@@ -193,11 +193,21 @@ export class CategoriesService {
 
       if (updateCategoryDto.category) {
         const duplicateCategory = await this.prisma.categories.findFirst({
-          where: { category: updateCategoryDto.category, NOT: { id } },
+          where: {
+            category: updateCategoryDto.category,
+            stores_id: existingCategory.stores_id,
+            NOT: { id },
+          },
         });
 
         if (duplicateCategory) {
-          throw new BadRequestException('Category category must be unique');
+          throw new HttpException(
+            {
+              statusCode: HttpStatus.BAD_REQUEST,
+              message: 'Category must be unique',
+            },
+            HttpStatus.BAD_REQUEST,
+          );
         }
       }
 
