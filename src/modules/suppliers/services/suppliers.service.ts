@@ -1169,7 +1169,7 @@ export class SuppliersService {
         bank_account_name: row.bank_account_name,
         npwp: row.npwp,
       })),
-      error_data: invalidData.map((row) => ({
+      failed_data: invalidData.map((row) => ({
         id: row.batch_id, // Using batch_id as temporary id
         row_number: row.row_number,
         supplier_name: row.supplier_name,

@@ -110,7 +110,7 @@ export class ImportSuppliersPreviewResponseDto {
       },
     },
   })
-  error_data: any[];
+  failed_data: any[];
 
   @ApiProperty({
     description: 'Summary of the import preview process',
