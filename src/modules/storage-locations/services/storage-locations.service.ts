@@ -56,11 +56,7 @@ export class StorageLocationsService {
             code: {
               startsWith: prefix,
             },
-            stores_has_master_storage_locations: {
-              some: {
-                stores_id: storeId,
-              },
-            },
+            store_id: storeId,
           },
           select: {
             code: true,
@@ -107,11 +103,7 @@ export class StorageLocationsService {
     }
 
     if (storeId) {
-      whereCondition.stores_has_master_storage_locations = {
-        some: {
-          stores_id: storeId,
-        },
-      };
+      whereCondition.store_id = storeId;
     }
 
     const existingLocation =
@@ -142,15 +134,9 @@ export class StorageLocationsService {
         name: dto.name,
         code: locationCode,
         notes: dto.notes,
+        store_id: store_id,
         created_at: new Date(),
         updated_at: new Date(),
-      },
-    });
-
-    await this._prisma.stores_has_master_storage_locations.create({
-      data: {
-        stores_id: store_id,
-        master_storage_locations_id: location.id,
       },
     });
 
@@ -175,9 +161,7 @@ export class StorageLocationsService {
     const skip = (page - 1) * pageSize;
 
     const where: any = {
-      stores_has_master_storage_locations: {
-        some: { stores_id: store_id },
-      },
+      store_id: store_id,
     };
     if (search) {
       where.OR = [
@@ -211,9 +195,7 @@ export class StorageLocationsService {
     const location = await this._prisma.master_storage_locations.findFirst({
       where: {
         id,
-        stores_has_master_storage_locations: {
-          some: { stores_id: store_id },
-        },
+        store_id: store_id,
       },
     });
     if (!location)
@@ -272,16 +254,12 @@ export class StorageLocationsService {
       );
     }
 
-    await this._prisma.stores_has_master_storage_locations.deleteMany({
-      where: { stores_id: store_id, master_storage_locations_id: id },
+    await this._prisma.master_storage_locations.delete({
+      where: {
+        id: id,
+        store_id: store_id,
+      },
     });
-
-    const other = await this._prisma.stores_has_master_storage_locations.count({
-      where: { master_storage_locations_id: id },
-    });
-    if (other === 0) {
-      await this._prisma.master_storage_locations.delete({ where: { id } });
-    }
     this.logger.log(`Storage location deleted: ${existing.name}`);
   }
 
@@ -293,9 +271,7 @@ export class StorageLocationsService {
     const where: any = { name: { equals: name, mode: 'insensitive' } };
     if (excludeId) where.id = { not: excludeId };
     if (storeId) {
-      where.stores_has_master_storage_locations = {
-        some: { stores_id: storeId },
-      };
+      where.store_id = storeId;
     }
     const existing = await this._prisma.master_storage_locations.findFirst({
       where,
@@ -514,9 +490,7 @@ export class StorageLocationsService {
             await this._prisma.master_storage_locations.findFirst({
               where: {
                 name: { equals: locationName, mode: 'insensitive' },
-                stores_has_master_storage_locations: {
-                  some: { stores_id: store_id },
-                },
+                store_id: store_id,
               },
             });
 
@@ -540,9 +514,7 @@ export class StorageLocationsService {
             await this._prisma.master_storage_locations.findFirst({
               where: {
                 code: finalLocationCode,
-                stores_has_master_storage_locations: {
-                  some: { stores_id: store_id },
-                },
+                store_id: store_id,
               },
             });
 
@@ -661,16 +633,9 @@ export class StorageLocationsService {
             name: item.name,
             code: locationCode,
             notes: item.notes,
+            store_id: store_id,
             created_at: new Date(),
             updated_at: new Date(),
-          },
-        });
-
-        // Create store relationship
-        await this._prisma.stores_has_master_storage_locations.create({
-          data: {
-            stores_id: store_id,
-            master_storage_locations_id: location.id,
           },
         });
 

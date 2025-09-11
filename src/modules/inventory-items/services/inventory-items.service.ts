@@ -39,29 +39,25 @@ export class InventoryItemsService {
       [
         this._prisma.master_brands.findMany({
           where: {
-            stores_has_master_brands: { some: { stores_id: store_id } },
+            store_id: store_id,
           },
           select: { id: true, brand_name: true, code: true },
         }),
         this._prisma.master_inventory_categories.findMany({
           where: {
-            stores_has_master_inventory_categories: {
-              some: { stores_id: store_id },
-            },
+            store_id: store_id,
           },
           select: { id: true, name: true, code: true },
         }),
         this._prisma.master_storage_locations.findMany({
           where: {
-            stores_has_master_storage_locations: {
-              some: { stores_id: store_id },
-            },
+            store_id: store_id,
           },
           select: { id: true, name: true, code: true },
         }),
         this._prisma.master_suppliers.findMany({
           where: {
-            stores_has_master_suppliers: { some: { stores_id: store_id } },
+            store_id: store_id,
           },
           select: { id: true, supplier_name: true, code: true },
         }),
@@ -444,7 +440,7 @@ export class InventoryItemsService {
             const brandExists = await this._prisma.master_brands.findFirst({
               where: {
                 code: brandCode,
-                stores_has_master_brands: { some: { stores_id: store_id } },
+                store_id: store_id,
               },
             });
             if (!brandExists) {
@@ -474,9 +470,7 @@ export class InventoryItemsService {
               await this._prisma.master_inventory_items.findFirst({
                 where: {
                   sku: { equals: processedRow.sku.trim(), mode: 'insensitive' },
-                  stores_has_master_inventory_items: {
-                    some: { stores_id: store_id },
-                  },
+                  store_id: store_id,
                 },
               });
             if (existingSku) {
@@ -511,9 +505,7 @@ export class InventoryItemsService {
                     equals: processedRow.barcode.trim(),
                     mode: 'insensitive',
                   },
-                  stores_has_master_inventory_items: {
-                    some: { stores_id: store_id },
-                  },
+                  store_id: store_id,
                 },
               });
             if (existingBarcode) {
@@ -535,9 +527,7 @@ export class InventoryItemsService {
               await this._prisma.master_inventory_categories.findFirst({
                 where: {
                   code: categoryCode,
-                  stores_has_master_inventory_categories: {
-                    some: { stores_id: store_id },
-                  },
+                  store_id: store_id,
                 },
               });
             if (!categoryExists) {
@@ -599,9 +589,7 @@ export class InventoryItemsService {
               await this._prisma.master_storage_locations.findFirst({
                 where: {
                   code: storageCode,
-                  stores_has_master_storage_locations: {
-                    some: { stores_id: store_id },
-                  },
+                  store_id: store_id,
                 },
               });
             if (!storageExists) {
@@ -651,9 +639,7 @@ export class InventoryItemsService {
               await this._prisma.master_suppliers.findFirst({
                 where: {
                   code: supplierCode,
-                  stores_has_master_suppliers: {
-                    some: { stores_id: store_id },
-                  },
+                  store_id: store_id,
                 },
               });
             if (!supplierExists) {
@@ -862,7 +848,7 @@ export class InventoryItemsService {
         const brand = await this._prisma.master_brands.findFirst({
           where: {
             code: brandCode,
-            stores_has_master_brands: { some: { stores_id: store_id } },
+            store_id: store_id,
           },
           select: { id: true },
         });
@@ -872,9 +858,7 @@ export class InventoryItemsService {
           await this._prisma.master_inventory_categories.findFirst({
             where: {
               code: categoryCode,
-              stores_has_master_inventory_categories: {
-                some: { stores_id: store_id },
-              },
+              store_id: store_id,
             },
             select: { id: true },
           });
@@ -884,9 +868,7 @@ export class InventoryItemsService {
           await this._prisma.master_storage_locations.findFirst({
             where: {
               code: storageLocationCode,
-              stores_has_master_storage_locations: {
-                some: { stores_id: store_id },
-              },
+              store_id: store_id,
             },
             select: { id: true },
           });
@@ -895,7 +877,7 @@ export class InventoryItemsService {
         const supplier = await this._prisma.master_suppliers.findFirst({
           where: {
             code: supplierCode,
-            stores_has_master_suppliers: { some: { stores_id: store_id } },
+            store_id: store_id,
           },
           select: { id: true },
         });
@@ -1044,15 +1026,9 @@ export class InventoryItemsService {
         storage_location_id: dto.storageLocationId,
         price_per_unit: dto.pricePerUnit,
         supplier_id: dto.supplierId,
+        store_id: store_id,
         created_at: new Date(),
         updated_at: new Date(),
-      },
-    });
-
-    await this._prisma.stores_has_master_inventory_items.create({
-      data: {
-        stores_id: store_id,
-        master_inventory_items_id: item.id,
       },
     });
 
@@ -1078,9 +1054,7 @@ export class InventoryItemsService {
     const skip = (page - 1) * pageSize;
 
     const where: any = {
-      stores_has_master_inventory_items: {
-        some: { stores_id: store_id },
-      },
+      store_id: store_id,
     };
 
     if (search) {
@@ -1155,7 +1129,7 @@ export class InventoryItemsService {
     const item = await this._prisma.master_inventory_items.findFirst({
       where: {
         id,
-        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+        store_id: store_id,
       },
       select: {
         id: true,
@@ -1304,17 +1278,13 @@ export class InventoryItemsService {
 
     const existing = await this.detail(id, header);
 
-    await this._prisma.stores_has_master_inventory_items.deleteMany({
-      where: { stores_id: store_id, master_inventory_items_id: id },
+    await this._prisma.master_inventory_items.delete({
+      where: {
+        id,
+        store_id: store_id,
+      },
     });
 
-    const other = await this._prisma.stores_has_master_inventory_items.count({
-      where: { master_inventory_items_id: id },
-    });
-
-    if (other === 0) {
-      await this._prisma.master_inventory_items.delete({ where: { id } });
-    }
     this.logger.log(`Inventory item deleted: ${existing.name}`);
   }
 
@@ -1329,7 +1299,7 @@ export class InventoryItemsService {
     const item = await this._prisma.master_inventory_items.findFirst({
       where: {
         id,
-        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+        store_id: store_id,
       },
       select: {
         name: true,
@@ -1427,7 +1397,7 @@ export class InventoryItemsService {
     const item = await this._prisma.master_inventory_items.findFirst({
       where: {
         id: itemId,
-        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+        store_id: store_id,
       },
     });
     if (!item)
@@ -1609,9 +1579,7 @@ export class InventoryItemsService {
     const where: any = { sku: { equals: sku, mode: 'insensitive' } };
     if (excludeId) where.id = { not: excludeId };
     if (storeId) {
-      where.stores_has_master_inventory_items = {
-        some: { stores_id: storeId },
-      };
+      where.store_id = storeId;
     }
     const existing = await this._prisma.master_inventory_items.findFirst({
       where,
