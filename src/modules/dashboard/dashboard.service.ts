@@ -263,12 +263,13 @@ export class DashboardService {
         dayEndForQuery,
         req,
       );
-
-      const sevenHoursInMs = 7 * 60 * 60 * 1000;
-      const displayDate = new Date(currentDate.getTime() + sevenHoursInMs);
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const year = currentDate.getFullYear();
+      const formattedDate = `${day}-${month}-${year}`;
 
       dailySales.push({
-        label: displayDate.toISOString().split('T')[0],
+        label: formattedDate,
         value: metrics.totalSales,
       });
 
