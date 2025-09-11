@@ -479,6 +479,7 @@ export class DashboardService {
 
     const chargeDetails = await this.prisma.charges.findMany({
       where: {
+        store_id: req.store_id,
         type: { in: ['tax', 'service'] },
       },
     });
@@ -636,7 +637,7 @@ export class DashboardService {
 
     // Get the store's tax rate once
     const taxInfo = await this.prisma.charges.findFirst({
-      where: { type: 'tax' },
+      where: { type: 'tax', store_id: req.store_id },
     });
     const taxRate = taxInfo ? Number(taxInfo.percentage) : 0;
 
