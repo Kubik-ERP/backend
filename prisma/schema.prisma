@@ -70,7 +70,7 @@ model cash_drawers {
 
 model categories {
   id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  category                String?                   @unique(map: "categories_name_key") @db.VarChar(45)
+  category                String?                   @db.VarChar(45)
   description             String?                   @db.VarChar(45)
   picture_url             String?                   @db.VarChar(45)
   stores_id               String                    @db.Uuid
