@@ -102,7 +102,7 @@ export class ImportSuppliersPreviewResponseDto {
           type: 'string',
           description: 'Tax identification number (NPWP)',
         },
-        errors: {
+        error_messages: {
           type: 'array',
           items: { type: 'string' },
           description: 'List of validation errors for this row',
