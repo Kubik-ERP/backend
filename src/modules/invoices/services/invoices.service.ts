@@ -424,15 +424,6 @@ export class InvoiceService {
 
     await this.validatePaymentMethod(request.paymentMethodId, request.provider);
 
-    if (
-      request.orderType !== order_type.take_away &&
-      !request.tableCode?.trim()
-    ) {
-      throw new BadRequestException(
-        'Table code is mandatory because order type is not take away',
-      );
-    }
-
     const paymentProvider =
       request.provider === 'cash'
         ? undefined // use undefined for cash

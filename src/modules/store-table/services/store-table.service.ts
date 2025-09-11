@@ -104,12 +104,42 @@ export class StoreTableService {
   }
 
   async findAll(storeId: string, ownerId: number) {
-    return this.prisma.store_floors.findMany({
+    const floors = await this.prisma.store_floors.findMany({
       where: { store_id: storeId, uid: ownerId },
       include: {
         store_tables: true,
       },
     });
+
+    // Get all unpaid invoices for this store
+    const unpaidInvoices = await this.prisma.invoice.findMany({
+      where: {
+        store_id: storeId,
+        payment_status: 'unpaid',
+        table_code: { not: null },
+      },
+      select: {
+        table_code: true,
+      },
+    });
+
+    // Create a set of occupied table codes for quick lookup
+    const occupiedTableCodes = new Set(
+      unpaidInvoices.map((invoice) => invoice.table_code).filter(Boolean),
+    );
+
+    // Add statusTable to each table
+    const floorsWithStatus = floors.map((floor) => ({
+      ...floor,
+      store_tables: floor.store_tables.map((table) => ({
+        ...table,
+        statusTable: occupiedTableCodes.has(table.name)
+          ? 'occupied'
+          : 'available',
+      })),
+    }));
+
+    return floorsWithStatus;
   }
 
   async findOne(id: string, storeId: string, ownerId: number) {
