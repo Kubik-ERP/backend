@@ -103,9 +103,8 @@ export class ImportSuppliersPreviewResponseDto {
           description: 'Tax identification number (NPWP)',
         },
         error_messages: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'List of validation errors for this row',
+          type: 'string',
+          description: 'Validation error messages',
         },
       },
     },
