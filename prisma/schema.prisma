@@ -875,8 +875,8 @@ model master_inventory_categories {
   created_at                             DateTime                                 @default(now()) @db.Timestamptz(6)
   updated_at                             DateTime                                 @default(now()) @db.Timestamptz(6)
   code                                   String                                   @default("") @db.VarChar(255)
-  store_id                               String?                                  @db.Uuid
-  stores                                 stores?                                  @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  store_id                               String                                   @db.Uuid
+  stores                                 stores                                   @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   master_inventory_items                 master_inventory_items[]
   stores_has_master_inventory_categories stores_has_master_inventory_categories[]
 
@@ -962,12 +962,12 @@ model master_inventory_items {
   supplier_id                       String                              @db.Uuid
   created_at                        DateTime                            @default(now()) @db.Timestamptz(6)
   updated_at                        DateTime                            @default(now()) @db.Timestamptz(6)
-  store_id                          String?                             @default(dbgenerated("'acc588cd-8f1b-4517-9fa2-7bfd905b458c'::uuid")) @db.Uuid
+  store_id                          String                              @default(dbgenerated("'acc588cd-8f1b-4517-9fa2-7bfd905b458c'::uuid")) @db.Uuid
   inventory_stock_adjustments       inventory_stock_adjustments[]
   master_brands                     master_brands?                      @relation(fields: [brand_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   master_inventory_categories       master_inventory_categories         @relation(fields: [category_id], references: [id], onUpdate: NoAction)
   master_storage_locations          master_storage_locations?           @relation(fields: [storage_location_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  stores                            stores?                             @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  stores                            stores                              @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   master_suppliers                  master_suppliers                    @relation(fields: [supplier_id], references: [id], onUpdate: NoAction)
   purchase_order_items              purchase_order_items[]
   stock_opname_items                stock_opname_items[]
@@ -989,9 +989,9 @@ model master_storage_locations {
   created_at                          DateTime                              @default(now()) @db.Timestamptz(6)
   updated_at                          DateTime                              @default(now()) @db.Timestamptz(6)
   code                                String                                @default("") @db.VarChar(255)
-  store_id                            String?                               @db.Uuid
+  store_id                            String                                @db.Uuid
   master_inventory_items              master_inventory_items[]
-  stores                              stores?                               @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  stores                              stores                                @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   stores_has_master_storage_locations stores_has_master_storage_locations[]
 
   @@index([name], map: "idx_msl_name")
