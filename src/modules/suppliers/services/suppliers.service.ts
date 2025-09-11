@@ -1182,9 +1182,7 @@ export class SuppliersService {
         bank_account_number: row.bank_account_number,
         bank_account_name: row.bank_account_name,
         npwp: row.npwp,
-        error_messages: row.error_messages
-          ? row.error_messages.split('; ')
-          : [],
+        error_messages: row.error_messages || '',
       })),
       summary: {
         message: `Processed ${processedData.length} rows: ${validData.length} valid, ${invalidData.length} invalid`,
