@@ -1699,6 +1699,7 @@ export class InvoiceService {
     let grandTotal = total;
     const serviceCharge = await this._charge.getChargeByType(
       charge_type.service,
+      storeId!,
     );
     const isTakeaway = request.orderType === order_type.take_away;
 
@@ -1736,7 +1737,7 @@ export class InvoiceService {
     }
 
     // get tax
-    const tax = await this._charge.getChargeByType(charge_type.tax);
+    const tax = await this._charge.getChargeByType(charge_type.tax, storeId!);
     if (tax?.is_enabled) {
       const taxApplicable = tax.applied_to_takeaway ? true : !isTakeaway;
       const percentage = Number(tax.percentage);
