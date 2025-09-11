@@ -27,10 +27,16 @@ export class ProductsService {
       }
 
       const existingProduct = await this.prisma.products.findFirst({
-        where: { name: createProductDto.name },
+        where: { name: createProductDto.name, stores_id: store_id },
       });
       if (existingProduct) {
-        throw new Error('Product with this name already exists');
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.BAD_REQUEST,
+            message: 'Product name must be unique',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
       // jika discount_price tidak ada, maka discountValue = price
