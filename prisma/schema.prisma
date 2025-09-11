@@ -70,7 +70,7 @@ model cash_drawers {
 
 model categories {
   id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  category                String?                   @unique(map: "categories_name_key") @db.VarChar(45)
+  category                String?                   @db.VarChar(45)
   description             String?                   @db.VarChar(45)
   picture_url             String?                   @db.VarChar(45)
   stores_id               String                    @db.Uuid
@@ -575,6 +575,7 @@ model stores {
   kitchen_queue                          kitchen_queue[]
   loyalty_point_settings                 loyalty_point_settings[]
   master_brands                          master_brands[]
+  master_suppliers                       master_suppliers[]
   operational_hours                      operational_hours[]
   payment_rounding_settings              payment_rounding_settings[]
   products                               products[]
@@ -762,13 +763,16 @@ model master_suppliers {
   created_at                  DateTime?                     @default(now()) @db.Timestamptz(6)
   updated_at                  DateTime?                     @default(now()) @db.Timestamptz(6)
   code                        String                        @default("") @db.VarChar(255)
+  store_id                    String                        @db.Uuid
   master_inventory_items      master_inventory_items[]
+  stores                      stores                        @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   purchase_orders             purchase_orders[]
   stores_has_master_suppliers stores_has_master_suppliers[]
 
   @@index([contact_person], map: "idx_master_suppliers_contact_person")
   @@index([phone_number], map: "idx_master_suppliers_phone_number")
   @@index([supplier_name], map: "idx_master_suppliers_supplier_name")
+  @@index([store_id], map: "idx_master_suppliers_store_id")
 }
 
 model stores_has_master_suppliers {
@@ -847,7 +851,7 @@ model master_brands {
   created_at               DateTime?                  @default(now()) @db.Timestamptz(6)
   updated_at               DateTime?                  @default(now()) @db.Timestamptz(6)
   code                     String                     @default("") @db.VarChar(255)
-  store_id                 String                     @default(dbgenerated("'acc588cd-8f1b-4517-9fa2-7bfd905b458c'::uuid")) @db.Uuid
+  store_id                 String                     @db.Uuid
   stores                   stores                     @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   master_inventory_items   master_inventory_items[]
   stores_has_master_brands stores_has_master_brands[]

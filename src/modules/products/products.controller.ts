@@ -1,29 +1,29 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
+  Delete,
+  Get,
   HttpException,
   HttpStatus,
-  Delete,
-  UseInterceptors,
-  UploadedFile,
+  Param,
+  Patch,
+  Post,
+  Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ProductsService } from './products.service';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
-import { Query } from '@nestjs/common';
-import { toCamelCase } from '../../common/helpers/object-transformer.helper';
-import { FindAllProductsQueryDto } from './dto/find-product.dto';
 import { ApiBearerAuth, ApiConsumes, ApiHeader } from '@nestjs/swagger';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
+import { toCamelCase } from '../../common/helpers/object-transformer.helper';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
 import { StorageService } from '../storage-service/services/storage-service.service';
-import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CreateProductDto } from './dto/create-product.dto';
+import { FindAllProductsQueryDto } from './dto/find-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductsService } from './products.service';
 
 @Controller('products')
 export class ProductsController {
@@ -49,35 +49,27 @@ export class ProductsController {
     @Body() createProductDto: CreateProductDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    try {
-      let relativePath = '';
-      if (file) {
-        const result = await this.storageService.uploadImage(
-          file.buffer,
-          file.originalname,
-        );
-        relativePath = result.filename;
-      }
-      const newProducts = await this.productsService.create(
-        {
-          ...createProductDto,
-          image: relativePath || '',
-        },
-        req,
+    let relativePath = '';
+    if (file) {
+      const result = await this.storageService.uploadImage(
+        file.buffer,
+        file.originalname,
       );
-
-      return {
-        statusCode: 201,
-        message: 'Products created successfully',
-        result: toCamelCase(newProducts),
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: error.message,
-        result: null,
-      };
+      relativePath = result.filename;
     }
+    const newProducts = await this.productsService.create(
+      {
+        ...createProductDto,
+        image: relativePath || '',
+      },
+      req,
+    );
+
+    return {
+      statusCode: 201,
+      message: 'Products created successfully',
+      result: toCamelCase(newProducts),
+    };
   }
 
   @UseGuards(AuthPermissionGuard)
