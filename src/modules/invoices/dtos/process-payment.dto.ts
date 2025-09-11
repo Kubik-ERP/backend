@@ -94,6 +94,7 @@ export class ProceedInstantPaymentDto extends ProductListDto {
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
   @IsString()
+  @IsOptional()
   public customerId?: string;
 
   @ApiProperty({
@@ -144,6 +145,7 @@ export class ProceedCheckoutInvoiceDto extends ProductListDto {
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
   @IsUUID()
+  @IsOptional()
   public customerId?: string;
 
   @ApiProperty({
