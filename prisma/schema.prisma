@@ -90,16 +90,20 @@ model categories_has_products {
 }
 
 model charges {
-  id                                         String            @id(map: "charges_pk") @db.Uuid
+  id                                         String            @id(map: "charges_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                                       String            @db.VarChar
   type                                       charge_type
   percentage                                 Decimal           @db.Decimal(2, 2)
   is_include                                 Boolean           @default(false)
   applied_to_takeaway                        Boolean           @default(true)
   is_enabled                                 Boolean           @default(true)
+  store_id                                   String            @db.Uuid
+  stores                                     stores            @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "charges_stores_fk")
   invoice_invoice_tax_idTocharges            invoice[]         @relation("invoice_tax_idTocharges")
   invoice_invoice_service_charge_idTocharges invoice[]         @relation("invoice_service_charge_idTocharges")
   invoice_charges                            invoice_charges[]
+
+  @@unique([name, store_id], map: "charges_name_store_id_unique")
 }
 
 model customer {
@@ -564,6 +568,7 @@ model stores {
   cash_drawers                           cash_drawers[]
   catalog_bundling                       catalog_bundling[]
   categories                             categories[]
+  charges                                charges[]
   customer                               customer[]
   device_codes                           device_codes[]
   employee_login_sessions                employee_login_sessions[]

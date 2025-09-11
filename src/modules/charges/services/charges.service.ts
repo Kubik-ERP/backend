@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { UpsertChargeDto } from '../dtos/charges.dto';
 import { charge_type, charges, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import { requireStoreId } from 'src/common/helpers/common.helpers';
 
 @Injectable()
 export class ChargesService {
@@ -10,9 +11,14 @@ export class ChargesService {
 
   constructor(private readonly _prisma: PrismaService) {}
 
-  public async upsertCharge(request: UpsertChargeDto) {
+  public async upsertCharge(
+    request: UpsertChargeDto,
+    req: ICustomRequestHeaders,
+  ) {
+    const store_id = requireStoreId(req);
+
     // check the tax or service is already setup by type
-    const charge = await this.getChargeByType(request.chargeType);
+    const charge = await this.getChargeByType(request.chargeType, store_id);
 
     if (charge == null) {
       // if tax or service not exist create
@@ -24,6 +30,7 @@ export class ChargesService {
         applied_to_takeaway: request.appliedToTakeaway,
         is_enabled: request.isEnabled,
         is_include: request.isInclude,
+        store_id: store_id,
       };
 
       return await this.create(chargeData);
@@ -34,14 +41,17 @@ export class ChargesService {
       charge.applied_to_takeaway = request.appliedToTakeaway;
       charge.is_include = request.isInclude;
       charge.is_enabled = request.isEnabled;
+      charge.store_id = store_id;
 
       await this.update(charge);
       return charge;
     }
   }
 
-  public async chargeList() {
-    const charges = await this.getChargeList();
+  public async chargeList(req: ICustomRequestHeaders) {
+    const store_id = requireStoreId(req);
+
+    const charges = await this.getChargeList(store_id);
     const formattedCharges = charges.map((charge) => ({
       ...charge,
       percentage: charge.percentage.toNumber(),
@@ -64,6 +74,7 @@ export class ChargesService {
           applied_to_takeaway: charge.applied_to_takeaway,
           is_enabled: charge.is_enabled,
           is_include: charge.is_include,
+          store_id: charge.store_id,
         },
       });
     } catch (error) {
@@ -82,7 +93,7 @@ export class ChargesService {
   public async update(charge: charges): Promise<number> {
     try {
       const result = await this._prisma.charges.updateMany({
-        where: { type: charge.type },
+        where: { type: charge.type, store_id: charge.store_id },
         data: {
           name: charge.name,
           percentage: charge.percentage,
@@ -105,10 +116,10 @@ export class ChargesService {
   /**
    * @description Get charge data
    */
-  public async getChargeByType(type: charge_type) {
+  public async getChargeByType(type: charge_type, store_id: string) {
     try {
       return await this._prisma.charges.findFirst({
-        where: { type: type },
+        where: { type: type, store_id: store_id },
       });
     } catch (error) {
       console.log(error);
@@ -123,10 +134,10 @@ export class ChargesService {
   /**
    * @description Get list charge data
    */
-  public async getChargeList(): Promise<charges[]> {
+  public async getChargeList(store_id: string): Promise<charges[]> {
     try {
       return await this._prisma.charges.findMany({
-        where: { is_enabled: true },
+        where: { is_enabled: true, store_id: store_id },
       });
     } catch (error) {
       console.log(error);
