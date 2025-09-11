@@ -42,7 +42,7 @@ export class KitchenQueueAdd {
   updated_at?: Date;
   table_code: string;
   order_type: order_type;
-  customer_id: string;
+  customer_id?: string;
 }
 
 // type of grouping queue

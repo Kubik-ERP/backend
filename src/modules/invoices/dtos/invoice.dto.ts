@@ -248,7 +248,7 @@ export class InvoicePreviewDto {
   paymentMethodsId: string;
 
   @Expose()
-  customerId: string;
+  customerId?: string;
 
   @Expose()
   discountAmount: number;
