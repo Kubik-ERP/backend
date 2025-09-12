@@ -718,7 +718,7 @@ model voucher {
   amount                Float                  @default(0)
   min_price             Float                  @default(0)
   max_price             Float                  @default(0)
-  promo_code            String                 @unique @db.VarChar(45)
+  promo_code            String                 @db.VarChar(45)
   start_period          DateTime               @db.Date
   end_period            DateTime               @db.Date
   quota                 Int                    @default(1)
@@ -731,6 +731,8 @@ model voucher {
   stores                stores                 @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "voucher_stores_fk")
   voucher_commissions   voucher_commissions[]
   voucher_has_products  voucher_has_products[]
+
+  @@unique([promo_code, store_id], map: "voucher_promo_code_store_id_unique")
 }
 
 model voucher_commissions {
