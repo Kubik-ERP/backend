@@ -279,15 +279,26 @@ export class InvoiceController {
   // @RequirePermissions('process_unpaid_invoice', 'check_out_sales')
   @ApiBearerAuth()
   @Post('calculate/estimation')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @ApiOperation({
     summary: 'Simulate the total estimation',
   })
   public async calculateEstimation(
+    @Req() req: ICustomRequestHeaders,
     @Body() requestData: CalculationEstimationDto,
   ) {
     let result;
     await this.prisma.$transaction(async (tx) => {
-      result = await this.invoiceService.calculateTotal(tx, requestData);
+      result = await this.invoiceService.calculateTotal(
+        tx,
+        requestData,
+        req.headers['x-store-id'] as string,
+      );
     });
 
     return {

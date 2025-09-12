@@ -50,13 +50,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
 
       // pastikan staff tidak mengakses store yang tidak diberi izin
-      const storeEmployee = await this.prisma.stores_has_employees.findFirst({
+      const employee = await this.prisma.employees.findFirst({
         where: {
-          employees_id: payload.employeeId,
+          id: payload.employeeId,
           stores_id: storeId,
         },
       });
-      if (!storeEmployee) {
+      if (!employee) {
         throw new ForbiddenException(
           'You are not authorized to access this store',
         );
@@ -112,6 +112,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       ...user,
       ownerId,
+      employeeId: payload.employeeId,
     };
   }
 }

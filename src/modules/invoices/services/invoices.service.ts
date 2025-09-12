@@ -1,13 +1,13 @@
 // Factory
-import { PaymentFactory } from '../factories/payment.factory';
 import { generateInvoiceHtmlPdf } from '../../../common/helpers/invoice-html-pdf.helper';
+import { PaymentFactory } from '../factories/payment.factory';
 
 // NestJS
 import {
-  Injectable,
-  NotFoundException,
-  Logger,
   BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   cash_drawer_type,
@@ -24,7 +24,25 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 
 // Service
+import { NotificationHelper } from 'src/common/helpers/notification.helper';
+import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
+import { validateStoreId } from 'src/common/helpers/validators.helper';
+import { CashDrawerService } from 'src/modules/cash-drawer/services/cash-drawer.service';
+import { ChargesService } from 'src/modules/charges/services/charges.service';
+import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
+import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
+import { MailService } from 'src/modules/mail/services/mail.service';
+import { VouchersService } from 'src/modules/vouchers/vouchers.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ProductsService } from '../../products/products.service';
+import { VariantsService } from '../../variants/variants.service';
+import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
+import {
+  GetInvoiceDto,
+  GetListInvoiceDto,
+  InvoiceUpdateDto,
+  UpdateInvoiceOrderStatusDto,
+} from '../dtos/invoice.dto';
 import {
   CalculationEstimationDto,
   ProceedCheckoutInvoiceDto,
@@ -33,30 +51,12 @@ import {
   ProductDto,
   UpsertInvoiceItemDto,
 } from '../dtos/process-payment.dto';
-import { CalculationResult } from '../interfaces/calculation.interface';
-import { PaymentGateway } from '../interfaces/payments.interface';
-import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
-import {
-  GetInvoiceDto,
-  GetListInvoiceDto,
-  InvoiceUpdateDto,
-  UpdateInvoiceOrderStatusDto,
-} from '../dtos/invoice.dto';
-import { NotificationHelper } from 'src/common/helpers/notification.helper';
-import { ChargesService } from 'src/modules/charges/services/charges.service';
 import {
   GetInvoiceSettingDto,
   SettingInvoiceDto,
 } from '../dtos/setting-invoice.dto';
-import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
-import { MailService } from 'src/modules/mail/services/mail.service';
-import { KitchenQueueAdd } from 'src/modules/kitchen/dtos/queue.dto';
-import { KitchenService } from 'src/modules/kitchen/services/kitchen.service';
-import { validateStoreId } from 'src/common/helpers/validators.helper';
-import { CashDrawerService } from 'src/modules/cash-drawer/services/cash-drawer.service';
-import { VariantsService } from '../../variants/variants.service';
-import { ProductsService } from '../../products/products.service';
-import { VouchersService } from 'src/modules/vouchers/vouchers.service';
+import { CalculationResult } from '../interfaces/calculation.interface';
+import { PaymentGateway } from '../interfaces/payments.interface';
 
 @Injectable()
 export class InvoiceService {
@@ -202,6 +202,7 @@ export class InvoiceService {
         },
         invoice_charges: true,
         payment_methods: true,
+        payment_rounding_settings: true,
       },
     });
 
@@ -423,15 +424,6 @@ export class InvoiceService {
 
     await this.validatePaymentMethod(request.paymentMethodId, request.provider);
 
-    if (
-      request.orderType !== order_type.take_away &&
-      !request.tableCode?.trim()
-    ) {
-      throw new BadRequestException(
-        'Table code is mandatory because order type is not take away',
-      );
-    }
-
     const paymentProvider =
       request.provider === 'cash'
         ? undefined // use undefined for cash
@@ -462,7 +454,7 @@ export class InvoiceService {
         const invoiceData = {
           id: invoiceId,
           payment_methods_id: request.paymentMethodId,
-          customer_id: request.customerId,
+          customer_id: request.customerId ?? null,
           table_code: request.tableCode,
           payment_status:
             request.provider === 'cash'
@@ -474,7 +466,7 @@ export class InvoiceService {
           created_at: now,
           update_at: now,
           delete_at: null,
-          paid_at: null,
+          paid_at: request.provider === 'cash' ? new Date() : null,
           tax_id: null,
           service_charge_id: null,
           tax_amount: null,
@@ -547,8 +539,22 @@ export class InvoiceService {
         totalProductDiscount = calculatedTotalProductDiscount;
 
         // calculate the grand total
-        const calculation = await this.calculateTotal(tx, request, invoiceId);
+        const calculation = await this.calculateTotal(
+          tx,
+          request,
+          storeId,
+          invoiceId,
+        );
         grandTotal = calculation.grandTotal;
+
+        // Get payment rounding setting for this store
+        const paymentRoundingSetting =
+          await tx.payment_rounding_settings.findFirst({
+            where: {
+              store_id: storeId,
+              is_enabled: true,
+            },
+          });
 
         // update invoice with original subtotal and total product discount
         await this.update(tx, invoiceId, {
@@ -564,10 +570,15 @@ export class InvoiceService {
           voucher_id: request.voucherId ?? undefined,
           voucher_amount: calculation.voucherAmount,
           total_product_discount: calculatedTotalProductDiscount, // total product discount
+          // payment rounding
+          rounding_setting_id: paymentRoundingSetting?.id ?? undefined,
+          rounding_amount: request.rounding_amount ?? undefined,
         });
 
-        // insert the customer has invoice
-        await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+        // insert the customer has invoice (if exists)
+        if (request.customerId) {
+          await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+        }
 
         for (const detail of request.products) {
           // Get product data for prices
@@ -757,12 +768,21 @@ export class InvoiceService {
       // Set the total product discount to be used outside transaction
       totalProductDiscount = calculatedTotalProductDiscount;
 
-      const calculation = await this.calculateTotal(tx, request);
+      const calculation = await this.calculateTotal(tx, request, storeId);
+
+      // Get payment rounding setting for this store
+      const paymentRoundingSetting =
+        await tx.payment_rounding_settings.findFirst({
+          where: {
+            store_id: storeId,
+            is_enabled: true,
+          },
+        });
 
       const invoiceData = {
         id: invoiceId,
         payment_methods_id: null,
-        customer_id: request.customerId,
+        customer_id: request.customerId ?? null,
         table_code: request.tableCode,
         payment_status: invoice_type.unpaid,
         discount_amount: 0, // need to confirm
@@ -791,8 +811,8 @@ export class InvoiceService {
             : null,
         voucher_amount: calculation.voucherAmount ?? 0,
         total_product_discount: calculatedTotalProductDiscount,
-        rounding_setting_id: null,
-        rounding_amount: null,
+        rounding_setting_id: paymentRoundingSetting?.id ?? null,
+        rounding_amount: request.rounding_amount ?? null,
       };
 
       // create invoice with status unpaid
@@ -872,8 +892,10 @@ export class InvoiceService {
         }
       }
 
-      // insert the customer has invoice
-      await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+      // insert the customer has invoice (if exists)
+      if (request.customerId) {
+        await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+      }
 
       // create kitchen queue
       await this._kitchenQueue.createKitchenQueue(tx, kitchenQueue);
@@ -1235,7 +1257,7 @@ export class InvoiceService {
           order_type: invoice.order_type ?? order_type.dine_in, // dine_in order type is more often
           store_id: invoice.store_id ?? '',
           table_code: invoice.table_code ?? '',
-          customer_id: invoice.customer_id,
+          customer_id: invoice.customer_id ?? undefined,
         },
       ]);
     }
@@ -1380,6 +1402,7 @@ export class InvoiceService {
       const calculation = await this.calculateTotal(
         tx,
         calculationEstimationDto,
+        invoice.store_id ?? undefined,
         invoice.id,
       );
 
@@ -1392,6 +1415,7 @@ export class InvoiceService {
         payment_status: invoice_type.paid,
         subtotal: calculation.subTotal, // harga sebelum potongan voucher
         tax_id: calculation.taxId,
+        paid_at: new Date(),
         service_charge_id: calculation.serviceChargeId,
         tax_amount: calculation.tax,
         service_charge_amount: calculation.serviceCharge,
@@ -1558,6 +1582,7 @@ export class InvoiceService {
   public async calculateTotal(
     tx: Prisma.TransactionClient,
     request: CalculationEstimationDto,
+    storeId?: string,
     invoiceId?: string,
   ): Promise<CalculationResult> {
     let total = 0;
@@ -1665,6 +1690,7 @@ export class InvoiceService {
     let grandTotal = total;
     const serviceCharge = await this._charge.getChargeByType(
       charge_type.service,
+      storeId!,
     );
     const isTakeaway = request.orderType === order_type.take_away;
 
@@ -1677,10 +1703,10 @@ export class InvoiceService {
         const percentage = Number(serviceCharge.percentage);
         if (serviceCharge.is_include) {
           // If service include, means has include total
-          serviceAmount = total - total / (1 + percentage);
+          serviceAmount = subTotal - subTotal / (1 + percentage);
         } else {
           // If service exclude, count service as an additional
-          serviceAmount = total * percentage;
+          serviceAmount = subTotal * percentage;
           grandTotal += serviceAmount;
         }
 
@@ -1702,21 +1728,21 @@ export class InvoiceService {
     }
 
     // get tax
-    const tax = await this._charge.getChargeByType(charge_type.tax);
+    const tax = await this._charge.getChargeByType(charge_type.tax, storeId!);
     if (tax?.is_enabled) {
       const taxApplicable = tax.applied_to_takeaway ? true : !isTakeaway;
       const percentage = Number(tax.percentage);
 
       if (taxApplicable) {
         // Base tax counting
-        let taxBase = total;
+        let taxBase = subTotal;
 
-        // If service charge exclude, then tax counted as total + service
+        // If service charge exclude, then tax counted as subTotal + service
         if (!serviceType) {
           taxBase += serviceAmount;
         }
-        // if Tax is always calculated from the total (after voucher deduction)
-        // const taxBase = total;
+        // if Tax is always calculated from the subTotal (before voucher deduction)
+        // const taxBase = subTotal;
 
         if (tax.is_include) {
           // If tax include, count tax portion has included in taxBase
@@ -1758,6 +1784,50 @@ export class InvoiceService {
       paymentAmount = grandTotal;
     }
 
+    // Apply payment rounding if store ID is provided
+    let roundingAdjustment = 0;
+    let paymentRoundingSetting = null;
+
+    if (storeId) {
+      const setting = await tx.payment_rounding_settings.findFirst({
+        where: {
+          store_id: storeId,
+          is_enabled: true,
+        },
+      });
+
+      if (setting) {
+        const roundingValue = setting.rounding_value;
+        const remainder = grandTotal % roundingValue;
+
+        if (remainder !== 0) {
+          if (setting.rounding_type === 'up') {
+            // Round up: add remainder to reach target
+            roundingAdjustment = roundingValue - remainder;
+          } else if (setting.rounding_type === 'down') {
+            // Round down: subtract remainder
+            roundingAdjustment = -remainder;
+          }
+
+          // Apply rounding adjustment to grand total
+          grandTotal += roundingAdjustment;
+
+          // Update payment amount if it was equal to original grandTotal
+          if (paymentAmount === grandTotal - roundingAdjustment) {
+            paymentAmount = grandTotal;
+            changeAmount = paymentAmount - grandTotal;
+          }
+        }
+
+        paymentRoundingSetting = {
+          id: setting.id,
+          roundingType: setting.rounding_type,
+          roundingValue: setting.rounding_value,
+          isEnabled: setting.is_enabled,
+        };
+      }
+    }
+
     return {
       subTotal,
       discountTotal,
@@ -1773,6 +1843,8 @@ export class InvoiceService {
       paymentAmount,
       changeAmount,
       items,
+      roundingAdjustment,
+      paymentRoundingSetting,
     };
   }
 
@@ -1997,6 +2069,9 @@ export class InvoiceService {
           voucher_amount: invoice.voucher_amount ?? 0,
           // product discount
           total_product_discount: invoice.total_product_discount ?? 0,
+          // payment rounding
+          rounding_setting_id: invoice.rounding_setting_id ?? null,
+          rounding_amount: invoice.rounding_amount ?? null,
         },
       });
 
@@ -2027,6 +2102,7 @@ export class InvoiceService {
         customer_id,
         payment_method_id,
         voucher_id,
+        rounding_setting_id,
         ...rest
       } = data;
 
@@ -2062,6 +2138,12 @@ export class InvoiceService {
       if (voucher_id) {
         updateData.voucher = {
           connect: { id: voucher_id },
+        };
+      }
+
+      if (rounding_setting_id) {
+        updateData.payment_rounding_settings = {
+          connect: { id: rounding_setting_id },
         };
       }
 
@@ -2265,6 +2347,9 @@ export class InvoiceService {
           store_id: req.storeId,
           uid: userId,
         },
+        include: {
+          stores: true,
+        },
       });
 
       return toCamelCase(response);
@@ -2345,6 +2430,45 @@ export class InvoiceService {
       throw new BadRequestException('Failed to create customer has invoice', {
         cause: new Error(),
         description: error.message,
+      });
+    }
+  }
+
+  /**
+   * @description Create default invoice settings for a store
+   */
+  public async createDefaultInvoiceSettings(
+    storeId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const prisma = tx || this._prisma;
+
+    const existingSetting = await prisma.invoice_settings.findUnique({
+      where: { store_id: storeId },
+    });
+
+    if (!existingSetting) {
+      await prisma.invoice_settings.create({
+        data: {
+          store_id: storeId,
+          uid: null,
+          company_logo_url: null,
+          footer_text: 'footer text',
+          is_automatically_print_receipt: true,
+          is_automatically_print_kitchen: false,
+          is_automatically_print_table: false,
+          is_show_company_logo: true,
+          is_show_store_location: true,
+          is_hide_cashier_name: false,
+          is_hide_order_type: false,
+          is_hide_queue_number: false,
+          is_show_table_number: true,
+          is_hide_item_prices: false,
+          is_show_footer: true,
+          increment_by: 1,
+          reset_sequence: 'Daily',
+          starting_number: 1,
+        },
       });
     }
   }

@@ -2,8 +2,8 @@
 import * as bcrypt from 'bcrypt';
 
 // Cache
-import { Cache } from 'cache-manager';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 // Constants
 import { SALT_OR_ROUND } from '../../../common/constants/common.constant';
@@ -24,23 +24,23 @@ import { ILogin } from '../interfaces/authentication.interface';
 //UUID
 import { v4 as uuidv4 } from 'uuid';
 
-import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
 import { EmailTemplateType } from '../../../enum/EmailTemplateType-enum';
+import { TemplatesEmailService } from '../../templates-email/services/templates-email.service';
 
 // NestJS Libraries
 import {
   BadRequestException,
-  Injectable,
-  Inject,
   HttpException,
   HttpStatus,
+  Inject,
+  Injectable,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 // Services
 import { MailService } from 'src/modules/mail/services/mail.service';
-import { UsersService } from '../../users/services/users.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { UsersService } from '../../users/services/users.service';
 
 // Speaksy
 import * as speakeasy from 'speakeasy';
@@ -274,17 +274,14 @@ export class AuthenticationService {
       },
       include: {
         users: true, // Get user data for JWT payload
-        stores_has_employees: {
-          take: 1, // 1 employee = 1 store
-        },
       },
     });
 
-    if (!employee || employee.stores_has_employees.length === 0) {
-      throw new BadRequestException('Eamil not found');
+    if (!employee) {
+      throw new BadRequestException('Email not found');
     }
 
-    const storeId = employee.stores_has_employees[0].stores_id;
+    const storeId = employee.stores_id;
 
     // Memastikan device code ada di store yang sama dengan employee
     const deviceCodeRecord = await this._prisma.device_codes.findFirst({
@@ -357,9 +354,9 @@ export class AuthenticationService {
         user_has_stores: {
           some: {
             stores: {
-              stores_has_employees: {
+              employees: {
                 some: {
-                  employees_id: employee.id,
+                  id: employee.id,
                 },
               },
             },
@@ -470,11 +467,5 @@ export class AuthenticationService {
         },
       },
     });
-
-    // await this._prisma.employee_login_sessions.delete({
-    //   where: {
-    //     id: session.id,
-    //   },
-    // });
   }
 }

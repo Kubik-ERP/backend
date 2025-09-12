@@ -8,6 +8,16 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateInventoryCategoryDto } from '../dtos/create-inventory-category.dto';
 import { UpdateInventoryCategoryDto } from '../dtos/update-inventory-category.dto';
 import { GetInventoryCategoriesDto } from '../dtos/get-inventory-categories.dto';
+import {
+  PreviewImportInventoryCategoriesDto,
+  ImportInventoryCategoriesPreviewResponseDto,
+  ExecuteImportInventoryCategoriesDto,
+  ExecuteImportInventoryCategoriesResponseDto,
+  DeleteBatchInventoryCategoriesDto,
+  DeleteBatchInventoryCategoriesResponseDto,
+} from '../dtos';
+import * as ExcelJS from 'exceljs';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class InventoryCategoryService {
@@ -46,11 +56,7 @@ export class InventoryCategoryService {
             code: {
               startsWith: prefix,
             },
-            stores_has_master_inventory_categories: {
-              some: {
-                stores_id: storeId,
-              },
-            },
+            store_id: storeId,
           },
           select: {
             code: true,
@@ -97,11 +103,7 @@ export class InventoryCategoryService {
     }
 
     if (storeId) {
-      whereCondition.stores_has_master_inventory_categories = {
-        some: {
-          stores_id: storeId,
-        },
-      };
+      whereCondition.store_id = storeId;
     }
 
     const existingCategory =
@@ -135,15 +137,9 @@ export class InventoryCategoryService {
         name: dto.name,
         code: categoryCode,
         notes: dto.notes,
+        store_id: store_id,
         created_at: new Date(),
         updated_at: new Date(),
-      },
-    });
-
-    await this._prisma.stores_has_master_inventory_categories.create({
-      data: {
-        stores_id: store_id,
-        master_inventory_categories_id: category.id,
       },
     });
 
@@ -171,9 +167,7 @@ export class InventoryCategoryService {
     const skip = (page - 1) * pageSize;
 
     const where: any = {
-      stores_has_master_inventory_categories: {
-        some: { stores_id: store_id },
-      },
+      store_id: store_id,
     };
 
     if (search) {
@@ -212,9 +206,7 @@ export class InventoryCategoryService {
     const category = await this._prisma.master_inventory_categories.findFirst({
       where: {
         id,
-        stores_has_master_inventory_categories: {
-          some: { stores_id: store_id },
-        },
+        store_id: store_id,
       },
     });
     if (!category)
@@ -274,18 +266,419 @@ export class InventoryCategoryService {
       );
     }
 
-    await this._prisma.stores_has_master_inventory_categories.deleteMany({
-      where: { stores_id: store_id, master_inventory_categories_id: id },
+    await this._prisma.master_inventory_categories.delete({
+      where: {
+        id: id,
+        store_id: store_id,
+      },
+    });
+    this.logger.log(`Inventory category deleted: ${existing.name}`);
+  }
+
+  /**
+   * Generate import template for inventory categories
+   */
+  public async generateImportTemplate(
+    header: ICustomRequestHeaders,
+  ): Promise<any> {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+
+    const workbook = new ExcelJS.Workbook();
+
+    // Sheet 1: Inventory Categories
+    const sheet = workbook.addWorksheet('Inventory Categories');
+    const columns = [
+      { header: 'Category Name', key: 'category_name', width: 35 },
+      { header: 'Category Code', key: 'category_code', width: 20 },
+      { header: 'Description', key: 'description', width: 50 },
+    ];
+    sheet.columns = columns;
+
+    // Style header row - Set alignment and wrapping for better visibility
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.alignment = {
+      wrapText: true,
+      vertical: 'middle',
+      horizontal: 'center',
+    };
+    headerRow.height = 40; // Increased height for auto-wrapped text
+
+    // Apply background color to all columns with data (A to C = 3 columns)
+    for (let col = 1; col <= 3; col++) {
+      headerRow.getCell(col).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFB6FFB6' },
+      };
+    }
+
+    // Add title row
+    sheet.insertRow(1, ['TEMPLATE FOR IMPORT INVENTORY CATEGORIES']);
+    sheet.mergeCells('A1:C1'); // Merge across 3 columns
+    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFF0000' } };
+    sheet.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    // Add required label row
+    sheet.insertRow(2, [
+      'The label (*) is required to be filled. Category Code is optional - if empty, it will be auto-generated.',
+    ]);
+    sheet.mergeCells('A2:C2'); // Merge across 3 columns
+    sheet.getRow(2).font = { italic: true, color: { argb: 'FFFF6600' } };
+    sheet.getRow(2).alignment = {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    };
+
+    // Mark required columns in header (Category Name)
+    const requiredCols = [1]; // Category Name
+    requiredCols.forEach((col) => {
+      const cell = sheet.getRow(3).getCell(col);
+      cell.value = `${cell.value}(*)`;
+      cell.font = { ...cell.font, color: { argb: 'FF008000' } };
     });
 
-    const otherRelations =
-      await this._prisma.stores_has_master_inventory_categories.count({
-        where: { master_inventory_categories_id: id },
-      });
-    if (otherRelations === 0) {
-      await this._prisma.master_inventory_categories.delete({ where: { id } });
+    // Add sample row at row 4
+    const sampleRow = sheet.getRow(4);
+    sampleRow.getCell(1).value = 'Electronics'; // Category Name
+    sampleRow.getCell(2).value = 'EL001'; // Category Code
+    sampleRow.getCell(3).value = 'Electronic items and gadgets'; // Description
+
+    // Style sample row to indicate it's an example
+    sampleRow.font = { italic: true, color: { argb: 'FF666666' } };
+
+    // Auto-fit columns to ensure all data is visible
+    sheet.columns.forEach((column) => {
+      if (column.width && column.width < 15) {
+        column.width = 15;
+      }
+    });
+
+    return await workbook.xlsx.writeBuffer();
+  }
+
+  /**
+   * Preview import data from Excel file
+   */
+  public async previewImport(
+    dto: PreviewImportInventoryCategoriesDto,
+    file: Express.Multer.File,
+    header: ICustomRequestHeaders,
+  ): Promise<ImportInventoryCategoriesPreviewResponseDto> {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+
+    if (!file) {
+      throw new BadRequestException('File is required');
     }
-    this.logger.log(`Inventory category deleted: ${existing.name}`);
+
+    const batchId = dto.batchId || uuidv4();
+
+    // Delete existing batch data if batchId is provided
+    if (dto.batchId) {
+      await this._prisma.temp_import_inventory_categories.deleteMany({
+        where: { batch_id: batchId },
+      });
+    }
+
+    // Read Excel file
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer as any);
+    const worksheet = workbook.getWorksheet(1);
+
+    if (!worksheet) {
+      throw new BadRequestException('No worksheet found in the Excel file');
+    }
+
+    const validData: any[] = [];
+    const invalidData: any[] = [];
+    let totalRows = 0;
+
+    // Helper function to safely get cell value
+    const getCellValue = (cell: any): string => {
+      if (!cell || cell.value === null || cell.value === undefined) {
+        return '';
+      }
+
+      if (typeof cell.value === 'object') {
+        // Handle hyperlink objects and other Excel objects
+        if (cell.value.text !== undefined) {
+          return String(cell.value.text).trim();
+        }
+        if (cell.value.result !== undefined) {
+          return String(cell.value.result).trim();
+        }
+        return String(cell.value).trim();
+      }
+
+      return String(cell.value).trim();
+    };
+
+    // Start from row 4 (skip title, instructions, and header)
+    const startRow = 4;
+    let endRow = worksheet.rowCount;
+
+    // Find actual end row by checking for empty rows
+    for (let i = endRow; i >= startRow; i -= 1) {
+      const row = worksheet.getRow(i);
+      const hasData =
+        row.values &&
+        Array.isArray(row.values) &&
+        row.values.some(
+          (value) =>
+            value !== null &&
+            value !== undefined &&
+            String(value).trim() !== '',
+        );
+      if (hasData) {
+        endRow = i;
+        break;
+      }
+    }
+
+    for (let rowNumber = startRow; rowNumber <= endRow; rowNumber += 1) {
+      const row = worksheet.getRow(rowNumber);
+
+      const categoryName = getCellValue(row.getCell(1)); // Category Name is column 1
+      const categoryCode = getCellValue(row.getCell(2)); // Category Code is column 2
+      const description = getCellValue(row.getCell(3)); // Description is column 3
+
+      // Skip empty rows or rows with only spaces
+      if (!categoryName && !categoryCode && !description) {
+        continue;
+      }
+
+      totalRows += 1;
+
+      let isValid = true;
+      const rowErrors: string[] = [];
+
+      // Validate required fields
+      if (!categoryName) {
+        isValid = false;
+        rowErrors.push('Category name is required');
+      }
+
+      // Auto-generate category code if not provided and category name is valid
+      let finalCategoryCode = categoryCode;
+      if (!finalCategoryCode && categoryName) {
+        try {
+          finalCategoryCode = await this.generateCategoryCode(
+            categoryName,
+            store_id,
+          );
+        } catch (error) {
+          isValid = false;
+          rowErrors.push('Failed to generate category code');
+        }
+      }
+
+      // Check for duplicate category name
+      if (categoryName) {
+        try {
+          const existingName =
+            await this._prisma.master_inventory_categories.findFirst({
+              where: {
+                name: { equals: categoryName, mode: 'insensitive' },
+                store_id: store_id,
+              },
+            });
+
+          if (existingName) {
+            isValid = false;
+            rowErrors.push(
+              `Category name '${categoryName}' already exists in this store`,
+            );
+          }
+        } catch (error) {
+          this.logger.error(`Error checking duplicate name: ${error.message}`);
+          isValid = false;
+          rowErrors.push('Error validating category name');
+        }
+      }
+
+      // Check for duplicate category code in store if provided
+      if (finalCategoryCode) {
+        try {
+          const existingCode =
+            await this._prisma.master_inventory_categories.findFirst({
+              where: {
+                code: finalCategoryCode,
+                store_id: store_id,
+              },
+            });
+
+          if (existingCode) {
+            isValid = false;
+            rowErrors.push(
+              `Category code '${finalCategoryCode}' already exists in this store`,
+            );
+          }
+        } catch (error) {
+          this.logger.error(`Error checking duplicate code: ${error.message}`);
+          isValid = false;
+          rowErrors.push('Error validating category code');
+        }
+      }
+
+      const status = isValid ? 'valid' : 'invalid';
+      const errorMessages = rowErrors.length > 0 ? rowErrors.join('; ') : null;
+
+      if (isValid) {
+        validData.push({
+          id: batchId, // Using batch_id as temporary id like inventory items
+          row_number: rowNumber,
+          category_name: categoryName,
+          category_code: finalCategoryCode || '', // Show the auto-generated code in preview
+          description: description || null,
+        });
+
+        // Save to temp table
+        await this._prisma.temp_import_inventory_categories.create({
+          data: {
+            batch_id: batchId,
+            row_number: rowNumber,
+            status: 'valid',
+            name: categoryName,
+            code: finalCategoryCode || null, // Save the generated/provided code
+            notes: description || null,
+          },
+        });
+      } else {
+        invalidData.push({
+          id: batchId, // Using batch_id as temporary id like inventory items
+          row_number: rowNumber,
+          category_name: categoryName || '',
+          category_code: finalCategoryCode || '', // Show the attempted code even for invalid data
+          description: description || null,
+          error_messages: errorMessages,
+        });
+
+        // Save to temp table with errors
+        await this._prisma.temp_import_inventory_categories.create({
+          data: {
+            batch_id: batchId,
+            row_number: rowNumber,
+            status: 'invalid',
+            name: categoryName || '',
+            code: finalCategoryCode || null, // Save the attempted code
+            notes: description || null,
+            error_messages: errorMessages,
+          },
+        });
+      }
+    }
+
+    return {
+      batch_id: batchId,
+      total_rows: totalRows,
+      valid_rows: validData.length,
+      invalid_rows: invalidData.length,
+      success_data: validData,
+      failed_data: invalidData,
+    };
+  }
+
+  /**
+   * Execute import from temp table
+   */
+  public async executeImport(
+    dto: ExecuteImportInventoryCategoriesDto,
+    header: ICustomRequestHeaders,
+  ): Promise<ExecuteImportInventoryCategoriesResponseDto> {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+
+    const { batchId } = dto;
+
+    // Get valid data from temp table
+    const tempData =
+      await this._prisma.temp_import_inventory_categories.findMany({
+        where: {
+          batch_id: batchId,
+          status: 'valid',
+        },
+        orderBy: { row_number: 'asc' },
+      });
+
+    if (tempData.length === 0) {
+      throw new BadRequestException(
+        'No valid data found for the provided batch ID',
+      );
+    }
+
+    let successCount = 0;
+    const failedItems: any[] = [];
+
+    // Process each row
+    for (const item of tempData) {
+      try {
+        // Generate category code if not provided
+        const categoryCode =
+          item.code || (await this.generateCategoryCode(item.name, store_id));
+
+        // Create category
+        const category = await this._prisma.master_inventory_categories.create({
+          data: {
+            name: item.name,
+            code: categoryCode,
+            notes: item.notes,
+            store_id: store_id,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+
+        successCount += 1;
+        this.logger.log(
+          `Category imported: ${category.name} with code: ${category.code}`,
+        );
+      } catch (error) {
+        failedItems.push({
+          rowNumber: item.row_number,
+          categoryName: item.name,
+          categoryCode: item.code || '',
+          errorMessage: error.message,
+        });
+        this.logger.error(
+          `Failed to import category at row ${item.row_number}: ${error.message}`,
+        );
+      }
+    }
+
+    // Clean up temp data after successful import
+    await this._prisma.temp_import_inventory_categories.deleteMany({
+      where: { batch_id: batchId },
+    });
+
+    return {
+      totalProcessed: tempData.length,
+      successCount,
+      failureCount: failedItems.length,
+      failedItems,
+    };
+  }
+
+  /**
+   * Delete batch data from temp table
+   */
+  public async deleteBatch(
+    dto: DeleteBatchInventoryCategoriesDto,
+  ): Promise<DeleteBatchInventoryCategoriesResponseDto> {
+    const { batchId } = dto;
+
+    const result =
+      await this._prisma.temp_import_inventory_categories.deleteMany({
+        where: { batch_id: batchId },
+      });
+
+    return {
+      success: true,
+      message: 'Batch data deleted successfully',
+      deletedCount: result.count,
+    };
   }
 
   private async ensureNotDuplicate(
@@ -298,9 +691,7 @@ export class InventoryCategoryService {
     };
     if (excludeId) where.id = { not: excludeId };
     if (storeId) {
-      where.stores_has_master_inventory_categories = {
-        some: { stores_id: storeId },
-      };
+      where.store_id = storeId;
     }
     const existing = await this._prisma.master_inventory_categories.findFirst({
       where,

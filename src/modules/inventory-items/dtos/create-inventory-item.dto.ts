@@ -20,7 +20,6 @@ export class CreateInventoryItemDto {
   name: string;
 
   @ApiProperty({ description: 'Brand ID', example: 'uuid' })
-  @IsUUID()
   brandId: string;
 
   @ApiProperty({ description: 'Barcode', required: false, maxLength: 64 })
@@ -78,7 +77,6 @@ export class CreateInventoryItemDto {
   expiryDate?: string;
 
   @ApiProperty({ description: 'Storage Location ID', example: 'uuid' })
-  @IsUUID()
   storageLocationId: string;
 
   @ApiProperty({ description: 'Price per unit', example: 12000.5, minimum: 0 })

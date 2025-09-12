@@ -1,4 +1,8 @@
-import { Injectable, ExecutionContext } from '@nestjs/common';
+import {
+  Injectable,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from './permissions.guard';
 import { Reflector } from '@nestjs/core';
@@ -33,7 +37,7 @@ export class AuthPermissionGuard extends AuthGuard('jwt') {
     // Handle authentication errors
     if (error || !user) {
       console.log(`[ERROR] AuthPermissionGuard: ${info}`);
-      throw error || new Error('Unauthorized');
+      throw error || new UnauthorizedException('Unauthorized');
     }
 
     // Extract permissions from the user object if available

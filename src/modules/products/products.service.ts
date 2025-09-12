@@ -1,15 +1,15 @@
 import {
-  Injectable,
+  BadRequestException,
   HttpException,
   HttpStatus,
+  Injectable,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
+import { products as ProductModel, products } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { validate as isUUID } from 'uuid';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { products as ProductModel } from '@prisma/client';
-import { validate as isUUID } from 'uuid';
 
 @Injectable()
 export class ProductsService {
@@ -27,10 +27,16 @@ export class ProductsService {
       }
 
       const existingProduct = await this.prisma.products.findFirst({
-        where: { name: createProductDto.name },
+        where: { name: createProductDto.name, stores_id: store_id },
       });
       if (existingProduct) {
-        throw new Error('Product with this name already exists');
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.BAD_REQUEST,
+            message: 'Product name must be unique',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
       // jika discount_price tidak ada, maka discountValue = price
@@ -40,21 +46,16 @@ export class ProductsService {
 
       const productWithCategories = await this.prisma.$transaction(
         async (tx) => {
+          // Use unchecked create to bypass strict type checking
           const createdProduct = await tx.products.create({
             data: {
               name: createProductDto.name,
-              price: createProductDto.price,
-              discount_price: discountValue,
-              picture_url: createProductDto.image,
-              is_percent: createProductDto.is_percent,
-            },
-          });
-
-          await tx.stores_has_products.create({
-            data: {
+              price: createProductDto.price ?? 0,
+              discount_price: discountValue ?? 0,
+              picture_url: createProductDto.image ?? null,
+              is_percent: createProductDto.is_percent ?? false,
               stores_id: store_id,
-              products_id: createdProduct.id,
-            },
+            } as products,
           });
 
           if (createProductDto.categories?.length) {
@@ -161,11 +162,7 @@ export class ProductsService {
           },
         },
       }),
-      stores_has_products: {
-        some: {
-          stores_id: store_id,
-        },
-      },
+      stores_id: store_id,
     };
 
     const [products, total] = await Promise.all([
@@ -262,11 +259,18 @@ export class ProductsService {
         const duplicateProduct = await this.prisma.products.findFirst({
           where: {
             name: updateProductDto.name,
+            stores_id: existingProduct.stores_id,
             NOT: { id },
           },
         });
         if (duplicateProduct) {
-          throw new BadRequestException('Product name must be unique');
+          throw new HttpException(
+            {
+              statusCode: HttpStatus.BAD_REQUEST,
+              message: 'Product name must be unique',
+            },
+            HttpStatus.BAD_REQUEST,
+          );
         }
       }
 
@@ -316,10 +320,10 @@ export class ProductsService {
           where: { id },
           data: {
             name: updateProductDto.name,
-            price: updateProductDto.price,
-            discount_price: discountValue,
-            picture_url: updateProductDto.image,
-            is_percent: updateProductDto.is_percent,
+            price: updateProductDto.price ?? 0,
+            discount_price: discountValue ?? 0,
+            picture_url: updateProductDto.image ?? null,
+            is_percent: updateProductDto.is_percent ?? false,
           },
           include: {
             categories_has_products: true,

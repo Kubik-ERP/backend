@@ -94,7 +94,8 @@ export class ProceedInstantPaymentDto extends ProductListDto {
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
   @IsString()
-  public customerId: string;
+  @IsOptional()
+  public customerId?: string;
 
   @ApiProperty({
     description: 'Table Code',
@@ -112,6 +113,15 @@ export class ProceedInstantPaymentDto extends ProductListDto {
   @IsOptional()
   @IsNumber()
   public paymentAmount: number;
+
+  @ApiProperty({
+    description: 'Rounding Amount',
+    required: false,
+    example: 500,
+  })
+  @IsOptional()
+  @IsNumber()
+  public rounding_amount?: number;
 }
 
 export class ProceedCheckoutInvoiceDto extends ProductListDto {
@@ -135,7 +145,8 @@ export class ProceedCheckoutInvoiceDto extends ProductListDto {
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
   @IsUUID()
-  public customerId: string;
+  @IsOptional()
+  public customerId?: string;
 
   @ApiProperty({
     description: 'Table Code',
@@ -144,6 +155,15 @@ export class ProceedCheckoutInvoiceDto extends ProductListDto {
   })
   @IsString()
   public tableCode: string;
+
+  @ApiProperty({
+    description: 'Rounding amount to be applied to the invoice',
+    required: false,
+    example: 84,
+  })
+  @IsOptional()
+  @IsNumber()
+  public rounding_amount?: number;
 }
 
 export class ProceedPaymentDto {

@@ -8,13 +8,19 @@ import {
   Put,
   Query,
   Req,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { InventoryCategoryService } from '../services/inventory-category.service';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiHeader,
   ApiOperation,
   ApiTags,
@@ -24,6 +30,9 @@ import {
   CreateInventoryCategoryDto,
   UpdateInventoryCategoryDto,
   GetInventoryCategoriesDto,
+  PreviewImportInventoryCategoriesDto,
+  ExecuteImportInventoryCategoriesDto,
+  DeleteBatchInventoryCategoriesDto,
 } from '../dtos';
 
 @ApiTags('Inventory Categories')
@@ -134,6 +143,109 @@ export class InventoryCategoryController {
     await this.inventoryCategoryService.remove(id, req);
     return {
       message: 'Inventory category deleted successfully',
+    };
+  }
+
+  // Import Endpoints
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('category_management')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    required: true,
+    description: 'Store ID for request context',
+    schema: { type: 'string' },
+  })
+  @Post('import/generate-template')
+  @ApiOperation({
+    summary: 'Download import template for inventory categories',
+  })
+  async downloadImportTemplate(
+    @Req() req: ICustomRequestHeaders,
+    @Res() res: Response,
+  ) {
+    const buffer =
+      await this.inventoryCategoryService.generateImportTemplate(req);
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="inventory_categories_import_template.xlsx"',
+    );
+
+    return res.send(buffer);
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('category_management')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    required: true,
+    description: 'Store ID for request context',
+    schema: { type: 'string' },
+  })
+  @Post('import/preview')
+  @ApiOperation({ summary: 'Preview import data for validation' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file'))
+  async previewImport(
+    @Body() dto: PreviewImportInventoryCategoriesDto,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.inventoryCategoryService.previewImport(
+      dto,
+      file,
+      req,
+    );
+    return {
+      message: 'Import preview generated successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('category_management')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    required: true,
+    description: 'Store ID for request context',
+    schema: { type: 'string' },
+  })
+  @Post('import/execute')
+  @ApiOperation({ summary: 'Execute import from previewed data' })
+  async executeImport(
+    @Body() dto: ExecuteImportInventoryCategoriesDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.inventoryCategoryService.executeImport(dto, req);
+    return {
+      message: 'Import executed successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('category_management')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    required: true,
+    description: 'Store ID for request context',
+    schema: { type: 'string' },
+  })
+  @Delete('import/batch/:batchId')
+  @ApiOperation({ summary: 'Delete batch data from temporary import table' })
+  async deleteBatch(@Param('batchId') batchId: string) {
+    const result = await this.inventoryCategoryService.deleteBatch({ batchId });
+    return {
+      message: 'Batch deleted successfully',
+      result: toCamelCase(result),
     };
   }
 }

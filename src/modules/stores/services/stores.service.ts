@@ -1,18 +1,29 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { v4 as uuidv4 } from 'uuid';
-import { formatDate, formatTime } from 'src/common/helpers/common.helpers';
+import {
+  BadRequestException,
+  ForbiddenException,
+  forwardRef,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { formatDate, formatTime } from 'src/common/helpers/common.helpers';
 import {
   getOffset,
   getTotalPages,
 } from 'src/common/helpers/pagination.helpers';
+import { InvoiceService } from 'src/modules/invoices/services/invoices.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { v4 as uuidv4 } from 'uuid';
+import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
 import { StoresListDto } from '../dtos/stores-list.dto';
 
 @Injectable()
 export class StoresService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => InvoiceService))
+    private readonly invoiceService: InvoiceService,
+  ) {}
 
   public async createStore(
     data: CreateStoreDto,
@@ -64,6 +75,9 @@ export class StoresService {
       await prisma.store_role_permissions.createMany({
         data: storeRolePermissions,
       });
+
+      // Create default invoice settings for the new store
+      await this.invoiceService.createDefaultInvoiceSettings(store.id, prisma);
     });
   }
 
@@ -133,6 +147,9 @@ export class StoresService {
           })),
         });
       }
+
+      // Create default invoice settings if not exists
+      await this.invoiceService.createDefaultInvoiceSettings(storeId, prisma);
     });
   }
 
@@ -160,7 +177,26 @@ export class StoresService {
     });
   }
 
-  public async getStoreById(storeId: string): Promise<any> {
+  public async getStoreById(
+    storeId: string,
+    header: ICustomRequestHeaders,
+  ): Promise<any> {
+    // jika staff, pastikan hanya bisa akses data store yang di assign ke staff
+    if (header.user.is_staff) {
+      const employee = await this.prisma.employees.findFirst({
+        select: {
+          stores_id: true,
+        },
+        where: {
+          id: header.user.employeeId,
+        },
+      });
+      if (employee?.stores_id !== storeId) {
+        throw new ForbiddenException(
+          'You are not authorized to access this store',
+        );
+      }
+    }
     return await this.prisma.stores.findUnique({
       where: { id: storeId },
       include: {

@@ -29,11 +29,15 @@ import * as express from 'express';
 
 import { join } from 'path';
 import { CustomLogger } from './common/logger/custom.logger';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app: INestApplication = await NestFactory.create(AppModule, {
     bufferLogs: true,
   });
+
+  app.use(json({ limit: '100mb' }));
+  app.use(urlencoded({ extended: true, limit: '100mb' }));
 
   const customLogger = app.get(CustomLogger);
   app.useLogger(customLogger);
