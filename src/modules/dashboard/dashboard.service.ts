@@ -365,7 +365,7 @@ export class DashboardService {
       this.getDailySalesInRange(startDate, endDate, req),
       this.getMonthlySalesThisYear(req, startDate),
       this.getTopProductSales(startDate, endDate, req),
-      this.getPaymentMethodData(startDate, endDate, req),
+      this.getPaymentMethodDashboardData(startDate, endDate, req),
       this.getProductStockStatus(req),
     ]);
 
