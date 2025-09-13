@@ -79,6 +79,50 @@ export class DashboardService {
     return { totalSales, totalGross };
   }
 
+  private async getPaymentMethodDashboardData(
+    begDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const paymentData = await this.prisma.invoice.findMany({
+      where: {
+        paid_at: {
+          gte: begDate,
+          lte: endDate,
+        },
+        store_id: req.store_id,
+      },
+      include: {
+        payment_methods: true,
+      },
+    });
+    const report = new Map<string, { transaction: number; nominal: number }>();
+
+    for (const invoice of paymentData) {
+      if (invoice.payment_methods && invoice.payment_methods.name) {
+        const methodName = invoice.payment_methods.name;
+        const amount = invoice.grand_total || 0;
+
+        if (!report.has(methodName)) {
+          report.set(methodName, { transaction: 0, nominal: 0 });
+        }
+
+        const currentTotals = report.get(methodName)!;
+        currentTotals.transaction += 1;
+        currentTotals.nominal += amount;
+      }
+    }
+
+    const paymentMethods = Array.from(report.entries()).map(
+      ([method, data]) => ({
+        label: method,
+        value: data.nominal,
+      }),
+    );
+
+    return { paymentMethods };
+  }
+
   async getMonthlySalesThisYear(req: ICustomRequestHeaders, date: Date) {
     const year = date.getFullYear();
     const salesByMonth = [];
