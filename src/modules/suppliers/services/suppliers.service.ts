@@ -218,9 +218,7 @@ export class SuppliersService {
 
     const skip = (page - 1) * pageSize;
     const whereItem: any = {
-      stores_has_master_inventory_items: {
-        some: { stores_id: store_id },
-      },
+      store_id: store_id,
     };
 
     // Filter by supplier id
@@ -618,7 +616,7 @@ export class SuppliersService {
       const linkedItemsCount = await this._prisma.master_inventory_items.count({
         where: {
           supplier_id: id,
-          stores_has_master_inventory_items: { some: { stores_id: store_id } },
+          store_id: store_id,
         },
       });
       if (linkedItemsCount > 0) {

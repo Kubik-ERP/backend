@@ -120,6 +120,14 @@ export class StorageLocationsService {
     const store_id = header.store_id;
     if (!store_id) throw new BadRequestException('store_id is required');
 
+    // Validate store exists
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+    });
+    if (!store) {
+      throw new BadRequestException('Invalid store_id');
+    }
+
     await this.ensureNotDuplicate(dto.name, undefined, store_id);
 
     // Generate code if not provided
@@ -192,6 +200,14 @@ export class StorageLocationsService {
     const store_id = header.store_id;
     if (!store_id) throw new BadRequestException('store_id is required');
 
+    // Validate store exists
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+    });
+    if (!store) {
+      throw new BadRequestException('Invalid store_id');
+    }
+
     const location = await this._prisma.master_storage_locations.findFirst({
       where: {
         id,
@@ -245,7 +261,7 @@ export class StorageLocationsService {
     const linkedItemsCount = await this._prisma.master_inventory_items.count({
       where: {
         storage_location_id: id,
-        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+        store_id: store_id,
       },
     });
     if (linkedItemsCount > 0) {

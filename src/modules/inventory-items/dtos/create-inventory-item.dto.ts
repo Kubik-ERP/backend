@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsDateString,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -73,7 +72,6 @@ export class CreateInventoryItemDto {
 
   @ApiProperty({ description: 'Expiry date (YYYY-MM-DD)', required: false })
   @IsOptional()
-  @IsDateString()
   expiryDate?: string;
 
   @ApiProperty({ description: 'Storage Location ID', example: 'uuid' })

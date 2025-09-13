@@ -94,7 +94,7 @@ export class StockOpnamesService {
     const items = await tx.master_inventory_items.findMany({
       where: {
         id: { in: itemIds },
-        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+        store_id: store_id,
       },
     });
 
@@ -268,7 +268,7 @@ export class StockOpnamesService {
 
       const masterItems = await this.prisma.master_inventory_items.findMany({
         where: {
-          stores_has_master_inventory_items: { some: { stores_id: store_id } },
+          store_id: store_id,
         },
         select: { id: true, name: true, sku: true, stock_quantity: true },
       });
