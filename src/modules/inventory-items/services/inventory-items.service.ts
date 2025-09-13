@@ -389,6 +389,7 @@ export class InventoryItemsService {
             minimum_stock_quantity: this.getNumericValue(row.getCell(9)),
             reorder_level: this.getNumericValue(row.getCell(10)),
             expiry_date: this.getDateValue(row.getCell(11)),
+            expiry_date_string: this.getCellValue(row.getCell(11)), // Keep original string for validation
             storage_location: this.getCellValue(row.getCell(12)),
             price_per_unit: this.getNumericValue(row.getCell(13)),
             supplier: this.getCellValue(row.getCell(14)),
@@ -617,16 +618,24 @@ export class InventoryItemsService {
         }
 
         // Validate expiry_date if provided
-        if (processedRow.expiry_date) {
-          // processedRow.expiry_date is already a Date object from getDateValue()
-          if (processedRow.expiry_date instanceof Date) {
-            if (isNaN(processedRow.expiry_date.getTime())) {
-              errors.push('Invalid expiry date format');
-            } else if (processedRow.expiry_date < new Date()) {
-              errors.push('Expiry date cannot be in the past');
+        if (
+          processedRow.expiry_date_string &&
+          processedRow.expiry_date_string.trim()
+        ) {
+          try {
+            // First validate the string format
+            this.validateDateFormat(processedRow.expiry_date_string.trim());
+
+            // Then check if the parsed date is valid and not in the past
+            if (processedRow.expiry_date instanceof Date) {
+              if (isNaN(processedRow.expiry_date.getTime())) {
+                errors.push('Invalid expiry date format');
+              } else if (processedRow.expiry_date < new Date()) {
+                errors.push('Expiry date cannot be in the past');
+              }
             }
-          } else {
-            errors.push('Invalid expiry date format');
+          } catch (error) {
+            errors.push(error.message || 'Invalid expiry date format');
           }
         }
 
@@ -1008,6 +1017,11 @@ export class InventoryItemsService {
     const store_id = header.store_id;
     if (!store_id) throw new BadRequestException('store_id is required');
 
+    // Validate expiry date format if provided
+    if (dto.expiryDate) {
+      this.validateDateFormat(dto.expiryDate);
+    }
+
     await this.ensureNotDuplicateSku(dto.sku, undefined, store_id);
 
     const item = await this._prisma.master_inventory_items.create({
@@ -1193,6 +1207,11 @@ export class InventoryItemsService {
 
     if (dto.sku && dto.sku !== existing.sku) {
       await this.ensureNotDuplicateSku(dto.sku, id, store_id);
+    }
+
+    // Validate expiry date format if provided
+    if (dto.expiryDate) {
+      this.validateDateFormat(dto.expiryDate);
     }
 
     // Helper function to validate UUID or return null
@@ -1599,6 +1618,41 @@ export class InventoryItemsService {
         ? price.toNumber()
         : price;
     return { ...item, price_per_unit: priceNumber };
+  }
+
+  /**
+   * Validate date format to ensure it follows yyyy-mm-dd format
+   */
+  private validateDateFormat(dateString: string): void {
+    if (!dateString) return;
+
+    // Check if the string matches exactly yyyy-mm-dd format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateString)) {
+      throw new BadRequestException(
+        'Expiry date must be in yyyy-mm-dd format (example: 2025-12-01)',
+      );
+    }
+
+    // Check if it's a valid date
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      throw new BadRequestException(
+        'Invalid expiry date. Please provide a valid date in yyyy-mm-dd format',
+      );
+    }
+
+    // Ensure the parsed date matches the input string (to prevent dates like 2025-13-01)
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
+
+    if (formattedDate !== dateString) {
+      throw new BadRequestException(
+        'Invalid expiry date. Please provide a valid date in yyyy-mm-dd format',
+      );
+    }
   }
 
   async deleteBatch(batchId: string): Promise<{ deletedCount: number }> {
