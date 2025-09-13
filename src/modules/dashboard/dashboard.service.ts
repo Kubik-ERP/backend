@@ -194,11 +194,7 @@ export class DashboardService {
     const storeId = req.store_id;
     const stock = await this.prisma.master_inventory_items.findMany({
       where: {
-        stores_has_master_inventory_items: {
-          some: {
-            stores_id: storeId,
-          },
-        },
+        store_id: storeId,
       },
     });
 
@@ -803,11 +799,7 @@ export class DashboardService {
     if (type === 'stock') {
       const stock = await this.prisma.master_inventory_items.findMany({
         where: {
-          stores_has_master_inventory_items: {
-            some: {
-              stores_id: req.store_id,
-            },
-          },
+          store_id: req.store_id,
         },
         include: {
           master_inventory_categories: true,
