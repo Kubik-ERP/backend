@@ -17,6 +17,7 @@ import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 
 @Controller('payment/method')
 export class PaymentMethodController {
@@ -67,12 +68,13 @@ export class PaymentMethodController {
     };
   }
 
-  @UseGuards(AuthPermissionGuard)
-  @RequirePermissions(
-    'payment_method_configuration',
-    'check_out_sales',
-    'process_unpaid_invoice',
-  )
+  @UseGuards(AuthenticationJWTGuard)
+  // @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions(
+  //   'payment_method_configuration',
+  //   'check_out_sales',
+  //   'process_unpaid_invoice',
+  // )
   @ApiBearerAuth()
   @Get('')
   @ApiOperation({

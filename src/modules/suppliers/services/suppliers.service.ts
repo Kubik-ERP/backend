@@ -218,9 +218,7 @@ export class SuppliersService {
 
     const skip = (page - 1) * pageSize;
     const whereItem: any = {
-      stores_has_master_inventory_items: {
-        some: { stores_id: store_id },
-      },
+      store_id: store_id,
     };
 
     // Filter by supplier id
@@ -618,7 +616,7 @@ export class SuppliersService {
       const linkedItemsCount = await this._prisma.master_inventory_items.count({
         where: {
           supplier_id: id,
-          stores_has_master_inventory_items: { some: { stores_id: store_id } },
+          store_id: store_id,
         },
       });
       if (linkedItemsCount > 0) {
@@ -1169,7 +1167,7 @@ export class SuppliersService {
         bank_account_name: row.bank_account_name,
         npwp: row.npwp,
       })),
-      error_data: invalidData.map((row) => ({
+      failed_data: invalidData.map((row) => ({
         id: row.batch_id, // Using batch_id as temporary id
         row_number: row.row_number,
         supplier_name: row.supplier_name,
@@ -1182,7 +1180,7 @@ export class SuppliersService {
         bank_account_number: row.bank_account_number,
         bank_account_name: row.bank_account_name,
         npwp: row.npwp,
-        errors: row.error_messages ? row.error_messages.split('; ') : [],
+        error_messages: row.error_messages || '',
       })),
       summary: {
         message: `Processed ${processedData.length} rows: ${validData.length} valid, ${invalidData.length} invalid`,

@@ -125,7 +125,7 @@ export class PurchaseOrdersService {
     const supplier = await this._prisma.master_suppliers.findFirst({
       where: {
         id: dto.supplierId,
-        stores_has_master_suppliers: { some: { stores_id: store_id } },
+        store_id: store_id,
       },
     });
     if (!supplier) throw new BadRequestException('Supplier not found');
@@ -135,7 +135,7 @@ export class PurchaseOrdersService {
     const inventoryItems = await this._prisma.master_inventory_items.findMany({
       where: {
         id: { in: itemIds },
-        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+        store_id: store_id,
       },
       include: { master_brands: { select: { brand_name: true } } },
     });
@@ -254,7 +254,7 @@ export class PurchaseOrdersService {
     const supplier = await this._prisma.master_suppliers.findFirst({
       where: {
         id: dto.supplierId,
-        stores_has_master_suppliers: { some: { stores_id: store_id } },
+        store_id: store_id,
       },
     });
     if (!supplier) throw new BadRequestException('Supplier not found');
@@ -264,7 +264,7 @@ export class PurchaseOrdersService {
     const inventoryItems = await this._prisma.master_inventory_items.findMany({
       where: {
         id: { in: itemIds },
-        stores_has_master_inventory_items: { some: { stores_id: store_id } },
+        store_id: store_id,
       },
       include: { master_brands: { select: { brand_name: true } } },
     });
@@ -590,7 +590,7 @@ export class PurchaseOrdersService {
       const inventoryItems = await tx.master_inventory_items.findMany({
         where: {
           id: { in: poItems.map((i) => i.master_inventory_item_id) },
-          stores_has_master_inventory_items: { some: { stores_id: store_id } },
+          store_id: store_id,
         },
       });
 

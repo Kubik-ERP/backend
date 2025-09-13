@@ -216,11 +216,7 @@ export class DashboardService {
     const storeId = req.store_id;
     const stock = await this.prisma.master_inventory_items.findMany({
       where: {
-        stores_has_master_inventory_items: {
-          some: {
-            stores_id: storeId,
-          },
-        },
+        store_id: storeId,
       },
     });
 
@@ -531,6 +527,7 @@ export class DashboardService {
 
     const chargeDetails = await this.prisma.charges.findMany({
       where: {
+        store_id: req.store_id,
         type: { in: ['tax', 'service'] },
       },
     });
@@ -648,7 +645,7 @@ export class DashboardService {
 
     // Get the store's tax rate once
     const taxInfo = await this.prisma.charges.findFirst({
-      where: { type: 'tax' },
+      where: { type: 'tax', store_id: req.store_id },
     });
     const taxRate = taxInfo ? Number(taxInfo.percentage) : 0;
 
@@ -814,11 +811,7 @@ export class DashboardService {
     if (type === 'stock') {
       const stock = await this.prisma.master_inventory_items.findMany({
         where: {
-          stores_has_master_inventory_items: {
-            some: {
-              stores_id: req.store_id,
-            },
-          },
+          store_id: req.store_id,
         },
         include: {
           master_inventory_categories: true,

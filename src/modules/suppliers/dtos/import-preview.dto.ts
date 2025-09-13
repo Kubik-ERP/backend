@@ -102,15 +102,14 @@ export class ImportSuppliersPreviewResponseDto {
           type: 'string',
           description: 'Tax identification number (NPWP)',
         },
-        errors: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'List of validation errors for this row',
+        error_messages: {
+          type: 'string',
+          description: 'Validation error messages',
         },
       },
     },
   })
-  error_data: any[];
+  failed_data: any[];
 
   @ApiProperty({
     description: 'Summary of the import preview process',
