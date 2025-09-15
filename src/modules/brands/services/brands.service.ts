@@ -367,7 +367,7 @@ export class BrandsService {
       const linkedItemsCount = await this._prisma.master_inventory_items.count({
         where: {
           brand_id: id,
-          stores_has_master_inventory_items: { some: { stores_id: store_id } },
+          store_id: store_id,
         },
       });
       if (linkedItemsCount > 0) {

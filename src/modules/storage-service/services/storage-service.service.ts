@@ -1,6 +1,5 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { extname } from 'path';
 import * as sharp from 'sharp';
 
 @Injectable()
@@ -9,14 +8,30 @@ export class StorageService {
   private readonly bucket: string;
 
   constructor() {
-    this.bucket = process.env.MINIO_BUCKET || 'kubik-pos-staging';
+    if (!process.env.R2_BUCKET_NAME) {
+      throw new Error('R2_BUCKET_NAME is not set');
+    }
+
+    if (!process.env.R2_ENDPOINT) {
+      throw new Error('R2_ENDPOINT is not set');
+    }
+
+    if (!process.env.R2_ACCESS_KEY_ID) {
+      throw new Error('R2_ACCESS_KEY_ID is not set');
+    }
+
+    if (!process.env.R2_SECRET_ACCESS_KEY) {
+      throw new Error('R2_SECRET_ACCESS_KEY is not set');
+    }
+
+    this.bucket = process.env.R2_BUCKET_NAME;
 
     this.s3 = new S3Client({
-      region: 'auto',
-      endpoint: `https://${process.env.MINIO_HOST}`,
+      region: process.env.R2_REGION || 'auto',
+      endpoint: process.env.R2_ENDPOINT,
       credentials: {
-        accessKeyId: process.env.MINIO_ACCESS_KEY || '',
-        secretAccessKey: process.env.MINIO_SECRET_KEY || '',
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
       },
     });
   }
