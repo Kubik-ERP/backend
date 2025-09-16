@@ -114,7 +114,7 @@ model customer {
   dob                    DateTime?                @db.Date
   email                  String?                  @db.VarChar(45)
   username               String?                  @db.VarChar(45)
-  address                String?                  @db.VarChar(45)
+  address                String?                  @db.VarChar(255)
   gender                 String?                  @db.VarChar(45)
   tag                    String?                  @db.VarChar(45)
   point                  Int?

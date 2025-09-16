@@ -461,4 +461,24 @@ export class StoresService {
       where: { stores_id: storeId },
     });
   }
+
+  public async validateStoreCount(ownerId: number) {
+    const count = await this.prisma.stores.count({
+      where: {
+        user_has_stores: {
+          some: { user_id: ownerId },
+        },
+      },
+    });
+
+    const user = await this.prisma.users.findFirst({
+      where: { id: ownerId },
+    });
+
+    if (user?.store_quota == null || user?.store_quota <= count) {
+      return false;
+    }
+
+    return true;
+  }
 }
