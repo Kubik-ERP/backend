@@ -128,11 +128,12 @@ export class StoreTableService {
       unpaidInvoices.map((invoice) => invoice.table_code).filter(Boolean),
     );
 
-    // Add statusTable to each table
+    // Add statusTable and floorName to each table
     const floorsWithStatus = floors.map((floor) => ({
       ...floor,
       store_tables: floor.store_tables.map((table) => ({
         ...table,
+        floorName: floor.floor_name,
         statusTable: occupiedTableCodes.has(table.name)
           ? 'occupied'
           : 'available',
