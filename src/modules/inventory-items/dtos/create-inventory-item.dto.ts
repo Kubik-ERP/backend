@@ -83,6 +83,12 @@ export class CreateInventoryItemDto {
   @Transform(({ value }) => parseFloat(value))
   pricePerUnit: number;
 
+  @ApiProperty({ description: 'Price Grossir', example: 12000, minimum: 0 })
+  @IsNumber()
+  @Min(0)
+  @Transform(({ value }) => parseFloat(value))
+  priceGrosir: number;
+
   @ApiProperty({ description: 'Supplier ID', example: 'uuid' })
   @IsUUID()
   supplierId: string;
