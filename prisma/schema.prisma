@@ -923,6 +923,7 @@ model master_inventory_items {
   created_at                  DateTime                      @default(now()) @db.Timestamptz(6)
   updated_at                  DateTime                      @default(now()) @db.Timestamptz(6)
   store_id                    String?                       @db.Uuid
+  price_grosir                Decimal?                      @db.Decimal
   inventory_stock_adjustments inventory_stock_adjustments[]
   master_brands               master_brands?                @relation(fields: [brand_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   master_inventory_categories master_inventory_categories   @relation(fields: [category_id], references: [id], onUpdate: NoAction)
@@ -1064,6 +1065,7 @@ model temp_import_inventory_items {
   supplier               String?   @db.VarChar(100)
   error_messages         String?
   imported_at            DateTime? @default(now()) @db.Timestamptz(6)
+  price_grosir           Decimal?  @db.Decimal(18, 2)
 
   @@map("temp_import_inventory_items")
 }
