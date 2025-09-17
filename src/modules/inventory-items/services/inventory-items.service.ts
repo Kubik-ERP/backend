@@ -1073,6 +1073,20 @@ export class InventoryItemsService {
       select: { business_type: true },
     });
 
+    const isRetail = store?.business_type === 'Retail';
+
+    let categoryProductId = null;
+
+    if (isRetail) {
+      const categoryProduct = await this._prisma.categories.findFirstOrThrow({
+        where: {
+          master_inventory_category_id: dto.categoryId,
+          stores_id: store_id,
+        },
+      });
+      categoryProductId = categoryProduct.id;
+    }
+
     const item = await this._prisma.master_inventory_items.create({
       data: {
         name: dto.name,
@@ -1093,13 +1107,23 @@ export class InventoryItemsService {
         price_grosir: dto.priceGrosir,
         created_at: new Date(),
         updated_at: new Date(),
+        // Auto-create catalog data for retail stores
+        ...(isRetail && {
+          products: {
+            create: {
+              name: dto.name,
+              price: dto.pricePerUnit,
+              stores_id: store_id,
+              categories_has_products: {
+                create: {
+                  categories_id: categoryProductId as string,
+                },
+              },
+            },
+          },
+        }),
       },
     });
-
-    // Auto-create catalog data for retail stores
-    if (store?.business_type === 'Retail') {
-      await this.createCatalogDataForRetail(dto, store_id, item);
-    }
 
     this.logger.log(`Inventory item created: ${item.name}`);
     return this.toPlainItem(item);
@@ -1217,6 +1241,7 @@ export class InventoryItemsService {
         master_suppliers: { select: { id: true, supplier_name: true } },
         created_at: true,
         notes: true,
+        price_grosir: true,
       },
     });
     if (!item)
@@ -1245,6 +1270,7 @@ export class InventoryItemsService {
       storage_location_id: item.master_storage_locations?.id ?? null,
       created_at: item.created_at,
       notes: item.notes,
+      price_grosir: item.price_grosir,
     };
 
     return this.toPlainItem(mapped);
@@ -1341,10 +1367,72 @@ export class InventoryItemsService {
       }
     }
 
-    const updated = await this._prisma.master_inventory_items.update({
-      where: { id },
-      data: updateData,
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+      select: {
+        business_type: true,
+      },
     });
+    const isRetail = store?.business_type === 'Retail';
+
+    const updated = await this._prisma.$transaction(async (tx) => {
+      if (isRetail) {
+        // reset categories product
+        await tx.categories_has_products.deleteMany({
+          where: {
+            products: {
+              master_inventory_item_id: id,
+              stores_id: store_id,
+            },
+          },
+        });
+
+        // fetch category product ID by inventory category ID
+        const categoryProduct = await this._prisma.categories.findFirstOrThrow({
+          where: {
+            master_inventory_category_id: dto.categoryId,
+            stores_id: store_id,
+          },
+        });
+        const categoryProductId = categoryProduct.id;
+
+        // fetch product ID by inventory item ID
+        const product = await tx.products.findFirstOrThrow({
+          where: {
+            master_inventory_item_id: id,
+            stores_id: store_id,
+          },
+        });
+        const productId = product.id;
+
+        // update category product
+        await tx.categories_has_products.create({
+          data: {
+            categories_id: categoryProductId,
+            products_id: productId,
+          },
+        });
+      }
+
+      const updated = await tx.master_inventory_items.update({
+        where: { id },
+        data: {
+          ...updateData,
+          // Auto-update catalog data for retail stores
+          ...(isRetail && {
+            products: {
+              update: {
+                name: dto.name,
+                price: dto.pricePerUnit,
+              },
+            },
+          }),
+        },
+      });
+
+      return updated;
+    });
+
     this.logger.log(`Inventory item updated: ${updated.name}`);
     return this.toPlainItem(updated);
   }
@@ -1354,6 +1442,23 @@ export class InventoryItemsService {
     if (!store_id) throw new BadRequestException('store_id is required');
 
     const existing = await this.detail(id, header);
+
+    // Check if store is retail type
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+      select: { business_type: true },
+    });
+
+    const isRetail = store?.business_type === 'Retail';
+
+    if (isRetail) {
+      await this._prisma.products.delete({
+        where: {
+          master_inventory_item_id: id,
+          stores_id: store_id,
+        },
+      });
+    }
 
     await this._prisma.master_inventory_items.delete({
       where: {
@@ -1710,90 +1815,6 @@ export class InventoryItemsService {
       throw new BadRequestException(
         'Invalid expiry date. Please provide a valid date in yyyy-mm-dd format',
       );
-    }
-  }
-
-  /**
-   * Auto-create catalog categories and products for retail stores
-   */
-  private async createCatalogDataForRetail(
-    dto: CreateInventoryItemDto,
-    storeId: string,
-    item: any,
-  ): Promise<void> {
-    try {
-      // Get category name from master_inventory_categories
-      const inventoryCategory =
-        await this._prisma.master_inventory_categories.findUnique({
-          where: { id: dto.categoryId },
-          select: { name: true },
-        });
-
-      if (!inventoryCategory) {
-        this.logger.warn(
-          `Inventory category with ID ${dto.categoryId} not found for catalog creation`,
-        );
-        return;
-      }
-
-      // Check if category already exists in catalog
-      const existingCategory = await this._prisma.categories.findFirst({
-        where: {
-          category: inventoryCategory.name,
-          stores_id: storeId,
-        },
-      });
-
-      let categoryId: string;
-
-      if (existingCategory) {
-        categoryId = existingCategory.id;
-        this.logger.log(
-          `Using existing catalog category: ${inventoryCategory.name}`,
-        );
-      } else {
-        // Auto-create catalog category
-        const catalogCategory = await this._prisma.categories.create({
-          data: {
-            id: uuidv4(),
-            category: inventoryCategory.name,
-            description: dto.notes || null,
-            stores_id: storeId,
-          },
-        });
-        categoryId = catalogCategory.id;
-        this.logger.log(`Created catalog category: ${inventoryCategory.name}`);
-      }
-
-      // Check if product already exists in catalog
-      const existingProduct = await this._prisma.products.findFirst({
-        where: {
-          name: dto.name,
-          stores_id: storeId,
-        },
-      });
-
-      if (existingProduct) {
-        this.logger.log(`Product already exists in catalog: ${dto.name}`);
-        return;
-      }
-
-      // Auto-create catalog product
-      await this._prisma.products.create({
-        data: {
-          id: uuidv4(),
-          name: dto.name,
-          price: dto.pricePerUnit,
-          stores_id: storeId,
-        },
-      });
-
-      this.logger.log(`Created catalog product: ${dto.name}`);
-    } catch (error) {
-      this.logger.error(
-        `Error creating catalog data for retail store: ${error.message}`,
-      );
-      // Don't throw error to prevent inventory item creation from failing
     }
   }
 
