@@ -1776,11 +1776,22 @@ export class InventoryItemsService {
   private toPlainItem(item: any) {
     if (!item) return item;
     const price = item.price_per_unit;
+    const priceGrosir = item.price_grosir;
     const priceNumber =
       price && typeof price === 'object' && typeof price.toNumber === 'function'
         ? price.toNumber()
         : price;
-    return { ...item, price_per_unit: priceNumber };
+    const priceGrosirNumber =
+      priceGrosir &&
+      typeof priceGrosir === 'object' &&
+      typeof priceGrosir.toNumber === 'function'
+        ? priceGrosir.toNumber()
+        : priceGrosir;
+    return {
+      ...item,
+      price_per_unit: priceNumber,
+      price_grosir: priceGrosirNumber,
+    };
   }
 
   /**
