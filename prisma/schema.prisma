@@ -69,13 +69,15 @@ model cash_drawers {
 }
 
 model categories {
-  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  category                String?                   @db.VarChar(45)
-  description             String?                   @db.VarChar(45)
-  picture_url             String?                   @db.VarChar(45)
-  stores_id               String                    @db.Uuid
-  stores                  stores                    @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_categories_fk")
-  categories_has_products categories_has_products[]
+  id                           String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category                     String?                      @db.VarChar(45)
+  description                  String?                      @db.VarChar(45)
+  picture_url                  String?                      @db.VarChar(45)
+  stores_id                    String                       @db.Uuid
+  master_inventory_category_id String?                      @unique(map: "categories_master_inventory_category_id_unique") @db.Uuid
+  master_inventory_categories  master_inventory_categories? @relation(fields: [master_inventory_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "categories_master_inventory_categories_fk")
+  stores                       stores                       @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_categories_fk")
+  categories_has_products      categories_has_products[]
 }
 
 model categories_has_products {
@@ -454,6 +456,7 @@ model products {
   picture_url                  String?                        @db.VarChar(45)
   is_percent                   Boolean?                       @default(false)
   stores_id                    String                         @db.Uuid
+  master_inventory_item_id     String?                        @unique(map: "products_master_inventory_item_id_unique") @db.Uuid
   benefit_free_items           benefit_free_items[]
   catalog_bundling_has_product catalog_bundling_has_product[]
   categories_has_products      categories_has_products[]
@@ -461,6 +464,7 @@ model products {
   kitchen_queue                kitchen_queue[]
   loyalty_product_item         loyalty_product_item[]
   product_commissions          product_commissions[]
+  master_inventory_items       master_inventory_items?        @relation(fields: [master_inventory_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "products_master_inventory_items_fk")
   stores                       stores                         @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_products_fk")
   recipe                       recipe[]
   variant_has_products         variant_has_products[]
@@ -859,6 +863,7 @@ model master_inventory_categories {
   updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
   code                   String                   @default("") @db.VarChar(255)
   store_id               String?                  @db.Uuid
+  categories             categories?
   stores                 stores?                  @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   master_inventory_items master_inventory_items[]
 
@@ -923,12 +928,14 @@ model master_inventory_items {
   created_at                  DateTime                      @default(now()) @db.Timestamptz(6)
   updated_at                  DateTime                      @default(now()) @db.Timestamptz(6)
   store_id                    String?                       @db.Uuid
+  price_grosir                Decimal?                      @db.Decimal(18, 2)
   inventory_stock_adjustments inventory_stock_adjustments[]
   master_brands               master_brands?                @relation(fields: [brand_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   master_inventory_categories master_inventory_categories   @relation(fields: [category_id], references: [id], onUpdate: NoAction)
   master_storage_locations    master_storage_locations?     @relation(fields: [storage_location_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   stores                      stores?                       @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   master_suppliers            master_suppliers              @relation(fields: [supplier_id], references: [id], onUpdate: NoAction)
+  products                    products?
   purchase_order_items        purchase_order_items[]
   stock_opname_items          stock_opname_items[]
 
@@ -1064,6 +1071,7 @@ model temp_import_inventory_items {
   supplier               String?   @db.VarChar(100)
   error_messages         String?
   imported_at            DateTime? @default(now()) @db.Timestamptz(6)
+  price_grosir           Decimal?  @db.Decimal(18, 2)
 
   @@map("temp_import_inventory_items")
 }
@@ -1264,6 +1272,18 @@ model working_hour_time_slots {
   open_time       DateTime?      @db.Time(6)
   close_time      DateTime?      @db.Time(6)
   working_hours   working_hours? @relation(fields: [working_hour_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model temp_import_categories {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id       String    @db.Uuid
+  row_number     Int
+  status         String    @db.VarChar(20)
+  category       String?   @db.VarChar(45)
+  description    String?   @db.VarChar(45)
+  picture_url    String?   @db.VarChar(45)
+  error_messages String?
+  imported_at    DateTime? @default(now()) @db.Timestamptz(6)
 }
 
 enum cash_drawer_type {
