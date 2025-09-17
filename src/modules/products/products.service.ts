@@ -9,6 +9,7 @@ import { products as ProductModel, products } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { validate as isUUID } from 'uuid';
 import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateDiscountPriceDto } from './dto/update-discount-price.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
@@ -406,5 +407,34 @@ export class ProductsService {
     };
 
     return safeResult;
+  }
+
+  async bulkUpdateDiscountPrice(
+    updateDiscountPriceDto: UpdateDiscountPriceDto,
+  ) {
+    const { productIds, discountPrice } = updateDiscountPriceDto;
+    try {
+      if (!discountPrice || discountPrice < 0) {
+        throw new BadRequestException('Discount must be a positive number');
+      }
+      const updateData: Partial<products> = {
+        discount_price: discountPrice,
+      };
+
+      await this.prisma.products.updateMany({
+        where: {
+          id: { in: productIds },
+        },
+        data: updateData,
+      });
+
+      return true;
+    } catch (error) {
+      console.error(error);
+      throw new HttpException(
+        error.message || 'Failed to update discount price',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

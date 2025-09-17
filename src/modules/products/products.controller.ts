@@ -22,6 +22,7 @@ import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.i
 import { StorageService } from '../storage-service/services/storage-service.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { FindAllProductsQueryDto } from './dto/find-product.dto';
+import { UpdateDiscountPriceDto } from './dto/update-discount-price.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
 
@@ -144,6 +145,31 @@ export class ProductsController {
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiBearerAuth()
+  @Patch('discount-price')
+  async updateDiscountPrice(
+    @Body() updateDiscountPriceDto: UpdateDiscountPriceDto,
+  ) {
+    try {
+      const updatedProducts =
+        await this.productsService.bulkUpdateDiscountPrice(
+          updateDiscountPriceDto,
+        );
+      return {
+        statusCode: 200,
+        message: 'Discount price updated successfully',
+        result: toCamelCase(updatedProducts),
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || 500,
+        message: error.message || 'Failed to update discount price',
+      };
     }
   }
 
