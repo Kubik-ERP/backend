@@ -7,9 +7,13 @@ export class UpdateDiscountPriceDto {
   @IsString({ each: true })
   productIds: string[];
 
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @Type(() => Boolean)
+  isPercent?: boolean;
+
   @ApiProperty({ example: '10', required: true })
   @IsNumber()
-  @IsOptional()
   @Type(() => Number)
-  discountPrice?: number;
+  value: number;
 }
