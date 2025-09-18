@@ -457,6 +457,7 @@ model products {
   is_percent                   Boolean?                       @default(false)
   stores_id                    String                         @db.Uuid
   master_inventory_item_id     String?                        @unique(map: "products_master_inventory_item_id_unique") @db.Uuid
+  barcode                      String?                        @db.VarChar(50)
   benefit_free_items           benefit_free_items[]
   catalog_bundling_has_product catalog_bundling_has_product[]
   categories_has_products      categories_has_products[]
