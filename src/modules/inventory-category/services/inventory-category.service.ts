@@ -140,6 +140,8 @@ export class InventoryCategoryService {
     // Validate for duplicate code within the store
     await this.validateDuplicateCategoryCode(categoryCode, undefined, store_id);
 
+    const isRetail = store.business_type === 'Retail';
+
     const category = await this._prisma.master_inventory_categories.create({
       data: {
         name: dto.name,
@@ -148,6 +150,16 @@ export class InventoryCategoryService {
         store_id: store_id,
         created_at: new Date(),
         updated_at: new Date(),
+        // Ketika store adalah retail, maka akan dihubungan dengan categori produk
+        ...(isRetail && {
+          categories: {
+            create: {
+              category: dto.name,
+              description: dto.notes,
+              stores_id: store_id,
+            },
+          },
+        }),
       },
     });
 
@@ -251,6 +263,14 @@ export class InventoryCategoryService {
       await this.validateDuplicateCategoryCode(dto.code, id, store_id);
     }
 
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+      select: {
+        business_type: true,
+      },
+    });
+    const isRetail = store?.business_type === 'Retail';
+
     const updated = await this._prisma.master_inventory_categories.update({
       where: { id },
       data: {
@@ -258,6 +278,16 @@ export class InventoryCategoryService {
         ...(dto.code && { code: dto.code }),
         ...(dto.notes !== undefined && { notes: dto.notes }),
         updated_at: new Date(),
+        ...(isRetail && {
+          categories: {
+            update: {
+              data: {
+                ...(dto.name && { category: dto.name }),
+                ...(dto.notes !== undefined && { description: dto.notes }),
+              },
+            },
+          },
+        }),
       },
     });
     this.logger.log(`Inventory category updated: ${updated.name}`);
@@ -282,12 +312,30 @@ export class InventoryCategoryService {
       );
     }
 
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+      select: {
+        business_type: true,
+      },
+    });
+    const isRetail = store?.business_type === 'Retail';
+    if (isRetail) {
+      // delete category
+      await this._prisma.categories.delete({
+        where: {
+          master_inventory_category_id: id,
+          stores_id: store_id,
+        },
+      });
+    }
+
     await this._prisma.master_inventory_categories.delete({
       where: {
         id: id,
         store_id: store_id,
       },
     });
+
     this.logger.log(`Inventory category deleted: ${existing.name}`);
   }
 
@@ -635,6 +683,14 @@ export class InventoryCategoryService {
         const categoryCode =
           item.code || (await this.generateCategoryCode(item.name, store_id));
 
+        const store = await this._prisma.stores.findUnique({
+          where: { id: store_id },
+          select: {
+            business_type: true,
+          },
+        });
+        const isRetail = store?.business_type === 'Retail';
+
         // Create category
         const category = await this._prisma.master_inventory_categories.create({
           data: {
@@ -644,6 +700,16 @@ export class InventoryCategoryService {
             store_id: store_id,
             created_at: new Date(),
             updated_at: new Date(),
+            // Ketika store adalah retail, maka akan dihubungan dengan categori produk
+            ...(isRetail && {
+              categories: {
+                create: {
+                  category: item.name,
+                  description: item.notes,
+                  stores_id: store_id,
+                },
+              },
+            }),
           },
         });
 
