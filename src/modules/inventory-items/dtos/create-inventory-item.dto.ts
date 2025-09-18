@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
@@ -9,7 +10,6 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
 
 export class CreateInventoryItemDto {
   @ApiProperty({ description: 'Item name', example: 'Flour 1kg' })
@@ -92,4 +92,8 @@ export class CreateInventoryItemDto {
   @ApiProperty({ description: 'Supplier ID', example: 'uuid' })
   @IsUUID()
   supplierId: string;
+
+  @IsOptional()
+  @IsString()
+  image?: string;
 }

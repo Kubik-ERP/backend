@@ -1,23 +1,20 @@
-import * as ExcelJS from 'exceljs';
-import { v4 as uuidv4 } from 'uuid';
 import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import * as ExcelJS from 'exceljs';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { v4 as uuidv4 } from 'uuid';
 import {
   CreateInventoryItemDto,
-  GetInventoryItemsDto,
-  UpdateInventoryItemDto,
-  ImportPreviewResponseDto,
-  DeleteBatchResponseDto,
-} from '../dtos';
-import {
   CreateStockAdjustmentDto,
+  GetInventoryItemsDto,
   GetStockAdjustmentsDto,
+  ImportPreviewResponseDto,
   StockAdjustmentActionDto,
+  UpdateInventoryItemDto,
   UpdateStockAdjustmentDto,
 } from '../dtos';
 
@@ -1119,6 +1116,8 @@ export class InventoryItemsService {
                   categories_id: categoryProductId as string,
                 },
               },
+              barcode: dto.barcode,
+              picture_url: dto.image,
             },
           },
         }),
@@ -1242,6 +1241,7 @@ export class InventoryItemsService {
         created_at: true,
         notes: true,
         price_grosir: true,
+        products: { select: { picture_url: true } },
       },
     });
     if (!item)
@@ -1271,6 +1271,7 @@ export class InventoryItemsService {
       created_at: item.created_at,
       notes: item.notes,
       price_grosir: item.price_grosir,
+      imageUrl: item.products?.picture_url ?? null,
     };
 
     return this.toPlainItem(mapped);
@@ -1424,6 +1425,8 @@ export class InventoryItemsService {
               update: {
                 name: dto.name,
                 price: dto.pricePerUnit,
+                barcode: dto.barcode,
+                picture_url: dto.image,
               },
             },
           }),

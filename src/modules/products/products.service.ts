@@ -9,6 +9,7 @@ import { products as ProductModel, products } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { validate as isUUID } from 'uuid';
 import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateDiscountPriceDto } from './dto/update-discount-price.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
@@ -406,5 +407,59 @@ export class ProductsService {
     };
 
     return safeResult;
+  }
+
+  async bulkUpdateDiscountPrice(
+    updateDiscountPriceDto: UpdateDiscountPriceDto,
+  ) {
+    const { productIds, value, isPercent } = updateDiscountPriceDto;
+    try {
+      if (!value || value < 0) {
+        throw new BadRequestException('Discount must be a positive number');
+      }
+      const productsToUpdate = await this.prisma.products.findMany({
+        where: {
+          id: {
+            in: productIds,
+          },
+        },
+      });
+      if (productsToUpdate.length !== productIds.length) {
+        const foundIds = new Set(productsToUpdate.map((p) => p.id));
+        const notFoundIds = productIds.filter((id) => !foundIds.has(id));
+        throw new NotFoundException(
+          `Products with the following IDs were not found: ${notFoundIds.join(', ')}`,
+        );
+      }
+      const updatePromises = productsToUpdate.map((product) => {
+        let newDiscountPrice = 0;
+
+        if (isPercent) {
+          const discountAmount = (product.price || 0) * (value / 100);
+          newDiscountPrice = (product.price || 0) - discountAmount;
+        } else {
+          newDiscountPrice = (product.price || 0) - value;
+        }
+
+        const finalPrice = Math.max(0, newDiscountPrice);
+
+        return this.prisma.products.update({
+          where: { id: product.id },
+          data: {
+            discount_price: finalPrice,
+          },
+        });
+      });
+
+      await this.prisma.$transaction(updatePromises);
+
+      return true;
+    } catch (error) {
+      console.error(error);
+      throw new HttpException(
+        error.message || 'Failed to update discount price',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }
