@@ -1241,6 +1241,7 @@ export class InventoryItemsService {
         created_at: true,
         notes: true,
         price_grosir: true,
+        products: { select: { picture_url: true } },
       },
     });
     if (!item)
@@ -1270,6 +1271,7 @@ export class InventoryItemsService {
       created_at: item.created_at,
       notes: item.notes,
       price_grosir: item.price_grosir,
+      imageUrl: item.products?.picture_url ?? null,
     };
 
     return this.toPlainItem(mapped);
