@@ -54,14 +54,21 @@ export class IntegrationsController {
   @RequirePermissions('payment_method_configuration')
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiOperation({
     summary: 'Update an existing integration',
   })
   @Patch(':id')
-  async updateasync(
+  async update(
     @Param('id') id: string,
     @Body() updateIntegrationDto: UpdateIntegrationDto,
+    @Req() req: ICustomRequestHeaders,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     let relativePath = '';
@@ -72,10 +79,14 @@ export class IntegrationsController {
       );
       relativePath = result.filename;
     }
-    const data = await this.integrationsService.update(id, {
-      ...updateIntegrationDto,
-      image: relativePath || undefined,
-    });
+    const data = await this.integrationsService.update(
+      id,
+      {
+        ...updateIntegrationDto,
+        image: relativePath || undefined,
+      },
+      req,
+    );
     return {
       message: 'Integration updated successfully',
       result: data,
