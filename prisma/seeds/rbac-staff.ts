@@ -30,6 +30,7 @@ const permissionsMaster = [
     permissions: [
       { name: 'Access All Store', key: 'access_all_store' },
       { name: 'Store Management', key: 'store_management' },
+      { name: 'Integration', key: 'integration' },
     ],
   },
   {
@@ -171,6 +172,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'manage_purchase_order',
     'manage_staff_member',
     'manage_staff_attendance',
+    'integration',
   ],
   Supervisor: [
     'store_management',
@@ -206,6 +208,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'manage_purchase_order',
     'manage_staff_member',
     'manage_staff_attendance',
+    'integration',
   ],
   Senior: [
     'product_category',

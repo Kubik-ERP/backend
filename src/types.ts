@@ -1,6 +1,7 @@
 export type TPermissions =
   | 'access_all_store'
   | 'store_management'
+  | 'integration'
   | 'dashboard_view'
   | 'reports'
   | 'accounts'
