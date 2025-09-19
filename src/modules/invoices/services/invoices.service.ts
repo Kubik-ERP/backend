@@ -686,6 +686,9 @@ export class InvoiceService {
       { timeout: 500_000 },
     );
 
+    const integration = await this._prisma.integrations.findFirst({
+      where: { stores_id: storeId },
+    });
     // notify the FE
     this._notificationHelper.notifyNewOrder(storeId);
     if (request.provider !== 'cash') {
@@ -695,7 +698,10 @@ export class InvoiceService {
         invoiceId,
         grandTotal,
       );
-      return response;
+      return {
+        ...response,
+        qrImage: integration?.image || null,
+      };
     }
 
     return {
