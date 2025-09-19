@@ -234,9 +234,6 @@ export class PaymentMethodDto {
   iconName: string;
 
   @Expose()
-  sortNo: number;
-
-  @Expose()
   isAvailable: boolean;
 }
 

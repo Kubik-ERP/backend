@@ -386,12 +386,15 @@ model payment_logs {
 }
 
 model payment_methods {
-  id           String    @id @db.Uuid
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name         String?   @db.VarChar(45)
   icon_name    String?   @db.VarChar
   sort_no      Int?      @unique
   is_available Boolean   @default(true)
+  image_url    String?   @db.VarChar(45)
+  stores_id    String?   @db.Uuid
   invoice      invoice[]
+  stores       stores?   @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "payment_methods_has_store")
 }
 
 model payments {
@@ -579,6 +582,7 @@ model stores {
   employee_login_sessions     employee_login_sessions[]
   employees                   employees[]
   floor                       floor[]
+  integrations                integrations[]
   inventory_stock_adjustments inventory_stock_adjustments[]
   invoice                     invoice[]
   invoice_settings            invoice_settings?
@@ -590,6 +594,7 @@ model stores {
   master_storage_locations    master_storage_locations[]
   master_suppliers            master_suppliers[]
   operational_hours           operational_hours[]
+  payment_methods             payment_methods[]
   payment_rounding_settings   payment_rounding_settings[]
   products                    products[]
   purchase_orders             purchase_orders[]
@@ -1283,6 +1288,30 @@ model temp_import_categories {
   category       String?   @db.VarChar(45)
   description    String?   @db.VarChar(45)
   picture_url    String?   @db.VarChar(45)
+  error_messages String?
+  imported_at    DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model integrations {
+  id        String  @id(map: "integrations_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  is_static Boolean @default(false)
+  image     String? @db.VarChar(45)
+  stores_id String  @db.Uuid
+  stores    stores  @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "integrations_has_store")
+}
+
+model temp_import_products {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id       String    @db.Uuid
+  row_number     Int
+  status         String    @db.VarChar(20)
+  name           String?   @db.VarChar(45)
+  price          Float?
+  discount_price Float?
+  picture_url    String?   @db.VarChar(45)
+  is_percent     Boolean?  @default(false)
+  stores_id      String?   @db.Uuid
+  category_id    String?   @db.Uuid
   error_messages String?
   imported_at    DateTime? @default(now()) @db.Timestamptz(6)
 }
