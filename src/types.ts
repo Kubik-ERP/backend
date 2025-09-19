@@ -23,6 +23,7 @@ export type TPermissions =
   | 'refund_invoice'
   | 'process_unpaid_invoice'
   | 'voucher'
+  | 'payment_rounding_setting'
   | 'customer_management'
   | 'view_customer_profile'
   | 'management_customer_loyalty_point'
