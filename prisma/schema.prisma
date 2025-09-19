@@ -582,6 +582,7 @@ model stores {
   employee_login_sessions     employee_login_sessions[]
   employees                   employees[]
   floor                       floor[]
+  integrations                integrations[]
   inventory_stock_adjustments inventory_stock_adjustments[]
   invoice                     invoice[]
   invoice_settings            invoice_settings?
@@ -1287,6 +1288,30 @@ model temp_import_categories {
   category       String?   @db.VarChar(45)
   description    String?   @db.VarChar(45)
   picture_url    String?   @db.VarChar(45)
+  error_messages String?
+  imported_at    DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model integrations {
+  id        String  @id(map: "integrations_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  is_static Boolean @default(false)
+  image     String? @db.VarChar(45)
+  stores_id String  @db.Uuid
+  stores    stores  @relation(fields: [stores_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "integrations_has_store")
+}
+
+model temp_import_products {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id       String    @db.Uuid
+  row_number     Int
+  status         String    @db.VarChar(20)
+  name           String?   @db.VarChar(45)
+  price          Float?
+  discount_price Float?
+  picture_url    String?   @db.VarChar(45)
+  is_percent     Boolean?  @default(false)
+  stores_id      String?   @db.Uuid
+  category_id    String?   @db.Uuid
   error_messages String?
   imported_at    DateTime? @default(now()) @db.Timestamptz(6)
 }

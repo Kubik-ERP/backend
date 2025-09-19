@@ -26,7 +26,7 @@ export class PaymentMethodService {
           : {
               name: { notIn: ['Pay at Cashier'] },
             }),
-        stores_id: storeId,
+        // stores_id: storeId,
       },
       orderBy: { sort_no: 'asc' },
     });

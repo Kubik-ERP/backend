@@ -50,6 +50,7 @@ import { DeviceCodesModule } from './modules/device-codes/device-codes.module';
 import { PaymentRoundingSettingModule } from './modules/payment-rounding-setting/payment-rounding-setting.module';
 import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 
 @Module({
   imports: [
@@ -110,6 +111,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
     DashboardModule,
     WorkingHoursModule,
     AttendanceModule,
+    IntegrationsModule,
   ],
   providers: [
     {
