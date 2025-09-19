@@ -27,14 +27,9 @@ export class IntegrationsService {
       throw new BadRequestException('Static integrations must have an image');
     }
     try {
-      return await this.prismaService.integrations.upsert({
+      return await this.prismaService.integrations.update({
         where: { id },
-        create: {
-          is_static: isStatic,
-          image: image,
-          stores_id: storeId || '',
-        },
-        update: {
+        data: {
           is_static: isStatic,
           image: image,
         },
