@@ -324,6 +324,10 @@ export class CategoriesService {
                   contains: search,
                   mode: 'insensitive',
                 },
+                barcode: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
               },
             }),
           },
