@@ -391,6 +391,7 @@ model payment_methods {
   icon_name    String?   @db.VarChar
   sort_no      Int?      @unique
   is_available Boolean   @default(true)
+  image_url    String?   @db.VarChar(45)
   invoice      invoice[]
 }
 

@@ -37,6 +37,7 @@ export class PaymentMethodService {
           name: paymentMethod.name,
           icon_name: paymentMethod.icon_name,
           sort_no: paymentMethod.sort_no,
+          image_url: paymentMethod.image_url,
         },
       });
     } catch (error) {
@@ -59,6 +60,7 @@ export class PaymentMethodService {
           name: paymentMethod.name,
           icon_name: paymentMethod.icon_name,
           sort_no: paymentMethod.sort_no,
+          image_url: paymentMethod.image_url,
         },
       });
     } catch (error) {
