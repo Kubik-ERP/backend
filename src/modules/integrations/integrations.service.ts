@@ -16,15 +16,25 @@ export class IntegrationsService {
     }
   }
 
-  async update(id: string, updateIntegrationDto: UpdateIntegrationDto) {
+  async update(
+    id: string,
+    updateIntegrationDto: UpdateIntegrationDto,
+    req: ICustomRequestHeaders,
+  ) {
+    const storeId = req.store_id;
     const { image, isStatic } = updateIntegrationDto;
     if (isStatic && !image) {
       throw new BadRequestException('Static integrations must have an image');
     }
     try {
-      return await this.prismaService.integrations.update({
+      return await this.prismaService.integrations.upsert({
         where: { id },
-        data: {
+        create: {
+          is_static: isStatic,
+          image: image,
+          stores_id: storeId || '',
+        },
+        update: {
           is_static: isStatic,
           image: image,
         },
