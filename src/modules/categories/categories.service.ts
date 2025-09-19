@@ -7,14 +7,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { categories as CategoryModel } from '@prisma/client';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { validate as isUUID } from 'uuid';
-import { CreateCategoryDto } from './dto/create-category.dto';
-import { UpdateCategoryDto } from './dto/update-category.dto';
-import { ImportCategoriesPreviewResponseDto } from './dto/import-preview.dto';
-import { ExecuteImportCategoriesResponseDto } from './dto/execute-import.dto';
 import * as ExcelJS from 'exceljs';
-import { v4 as uuidv4 } from 'uuid';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { validate as isUUID, v4 as uuidv4 } from 'uuid';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { ExecuteImportCategoriesResponseDto } from './dto/execute-import.dto';
+import { ImportCategoriesPreviewResponseDto } from './dto/import-preview.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoriesService {
@@ -325,6 +324,10 @@ export class CategoriesService {
                   contains: search,
                   mode: 'insensitive',
                 },
+                barcode: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
               },
             }),
           },
@@ -357,6 +360,7 @@ export class CategoriesService {
         price: categoryProduct.products.price,
         discountPrice: categoryProduct.products.discount_price,
         pictureUrl: categoryProduct.products.picture_url,
+        barcode: categoryProduct.products.barcode,
         isPercent: categoryProduct.products.is_percent,
         variant: categoryProduct.products.variant_has_products.map(
           (variantProduct) => ({
