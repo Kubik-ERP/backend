@@ -7,6 +7,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -14,18 +15,18 @@ import {
 import {
   ApiBearerAuth,
   ApiConsumes,
+  ApiHeader,
   ApiOperation,
   ApiQuery,
 } from '@nestjs/swagger';
-import { payment_methods } from '@prisma/client';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ImageUploadInterceptor } from 'src/common/interceptors/image-upload.interceptor';
 import { StorageService } from 'src/modules/storage-service/services/storage-service.service';
-import { v4 as uuidv4 } from 'uuid';
 import { CreatePaymentMethodDto } from '../dtos/payment-method.dto';
+import { UpdatePaymentMethodDto } from '../dtos/update-payment-method.dto';
 import { PaymentMethodService } from '../services/payment-method.service';
 
 @Controller('payment/method')
@@ -39,6 +40,12 @@ export class PaymentMethodController {
   @RequirePermissions('payment_method_configuration')
   @ApiBearerAuth()
   @Post('')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiOperation({
@@ -46,6 +53,7 @@ export class PaymentMethodController {
   })
   public async paymentMethodAdd(
     @Body() requestBody: CreatePaymentMethodDto,
+    @Req() req: ICustomRequestHeaders,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     let relativePath = '';
@@ -56,15 +64,10 @@ export class PaymentMethodController {
       );
       relativePath = result.filename;
     }
-    const paymentMethod: payment_methods = {
-      id: uuidv4(),
-      name: requestBody.name,
-      icon_name: requestBody.iconName,
-      sort_no: requestBody.sortNo,
-      is_available: true,
-      image_url: relativePath || '',
-    };
-    await this.paymentMethodService.createPaymentMethod(paymentMethod);
+    await this.paymentMethodService.createPaymentMethod(
+      { ...requestBody, image: relativePath },
+      req,
+    );
     return {
       message: 'Payment Method successfully created',
     };
@@ -81,7 +84,7 @@ export class PaymentMethodController {
   })
   public async paymentMethodUpdate(
     @Query('id') id: string,
-    @Body() requestBody: CreatePaymentMethodDto,
+    @Body() requestBody: UpdatePaymentMethodDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     let relativePath = '';
@@ -92,15 +95,13 @@ export class PaymentMethodController {
       );
       relativePath = result.filename;
     }
-    const paymentMethod: payment_methods = {
-      id: id,
-      name: requestBody.name,
-      icon_name: requestBody.iconName,
-      sort_no: requestBody.sortNo,
-      is_available: requestBody.isAvailable,
-      image_url: relativePath || '',
-    };
-    await this.paymentMethodService.updatePaymentMethodById(paymentMethod);
+    await this.paymentMethodService.updatePaymentMethodById(
+      {
+        ...requestBody,
+        image: relativePath,
+      },
+      id,
+    );
     return {
       message: 'Payment Method successfully updated',
     };
@@ -125,12 +126,21 @@ export class PaymentMethodController {
     type: Boolean,
     example: false,
   })
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   public async paymentMethodList(
     @Query('isSelfOrder', new ParseBoolPipe({ optional: true }))
     isSelfOrder = false,
+    @Req() req: ICustomRequestHeaders,
   ) {
-    const response =
-      await this.paymentMethodService.findAllPaymentMethod(isSelfOrder);
+    const response = await this.paymentMethodService.findAllPaymentMethod(
+      isSelfOrder,
+      req,
+    );
 
     return {
       result: toCamelCase(response),

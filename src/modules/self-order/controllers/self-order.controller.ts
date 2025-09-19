@@ -1,47 +1,35 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
-  Headers,
   HttpException,
   HttpStatus,
-  NotFoundException,
   Param,
   ParseBoolPipe,
   Post,
-  Put,
   Query,
   Req,
 } from '@nestjs/common';
-import { SelfOrderService } from '../services/self-order.service';
-import { CategoriesService } from '../../categories/categories.service';
+import { ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
-import {
-  ApiBearerAuth,
-  ApiHeader,
-  ApiOperation,
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
-import { SelfOrderSignUpDto } from '../dtos/self-order-signup.dto';
-import { ValidateStoreTableDto } from '../dtos/validate-store-table.dto';
-import { PaymentMethodService } from '../../payment-methods/services/payment-method.service';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { CategoriesService } from '../../categories/categories.service';
 import {
   CalculationEstimationDto,
   ProceedCheckoutInvoiceDto,
   ProceedInstantPaymentDto,
-  ProceedPaymentDto,
-  UpsertInvoiceItemDto,
 } from '../../invoices/dtos/process-payment.dto';
-import { InvoiceService } from '../../invoices/services/invoices.service';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { ProductsService } from '../../products/products.service';
 import {
   GetInvoiceSettingDto,
   SettingInvoiceDto,
 } from '../../invoices/dtos/setting-invoice.dto';
+import { InvoiceService } from '../../invoices/services/invoices.service';
+import { PaymentMethodService } from '../../payment-methods/services/payment-method.service';
+import { ProductsService } from '../../products/products.service';
 import { StoresService } from '../../stores/services/stores.service';
+import { SelfOrderSignUpDto } from '../dtos/self-order-signup.dto';
+import { ValidateStoreTableDto } from '../dtos/validate-store-table.dto';
+import { SelfOrderService } from '../services/self-order.service';
 
 @ApiTags('Self Order')
 @Controller('self-order')
@@ -81,6 +69,12 @@ export class SelfOrderController {
   @ApiOperation({
     summary: 'Get list of the payment methods',
   })
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
   @ApiQuery({
     name: 'isSelfOrder',
     required: false,
@@ -90,10 +84,14 @@ export class SelfOrderController {
   })
   public async paymentMethodList(
     @Query('isSelfOrder', new ParseBoolPipe({ optional: true }))
+    @Req()
+    req: ICustomRequestHeaders,
     isSelfOrder = false,
   ) {
-    const response =
-      await this.paymentMethodService.findAllPaymentMethod(isSelfOrder);
+    const response = await this.paymentMethodService.findAllPaymentMethod(
+      isSelfOrder,
+      req,
+    );
 
     return {
       result: toCamelCase(response),

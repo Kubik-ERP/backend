@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { payment_methods } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { CreatePaymentMethodDto } from '../dtos/payment-method.dto';
+import { UpdatePaymentMethodDto } from '../dtos/update-payment-method.dto';
 
 @Injectable()
 export class PaymentMethodService {
@@ -11,7 +12,11 @@ export class PaymentMethodService {
   /**
    * @description Find all payment method
    */
-  public async findAllPaymentMethod(isSelfOrder = false) {
+  public async findAllPaymentMethod(
+    isSelfOrder = false,
+    store: ICustomRequestHeaders,
+  ) {
+    const storeId = store.store_id;
     return await this._prisma.payment_methods.findMany({
       where: {
         ...(isSelfOrder
@@ -21,6 +26,7 @@ export class PaymentMethodService {
           : {
               name: { notIn: ['Pay at Cashier'] },
             }),
+        stores_id: storeId,
       },
       orderBy: { sort_no: 'asc' },
     });
@@ -29,15 +35,19 @@ export class PaymentMethodService {
   /**
    * @description Create payment method
    */
-  public async createPaymentMethod(paymentMethod: payment_methods) {
+  public async createPaymentMethod(
+    paymentMethod: CreatePaymentMethodDto,
+    req: ICustomRequestHeaders,
+  ) {
+    const storeId = req.store_id;
     try {
       return await this._prisma.payment_methods.create({
         data: {
-          id: paymentMethod.id,
           name: paymentMethod.name,
-          icon_name: paymentMethod.icon_name,
-          sort_no: paymentMethod.sort_no,
-          image_url: paymentMethod.image_url,
+          icon_name: paymentMethod.iconName,
+          sort_no: null,
+          image_url: paymentMethod.image,
+          stores_id: storeId,
         },
       });
     } catch (error) {
@@ -52,15 +62,18 @@ export class PaymentMethodService {
   /**
    * @description update payment method by Id
    */
-  public async updatePaymentMethodById(paymentMethod: payment_methods) {
+  public async updatePaymentMethodById(
+    paymentMethod: UpdatePaymentMethodDto,
+    id: string,
+  ) {
     try {
       return await this._prisma.payment_methods.update({
-        where: { id: paymentMethod.id },
+        where: { id: id },
         data: {
           name: paymentMethod.name,
-          icon_name: paymentMethod.icon_name,
-          sort_no: paymentMethod.sort_no,
-          image_url: paymentMethod.image_url,
+          icon_name: paymentMethod.iconName,
+          sort_no: null,
+          image_url: paymentMethod.image,
         },
       });
     } catch (error) {
