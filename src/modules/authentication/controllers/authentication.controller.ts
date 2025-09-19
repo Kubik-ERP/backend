@@ -139,6 +139,8 @@ export class AuthenticationController {
           : false,
       id: result.id,
       is_staff: result.is_staff,
+      limitStore: result.store_quota ?? 0,
+      isAccessRetail: result.isAccessRetail,
     };
     return {
       success: true,

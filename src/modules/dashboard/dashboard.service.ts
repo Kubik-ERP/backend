@@ -11,10 +11,10 @@ import {
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private adjustDateForWIB(date: Date): Date {
-    const sevenHoursInMs = 7 * 60 * 60 * 1000;
-    return new Date(date.getTime() - sevenHoursInMs);
-  }
+  // private adjustDateForWIB(date: Date): Date {
+  //   const sevenHoursInMs = 7 * 60 * 60 * 1000;
+  //   return new Date(date.getTime() - sevenHoursInMs);
+  // }
 
   private calculatePercentageChange(current: number, previous: number): number {
     if (previous === 0) {
@@ -79,26 +79,48 @@ export class DashboardService {
     return { totalSales, totalGross };
   }
 
-  private async getTotalSalesThisYear(req: ICustomRequestHeaders) {
-    const startDate = new Date(new Date().getFullYear(), 0, 1);
-    const endDate = new Date(new Date().getFullYear(), 11, 31);
-    const currentYearMetrics = await this.getMetricsForPeriod(
-      startDate,
-      endDate,
-      req,
-    );
-    return currentYearMetrics.totalSales;
-  }
+  private async getPaymentMethodDashboardData(
+    begDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const paymentData = await this.prisma.invoice.findMany({
+      where: {
+        paid_at: {
+          gte: begDate,
+          lte: endDate,
+        },
+        store_id: req.store_id,
+      },
+      include: {
+        payment_methods: true,
+      },
+    });
+    const report = new Map<string, { transaction: number; nominal: number }>();
 
-  private async getTotalSalesLastYear(req: ICustomRequestHeaders) {
-    const startDate = new Date(new Date().getFullYear() - 1, 0, 1);
-    const endDate = new Date(new Date().getFullYear() - 1, 11, 31);
-    const lastYearMetrics = await this.getMetricsForPeriod(
-      startDate,
-      endDate,
-      req,
+    for (const invoice of paymentData) {
+      if (invoice.payment_methods && invoice.payment_methods.name) {
+        const methodName = invoice.payment_methods.name;
+        const amount = invoice.grand_total || 0;
+
+        if (!report.has(methodName)) {
+          report.set(methodName, { transaction: 0, nominal: 0 });
+        }
+
+        const currentTotals = report.get(methodName)!;
+        currentTotals.transaction += 1;
+        currentTotals.nominal += amount;
+      }
+    }
+
+    const paymentMethods = Array.from(report.entries()).map(
+      ([method, data]) => ({
+        label: method,
+        value: data.nominal,
+      }),
     );
-    return lastYearMetrics.totalSales;
+
+    return { paymentMethods };
   }
 
   async getMonthlySalesThisYear(req: ICustomRequestHeaders, date: Date) {
@@ -281,28 +303,23 @@ export class DashboardService {
     req: ICustomRequestHeaders,
   ) {
     const hourlySales = [];
-    const currentDate = new Date(startDate);
+    const targetDate = new Date(startDate);
 
-    while (currentDate <= endDate) {
-      const hourStart = new Date(currentDate);
-      hourStart.setMinutes(0, 0, 0);
+    for (let hour = 0; hour < 24; hour++) {
+      const hourStart = new Date(targetDate);
+      hourStart.setHours(hour, 0, 0, 0);
 
-      const hourEnd = new Date(currentDate);
-      hourEnd.setMinutes(59, 59, 999);
+      const hourEnd = new Date(targetDate);
+      hourEnd.setHours(hour, 59, 59, 999);
 
       const metrics = await this.getMetricsForPeriod(hourStart, hourEnd, req);
 
+      const label = `${hour.toString().padStart(2, '0')}:00`;
+
       hourlySales.push({
-        label: hourStart.toLocaleTimeString('en-GB', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta',
-        }),
+        label: label,
         value: metrics.totalSales,
       });
-
-      currentDate.setHours(currentDate.getHours() + 1);
     }
 
     return hourlySales;
@@ -314,16 +331,16 @@ export class DashboardService {
     type: SummaryType,
     req: ICustomRequestHeaders,
   ) {
-    const wibStartDate = this.adjustDateForWIB(startDate);
-    const wibEndDate = this.adjustDateForWIB(endDate);
-    if (wibStartDate > wibEndDate) {
+    // const wibStartDate = this.adjustDateForWIB(startDate);
+    // const wibEndDate = this.adjustDateForWIB(endDate);
+    if (startDate > endDate) {
       throw new BadRequestException(
         'Start date must be earlier than or equal to end date',
       );
     }
 
-    const durationMs = wibEndDate.getTime() - wibStartDate.getTime();
-    const previousPeriodEndDate = new Date(wibStartDate.getTime() - 1);
+    const durationMs = endDate.getTime() - startDate.getTime();
+    const previousPeriodEndDate = new Date(startDate.getTime() - 1);
     const previousPeriodStartDate = new Date(
       previousPeriodEndDate.getTime() - durationMs,
     );
@@ -335,18 +352,20 @@ export class DashboardService {
       dailySalesData,
       monthlySalesData,
       productSales,
+      paymentMethods,
       stockStatus,
     ] = await Promise.all([
-      this.getMetricsForPeriod(wibStartDate, wibEndDate, req),
+      this.getMetricsForPeriod(startDate, endDate, req),
       this.getMetricsForPeriod(
         previousPeriodStartDate,
         previousPeriodEndDate,
         req,
       ),
-      this.getSalesByTimeOnDate(wibStartDate, wibEndDate, req),
-      this.getDailySalesInRange(wibStartDate, wibEndDate, req),
-      this.getMonthlySalesThisYear(req, wibStartDate),
-      this.getTopProductSales(wibStartDate, wibEndDate, req),
+      this.getSalesByTimeOnDate(startDate, endDate, req),
+      this.getDailySalesInRange(startDate, endDate, req),
+      this.getMonthlySalesThisYear(req, startDate),
+      this.getTopProductSales(startDate, endDate, req),
+      this.getPaymentMethodDashboardData(startDate, endDate, req),
       this.getProductStockStatus(req),
     ]);
 
@@ -404,6 +423,7 @@ export class DashboardService {
       summary,
       salesData,
       productSales,
+      paymentMethods,
       stockStatus,
     };
   }
@@ -449,7 +469,39 @@ export class DashboardService {
         payment_methods: true,
       },
     });
-    return paymentData;
+    const report = new Map<string, { transaction: number; nominal: number }>();
+
+    for (const invoice of paymentData) {
+      if (invoice.payment_methods && invoice.payment_methods.name) {
+        const methodName = invoice.payment_methods.name;
+        const amount = invoice.grand_total || 0;
+
+        if (!report.has(methodName)) {
+          report.set(methodName, { transaction: 0, nominal: 0 });
+        }
+
+        const currentTotals = report.get(methodName)!;
+        currentTotals.transaction += 1;
+        currentTotals.nominal += amount;
+      }
+    }
+
+    const reportData = Array.from(report.entries()).map(([method, data]) => ({
+      paymentMethod: method,
+      transaction: data.transaction,
+      nominal: data.nominal,
+    }));
+
+    const totals = reportData.reduce(
+      (acc, item) => {
+        acc.transaction += item.transaction;
+        acc.nominal += item.nominal;
+        return acc;
+      },
+      { transaction: 0, nominal: 0 },
+    );
+
+    return { reportData, totals };
   }
 
   private async getTaxAndServiceChargeReport(
@@ -530,47 +582,7 @@ export class DashboardService {
       ]);
       return cashIn;
     } else if (type === 'payment-method') {
-      const paymentData = await this.getPaymentMethodData(
-        startDate,
-        endDate,
-        req,
-      );
-      const report = new Map<
-        string,
-        { transaction: number; nominal: number }
-      >();
-
-      for (const invoice of paymentData) {
-        if (invoice.payment_methods && invoice.payment_methods.name) {
-          const methodName = invoice.payment_methods.name;
-          const amount = invoice.grand_total || 0;
-
-          if (!report.has(methodName)) {
-            report.set(methodName, { transaction: 0, nominal: 0 });
-          }
-
-          const currentTotals = report.get(methodName)!;
-          currentTotals.transaction += 1;
-          currentTotals.nominal += amount;
-        }
-      }
-
-      const reportData = Array.from(report.entries()).map(([method, data]) => ({
-        paymentMethod: method,
-        transaction: data.transaction,
-        nominal: data.nominal,
-      }));
-
-      const totals = reportData.reduce(
-        (acc, item) => {
-          acc.transaction += item.transaction;
-          acc.nominal += item.nominal;
-          return acc;
-        },
-        { transaction: 0, nominal: 0 },
-      );
-
-      return { reportData, totals };
+      return await this.getPaymentMethodData(startDate, endDate, req);
     } else if (type === 'tax-service') {
       const productSales = await this.getTaxAndServiceChargeReport(
         startDate,

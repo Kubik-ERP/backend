@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
@@ -9,7 +10,6 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
 
 export class CreateInventoryItemDto {
   @ApiProperty({ description: 'Item name', example: 'Flour 1kg' })
@@ -19,6 +19,8 @@ export class CreateInventoryItemDto {
   name: string;
 
   @ApiProperty({ description: 'Brand ID', example: 'uuid' })
+  @IsUUID()
+  @IsOptional()
   brandId: string;
 
   @ApiProperty({ description: 'Barcode', required: false, maxLength: 64 })
@@ -83,7 +85,17 @@ export class CreateInventoryItemDto {
   @Transform(({ value }) => parseFloat(value))
   pricePerUnit: number;
 
+  @ApiProperty({ description: 'Price Grossir', example: 12000, minimum: 0 })
+  @IsNumber()
+  @Min(0)
+  @Transform(({ value }) => parseFloat(value))
+  priceGrosir: number;
+
   @ApiProperty({ description: 'Supplier ID', example: 'uuid' })
   @IsUUID()
   supplierId: string;
+
+  @IsOptional()
+  @IsString()
+  image?: string;
 }

@@ -1,4 +1,3 @@
-import { Response } from 'express';
 import {
   BadRequestException,
   Body,
@@ -9,12 +8,13 @@ import {
   Post,
   Put,
   Query,
-  UseGuards,
   Req,
   Res,
-  UseInterceptors,
   UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -23,26 +23,24 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { IsOptional, IsUUID } from 'class-validator';
-import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
-import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { Response } from 'express';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
+import { ImageUploadInterceptor } from 'src/common/interceptors/image-upload.interceptor';
+import { StorageService } from 'src/modules/storage-service/services/storage-service.service';
 import {
   CreateInventoryItemDto,
-  GetInventoryItemsDto,
-  UpdateInventoryItemDto,
-  PreviewImportDto,
-  ImportPreviewResponseDto,
-  ExecuteImportDto,
-  ExecuteImportResponseDto,
+  CreateStockAdjustmentDto,
   DeleteBatchDto,
   DeleteBatchResponseDto,
-} from '../dtos';
-import {
-  CreateStockAdjustmentDto,
+  ExecuteImportDto,
+  ExecuteImportResponseDto,
+  GetInventoryItemsDto,
   GetStockAdjustmentsDto,
+  PreviewImportDto,
+  UpdateInventoryItemDto,
   UpdateStockAdjustmentDto,
 } from '../dtos';
 import { InventoryItemsService } from '../services/inventory-items.service';
@@ -50,7 +48,10 @@ import { InventoryItemsService } from '../services/inventory-items.service';
 @ApiTags('Inventory Items')
 @Controller('inventory-items')
 export class InventoryItemsController {
-  constructor(private readonly inventoryItemsService: InventoryItemsService) {}
+  constructor(
+    private readonly inventoryItemsService: InventoryItemsService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('manage_item', 'manage_purchase_order')
@@ -178,12 +179,26 @@ export class InventoryItemsController {
     schema: { type: 'string' },
   })
   @Post('')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiOperation({ summary: 'Create a new inventory item' })
   public async create(
     @Body() dto: CreateInventoryItemDto,
     @Req() req: ICustomRequestHeaders,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    const item = await this.inventoryItemsService.create(dto, req);
+    let relativePath = '';
+    if (file) {
+      const result = await this.storageService.uploadImage(
+        file.buffer,
+        file.originalname,
+      );
+      relativePath = result.filename;
+    }
+    const item = await this.inventoryItemsService.create(
+      { ...dto, image: relativePath || '' },
+      req,
+    );
     return {
       message: 'Inventory item successfully created',
       result: toCamelCase(item),
@@ -273,13 +288,29 @@ export class InventoryItemsController {
     schema: { type: 'string' },
   })
   @Put(':id')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiOperation({ summary: 'Update inventory item by ID' })
   public async update(
     @Param('id') id: string,
     @Body() dto: UpdateInventoryItemDto,
     @Req() req: ICustomRequestHeaders,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    const item = await this.inventoryItemsService.update(id, dto, req);
+    let relativePath = '';
+    if (file) {
+      const result = await this.storageService.uploadImage(
+        file.buffer,
+        file.originalname,
+      );
+      relativePath = result.filename;
+    }
+
+    const item = await this.inventoryItemsService.update(
+      id,
+      { ...dto, image: relativePath || '' },
+      req,
+    );
     return {
       message: 'Inventory item updated successfully',
       result: toCamelCase(item),

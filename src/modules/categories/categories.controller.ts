@@ -13,6 +13,8 @@ import {
   UploadedFile,
   UseGuards,
   Req,
+  Res,
+  BadRequestException,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -24,12 +26,29 @@ import {
   ApiHeader,
   ApiOperation,
   ApiQuery,
+  ApiTags,
+  ApiBody,
 } from '@nestjs/swagger';
 import { ImageUploadInterceptor } from '../../common/interceptors/image-upload.interceptor';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { StorageService } from '../storage-service/services/storage-service.service';
 import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { Response } from 'express';
+import {
+  PreviewImportCategoriesDto,
+  ImportCategoriesPreviewResponseDto,
+} from './dto/import-preview.dto';
+import {
+  ExecuteImportCategoriesDto,
+  ExecuteImportCategoriesResponseDto,
+} from './dto/execute-import.dto';
+import {
+  DeleteBatchCategoriesDto,
+  DeleteBatchCategoriesResponseDto,
+} from './dto/delete-batch.dto';
 
+@ApiTags('Categories')
 @Controller('categories')
 export class CategoriesController {
   constructor(
@@ -133,13 +152,13 @@ export class CategoriesController {
     }
   }
 
-  // @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions(
-  //   'product_category',
-  //   'product_management',
-  //   'process_unpaid_invoice',
-  //   'check_out_sales',
-  // )
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'product_category',
+    'product_management',
+    'process_unpaid_invoice',
+    'check_out_sales',
+  )
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -185,13 +204,13 @@ export class CategoriesController {
     }
   }
 
-  // @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions(
-  //   'product_category',
-  //   'product_management',
-  //   'process_unpaid_invoice',
-  //   'check_out_sales',
-  // )
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions(
+    'product_category',
+    'product_management',
+    'process_unpaid_invoice',
+    'check_out_sales',
+  )
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -346,5 +365,124 @@ export class CategoriesController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_category')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Get('import/template')
+  @ApiOperation({ summary: 'Generate import template for categories' })
+  async generateImportTemplate(
+    @Req() req: ICustomRequestHeaders,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.categoriesService.generateImportTemplate(req);
+
+    const filename = `categories_import_template_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    return res.send(buffer);
+  }
+
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('import/preview-data')
+  @ApiOperation({ summary: 'Preview import data from Excel file' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Excel file to import',
+    type: PreviewImportCategoriesDto,
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  async previewImport(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: ICustomRequestHeaders,
+    @Body('batchId') batchId?: string,
+  ) {
+    // Validate batch_id if provided
+    if (
+      batchId &&
+      !batchId.match(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      )
+    ) {
+      throw new BadRequestException(
+        'Invalid batch ID format. Must be a valid UUID v4',
+      );
+    }
+
+    const result = await this.categoriesService.previewImport(
+      file,
+      req,
+      batchId,
+    );
+    return {
+      message: 'Import preview processed successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_category')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('import/execute')
+  @ApiOperation({
+    summary: 'Execute import of categories from temp table',
+  })
+  async executeImport(
+    @Body() dto: ExecuteImportCategoriesDto,
+    @Req() req: ICustomRequestHeaders,
+  ): Promise<{ message: string; result: ExecuteImportCategoriesResponseDto }> {
+    const result = await this.categoriesService.executeImport(dto.batchId, req);
+    return {
+      message: 'Import executed successfully',
+      result: toCamelCase(result) as ExecuteImportCategoriesResponseDto,
+    };
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_category')
+  @ApiBearerAuth()
+  @Delete('import/batch')
+  @ApiOperation({
+    summary: 'Delete import batch from temp table',
+    description:
+      'Delete all records in temp_import_categories table for the specified batch_id',
+  })
+  @ApiBody({ type: DeleteBatchCategoriesDto })
+  async deleteBatch(
+    @Body() dto: DeleteBatchCategoriesDto,
+  ): Promise<{ message: string; result: DeleteBatchCategoriesResponseDto }> {
+    const result = await this.categoriesService.deleteBatch(dto.batchId);
+    return {
+      message: 'Import batch deleted successfully',
+      result: {
+        success: true,
+        message: `Successfully deleted ${result.deletedCount} records`,
+        deletedCount: result.deletedCount,
+      },
+    };
   }
 }

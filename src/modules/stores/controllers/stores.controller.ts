@@ -145,6 +145,13 @@ export class StoresController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
+      const validate = this._storeService.validateStoreCount(req.user.id);
+      if (!validate) {
+        throw new BadRequestException(
+          'Store limit reached. Please upgrade your plan.',
+        );
+      }
+
       let relativePath = undefined;
       if (file) {
         const result = await this.storageService.uploadImage(
@@ -154,7 +161,6 @@ export class StoresController {
         relativePath = result.filename;
         console.log(relativePath);
       }
-      //const relativePath = file ? `/public/images/${file.filename}` : undefined;
 
       const createdStore = await this._storeService.createStore(
         { ...body, photo: relativePath },

@@ -76,6 +76,15 @@ export class StoresService {
         data: storeRolePermissions,
       });
 
+      //create default payment methods for the new store
+      await this.prisma.integrations.create({
+        data: {
+          stores_id: store.id,
+          is_static: false,
+          image: null,
+        },
+      });
+
       // Create default invoice settings for the new store
       await this.invoiceService.createDefaultInvoiceSettings(store.id, prisma);
     });
@@ -460,5 +469,25 @@ export class StoresService {
     await prisma.operational_hours.deleteMany({
       where: { stores_id: storeId },
     });
+  }
+
+  public async validateStoreCount(ownerId: number) {
+    const count = await this.prisma.stores.count({
+      where: {
+        user_has_stores: {
+          some: { user_id: ownerId },
+        },
+      },
+    });
+
+    const user = await this.prisma.users.findFirst({
+      where: { id: ownerId },
+    });
+
+    if (user?.store_quota == null || user?.store_quota <= count) {
+      return false;
+    }
+
+    return true;
   }
 }

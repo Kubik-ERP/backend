@@ -1,23 +1,20 @@
-import * as ExcelJS from 'exceljs';
-import { v4 as uuidv4 } from 'uuid';
 import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import * as ExcelJS from 'exceljs';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { v4 as uuidv4 } from 'uuid';
 import {
   CreateInventoryItemDto,
-  GetInventoryItemsDto,
-  UpdateInventoryItemDto,
-  ImportPreviewResponseDto,
-  DeleteBatchResponseDto,
-} from '../dtos';
-import {
   CreateStockAdjustmentDto,
+  GetInventoryItemsDto,
   GetStockAdjustmentsDto,
+  ImportPreviewResponseDto,
   StockAdjustmentActionDto,
+  UpdateInventoryItemDto,
   UpdateStockAdjustmentDto,
 } from '../dtos';
 
@@ -34,9 +31,9 @@ export class InventoryItemsService {
     const store_id = header.store_id;
     if (!store_id) throw new BadRequestException('store_id is required');
 
-    // Fetch master data filtered by store with code field
-    const [brands, categories, storageLocations, suppliers] = await Promise.all(
-      [
+    // Fetch master data filtered by store with code field and store info
+    const [brands, categories, storageLocations, suppliers, store] =
+      await Promise.all([
         this._prisma.master_brands.findMany({
           where: {
             store_id: store_id,
@@ -61,8 +58,11 @@ export class InventoryItemsService {
           },
           select: { id: true, supplier_name: true, code: true },
         }),
-      ],
-    );
+        this._prisma.stores.findUnique({
+          where: { id: store_id },
+          select: { business_type: true },
+        }),
+      ]);
 
     const workbook = new ExcelJS.Workbook();
 
@@ -86,6 +86,7 @@ export class InventoryItemsService {
       { header: 'Expiry Date', key: 'expiry_date', width: 18 },
       { header: 'Storage Location', key: 'storage_location', width: 35 },
       { header: 'Price Per Unit', key: 'price_per_unit', width: 18 },
+      { header: 'Price Grosir', key: 'price_grosir', width: 18 },
       { header: 'Supplier', key: 'supplier', width: 35 },
     ];
     sheet.columns = columns;
@@ -100,8 +101,8 @@ export class InventoryItemsService {
     };
     headerRow.height = 40; // Increased height for auto-wrapped text
 
-    // Apply background color to all columns with data (A to N = 14 columns)
-    for (let col = 1; col <= 14; col++) {
+    // Apply background color to all columns with data (A to O = 15 columns)
+    for (let col = 1; col <= 15; col++) {
       headerRow.getCell(col).fill = {
         type: 'pattern',
         pattern: 'solid',
@@ -235,11 +236,11 @@ export class InventoryItemsService {
     addDropdown(2, 'Brand_Dropdown', 'A', brands.length); // Brand column 2
     addDropdown(5, 'Category_Dropdown', 'A', categories.length); // Category column 5
     addDropdown(12, 'Storage_Dropdown', 'A', storageLocations.length); // Storage Location column 12
-    addDropdown(14, 'Supplier_Dropdown', 'A', suppliers.length); // Supplier column 14
+    addDropdown(15, 'Supplier_Dropdown', 'A', suppliers.length); // Supplier column 15
 
     // Add notes row
     sheet.insertRow(1, ['TEMPLATE FOR IMPORT INVENTORY ITEMS']);
-    sheet.mergeCells('A1:N1'); // Updated to N1 for 14 columns
+    sheet.mergeCells('A1:O1'); // Updated to O1 for 15 columns
     sheet.getRow(1).font = { bold: true, color: { argb: 'FFFF0000' } };
     sheet.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
@@ -247,7 +248,7 @@ export class InventoryItemsService {
     sheet.insertRow(2, [
       'The label (*) is required to be filled. For Brand, Category, Storage Location, and Supplier columns, please select from dropdown list using "code | name" format (check reference sheets)',
     ]);
-    sheet.mergeCells('A2:N2'); // Updated to N2 for 14 columns
+    sheet.mergeCells('A2:O2'); // Updated to O2 for 15 columns
     sheet.getRow(2).font = { italic: true, color: { argb: 'FFFF6600' } };
     sheet.getRow(2).alignment = {
       horizontal: 'center',
@@ -256,7 +257,7 @@ export class InventoryItemsService {
     };
 
     // Mark required columns in header - updated column positions (without Store ID)
-    const requiredCols = [1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]; // Item Name, Brand, SKU, Category, Unit, Stock Qty, Min Stock, Reorder, Storage, Price, Supplier
+    const requiredCols = [1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 15]; // Item Name, Brand, SKU, Category, Unit, Stock Qty, Min Stock, Reorder, Storage, Price, Supplier
     requiredCols.forEach((col) => {
       const cell = sheet.getRow(3).getCell(col);
       cell.value = `${cell.value}(*)`;
@@ -280,6 +281,9 @@ export class InventoryItemsService {
         : '';
 
     // Add sample row at row 4 using dropdown-compatible data with "code | name" format
+    // Conditional priceGrosir value based on store business type
+    const samplePriceGrosir = store?.business_type === 'Retail' ? 13000 : null;
+
     const sampleRow = sheet.insertRow(4, [
       'Sample Item Name', // Item Name
       sampleBrand, // Brand - use first brand from database for dropdown compatibility
@@ -294,6 +298,7 @@ export class InventoryItemsService {
       new Date('2025-12-12'), // Expiry Date - as Date object
       sampleStorage, // Storage Location - use first storage from database for dropdown compatibility
       15000, // Price Per Unit
+      samplePriceGrosir, // Price Grosir - only for Retail stores
       sampleSupplier, // Supplier - use first supplier from database for dropdown compatibility
     ]);
 
@@ -392,7 +397,8 @@ export class InventoryItemsService {
             expiry_date_string: this.getCellValue(row.getCell(11)), // Keep original string for validation
             storage_location: this.getCellValue(row.getCell(12)),
             price_per_unit: this.getNumericValue(row.getCell(13)),
-            supplier: this.getCellValue(row.getCell(14)),
+            price_grosir: this.getNumericValue(row.getCell(14)),
+            supplier: this.getCellValue(row.getCell(15)),
           };
           rows.push(rowData);
           currentRowNumber += 1;
@@ -420,6 +426,12 @@ export class InventoryItemsService {
         if (!barcodeRowMap.has(barcode)) barcodeRowMap.set(barcode, []);
         barcodeRowMap.get(barcode)?.push(row.row_number);
       }
+    });
+
+    // Get store business type for validation
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+      select: { business_type: true },
     });
 
     // Process and validate each row
@@ -617,6 +629,20 @@ export class InventoryItemsService {
           errors.push('Price per unit must be greater than 0');
         }
 
+        // Validate price_grosir based on store business type
+        const hasPriceGrosir =
+          processedRow.price_grosir !== null &&
+          processedRow.price_grosir !== undefined &&
+          !isNaN(processedRow.price_grosir) &&
+          processedRow.price_grosir > 0; // Only consider as "filled" if greater than 0
+
+        if (hasPriceGrosir) {
+          if (store?.business_type !== 'Retail') {
+            errors.push('Price Grosir can only be filled for Retail stores');
+          }
+          // For Retail stores, any positive value is valid (no additional validation needed)
+        }
+
         // Validate expiry_date if provided
         if (
           processedRow.expiry_date_string &&
@@ -695,6 +721,7 @@ export class InventoryItemsService {
       expiry_date: row.expiry_date,
       storage_location: row.storage_location,
       price_per_unit: row.price_per_unit,
+      price_grosir: row.price_grosir,
       supplier: row.supplier,
       error_messages: row.error_messages,
     }));
@@ -704,12 +731,12 @@ export class InventoryItemsService {
         INSERT INTO temp_import_inventory_items (
           batch_id, row_number, status, item_name, brand, barcode, sku, category, unit, notes,
           stock_quantity, minimum_stock_quantity, reorder_level, expiry_date, storage_location,
-          price_per_unit, supplier, error_messages
+          price_per_unit, price_grosir, supplier, error_messages
         ) VALUES (
           ${data.batch_id}::uuid, ${data.row_number}, ${data.status}, ${data.item_name}, ${data.brand},
           ${data.barcode}, ${data.sku}, ${data.category}, ${data.unit}, ${data.notes},
           ${data.stock_quantity}, ${data.minimum_stock_quantity}, ${data.reorder_level}, ${data.expiry_date},
-          ${data.storage_location}, ${data.price_per_unit}, ${data.supplier}, ${data.error_messages}
+          ${data.storage_location}, ${data.price_per_unit}, ${data.price_grosir}, ${data.supplier}, ${data.error_messages}
         )
       `;
     }
@@ -739,6 +766,7 @@ export class InventoryItemsService {
         expiry_date: this.formatDateToYYYYMMDD(row.expiry_date),
         storage_location: row.storage_location,
         price_per_unit: row.price_per_unit,
+        price_grosir: row.price_grosir,
         supplier: row.supplier,
       })),
       failed_data: invalidData.map((row) => ({
@@ -757,6 +785,7 @@ export class InventoryItemsService {
         expiry_date: this.formatDateToYYYYMMDD(row.expiry_date),
         storage_location: row.storage_location,
         price_per_unit: row.price_per_unit,
+        price_grosir: row.price_grosir,
         supplier: row.supplier,
         error_messages: row.error_messages,
       })),
@@ -912,6 +941,7 @@ export class InventoryItemsService {
             : undefined,
           storageLocationId: storageLocation.id,
           pricePerUnit: Number(tempItem.price_per_unit) || 0,
+          priceGrosir: Number(tempItem.price_grosir) || 0,
           supplierId: supplier.id,
         };
 
@@ -954,6 +984,16 @@ export class InventoryItemsService {
   // Helper methods for Excel data processing
   private getCellValue(cell: ExcelJS.Cell): string | null {
     if (!cell || cell.value === null || cell.value === undefined) return null;
+
+    // Special handling for Date objects to maintain yyyy-mm-dd format
+    if (cell.value instanceof Date) {
+      const date = cell.value;
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
     return String(cell.value).trim();
   }
 
@@ -1024,6 +1064,26 @@ export class InventoryItemsService {
 
     await this.ensureNotDuplicateSku(dto.sku, undefined, store_id);
 
+    // Check if store is retail type
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+      select: { business_type: true },
+    });
+
+    const isRetail = store?.business_type === 'Retail';
+
+    let categoryProductId = null;
+
+    if (isRetail) {
+      const categoryProduct = await this._prisma.categories.findFirstOrThrow({
+        where: {
+          master_inventory_category_id: dto.categoryId,
+          stores_id: store_id,
+        },
+      });
+      categoryProductId = categoryProduct.id;
+    }
+
     const item = await this._prisma.master_inventory_items.create({
       data: {
         name: dto.name,
@@ -1041,8 +1101,26 @@ export class InventoryItemsService {
         price_per_unit: dto.pricePerUnit,
         supplier_id: dto.supplierId,
         store_id: store_id,
+        price_grosir: dto.priceGrosir,
         created_at: new Date(),
         updated_at: new Date(),
+        // Auto-create catalog data for retail stores
+        ...(isRetail && {
+          products: {
+            create: {
+              name: dto.name,
+              price: dto.pricePerUnit,
+              stores_id: store_id,
+              categories_has_products: {
+                create: {
+                  categories_id: categoryProductId as string,
+                },
+              },
+              barcode: dto.barcode,
+              picture_url: dto.image,
+            },
+          },
+        }),
       },
     });
 
@@ -1162,6 +1240,8 @@ export class InventoryItemsService {
         master_suppliers: { select: { id: true, supplier_name: true } },
         created_at: true,
         notes: true,
+        price_grosir: true,
+        products: { select: { picture_url: true } },
       },
     });
     if (!item)
@@ -1190,6 +1270,8 @@ export class InventoryItemsService {
       storage_location_id: item.master_storage_locations?.id ?? null,
       created_at: item.created_at,
       notes: item.notes,
+      price_grosir: item.price_grosir,
+      imageUrl: item.products?.picture_url ?? null,
     };
 
     return this.toPlainItem(mapped);
@@ -1274,6 +1356,9 @@ export class InventoryItemsService {
     if (dto.pricePerUnit !== undefined) {
       updateData.price_per_unit = dto.pricePerUnit;
     }
+    if (dto.priceGrosir !== undefined) {
+      updateData.price_grosir = dto.priceGrosir;
+    }
     if (dto.supplierId !== undefined) {
       const validatedSupplierId = validateUUID(dto.supplierId);
       if (validatedSupplierId === null) {
@@ -1283,10 +1368,74 @@ export class InventoryItemsService {
       }
     }
 
-    const updated = await this._prisma.master_inventory_items.update({
-      where: { id },
-      data: updateData,
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+      select: {
+        business_type: true,
+      },
     });
+    const isRetail = store?.business_type === 'Retail';
+
+    const updated = await this._prisma.$transaction(async (tx) => {
+      if (isRetail) {
+        // reset categories product
+        await tx.categories_has_products.deleteMany({
+          where: {
+            products: {
+              master_inventory_item_id: id,
+              stores_id: store_id,
+            },
+          },
+        });
+
+        // fetch category product ID by inventory category ID
+        const categoryProduct = await this._prisma.categories.findFirstOrThrow({
+          where: {
+            master_inventory_category_id: dto.categoryId,
+            stores_id: store_id,
+          },
+        });
+        const categoryProductId = categoryProduct.id;
+
+        // fetch product ID by inventory item ID
+        const product = await tx.products.findFirstOrThrow({
+          where: {
+            master_inventory_item_id: id,
+            stores_id: store_id,
+          },
+        });
+        const productId = product.id;
+
+        // update category product
+        await tx.categories_has_products.create({
+          data: {
+            categories_id: categoryProductId,
+            products_id: productId,
+          },
+        });
+      }
+
+      const updated = await tx.master_inventory_items.update({
+        where: { id },
+        data: {
+          ...updateData,
+          // Auto-update catalog data for retail stores
+          ...(isRetail && {
+            products: {
+              update: {
+                name: dto.name,
+                price: dto.pricePerUnit,
+                barcode: dto.barcode,
+                picture_url: dto.image,
+              },
+            },
+          }),
+        },
+      });
+
+      return updated;
+    });
+
     this.logger.log(`Inventory item updated: ${updated.name}`);
     return this.toPlainItem(updated);
   }
@@ -1296,6 +1445,23 @@ export class InventoryItemsService {
     if (!store_id) throw new BadRequestException('store_id is required');
 
     const existing = await this.detail(id, header);
+
+    // Check if store is retail type
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+      select: { business_type: true },
+    });
+
+    const isRetail = store?.business_type === 'Retail';
+
+    if (isRetail) {
+      await this._prisma.products.delete({
+        where: {
+          master_inventory_item_id: id,
+          stores_id: store_id,
+        },
+      });
+    }
 
     await this._prisma.master_inventory_items.delete({
       where: {
@@ -1613,11 +1779,22 @@ export class InventoryItemsService {
   private toPlainItem(item: any) {
     if (!item) return item;
     const price = item.price_per_unit;
+    const priceGrosir = item.price_grosir;
     const priceNumber =
       price && typeof price === 'object' && typeof price.toNumber === 'function'
         ? price.toNumber()
         : price;
-    return { ...item, price_per_unit: priceNumber };
+    const priceGrosirNumber =
+      priceGrosir &&
+      typeof priceGrosir === 'object' &&
+      typeof priceGrosir.toNumber === 'function'
+        ? priceGrosir.toNumber()
+        : priceGrosir;
+    return {
+      ...item,
+      price_per_unit: priceNumber,
+      price_grosir: priceGrosirNumber,
+    };
   }
 
   /**

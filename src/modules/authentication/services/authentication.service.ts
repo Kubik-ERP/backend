@@ -116,7 +116,7 @@ export class AuthenticationService {
     /**
      * Hash Password
      */
-    const passwordHashed = await bcrypt.hash(password, SALT_OR_ROUND);
+    const passwordHashed = password;
     const role_id = await this._usersService.getRoleIdByRoleName('Owner');
     return await this._usersService.create({
       email: email,
