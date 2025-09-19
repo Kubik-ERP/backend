@@ -120,11 +120,36 @@ export class UsersService {
       },
     });
 
+    let isAccessRetail = false;
+
+    if (user?.subs_id) {
+      const subPackageAccess = await this.prisma.sub_package_access.count({
+        where: {
+          subs_package: {
+            users: {
+              some: {
+                id: user.id,
+              },
+            },
+          },
+          package_id: user.subs_id,
+          permissions: {
+            key: 'manage_item',
+          },
+        },
+      });
+
+      isAccessRetail = subPackageAccess > 0;
+    }
+
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found.`);
     }
 
-    return user;
+    return {
+      ...user,
+      isAccessRetail,
+    };
   }
 
   /**
