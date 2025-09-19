@@ -76,6 +76,15 @@ export class StoresService {
         data: storeRolePermissions,
       });
 
+      //create default payment methods for the new store
+      await this.prisma.integrations.create({
+        data: {
+          stores_id: store.id,
+          is_static: false,
+          image: null,
+        },
+      });
+
       // Create default invoice settings for the new store
       await this.invoiceService.createDefaultInvoiceSettings(store.id, prisma);
     });
