@@ -288,13 +288,29 @@ export class InventoryItemsController {
     schema: { type: 'string' },
   })
   @Put(':id')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
   @ApiOperation({ summary: 'Update inventory item by ID' })
   public async update(
     @Param('id') id: string,
     @Body() dto: UpdateInventoryItemDto,
     @Req() req: ICustomRequestHeaders,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    const item = await this.inventoryItemsService.update(id, dto, req);
+    let relativePath = '';
+    if (file) {
+      const result = await this.storageService.uploadImage(
+        file.buffer,
+        file.originalname,
+      );
+      relativePath = result.filename;
+    }
+
+    const item = await this.inventoryItemsService.update(
+      id,
+      { ...dto, image: relativePath || '' },
+      req,
+    );
     return {
       message: 'Inventory item updated successfully',
       result: toCamelCase(item),
