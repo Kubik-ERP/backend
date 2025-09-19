@@ -30,6 +30,7 @@ const permissionsMaster = [
     permissions: [
       { name: 'Access All Store', key: 'access_all_store' },
       { name: 'Store Management', key: 'store_management' },
+      { name: 'Integration', key: 'integration' },
     ],
   },
   {
@@ -85,6 +86,7 @@ const permissionsMaster = [
       { name: 'Refund Invoice', key: 'refund_invoice' },
       { name: 'Process Unpaid Invoice', key: 'process_unpaid_invoice' },
       { name: 'Voucher', key: 'voucher' },
+      { name: 'Payment Rounding Setting', key: 'payment_rounding_setting' },
     ],
   },
   {
@@ -155,6 +157,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'refund_invoice',
     'process_unpaid_invoice',
     'voucher',
+    'payment_rounding_setting',
     'customer_management',
     'view_customer_profile',
     'management_customer_loyalty_point',
@@ -169,6 +172,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'manage_purchase_order',
     'manage_staff_member',
     'manage_staff_attendance',
+    'integration',
   ],
   Supervisor: [
     'store_management',
@@ -189,6 +193,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'refund_invoice',
     'process_unpaid_invoice',
     'voucher',
+    'payment_rounding_setting',
     'customer_management',
     'view_customer_profile',
     'management_customer_loyalty_point',
@@ -203,6 +208,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'manage_purchase_order',
     'manage_staff_member',
     'manage_staff_attendance',
+    'integration',
   ],
   Senior: [
     'product_category',
@@ -217,6 +223,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'edit_invoice',
     'refund_invoice',
     'process_unpaid_invoice',
+    'payment_rounding_setting',
     'customer_management',
     'view_customer_profile',
     'management_customer_loyalty_point',

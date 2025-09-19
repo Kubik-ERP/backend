@@ -20,8 +20,9 @@ import {
   CreateOrUpdatePaymentRoundingSettingDto,
   PaymentRoundingSettingResponseDto,
 } from '../dtos';
-import { AuthenticationJWTGuard } from '../../../common/guards/authentication-jwt.guard';
 import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
+import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 
 @ApiTags('Payment Rounding Settings')
 @Controller('payment-rounding-setting')
@@ -30,7 +31,8 @@ export class PaymentRoundingSettingController {
     private readonly paymentRoundingSettingService: PaymentRoundingSettingService,
   ) {}
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('payment_rounding_setting')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',
@@ -88,7 +90,8 @@ export class PaymentRoundingSettingController {
     }
   }
 
-  @UseGuards(AuthenticationJWTGuard)
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('payment_rounding_setting')
   @ApiBearerAuth()
   @ApiHeader({
     name: 'X-STORE-ID',

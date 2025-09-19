@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,11 +11,21 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiConsumes, ApiHeader } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthPermissionGuard } from '../../common/guards/auth-permission.guard';
 import { toCamelCase } from '../../common/helpers/object-transformer.helper';
@@ -24,8 +35,12 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { FindAllProductsQueryDto } from './dto/find-product.dto';
 import { UpdateDiscountPriceDto } from './dto/update-discount-price.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { PreviewImportProductsDto } from './dto/import-preview.dto';
+import { ExecuteImportProductsDto } from './dto/execute-import.dto';
+import { DeleteBatchProductsDto } from './dto/delete-batch.dto';
 import { ProductsService } from './products.service';
 
+@ApiTags('Products')
 @Controller('products')
 export class ProductsController {
   constructor(
@@ -230,5 +245,118 @@ export class ProductsController {
         message: error.message || 'Failed to delete product',
       };
     }
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('import/template')
+  @ApiOperation({ summary: 'Generate import template for products' })
+  async generateImportTemplate(
+    @Req() req: ICustomRequestHeaders,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.productsService.generateImportTemplate(req);
+
+    const filename = `products_import_template_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    return res.send(buffer);
+  }
+
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('import/preview-data')
+  @ApiOperation({ summary: 'Preview import data from Excel file' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Excel file to import',
+    type: PreviewImportProductsDto,
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  async previewImport(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: ICustomRequestHeaders,
+    @Body('batchId') batchId?: string,
+  ) {
+    // Validate batch_id if provided
+    if (
+      batchId &&
+      !batchId.match(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      )
+    ) {
+      throw new BadRequestException(
+        'Invalid batch ID format. Must be a valid UUID v4',
+      );
+    }
+
+    const result = await this.productsService.previewImport(file, req, batchId);
+    return {
+      message: 'Import preview processed successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Post('import/execute')
+  @ApiOperation({
+    summary: 'Execute import of products from temp table',
+  })
+  async executeImport(
+    @Body() dto: ExecuteImportProductsDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.productsService.executeImport(dto.batchId, req);
+    return {
+      message: 'Import executed successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('product_management')
+  @ApiBearerAuth()
+  @Delete('import/batch')
+  @ApiOperation({
+    summary: 'Delete import batch from temp table',
+    description:
+      'Delete all records in temp_import_products table for the specified batch_id',
+  })
+  @ApiBody({ type: DeleteBatchProductsDto })
+  async deleteBatch(@Body() dto: DeleteBatchProductsDto) {
+    const result = await this.productsService.deleteBatch(dto.batchId);
+    return {
+      message: 'Import batch deleted successfully',
+      result: {
+        success: true,
+        message: `Successfully deleted ${result.deletedCount} records`,
+        deletedCount: result.deletedCount,
+      },
+    };
   }
 }
