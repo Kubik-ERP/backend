@@ -19,6 +19,8 @@ export class CreateInventoryItemDto {
   name: string;
 
   @ApiProperty({ description: 'Brand ID', example: 'uuid' })
+  @IsUUID()
+  @IsOptional()
   brandId: string;
 
   @ApiProperty({ description: 'Barcode', required: false, maxLength: 64 })
