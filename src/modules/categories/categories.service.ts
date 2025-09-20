@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { categories as CategoryModel } from '@prisma/client';
+import { categories as CategoryModel, Prisma } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { validate as isUUID, v4 as uuidv4 } from 'uuid';
@@ -307,30 +307,46 @@ export class CategoriesService {
       throw new BadRequestException('store_id is required');
     }
 
+    const baseConditions: Prisma.categoriesWhereInput[] = [];
+
+    if (search) {
+      baseConditions.push({
+        categories_has_products: {
+          some: {
+            products: {
+              OR: [
+                {
+                  name: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  barcode: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      });
+    }
+    baseConditions.push({ stores_id: store_id });
+
+    if (categoryId) {
+      baseConditions.push({ id: categoryId });
+    }
+
+    const whereClause: Prisma.categoriesWhereInput =
+      baseConditions.length > 0 ? { AND: baseConditions } : {};
+
     // Get categories with their products
     const categories = await this.prisma.categories.findMany({
-      where: {
-        stores_id: store_id,
-        ...(categoryId && {
-          id: categoryId,
-        }),
-      },
+      where: whereClause,
       include: {
         categories_has_products: {
-          where: {
-            ...(search && {
-              products: {
-                name: {
-                  contains: search,
-                  mode: 'insensitive',
-                },
-                barcode: {
-                  contains: search,
-                  mode: 'insensitive',
-                },
-              },
-            }),
-          },
           include: {
             products: {
               include: {
