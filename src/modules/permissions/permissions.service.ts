@@ -157,6 +157,10 @@ export class PermissionsService {
                         users: {
                           some: {
                             id: header.user.ownerId,
+                            // belum expired
+                            sub_expired_at: {
+                              gt: new Date(),
+                            },
                           },
                         },
                       },
