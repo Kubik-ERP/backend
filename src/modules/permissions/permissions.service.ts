@@ -8,7 +8,6 @@ export class PermissionsService {
   private readonly logger = new Logger(PermissionsService.name);
   constructor(private readonly _prisma: PrismaService) {}
 
-  // TODO(RBAC): low priority - find a better way to do this
   async assignToRoles(
     dto: AssignPermissionsToRolesDto,
     header: ICustomRequestHeaders,
