@@ -280,10 +280,15 @@ export class InventoryCategoryService {
         updated_at: new Date(),
         ...(isRetail && {
           categories: {
-            update: {
-              data: {
+            upsert: {
+              update: {
                 ...(dto.name && { category: dto.name }),
                 ...(dto.notes !== undefined && { description: dto.notes }),
+              },
+              create: {
+                category: dto.name,
+                description: dto.notes,
+                stores_id: store_id,
               },
             },
           },
