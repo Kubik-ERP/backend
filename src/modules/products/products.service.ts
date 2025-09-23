@@ -824,16 +824,26 @@ export class ProductsService {
           }
         }
 
-        // Check if category exists
+        // Check if category exists and get category details
+        let categoryDetails = null;
         if (categoryId) {
           try {
             const existingCategory = await this.prisma.categories.findUnique({
               where: {
                 id: categoryId,
               },
+              select: {
+                id: true,
+                category: true,
+              },
             });
 
-            if (!existingCategory) {
+            if (existingCategory) {
+              categoryDetails = {
+                id: existingCategory.id,
+                name: existingCategory.category,
+              };
+            } else {
               isValid = false;
               rowErrors.push(`Category ID '${categoryId}' does not exist`);
             }
@@ -870,6 +880,7 @@ export class ProductsService {
             discount_price: finalDiscountPrice,
             is_percent: finalIsPercent,
             category_id: categoryId,
+            category: categoryDetails, // Add category details
           });
 
           // Save to temp table
@@ -885,6 +896,7 @@ export class ProductsService {
             discount_price: finalDiscountPrice,
             is_percent: finalIsPercent,
             category_id: categoryId || null,
+            category: categoryDetails, // Add category details (could be null if invalid)
             error_messages: errorMessages,
           });
 
