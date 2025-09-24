@@ -23,6 +23,7 @@ import { PurchaseOrdersListDto } from './dto/purchase-orders-list.dto';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CancelPurchaseOrderDto } from './dto/cancel-purchase-order.dto';
 import { ConfirmPurchaseOrderDto } from './dto/confirm-purchase-order.dto';
+import { ReceivePurchaseOrderDto } from './dto/receive-purchase-order.dto';
 
 @Controller('purchase-orders')
 export class PurchaseOrdersController {
@@ -225,8 +226,12 @@ export class PurchaseOrdersController {
   })
   @ApiBearerAuth()
   @Post(':id/receive')
-  async receive(@Param('id') id: string, @Req() req: ICustomRequestHeaders) {
-    const result = await this.purchaseOrderService.receive(id, req);
+  async receive(
+    @Param('id') id: string,
+    @Body() dto: ReceivePurchaseOrderDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.purchaseOrderService.receive(id, dto, req);
 
     return {
       statusCode: 200,
