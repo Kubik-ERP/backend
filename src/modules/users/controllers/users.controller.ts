@@ -17,8 +17,8 @@ export class UsersController {
     schema: { type: 'string' },
   })
   @ApiBearerAuth()
-  @Get()
-  async findAll(@Req() req: ICustomRequestHeaders) {
+  @Get('staffs')
+  async findWithStaff(@Req() req: ICustomRequestHeaders) {
     try {
       const result = await this.usersService.findWithStaff(req);
       return {
