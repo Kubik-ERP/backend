@@ -44,7 +44,6 @@ export class ReceivePurchaseOrderDto {
     required: true,
   })
   @IsNumber()
-  @Min(1)
   @IsOptional()
   userId?: number;
 

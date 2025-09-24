@@ -501,7 +501,7 @@ export class PurchaseOrdersService {
 
     // Generate next DO number
     const lastDO = await this._prisma.purchase_orders.findFirst({
-      orderBy: { created_at: 'desc' },
+      orderBy: { delivery_number: 'desc' },
       where: {
         delivery_number: { not: null },
       },
