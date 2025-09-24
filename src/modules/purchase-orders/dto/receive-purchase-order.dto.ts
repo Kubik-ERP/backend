@@ -45,7 +45,8 @@ export class ReceivePurchaseOrderDto {
   })
   @IsNumber()
   @Min(1)
-  userId: number;
+  @IsOptional()
+  userId?: number;
 
   @ApiProperty({
     example: [

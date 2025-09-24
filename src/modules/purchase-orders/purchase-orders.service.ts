@@ -573,6 +573,13 @@ export class PurchaseOrdersService {
     const store_id = requireStoreId(header);
     this.logger.log(`Receiving purchase order ${id} for store ${store_id}`);
 
+    let userId = dto.userId;
+    // Jika yang login adalah staff, maka otomatis assign ke user tersebut
+    const isStaff = header.user.is_staff;
+    if (isStaff) {
+      userId = header.user.id;
+    }
+
     // Ensure PO exists & belongs to store (prevents cross-store updates)
     const existingPO = await this._prisma.purchase_orders.findFirst({
       where: { id, store_id },
@@ -697,7 +704,7 @@ export class PurchaseOrdersService {
         where: { id },
         data: {
           order_status: purchase_order_status.received,
-          received_by: dto.userId,
+          received_by: userId,
           received_at: new Date(),
           updated_at: new Date(),
         },
