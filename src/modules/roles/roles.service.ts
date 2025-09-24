@@ -119,7 +119,6 @@ export class RolesService {
       throw new NotFoundException(`Role with id ${id} not found.`);
     }
 
-    // TODO(RBAC): menunggu konfirmasi apakah perlu ada role yang paten
     if (role.is_system) {
       this.logger.warn(`Attempted to update system role ${id}`);
       throw new BadRequestException('Cannot update system role.');
@@ -155,13 +154,10 @@ export class RolesService {
       throw new NotFoundException(`Role with id ${id} not found.`);
     }
 
-    // TODO(RBAC): menunggu konfirmasi apakah perlu ada role yang paten
     if (role.is_system) {
       this.logger.warn(`Attempted to delete system role ${id}`);
       throw new BadRequestException('Cannot delete system role.');
     }
-
-    // TODO(RBAC): tambahin kondisi gak bisa edit, jika role udah di pake
 
     const result = await this.prisma.roles.delete({ where: { id } });
     this.logger.log(
