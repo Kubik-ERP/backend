@@ -6,6 +6,7 @@ import {
   AdvancedSalesReportType,
   NewFinancialReportType,
   ReportService,
+  StaffReportType,
 } from './report.service';
 
 @Controller('report')
@@ -111,6 +112,58 @@ export class ReportController {
     const data = await this.reportService.getVoucherStatusReport(req);
     return {
       message: 'Voucher status report data retrieved successfully',
+      result: data,
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('staff-report')
+  @ApiOperation({
+    summary:
+      'Get staff report data for the main dashboard within a date range.',
+  })
+  async getStaffReport(
+    @Query('startDate') startDate: Date,
+    @Query('endDate') endDate: Date,
+    @Query('type') type: StaffReportType,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const data = await this.reportService.getStaffReports(
+      startDate,
+      endDate,
+      type,
+      req,
+    );
+    return {
+      message: 'Staff report data retrieved successfully',
+      result: data,
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('customer-report')
+  @ApiOperation({
+    summary:
+      'Get customer report data for the main dashboard within a date range.',
+  })
+  async getCustomerReport(@Req() req: ICustomRequestHeaders) {
+    const data = await this.reportService.getCustomerReport(req);
+    return {
+      message: 'Customer report data retrieved successfully',
       result: data,
     };
   }

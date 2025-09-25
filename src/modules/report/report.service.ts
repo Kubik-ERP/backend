@@ -19,6 +19,11 @@ export type AdvancedSalesReportType =
   | 'year'
   | 'variant';
 
+export type StaffReportType =
+  | 'attendance-summary'
+  | 'commission-summary'
+  | 'commission-details';
+
 @Injectable()
 export class ReportService {
   constructor(private readonly prisma: PrismaService) {}
@@ -686,6 +691,310 @@ export class ReportService {
         totalQuota: quota,
         totalUsage: totalUsage,
         remainingQuota: remainingQuota,
+      };
+    });
+
+    return report;
+  }
+
+  private async getAttendanceSummary(req: ICustomRequestHeaders) {
+    const storeId = req.store_id;
+
+    const staffList = await this.prisma.employees.findMany({
+      where: {
+        stores_id: storeId,
+        // Asumsi 'end_date' null berarti staf masih aktif
+        end_date: null,
+      },
+      select: {
+        name: true,
+        email: true,
+        title: true,
+        start_date: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    return {
+      totalStaff: staffList.length,
+      staff: staffList,
+    };
+  }
+
+  /**
+   * Menghitung dan memberikan rincian komisi untuk semua staf dalam rentang tanggal.
+   * @param startDate Tanggal mulai periode laporan.
+   * @param endDate Tanggal akhir periode laporan.
+   * @param req Request object yang berisi store_id.
+   * @returns Objek yang berisi ringkasan total komisi dan rincian per staf.
+   */
+  private async getCommissionReport(
+    startDate: Date,
+    endDate: Date,
+    req: ICustomRequestHeaders,
+  ) {
+    const storeId = req.store_id;
+
+    // 1. Ambil semua transaksi yang dicatat oleh kasir dalam rentang waktu
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        store_id: storeId,
+        payment_status: 'paid',
+        paid_at: { gte: startDate, lte: endDate },
+        // Pastikan ada kasir yang tercatat
+        cashier_id: { not: null },
+      },
+      include: {
+        // Ambil detail item untuk komisi produk
+        invoice_details: {
+          include: {
+            products: true,
+          },
+        },
+        // Ambil data user kasir -> employee
+        users: {
+          include: {
+            employees: true,
+          },
+        },
+        // Ambil data voucher untuk komisi voucher
+        voucher: true,
+      },
+    });
+
+    // 2. Ambil semua aturan komisi yang ada untuk efisiensi
+    const productCommissionRules =
+      await this.prisma.product_commissions.findMany();
+    const voucherCommissionRules =
+      await this.prisma.voucher_commissions.findMany();
+
+    // Buat Map untuk pencarian aturan yang cepat
+    const productRulesMap = new Map(
+      productCommissionRules.map((r) => [
+        `${r.employees_id}-${r.products_id}`,
+        r,
+      ]),
+    );
+    const voucherRulesMap = new Map(
+      voucherCommissionRules.map((r) => [
+        `${r.employees_id}-${r.voucher_id}`,
+        r,
+      ]),
+    );
+
+    // 3. Proses dan agregasi data komisi
+    const staffCommissionDetails = new Map<
+      string,
+      {
+        staffName: string;
+        totalCommission: number;
+        totalVoucherCommission: number;
+        totalProductCommission: number;
+        details: {
+          sourceName: string; // Nama produk atau voucher
+          sourceType: 'Produk' | 'Voucher';
+          commissionEarned: number;
+        }[];
+      }
+    >();
+
+    for (const invoice of invoices) {
+      const employee = invoice.users?.employees;
+      if (!employee) continue;
+
+      // Inisialisasi data staf jika belum ada
+      if (!staffCommissionDetails.has(employee.id)) {
+        staffCommissionDetails.set(employee.id, {
+          staffName: employee.name ?? 'Unknown Staff',
+          totalCommission: 0,
+          totalVoucherCommission: 0,
+          totalProductCommission: 0,
+          details: [],
+        });
+      }
+
+      const staffData = staffCommissionDetails.get(employee.id)!;
+
+      // Hitung komisi produk dari setiap item di invoice
+      for (const detail of invoice.invoice_details) {
+        const rule = productRulesMap.get(`${employee.id}-${detail.product_id}`);
+        if (rule) {
+          let commission = 0;
+          const itemValue = (detail.product_price ?? 0) * (detail.qty ?? 1);
+
+          if (rule.is_percent) {
+            commission = itemValue * (rule.amount ?? 0);
+          } else {
+            // Komisi flat per item terjual
+            commission = (rule.amount ?? 0) * (detail.qty ?? 1);
+          }
+
+          staffData.totalProductCommission += commission;
+          staffData.details.push({
+            sourceName: detail.products?.name ?? 'Unknown Product',
+            sourceType: 'Produk',
+            commissionEarned: commission,
+          });
+        }
+      }
+
+      // Hitung komisi voucher jika ada di invoice
+      if (invoice.voucher_id) {
+        const rule = voucherRulesMap.get(
+          `${employee.id}-${invoice.voucher_id}`,
+        );
+        if (rule) {
+          let commission = 0;
+          // Asumsi komisi voucher adalah nilai flat, karena tidak ada nilai dasar untuk persentase
+          commission = rule.amount ?? 0;
+
+          staffData.totalVoucherCommission += commission;
+          staffData.details.push({
+            sourceName: invoice.voucher?.name ?? 'Unknown Voucher',
+            sourceType: 'Voucher',
+            commissionEarned: commission,
+          });
+        }
+      }
+    }
+
+    // 4. Hitung total akhir dan siapkan output
+    let totalProductCommission = 0;
+    let totalVoucherCommission = 0;
+    const staffDetailsList = [];
+
+    for (const [staffId, data] of staffCommissionDetails.entries()) {
+      data.totalCommission =
+        data.totalProductCommission + data.totalVoucherCommission;
+      totalProductCommission += data.totalProductCommission;
+      totalVoucherCommission += data.totalVoucherCommission;
+      staffDetailsList.push({ id: staffId, ...data });
+    }
+
+    const summary = {
+      totalNilaiKomisi: totalProductCommission + totalVoucherCommission,
+      totalKomisiVoucher: totalVoucherCommission,
+      totalKomisiProduk: totalProductCommission,
+    };
+
+    return { summary, details: staffDetailsList };
+  }
+
+  /**
+   * Fungsi publik utama untuk laporan terkait staf.
+   */
+  async getStaffReports(
+    startDateString: Date,
+    endDateString: Date,
+    type: StaffReportType,
+    req: ICustomRequestHeaders,
+  ) {
+    if (type === 'attendance-summary') {
+      return this.getAttendanceSummary(req);
+    }
+
+    // Hanya butuh tanggal untuk laporan komisi
+    const startDate = new Date(startDateString);
+    const endDate = new Date(endDateString);
+    endDate.setHours(23, 59, 59, 999);
+
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Start date must be earlier than or equal to end date',
+      );
+    }
+
+    const commissionData = await this.getCommissionReport(
+      startDate,
+      endDate,
+      req,
+    );
+
+    if (type === 'commission-summary') {
+      return commissionData.summary;
+    }
+
+    if (type === 'commission-details') {
+      return commissionData.details;
+    }
+
+    throw new BadRequestException(
+      'Invalid report type provided for staff reports',
+    );
+  }
+
+  async getCustomerReport(req: ICustomRequestHeaders) {
+    const storeId = req.store_id;
+
+    // 1. Ambil semua data master pelanggan dari toko ini.
+    const customersPromise = this.prisma.customer.findMany({
+      where: {
+        stores_id: storeId,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    // 2. Agregasi total penjualan (invoice yang sudah 'paid') per pelanggan.
+    const salesDataPromise = this.prisma.invoice.groupBy({
+      by: ['customer_id'],
+      where: {
+        store_id: storeId,
+        payment_status: 'paid', // Hanya hitung yang sudah lunas
+        customer_id: { not: null },
+      },
+      _sum: {
+        grand_total: true,
+      },
+    });
+
+    // 3. Agregasi total tagihan terutang (invoice yang 'unpaid') per pelanggan.
+    const outstandingDataPromise = this.prisma.invoice.groupBy({
+      by: ['customer_id'],
+      where: {
+        store_id: storeId,
+        payment_status: 'unpaid', // Hanya hitung yang belum lunas
+        customer_id: { not: null },
+      },
+      _sum: {
+        grand_total: true,
+      },
+    });
+
+    // Jalankan semua kueri secara bersamaan untuk efisiensi
+    const [customers, salesData, outstandingData] = await Promise.all([
+      customersPromise,
+      salesDataPromise,
+      outstandingDataPromise,
+    ]);
+
+    // 4. Ubah hasil agregasi menjadi Map untuk pencarian cepat (lookup)
+    const salesMap = new Map(
+      salesData.map((item) => [item.customer_id, item._sum.grand_total || 0]),
+    );
+    const outstandingMap = new Map(
+      outstandingData.map((item) => [
+        item.customer_id,
+        item._sum.grand_total || 0,
+      ]),
+    );
+
+    // 5. Gabungkan semua data menjadi satu laporan yang utuh
+    const report = customers.map((customer) => {
+      // Ambil data dari map, jika tidak ada berarti nilainya 0
+      const totalSales = salesMap.get(customer.id) || 0;
+      const outstanding = outstandingMap.get(customer.id) || 0;
+
+      return {
+        nama: customer.name,
+        gender: customer.gender,
+        totalSales: parseFloat(totalSales.toFixed(2)),
+        dateAdded: customer.created_at,
+        outstanding: parseFloat(outstanding.toFixed(2)),
+        loyaltyPoints: customer.point || 0,
       };
     });
 
