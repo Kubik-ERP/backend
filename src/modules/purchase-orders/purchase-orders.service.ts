@@ -192,6 +192,7 @@ export class PurchaseOrdersService {
               name: inv.name,
               brand_name: inv.master_brands?.brand_name ?? '',
               unit: inv.unit,
+              barcode: inv.barcode,
             },
           };
         },
@@ -218,17 +219,6 @@ export class PurchaseOrdersService {
         },
         include: { purchase_order_items: true },
       });
-
-      // ⚠️ Business note: normally stock is adjusted on receiving (goods receipt), not PO creation.
-      // If you really want to reserve/decrement here, keep this block.
-      // await Promise.all(
-      //   purchaseOrderItems.map((item) =>
-      //     tx.master_inventory_items.update({
-      //       where: { id: item.master_inventory_item_id },
-      //       data: { stock_quantity: { decrement: item.quantity } },
-      //     }),
-      //   ),
-      // );
 
       return po;
     });
@@ -341,6 +331,7 @@ export class PurchaseOrdersService {
               name: inv.name,
               brand_name: inv.master_brands?.brand_name ?? '',
               unit: inv.unit,
+              barcode: inv.barcode,
             },
           });
         } else {
@@ -356,6 +347,7 @@ export class PurchaseOrdersService {
               name: inv.name,
               brand_name: inv.master_brands?.brand_name ?? '',
               unit: inv.unit,
+              barcode: inv.barcode,
             },
           });
         }
