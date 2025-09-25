@@ -330,11 +330,15 @@ export class ReportService {
   }
 
   async getNewFinancialReports(
-    startDate: Date,
-    endDate: Date,
+    startDateString: Date,
+    endDateString: Date,
     type: NewFinancialReportType,
     req: ICustomRequestHeaders,
   ) {
+    const startDate = new Date(startDateString);
+    const endDate = new Date(endDateString);
+
+    endDate.setHours(23, 59, 59, 999);
     if (startDate > endDate) {
       throw new BadRequestException(
         'Start date must be earlier than or equal to end date',
@@ -429,9 +433,15 @@ export class ReportService {
           groupKey = product.name ?? 'Unknown Item';
           break;
         case 'category':
-          const category =
-            product.categories_has_products[0]?.categories?.category;
-          groupKey = category ?? 'Uncategorized';
+          const categoryNames = product.categories_has_products
+            .map((chp) => chp.categories?.category)
+            .filter(Boolean) as string[];
+
+          if (categoryNames.length > 0) {
+            groupKey = categoryNames.sort().join(', ');
+          } else {
+            groupKey = 'Uncategorized';
+          }
           break;
         case 'store':
           groupKey = invoice.stores?.name ?? 'Unknown Store';
@@ -537,11 +547,16 @@ export class ReportService {
   }
 
   async getAdvancedSalesReport(
-    startDate: Date,
-    endDate: Date,
+    startDateString: Date,
+    endDateString: Date,
     type: AdvancedSalesReportType,
     req: ICustomRequestHeaders,
   ) {
+    const startDate = new Date(startDateString);
+    const endDate = new Date(endDateString);
+
+    // Ini adalah bagian kunci: Set waktu endDate ke akhir hari
+    endDate.setHours(23, 59, 59, 999);
     if (startDate > endDate) {
       throw new BadRequestException(
         'Start date must be earlier than or equal to end date',

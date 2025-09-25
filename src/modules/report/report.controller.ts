@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  ParseDatePipe,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
@@ -32,8 +25,8 @@ export class ReportController {
     summary: 'Get summary data for the main dashboard within a date range.',
   })
   async getDashboardSummary(
-    @Query('startDate', new ParseDatePipe()) startDate: Date,
-    @Query('endDate', new ParseDatePipe()) endDate: Date,
+    @Query('startDate') startDate: Date,
+    @Query('endDate') endDate: Date,
     @Query('type') type: NewFinancialReportType,
     @Req() req: ICustomRequestHeaders,
   ) {
@@ -63,8 +56,8 @@ export class ReportController {
       'Get advanced sales report data for the main dashboard within a date range.',
   })
   async getAdvancedSalesReport(
-    @Query('startDate', new ParseDatePipe()) startDate: Date,
-    @Query('endDate', new ParseDatePipe()) endDate: Date,
+    @Query('startDate') startDate: Date,
+    @Query('endDate') endDate: Date,
     @Query('type') type: AdvancedSalesReportType,
     @Req() req: ICustomRequestHeaders,
   ) {
