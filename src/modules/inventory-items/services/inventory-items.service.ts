@@ -1073,56 +1073,33 @@ export class InventoryItemsService {
 
     const isRetail = store?.business_type === 'Retail';
 
-    let categoryProductId = null;
-
-    if (isRetail) {
-      const categoryProduct = await this._prisma.categories.findFirstOrThrow({
-        where: {
-          master_inventory_category_id: dto.categoryId,
-          stores_id: store_id,
+    const item = await this._prisma.$transaction(async (tx) => {
+      const item = await this._prisma.master_inventory_items.create({
+        data: {
+          name: dto.name,
+          brand_id: dto.brandId,
+          barcode: dto.barcode,
+          sku: dto.sku,
+          category_id: dto.categoryId,
+          unit: dto.unit,
+          notes: dto.notes,
+          stock_quantity: dto.stockQuantity,
+          reorder_level: dto.reorderLevel,
+          minimum_stock_quantity: dto.minimumStockQuantity,
+          expiry_date: dto.expiryDate ? new Date(dto.expiryDate) : null,
+          storage_location_id: dto.storageLocationId,
+          price_per_unit: dto.pricePerUnit,
+          supplier_id: dto.supplierId,
+          store_id: store_id,
+          price_grosir: dto.priceGrosir,
+          created_at: new Date(),
+          updated_at: new Date(),
         },
       });
-      categoryProductId = categoryProduct.id;
-    }
 
-    const item = await this._prisma.master_inventory_items.create({
-      data: {
-        name: dto.name,
-        brand_id: dto.brandId,
-        barcode: dto.barcode,
-        sku: dto.sku,
-        category_id: dto.categoryId,
-        unit: dto.unit,
-        notes: dto.notes,
-        stock_quantity: dto.stockQuantity,
-        reorder_level: dto.reorderLevel,
-        minimum_stock_quantity: dto.minimumStockQuantity,
-        expiry_date: dto.expiryDate ? new Date(dto.expiryDate) : null,
-        storage_location_id: dto.storageLocationId,
-        price_per_unit: dto.pricePerUnit,
-        supplier_id: dto.supplierId,
-        store_id: store_id,
-        price_grosir: dto.priceGrosir,
-        created_at: new Date(),
-        updated_at: new Date(),
-        // Auto-create catalog data for retail stores
-        ...(isRetail && {
-          products: {
-            create: {
-              name: dto.name,
-              price: dto.pricePerUnit,
-              stores_id: store_id,
-              categories_has_products: {
-                create: {
-                  categories_id: categoryProductId as string,
-                },
-              },
-              barcode: dto.barcode,
-              picture_url: dto.image,
-            },
-          },
-        }),
-      },
+      if (isRetail) await this.upsertCatalog(tx, dto, store_id, item.id);
+
+      return item;
     });
 
     this.logger.log(`Inventory item created: ${item.name}`);
@@ -1378,12 +1355,12 @@ export class InventoryItemsService {
     const isRetail = store?.business_type === 'Retail';
 
     const updated = await this._prisma.$transaction(async (tx) => {
-      if (isRetail) await this.upsertCatalog(tx, id, dto, store_id);
-
       const updated = await tx.master_inventory_items.update({
         where: { id },
         data: updateData,
       });
+
+      if (isRetail) await this.upsertCatalog(tx, dto, store_id, id);
 
       return updated;
     });
@@ -1434,9 +1411,9 @@ export class InventoryItemsService {
 
   private upsertProduct = async (
     tx: Prisma.TransactionClient,
-    inventoryItemId: string,
     dto: UpdateInventoryItemDto,
     storeId: string,
+    inventoryItemId?: string,
   ) => {
     const result = await tx.products.upsert({
       where: {
@@ -1464,9 +1441,9 @@ export class InventoryItemsService {
 
   private upsertCatalog = async (
     tx: Prisma.TransactionClient,
-    inventoryItemId: string,
     dto: UpdateInventoryItemDto,
     storeId: string,
+    inventoryItemId?: string,
   ) => {
     if (!dto.categoryId) {
       throw new BadRequestException('Category ID is required');
@@ -1490,9 +1467,9 @@ export class InventoryItemsService {
 
     const productId = await this.upsertProduct(
       tx,
-      inventoryItemId,
       dto,
       storeId,
+      inventoryItemId,
     );
 
     // update category product
