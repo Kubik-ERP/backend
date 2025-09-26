@@ -10,6 +10,16 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+export class CategoryDetailDto {
+  @ApiProperty()
+  @IsUUID('4')
+  id: string;
+
+  @ApiProperty()
+  @IsString()
+  name: string;
+}
+
 export class PreviewImportProductsDto {
   @ApiProperty({ type: 'string', format: 'binary' })
   file: any;
@@ -58,6 +68,12 @@ export class ImportProductsPreviewItemDto {
   @IsOptional()
   @IsUUID('4')
   category_id?: string;
+
+  @ApiProperty({ required: false, type: CategoryDetailDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CategoryDetailDto)
+  category?: CategoryDetailDto;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -109,6 +125,14 @@ export class ImportProductsPreviewResponseDto {
           description: 'Is discount in percentage',
         },
         category_id: { type: 'string', description: 'Category ID' },
+        category: {
+          type: 'object',
+          description: 'Category details',
+          properties: {
+            id: { type: 'string', description: 'Category ID' },
+            name: { type: 'string', description: 'Category name' },
+          },
+        },
       },
     },
   })
@@ -120,6 +144,7 @@ export class ImportProductsPreviewResponseDto {
     discount_price?: number;
     is_percent: boolean;
     category_id: string;
+    category?: CategoryDetailDto;
   }>;
 
   @ApiProperty({
@@ -147,6 +172,14 @@ export class ImportProductsPreviewResponseDto {
           type: 'string',
           description: 'Category ID value from Excel',
         },
+        category: {
+          type: 'object',
+          description: 'Category details (if valid)',
+          properties: {
+            id: { type: 'string', description: 'Category ID' },
+            name: { type: 'string', description: 'Category name' },
+          },
+        },
         error_messages: {
           type: 'string',
           description: 'Validation error messages',
@@ -162,6 +195,7 @@ export class ImportProductsPreviewResponseDto {
     discount_price?: number;
     is_percent: boolean;
     category_id?: string;
+    category?: CategoryDetailDto;
     error_messages: string;
   }>;
 }

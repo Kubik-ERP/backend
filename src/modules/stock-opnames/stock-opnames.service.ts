@@ -270,7 +270,13 @@ export class StockOpnamesService {
         where: {
           store_id: store_id,
         },
-        select: { id: true, name: true, sku: true, stock_quantity: true },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          stock_quantity: true,
+          barcode: true,
+        },
       });
 
       const stockOpnameItems = masterItems.map((item) => ({
@@ -282,6 +288,7 @@ export class StockOpnamesService {
           id: item.id,
           name: item.name,
           sku: item.sku,
+          barcode: item.barcode,
         },
       }));
 

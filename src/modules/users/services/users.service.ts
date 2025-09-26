@@ -16,11 +16,39 @@ import {
 // Prisma
 import { PrismaService } from '../../../prisma/prisma.service';
 import { users as UserModel } from '@prisma/client';
-import { UUID } from 'crypto';
+import { requireStoreId } from 'src/common/helpers/common.helpers';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  public async findWithStaff(header: ICustomRequestHeaders) {
+    const storeId = requireStoreId(header);
+    const users = await this.prisma.users.findMany({
+      where: {
+        OR: [
+          // Get User Owner
+          {
+            is_staff: false,
+            id: header.user.ownerId,
+          },
+          // Get Staff in Store
+          {
+            is_staff: true,
+            employees: {
+              stores_id: storeId,
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        fullname: true,
+      },
+    });
+
+    return users;
+  }
 
   /**
    * @description Create a user

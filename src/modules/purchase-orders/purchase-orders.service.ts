@@ -25,6 +25,7 @@ import {
 } from 'src/common/helpers/common.helpers';
 import { idToNumber } from 'src/common/helpers/common.helpers';
 import { ConfirmPurchaseOrderDto } from './dto/confirm-purchase-order.dto';
+import { ReceivePurchaseOrderDto } from './dto/receive-purchase-order.dto';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -102,6 +103,12 @@ export class PurchaseOrdersService {
       where: { id, store_id },
       include: {
         purchase_order_items: true,
+        receiver: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
       },
     });
 
@@ -178,11 +185,14 @@ export class PurchaseOrdersService {
             quantity,
             unit_price: unitPrice,
             total_price: lineTotal,
+            actual_quantity: 0,
+            diff_quantity: -quantity,
             item_info: {
               sku: inv.sku,
               name: inv.name,
               brand_name: inv.master_brands?.brand_name ?? '',
               unit: inv.unit,
+              barcode: inv.barcode,
             },
           };
         },
@@ -209,17 +219,6 @@ export class PurchaseOrdersService {
         },
         include: { purchase_order_items: true },
       });
-
-      // ⚠️ Business note: normally stock is adjusted on receiving (goods receipt), not PO creation.
-      // If you really want to reserve/decrement here, keep this block.
-      // await Promise.all(
-      //   purchaseOrderItems.map((item) =>
-      //     tx.master_inventory_items.update({
-      //       where: { id: item.master_inventory_item_id },
-      //       data: { stock_quantity: { decrement: item.quantity } },
-      //     }),
-      //   ),
-      // );
 
       return po;
     });
@@ -291,6 +290,8 @@ export class PurchaseOrdersService {
         quantity: number;
         unit_price: number;
         total_price: number;
+        diff_quantity: number;
+        actual_quantity: number;
         item_info: any;
       }> = [];
       const itemsUpdate: Array<{
@@ -299,6 +300,8 @@ export class PurchaseOrdersService {
         quantity: number;
         unit_price: number;
         total_price: number;
+        diff_quantity: number;
+        actual_quantity: number;
         item_info: any;
       }> = [];
 
@@ -321,11 +324,14 @@ export class PurchaseOrdersService {
             quantity: item.quantity,
             unit_price: unitPrice,
             total_price: lineTotal,
+            actual_quantity: 0,
+            diff_quantity: -item.quantity,
             item_info: {
               sku: inv.sku,
               name: inv.name,
               brand_name: inv.master_brands?.brand_name ?? '',
               unit: inv.unit,
+              barcode: inv.barcode,
             },
           });
         } else {
@@ -334,11 +340,14 @@ export class PurchaseOrdersService {
             quantity: item.quantity,
             unit_price: unitPrice,
             total_price: lineTotal,
+            actual_quantity: 0,
+            diff_quantity: -item.quantity,
             item_info: {
               sku: inv.sku,
               name: inv.name,
               brand_name: inv.master_brands?.brand_name ?? '',
               unit: inv.unit,
+              barcode: inv.barcode,
             },
           });
         }
@@ -386,6 +395,8 @@ export class PurchaseOrdersService {
                 quantity: u.quantity,
                 unit_price: u.unit_price,
                 total_price: u.total_price,
+                actual_quantity: 0,
+                diff_quantity: -u.quantity,
                 updated_at: new Date(),
               },
             }),
@@ -482,7 +493,7 @@ export class PurchaseOrdersService {
 
     // Generate next DO number
     const lastDO = await this._prisma.purchase_orders.findFirst({
-      orderBy: { created_at: 'desc' },
+      orderBy: { delivery_number: 'desc' },
       where: {
         delivery_number: { not: null },
       },
@@ -546,9 +557,20 @@ export class PurchaseOrdersService {
     return result;
   }
 
-  async receive(id: string, header: ICustomRequestHeaders) {
+  async receive(
+    id: string,
+    dto: ReceivePurchaseOrderDto,
+    header: ICustomRequestHeaders,
+  ) {
     const store_id = requireStoreId(header);
     this.logger.log(`Receiving purchase order ${id} for store ${store_id}`);
+
+    let userId = dto.userId;
+    // Jika yang login adalah staff, maka otomatis assign ke user tersebut
+    const isStaff = header.user.is_staff;
+    if (isStaff) {
+      userId = header.user.id;
+    }
 
     // Ensure PO exists & belongs to store (prevents cross-store updates)
     const existingPO = await this._prisma.purchase_orders.findFirst({
@@ -577,6 +599,7 @@ export class PurchaseOrdersService {
       const poItems = await tx.purchase_order_items.findMany({
         where: { purchase_order_id: id },
         select: {
+          id: true,
           master_inventory_item_id: true,
           quantity: true,
         },
@@ -604,6 +627,29 @@ export class PurchaseOrdersService {
           `Some inventory items not found or don't belong to store: ${missingItems.map((i) => i.master_inventory_item_id).join(', ')}`,
         );
       }
+
+      // --- Update PO items
+      // Menambahkan actual quantity
+      const poItemsUpdate = poItems.map((item) => {
+        const itemDto = dto.productItems.find((i) => i.id === item.id);
+        if (!itemDto) {
+          throw new BadRequestException(
+            `Item id ${item.id} not found in purchase order items`,
+          );
+        }
+
+        return tx.purchase_order_items.update({
+          where: {
+            id: item.id,
+          },
+          data: {
+            actual_quantity: itemDto.actualQuantity,
+            diff_quantity: itemDto.actualQuantity - item.quantity,
+            updated_at: new Date(),
+            notes: itemDto.notes ?? null,
+          },
+        });
+      });
 
       // --- Increment stock quantities
       const stockUpdates = poItems.map((item) => {
@@ -638,14 +684,19 @@ export class PurchaseOrdersService {
         });
       });
 
-      // Execute all stock updates and adjustments
-      await Promise.all([...stockUpdates, ...stockAdjustments]);
+      // Execute all update items, stock updates, and adjustments
+      await Promise.all([
+        ...stockUpdates,
+        ...stockAdjustments,
+        ...poItemsUpdate,
+      ]);
 
       // --- Update PO status to received
       return await tx.purchase_orders.update({
         where: { id },
         data: {
           order_status: purchase_order_status.received,
+          received_by: userId,
           received_at: new Date(),
           updated_at: new Date(),
         },
