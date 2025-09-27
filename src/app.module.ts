@@ -19,18 +19,22 @@ import KeyvRedis, { createKeyv } from '@keyv/redis';
 import Keyv from 'keyv';
 import { HeaderMiddleware } from './common/middleware/header-middleware';
 import { ServerKeyMiddleware } from './common/middleware/server-middleware';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { BankModule } from './modules/bank/bank.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { CashDrawerModule } from './modules/cash-drawer/cash-drawer.module';
 import { ChargesModule } from './modules/charges/charges.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DeviceCodesModule } from './modules/device-codes/device-codes.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { FacilitiesModule } from './modules/facilities/facilities.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { InventoryCategoryModule } from './modules/inventory-category/inventory-category.module';
 import { InventoryItemsModule } from './modules/inventory-items/inventory-items.module';
 import { KitchenModule } from './modules/kitchen/kitchen.module';
 import { LoyaltySettingsModule } from './modules/loyalty-settings/loyalty-settings.module';
+import { PaymentRoundingSettingModule } from './modules/payment-rounding-setting/payment-rounding-setting.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { ProductBundlingModule } from './modules/product-bundling/product-bundling.module';
 import { ProductsModule } from './modules/products/products.module';
@@ -46,11 +50,8 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { TablesModule } from './modules/tables/tables.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
-import { DeviceCodesModule } from './modules/device-codes/device-codes.module';
-import { PaymentRoundingSettingModule } from './modules/payment-rounding-setting/payment-rounding-setting.module';
 import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
-import { AttendanceModule } from './modules/attendance/attendance.module';
-import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { ReportModule } from './modules/report/report.module';
 
 @Module({
   imports: [
@@ -112,6 +113,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
     WorkingHoursModule,
     AttendanceModule,
     IntegrationsModule,
+    ReportModule,
   ],
   providers: [
     {

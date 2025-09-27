@@ -77,7 +77,7 @@ export class StoresService {
       });
 
       //create default payment methods for the new store
-      await this.prisma.integrations.create({
+      await prisma.integrations.create({
         data: {
           stores_id: store.id,
           is_static: false,
