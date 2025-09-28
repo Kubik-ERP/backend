@@ -365,12 +365,6 @@ export class ReportService {
     }
   }
 
-  // Di dalam kelas DashboardService
-
-  // Di dalam kelas DashboardService
-
-  // Di dalam kelas DashboardService
-
   private async getProcessedSalesData(
     startDate: Date,
     endDate: Date,
@@ -379,7 +373,6 @@ export class ReportService {
   ) {
     const storeId = req.store_id;
 
-    // Helper untuk membuat objek summary default (semua nilai 0)
     const createDefaultSummary = () => ({
       jumlahTerjual: 0,
       kotor: 0,
@@ -390,10 +383,6 @@ export class ReportService {
       countPenggunaanVoucher: 0,
     });
 
-    // ========================================================================
-    // LANGKAH 1: PROSES SEMUA DATA PENJUALAN YANG ADA & BUAT PETA DATA
-    // (Tidak ada perubahan di blok ini)
-    // ========================================================================
     const invoiceDetails = await this.prisma.invoice_details.findMany({
       where: {
         invoice: {
@@ -504,10 +493,6 @@ export class ReportService {
       }
     }
 
-    // ========================================================================
-    // LANGKAH 2: AMBIL DAFTAR MASTER BERDASARKAN TIPE GRUP
-    // (Perubahan utama ada di blok switch ini)
-    // ========================================================================
     let masterGroups: string[] = [];
 
     switch (groupBy) {
@@ -551,10 +536,8 @@ export class ReportService {
         masterGroups = allCustomers.map((c) => c.name ?? 'Guest Customer');
         break;
 
-      // --- PERUBAHAN LOGIKA UNTUK TANGGAL, BULAN, DAN TAHUN ---
       case 'day':
         const dayGroups = [];
-        // Clone startDate agar tidak mengubah objek aslinya
         let currentDate = new Date(startDate.toISOString().split('T')[0]);
         while (currentDate <= endDate) {
           dayGroups.push(currentDate.toISOString().split('T')[0]);
@@ -595,17 +578,12 @@ export class ReportService {
         const year = startDate.getFullYear();
         masterGroups = [`${year}-Q1`, `${year}-Q2`, `${year}-Q3`, `${year}-Q4`];
         break;
-      // ----------------------------------------------------------------
 
       default:
         masterGroups = Array.from(salesDataMap.keys());
         break;
     }
 
-    // ========================================================================
-    // LANGKAH 3: GABUNGKAN DAFTAR MASTER DENGAN PETA DATA PENJUALAN
-    // (Tidak ada perubahan di blok ini)
-    // ========================================================================
     const groupedSummary = masterGroups.sort().map((groupKey) => {
       const summary = salesDataMap.get(groupKey) || createDefaultSummary();
       return {
