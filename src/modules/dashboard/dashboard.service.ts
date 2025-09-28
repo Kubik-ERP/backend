@@ -11,10 +11,10 @@ import {
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // private adjustDateForWIB(date: Date): Date {
-  //   const sevenHoursInMs = 7 * 60 * 60 * 1000;
-  //   return new Date(date.getTime() - sevenHoursInMs);
-  // }
+  private adjustDateForWIB(date: Date): Date {
+    const sevenHoursInMs = 7 * 60 * 60 * 1000;
+    return new Date(date.getTime() - sevenHoursInMs);
+  }
 
   private calculatePercentageChange(current: number, previous: number): number {
     if (previous === 0) {
@@ -326,13 +326,13 @@ export class DashboardService {
   }
 
   async getDashboardSummary(
-    startDate: Date,
-    endDate: Date,
+    rawStartDate: Date,
+    rawEndDate: Date,
     type: SummaryType,
     req: ICustomRequestHeaders,
   ) {
-    // const wibStartDate = this.adjustDateForWIB(startDate);
-    // const wibEndDate = this.adjustDateForWIB(endDate);
+    const startDate = this.adjustDateForWIB(rawStartDate);
+    const endDate = this.adjustDateForWIB(rawEndDate);
     if (startDate > endDate) {
       throw new BadRequestException(
         'Start date must be earlier than or equal to end date',
