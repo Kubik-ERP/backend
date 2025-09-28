@@ -17,6 +17,7 @@ import {
   UpdateInventoryItemDto,
   UpdateStockAdjustmentDto,
 } from '../dtos';
+import { Prisma } from '@prisma/client';
 
 type OrderByKey = 'id' | 'created_at' | 'name' | 'updated_at' | 'sku';
 
@@ -1072,56 +1073,33 @@ export class InventoryItemsService {
 
     const isRetail = store?.business_type === 'Retail';
 
-    let categoryProductId = null;
-
-    if (isRetail) {
-      const categoryProduct = await this._prisma.categories.findFirstOrThrow({
-        where: {
-          master_inventory_category_id: dto.categoryId,
-          stores_id: store_id,
+    const item = await this._prisma.$transaction(async (tx) => {
+      const item = await this._prisma.master_inventory_items.create({
+        data: {
+          name: dto.name,
+          brand_id: dto.brandId,
+          barcode: dto.barcode,
+          sku: dto.sku,
+          category_id: dto.categoryId,
+          unit: dto.unit,
+          notes: dto.notes,
+          stock_quantity: dto.stockQuantity,
+          reorder_level: dto.reorderLevel,
+          minimum_stock_quantity: dto.minimumStockQuantity,
+          expiry_date: dto.expiryDate ? new Date(dto.expiryDate) : null,
+          storage_location_id: dto.storageLocationId,
+          price_per_unit: dto.pricePerUnit,
+          supplier_id: dto.supplierId,
+          store_id: store_id,
+          price_grosir: dto.priceGrosir,
+          created_at: new Date(),
+          updated_at: new Date(),
         },
       });
-      categoryProductId = categoryProduct.id;
-    }
 
-    const item = await this._prisma.master_inventory_items.create({
-      data: {
-        name: dto.name,
-        brand_id: dto.brandId,
-        barcode: dto.barcode,
-        sku: dto.sku,
-        category_id: dto.categoryId,
-        unit: dto.unit,
-        notes: dto.notes,
-        stock_quantity: dto.stockQuantity,
-        reorder_level: dto.reorderLevel,
-        minimum_stock_quantity: dto.minimumStockQuantity,
-        expiry_date: dto.expiryDate ? new Date(dto.expiryDate) : null,
-        storage_location_id: dto.storageLocationId,
-        price_per_unit: dto.pricePerUnit,
-        supplier_id: dto.supplierId,
-        store_id: store_id,
-        price_grosir: dto.priceGrosir,
-        created_at: new Date(),
-        updated_at: new Date(),
-        // Auto-create catalog data for retail stores
-        ...(isRetail && {
-          products: {
-            create: {
-              name: dto.name,
-              price: dto.pricePerUnit,
-              stores_id: store_id,
-              categories_has_products: {
-                create: {
-                  categories_id: categoryProductId as string,
-                },
-              },
-              barcode: dto.barcode,
-              picture_url: dto.image,
-            },
-          },
-        }),
-      },
+      if (isRetail) await this.upsertCatalog(tx, dto, store_id, item.id);
+
+      return item;
     });
 
     this.logger.log(`Inventory item created: ${item.name}`);
@@ -1377,61 +1355,12 @@ export class InventoryItemsService {
     const isRetail = store?.business_type === 'Retail';
 
     const updated = await this._prisma.$transaction(async (tx) => {
-      if (isRetail) {
-        // reset categories product
-        await tx.categories_has_products.deleteMany({
-          where: {
-            products: {
-              master_inventory_item_id: id,
-              stores_id: store_id,
-            },
-          },
-        });
-
-        // fetch category product ID by inventory category ID
-        const categoryProduct = await this._prisma.categories.findFirstOrThrow({
-          where: {
-            master_inventory_category_id: dto.categoryId,
-            stores_id: store_id,
-          },
-        });
-        const categoryProductId = categoryProduct.id;
-
-        // fetch product ID by inventory item ID
-        const product = await tx.products.findFirstOrThrow({
-          where: {
-            master_inventory_item_id: id,
-            stores_id: store_id,
-          },
-        });
-        const productId = product.id;
-
-        // update category product
-        await tx.categories_has_products.create({
-          data: {
-            categories_id: categoryProductId,
-            products_id: productId,
-          },
-        });
-      }
-
       const updated = await tx.master_inventory_items.update({
         where: { id },
-        data: {
-          ...updateData,
-          // Auto-update catalog data for retail stores
-          ...(isRetail && {
-            products: {
-              update: {
-                name: dto.name,
-                price: dto.pricePerUnit,
-                barcode: dto.barcode,
-                picture_url: dto.image,
-              },
-            },
-          }),
-        },
+        data: updateData,
       });
+
+      if (isRetail) await this.upsertCatalog(tx, dto, store_id, id);
 
       return updated;
     });
@@ -1439,6 +1368,118 @@ export class InventoryItemsService {
     this.logger.log(`Inventory item updated: ${updated.name}`);
     return this.toPlainItem(updated);
   }
+
+  private getOrInsertCategoryProduct = async (
+    tx: Prisma.TransactionClient,
+    inventoryCategoryId: string,
+    storeId: string,
+  ) => {
+    // cek, apakah inventory category sudah terhubung dengan category product
+    const categoryProduct = await this._prisma.categories.findFirst({
+      where: {
+        master_inventory_category_id: inventoryCategoryId,
+        stores_id: storeId,
+      },
+    });
+
+    // jika category product sudah ada, maka langsung return id nya
+    if (categoryProduct) return categoryProduct.id;
+
+    // jika belum, maka buat terlebih dahulu dan hubungkan
+    const inventoryCategory =
+      await tx.master_inventory_categories.findFirstOrThrow({
+        where: {
+          id: inventoryCategoryId,
+          store_id: storeId,
+        },
+      });
+
+    const categoryCatalogCreated = await tx.categories.create({
+      data: {
+        category: inventoryCategory.name,
+        description: inventoryCategory.notes,
+        stores_id: storeId,
+        master_inventory_category_id: inventoryCategoryId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return categoryCatalogCreated.id;
+  };
+
+  private upsertProduct = async (
+    tx: Prisma.TransactionClient,
+    dto: UpdateInventoryItemDto,
+    storeId: string,
+    inventoryItemId?: string,
+  ) => {
+    const result = await tx.products.upsert({
+      where: {
+        master_inventory_item_id: inventoryItemId,
+      },
+      update: {
+        name: dto.name,
+        price: dto.pricePerUnit,
+        barcode: dto.barcode,
+        stores_id: storeId,
+        picture_url: dto.image,
+      },
+      create: {
+        name: dto.name,
+        price: dto.pricePerUnit,
+        barcode: dto.barcode,
+        stores_id: storeId,
+        picture_url: dto.image,
+        master_inventory_item_id: inventoryItemId,
+      },
+    });
+
+    return result.id;
+  };
+
+  private upsertCatalog = async (
+    tx: Prisma.TransactionClient,
+    dto: UpdateInventoryItemDto,
+    storeId: string,
+    inventoryItemId?: string,
+  ) => {
+    if (!dto.categoryId) {
+      throw new BadRequestException('Category ID is required');
+    }
+
+    // reset categories product
+    await tx.categories_has_products.deleteMany({
+      where: {
+        products: {
+          master_inventory_item_id: inventoryItemId,
+          stores_id: storeId,
+        },
+      },
+    });
+
+    const categoryId = await this.getOrInsertCategoryProduct(
+      tx,
+      dto.categoryId,
+      storeId,
+    );
+
+    const productId = await this.upsertProduct(
+      tx,
+      dto,
+      storeId,
+      inventoryItemId,
+    );
+
+    // update category product
+    await tx.categories_has_products.create({
+      data: {
+        categories_id: categoryId,
+        products_id: productId,
+      },
+    });
+  };
 
   public async remove(id: string, header: ICustomRequestHeaders) {
     const store_id = header.store_id;

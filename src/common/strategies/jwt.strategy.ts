@@ -93,6 +93,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
                               users: {
                                 some: {
                                   id: parseInt(ownerId),
+                                  // belum expired
+                                  sub_expired_at: {
+                                    gt: new Date(),
+                                  },
                                 },
                               },
                             },
