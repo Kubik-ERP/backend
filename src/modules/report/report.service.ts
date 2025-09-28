@@ -367,46 +367,20 @@ export class ReportService {
 
   // Di dalam kelas DashboardService
 
+  // Di dalam kelas DashboardService
+
+  // Di dalam kelas DashboardService
+
   private async getProcessedSalesData(
     startDate: Date,
     endDate: Date,
     req: ICustomRequestHeaders,
     groupBy: AdvancedSalesReportType,
   ) {
-    const invoiceDetails = await this.prisma.invoice_details.findMany({
-      where: {
-        invoice: {
-          store_id: req.store_id,
-          payment_status: 'paid',
-          paid_at: {
-            gte: startDate,
-            lte: endDate,
-          },
-        },
-      },
-      include: {
-        products: {
-          include: {
-            categories_has_products: {
-              include: {
-                categories: true,
-              },
-            },
-          },
-        },
-        invoice: {
-          include: {
-            customer: true,
-            stores: true,
-            users: true,
-          },
-        },
-        variant: true,
-      },
-    });
+    const storeId = req.store_id;
 
-    // UBAHAN 1: Siapkan objek untuk summary KESELURUHAN
-    const overallSummary = {
+    // Helper untuk membuat objek summary default (semua nilai 0)
+    const createDefaultSummary = () => ({
       jumlahTerjual: 0,
       kotor: 0,
       diskonItem: 0,
@@ -414,40 +388,50 @@ export class ReportService {
       pajak: 0,
       totalPenjualan: 0,
       countPenggunaanVoucher: 0,
-    };
-    const processedInvoicesForSummary = new Set<string>();
+    });
 
-    // UBAHAN 2: Siapkan Map untuk summary PER GRUP (tanpa details)
-    const accumulator = new Map<
+    // ========================================================================
+    // LANGKAH 1: PROSES SEMUA DATA PENJUALAN YANG ADA & BUAT PETA DATA
+    // (Tidak ada perubahan di blok ini)
+    // ========================================================================
+    const invoiceDetails = await this.prisma.invoice_details.findMany({
+      where: {
+        invoice: {
+          store_id: storeId,
+          payment_status: 'paid',
+          paid_at: { gte: startDate, lte: endDate },
+        },
+      },
+      include: {
+        products: {
+          include: {
+            categories_has_products: { include: { categories: true } },
+          },
+        },
+        invoice: { include: { customer: true, stores: true, users: true } },
+        variant: true,
+      },
+    });
+
+    const overallSummary = createDefaultSummary();
+    const processedInvoicesForSummary = new Set<string>();
+    const salesDataMap = new Map<
       string,
-      {
-        jumlahTerjual: number;
-        kotor: number;
-        diskonItem: number;
-        refund: number;
-        pajak: number;
-        totalPenjualan: number;
-        countPenggunaanVoucher: number;
-      }
+      ReturnType<typeof createDefaultSummary>
     >();
+    const processedInvoicesForGroupVoucher = new Map<string, Set<string>>();
 
     for (const item of invoiceDetails) {
-      const invoice = item.invoice;
-      const product = item.products;
+      const { invoice, products: product, variant } = item;
       if (!invoice || !product) continue;
 
-      // Kalkulasi per item
       const itemGross = (item.product_price ?? 0) * (item.qty ?? 1);
-      let itemDiscount = 0;
-      let itemTax = 0;
-      if (invoice.subtotal > 0) {
-        const itemPortion = itemGross / invoice.subtotal;
-        itemDiscount = (invoice.discount_amount ?? 0) * itemPortion;
-        itemTax = (invoice.tax_amount ?? 0) * itemPortion;
-      }
+      const itemPortion =
+        invoice.subtotal > 0 ? itemGross / invoice.subtotal : 0;
+      const itemDiscount = (invoice.discount_amount ?? 0) * itemPortion;
+      const itemTax = (invoice.tax_amount ?? 0) * itemPortion;
       const itemTotal = itemGross - itemDiscount + itemTax;
 
-      // Penentuan groupKey
       let groupKey: string;
       switch (groupBy) {
         case 'category':
@@ -460,7 +444,7 @@ export class ReportService {
               : 'Uncategorized';
           break;
         case 'variant':
-          groupKey = item.variant?.name ?? 'No Variant';
+          groupKey = variant?.name ?? 'No Variant';
           break;
         case 'item':
           groupKey = product.name ?? 'Unknown Item';
@@ -478,9 +462,7 @@ export class ReportService {
           groupKey = invoice.paid_at!.toISOString().split('T')[0];
           break;
         case 'month':
-          groupKey = `${invoice.paid_at!.getFullYear()}-${String(
-            invoice.paid_at!.getMonth() + 1,
-          ).padStart(2, '0')}`;
+          groupKey = `${invoice.paid_at!.getFullYear()}-${String(invoice.paid_at!.getMonth() + 1).padStart(2, '0')}`;
           break;
         case 'quarter':
           const month = invoice.paid_at!.getMonth();
@@ -494,24 +476,23 @@ export class ReportService {
           groupKey = 'Overall';
       }
 
-      // Inisialisasi summary per grup jika belum ada
-      if (!accumulator.has(groupKey)) {
-        accumulator.set(groupKey, {
-          jumlahTerjual: 0,
-          kotor: 0,
-          diskonItem: 0,
-          refund: 0,
-          pajak: 0,
-          totalPenjualan: 0,
-          countPenggunaanVoucher: 0,
-        });
+      if (!salesDataMap.has(groupKey)) {
+        salesDataMap.set(groupKey, createDefaultSummary());
+        processedInvoicesForGroupVoucher.set(groupKey, new Set());
+      }
+      const groupSummary = salesDataMap.get(groupKey)!;
+      groupSummary.jumlahTerjual += item.qty ?? 1;
+      groupSummary.kotor += itemGross;
+      groupSummary.diskonItem += itemDiscount;
+      groupSummary.pajak += itemTax;
+      groupSummary.totalPenjualan += itemTotal;
+
+      const groupVoucherSet = processedInvoicesForGroupVoucher.get(groupKey)!;
+      if (invoice.voucher_id && !groupVoucherSet.has(invoice.id)) {
+        groupSummary.countPenggunaanVoucher += 1;
+        groupVoucherSet.add(invoice.id);
       }
 
-      const groupData = accumulator.get(groupKey)!;
-
-      // UBAHAN 3: Lakukan update ke DUA tempat: summary keseluruhan DAN summary per grup
-
-      // -> Update summary keseluruhan
       overallSummary.jumlahTerjual += item.qty ?? 1;
       overallSummary.kotor += itemGross;
       overallSummary.diskonItem += itemDiscount;
@@ -519,27 +500,120 @@ export class ReportService {
       overallSummary.totalPenjualan += itemTotal;
       if (invoice.voucher_id && !processedInvoicesForSummary.has(invoice.id)) {
         overallSummary.countPenggunaanVoucher += 1;
-        groupData.countPenggunaanVoucher += 1;
         processedInvoicesForSummary.add(invoice.id);
       }
-
-      // -> Update summary per grup
-      groupData.jumlahTerjual += item.qty ?? 1;
-      groupData.kotor += itemGross;
-      groupData.diskonItem += itemDiscount;
-      groupData.pajak += itemTax;
-      groupData.totalPenjualan += itemTotal;
     }
 
-    // UBAHAN 4: Format hasil akhir sesuai struktur baru
-    const groupedSummary = Array.from(accumulator.entries()).map(
-      ([groupName, data]) => ({
-        group: groupName,
-        ...data,
-      }),
-    );
+    // ========================================================================
+    // LANGKAH 2: AMBIL DAFTAR MASTER BERDASARKAN TIPE GRUP
+    // (Perubahan utama ada di blok switch ini)
+    // ========================================================================
+    let masterGroups: string[] = [];
 
-    // Kembalikan objek tunggal yang berisi kedua jenis summary
+    switch (groupBy) {
+      case 'item':
+        const allProducts = await this.prisma.products.findMany({
+          where: { stores_id: storeId },
+          select: { name: true },
+        });
+        masterGroups = allProducts.map((p) => p.name ?? 'Unknown Item');
+        break;
+      case 'category':
+        const allProductCategories = await this.prisma.products.findMany({
+          where: { stores_id: storeId },
+          include: {
+            categories_has_products: { include: { categories: true } },
+          },
+        });
+        const categoryCombinations = new Set<string>();
+        allProductCategories.forEach((p) => {
+          const names = p.categories_has_products
+            .map((chp) => chp.categories.category)
+            .filter(Boolean) as string[];
+          const key =
+            names.length > 0 ? names.sort().join(', ') : 'Uncategorized';
+          categoryCombinations.add(key);
+        });
+        masterGroups = Array.from(categoryCombinations);
+        break;
+      case 'staff':
+        const allStaff = await this.prisma.users.findMany({
+          where: { employees: { stores_id: storeId } },
+          select: { fullname: true },
+        });
+        masterGroups = allStaff.map((s) => s.fullname ?? 'Unknown Staff');
+        break;
+      case 'customer':
+        const allCustomers = await this.prisma.customer.findMany({
+          where: { stores_id: storeId },
+          select: { name: true },
+        });
+        masterGroups = allCustomers.map((c) => c.name ?? 'Guest Customer');
+        break;
+
+      // --- PERUBAHAN LOGIKA UNTUK TANGGAL, BULAN, DAN TAHUN ---
+      case 'day':
+        const dayGroups = [];
+        // Clone startDate agar tidak mengubah objek aslinya
+        let currentDate = new Date(startDate.toISOString().split('T')[0]);
+        while (currentDate <= endDate) {
+          dayGroups.push(currentDate.toISOString().split('T')[0]);
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        masterGroups = dayGroups;
+        break;
+      case 'month':
+        const monthGroups = [];
+        let currentMonth = new Date(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          1,
+        );
+        const finalMonth = new Date(
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          1,
+        );
+        while (currentMonth <= finalMonth) {
+          const year = currentMonth.getFullYear();
+          const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
+          monthGroups.push(`${year}-${month}`);
+          currentMonth.setMonth(currentMonth.getMonth() + 1);
+        }
+        masterGroups = monthGroups;
+        break;
+      case 'year':
+        const yearGroups = [];
+        const startYear = startDate.getFullYear();
+        const endYear = endDate.getFullYear();
+        for (let year = startYear; year <= endYear; year++) {
+          yearGroups.push(String(year));
+        }
+        masterGroups = yearGroups;
+        break;
+      case 'quarter':
+        const year = startDate.getFullYear();
+        masterGroups = [`${year}-Q1`, `${year}-Q2`, `${year}-Q3`, `${year}-Q4`];
+        break;
+      // ----------------------------------------------------------------
+
+      default:
+        masterGroups = Array.from(salesDataMap.keys());
+        break;
+    }
+
+    // ========================================================================
+    // LANGKAH 3: GABUNGKAN DAFTAR MASTER DENGAN PETA DATA PENJUALAN
+    // (Tidak ada perubahan di blok ini)
+    // ========================================================================
+    const groupedSummary = masterGroups.sort().map((groupKey) => {
+      const summary = salesDataMap.get(groupKey) || createDefaultSummary();
+      return {
+        group: groupKey,
+        ...summary,
+      };
+    });
+
     return { overallSummary, groupedSummary };
   }
 
