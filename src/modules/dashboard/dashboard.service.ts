@@ -1,18 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import {
-  FinancialReportType,
-  SalesReportType,
-  StockReportType,
-  SummaryType,
-} from './dashboard.controller';
+import { SummaryType } from './dashboard.controller';
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   private adjustDateForWIB(date: Date): Date {
-    const sevenHoursInMs = 7 * 60 * 60 * 1000;
+    // const sevenHoursInMs = 7 * 60 * 60 * 1000;
+    const sevenHoursInMs = 0;
     return new Date(date.getTime() - sevenHoursInMs);
   }
 
@@ -34,12 +30,20 @@ export class DashboardService {
     const salesItems = await this.prisma.invoice_details.findMany({
       where: {
         invoice: {
-          paid_at: {
-            gte: startDate,
-            lte: endDate,
-          },
-          payment_status: 'paid',
-          store_id: storeId,
+          AND: [
+            {
+              paid_at: {
+                gte: startDate,
+              },
+            },
+            {
+              paid_at: {
+                lte: endDate,
+              },
+            },
+            { payment_status: 'paid' },
+            { store_id: storeId },
+          ],
         },
       },
       select: {
@@ -308,9 +312,11 @@ export class DashboardService {
     for (let hour = 0; hour < 24; hour++) {
       const hourStart = new Date(targetDate);
       hourStart.setHours(hour, 0, 0, 0);
+      hourStart.setHours(hourStart.getHours() - 7); // Adjust for WIB
 
       const hourEnd = new Date(targetDate);
       hourEnd.setHours(hour, 59, 59, 999);
+      hourEnd.setHours(hourEnd.getHours() - 7); // Adjust for WIB
 
       const metrics = await this.getMetricsForPeriod(hourStart, hourEnd, req);
 
@@ -426,410 +432,5 @@ export class DashboardService {
       paymentMethods,
       stockStatus,
     };
-  }
-
-  private async getCashInData(
-    begDate: Date,
-    endDate: Date,
-    req: ICustomRequestHeaders,
-  ) {
-    const invoiceData = await this.prisma.invoice.findMany({
-      where: {
-        paid_at: {
-          gte: begDate,
-          lte: endDate,
-        },
-        store_id: req.store_id,
-      },
-    });
-    const mappedInvoiceData = invoiceData.map((invoice) => ({
-      id: invoice.id,
-      date: invoice.paid_at,
-      type: 'Cash In',
-      notes: 'Transaction ' + invoice.invoice_number,
-      nominal: invoice.grand_total,
-    }));
-    return mappedInvoiceData;
-  }
-
-  private async getPaymentMethodData(
-    begDate: Date,
-    endDate: Date,
-    req: ICustomRequestHeaders,
-  ) {
-    const paymentData = await this.prisma.invoice.findMany({
-      where: {
-        paid_at: {
-          gte: begDate,
-          lte: endDate,
-        },
-        store_id: req.store_id,
-      },
-      include: {
-        payment_methods: true,
-      },
-    });
-    const report = new Map<string, { transaction: number; nominal: number }>();
-
-    for (const invoice of paymentData) {
-      if (invoice.payment_methods && invoice.payment_methods.name) {
-        const methodName = invoice.payment_methods.name;
-        const amount = invoice.grand_total || 0;
-
-        if (!report.has(methodName)) {
-          report.set(methodName, { transaction: 0, nominal: 0 });
-        }
-
-        const currentTotals = report.get(methodName)!;
-        currentTotals.transaction += 1;
-        currentTotals.nominal += amount;
-      }
-    }
-
-    const reportData = Array.from(report.entries()).map(([method, data]) => ({
-      paymentMethod: method,
-      transaction: data.transaction,
-      nominal: data.nominal,
-    }));
-
-    const totals = reportData.reduce(
-      (acc, item) => {
-        acc.transaction += item.transaction;
-        acc.nominal += item.nominal;
-        return acc;
-      },
-      { transaction: 0, nominal: 0 },
-    );
-
-    return { reportData, totals };
-  }
-
-  private async getTaxAndServiceChargeReport(
-    startDate: Date,
-    endDate: Date,
-    req: ICustomRequestHeaders,
-  ) {
-    const aggregation = await this.prisma.invoice.aggregate({
-      where: {
-        store_id: req.store_id,
-        paid_at: {
-          gte: startDate,
-          lte: endDate,
-          not: null,
-        },
-      },
-      _sum: {
-        subtotal: true,
-        tax_amount: true,
-        service_charge_amount: true,
-      },
-    });
-
-    const chargeDetails = await this.prisma.charges.findMany({
-      where: {
-        store_id: req.store_id,
-        type: { in: ['tax', 'service'] },
-      },
-    });
-
-    const taxInfo = chargeDetails.find((c) => c.type === 'tax');
-    const serviceInfo = chargeDetails.find((c) => c.type === 'service');
-
-    const reportData = [
-      {
-        type: 'Tax',
-        rate: taxInfo ? Number(taxInfo.percentage) * 100 : 0,
-        subtotalApplied: aggregation._sum.subtotal || 0,
-        nominal: aggregation._sum.tax_amount || 0,
-      },
-      {
-        type: 'Service Charge',
-        rate: serviceInfo ? Number(serviceInfo.percentage) * 100 : 0,
-        subtotalApplied: aggregation._sum.subtotal || 0,
-        nominal: aggregation._sum.service_charge_amount || 0,
-      },
-    ];
-
-    return reportData;
-  }
-
-  async getFinancialReport(
-    startDate: Date,
-    endDate: Date,
-    type: FinancialReportType,
-    req: ICustomRequestHeaders,
-  ) {
-    if (startDate > endDate) {
-      throw new BadRequestException(
-        'Start date must be earlier than or equal to end date',
-      );
-    }
-
-    if (type === 'profit-loss') {
-      const [profitLossData] = await Promise.all([
-        this.getMetricsForPeriod(startDate, endDate, req),
-      ]);
-      return {
-        totalPenjualan: profitLossData.totalSales,
-        costOfGoodsSold: profitLossData.totalGross,
-        grossProfit: profitLossData.totalSales - profitLossData.totalGross,
-        operatingExpenses: 0,
-        netProfit: profitLossData.totalSales - profitLossData.totalGross - 0,
-      };
-    } else if (type === 'cashin-out') {
-      const [cashIn] = await Promise.all([
-        this.getCashInData(startDate, endDate, req),
-      ]);
-      return cashIn;
-    } else if (type === 'payment-method') {
-      return await this.getPaymentMethodData(startDate, endDate, req);
-    } else if (type === 'tax-service') {
-      const productSales = await this.getTaxAndServiceChargeReport(
-        startDate,
-        endDate,
-        req,
-      );
-      return productSales;
-    }
-  }
-
-  private async getItemSalesReport(
-    startDate: Date,
-    endDate: Date,
-    req: ICustomRequestHeaders,
-  ) {
-    const storeProducts = await this.prisma.products.findMany({
-      where: {
-        stores_id: req.store_id,
-      },
-      include: {
-        categories_has_products: {
-          include: {
-            categories: true,
-          },
-        },
-      },
-    });
-
-    if (storeProducts.length === 0) {
-      return []; // This store has no products assigned
-    }
-
-    // 2. Get the sales aggregations ONLY for those products within the date range
-    const productIds = storeProducts.map((p) => p.id);
-    const aggregations = await this.prisma.invoice_details.groupBy({
-      by: ['product_id'],
-      where: {
-        product_id: { in: productIds }, // Important: Only check relevant products
-        invoice: {
-          store_id: req.store_id,
-          paid_at: {
-            gte: startDate,
-            lte: endDate,
-          },
-        },
-      },
-      _sum: {
-        qty: true,
-        product_price: true,
-      },
-      _avg: {
-        product_price: true,
-      },
-    });
-
-    // Create a Map of the sales data for easy lookup
-    const salesDataMap = new Map(
-      aggregations.map((agg) => [agg.product_id, agg]),
-    );
-
-    // Get the store's tax rate once
-    const taxInfo = await this.prisma.charges.findFirst({
-      where: { type: 'tax', store_id: req.store_id },
-    });
-    const taxRate = taxInfo ? Number(taxInfo.percentage) : 0;
-
-    // 3. Create the summary by merging the full product list with the sales data
-    const formattedData = storeProducts.map((product) => {
-      const sales = salesDataMap.get(product.id);
-
-      if (sales) {
-        // This item was sold in the period
-        const grossSales = sales._sum.product_price || 0;
-        // const discount = sales._sum.discount_amount || 0;
-        const netSales = grossSales - 0;
-        const tax = netSales * taxRate;
-        const totalSales = netSales + tax;
-
-        return {
-          productId: product.id || 'N/A',
-          itemName: product.name,
-          category:
-            product.categories_has_products
-              .map((cat) => cat.categories.category)
-              .join(', ') || 'Uncategorized',
-          qtySold: sales._sum.qty || 0,
-          unitPrice: sales._avg.product_price || 0,
-          grossSales,
-          discount: 0,
-          netSales,
-          tax,
-          totalSales,
-        };
-      } else {
-        // This item exists in the store but had zero sales in the period
-        return {
-          productId: product.id || 'N/A',
-          itemName: product.name,
-          category:
-            product.categories_has_products
-              .map((cat) => cat.categories.category)
-              .join(', ') || 'Uncategorized',
-          qtySold: 0,
-          unitPrice: 0, // Or you could fetch the product's default price
-          grossSales: 0,
-          discount: 0,
-          netSales: 0,
-          tax: 0,
-          totalSales: 0,
-        };
-      }
-    });
-
-    return formattedData;
-  }
-
-  private async getOrderSalesReport(
-    startDate: Date,
-    endDate: Date,
-    req: ICustomRequestHeaders,
-  ) {
-    const invoices = await this.prisma.invoice.findMany({
-      where: {
-        store_id: req.store_id,
-        paid_at: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      select: {
-        invoice_number: true,
-        order_type: true,
-        subtotal: true,
-        tax_amount: true,
-        discount_amount: true,
-        grand_total: true,
-      },
-    });
-
-    // Format the data for the response
-    const formattedData = invoices.map((inv) => ({
-      invoiceId: inv.invoice_number,
-      orderType: inv.order_type,
-      grossSales: inv.subtotal,
-      tax: inv.tax_amount || 0,
-      discount: inv.discount_amount || 0,
-      netSales: inv.grand_total,
-    }));
-
-    return formattedData;
-  }
-
-  async getSalesReport(
-    startDate: Date,
-    endDate: Date,
-    type: SalesReportType,
-    req: ICustomRequestHeaders,
-  ) {
-    if (startDate > endDate) {
-      throw new BadRequestException(
-        'Start date must be earlier than or equal to end date',
-      );
-    }
-    if (type === 'item') {
-      const [itemSales] = await Promise.all([
-        this.getItemSalesReport(startDate, endDate, req),
-      ]);
-      return itemSales;
-    } else if (type === 'order') {
-      const orderSales = await this.getOrderSalesReport(
-        startDate,
-        endDate,
-        req,
-      );
-      return orderSales;
-    }
-  }
-
-  async getVoucherReport(
-    startDate: Date,
-    endDate: Date,
-    req: ICustomRequestHeaders,
-  ) {
-    if (startDate > endDate) {
-      throw new BadRequestException(
-        'Start date must be earlier than or equal to end date',
-      );
-    }
-
-    const vouchers = await this.prisma.voucher.findMany({
-      where: {
-        store_id: req.store_id,
-      },
-      include: {
-        invoice: {
-          where: {
-            paid_at: {
-              gte: startDate,
-              lte: endDate,
-            },
-          },
-        },
-      },
-    });
-
-    return vouchers.map((voucher) => ({
-      voucherName: voucher.name,
-      validityPeriod: voucher.start_period + ' - ' + voucher.end_period,
-      usage: voucher.invoice.length,
-      quota: voucher.quota,
-    }));
-  }
-
-  async getStockReport(
-    startDate: Date,
-    endDate: Date,
-    type: StockReportType,
-    req: ICustomRequestHeaders,
-  ) {
-    if (startDate > endDate) {
-      throw new BadRequestException(
-        'Start date must be earlier than or equal to end date',
-      );
-    }
-
-    if (type === 'stock') {
-      const stock = await this.prisma.master_inventory_items.findMany({
-        where: {
-          store_id: req.store_id,
-        },
-        include: {
-          master_inventory_categories: true,
-          master_storage_locations: true,
-        },
-      });
-      return stock.map((item) => ({
-        sku: item.sku,
-        itemName: item.name,
-        category: item.master_inventory_categories.name,
-        stock: item.stock_quantity,
-        reorderLevel: item.reorder_level,
-        minimumStock: item.minimum_stock_quantity,
-        unit: item.unit,
-        storageLocation: item.master_storage_locations?.name,
-      }));
-    } else if (type === 'movement') {
-      // Fetch stock movement data
-    }
   }
 }
