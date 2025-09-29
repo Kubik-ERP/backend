@@ -1,5 +1,5 @@
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Strategy, VerifyCallback } from 'passport-google-oauth20';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { jakartaTime } from '../helpers/common.helpers';
@@ -40,7 +40,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     });
     // Kalau belum ada, buat baru
     if (!user) {
-      user = await this.prisma.users.create({
+      throw new BadRequestException('Email not registered');
+      /* user = await this.prisma.users.create({
         data: {
           email: email,
           password: 'google-auth', // Password dummy, bisa diubah sesuai kebutuhan
@@ -53,7 +54,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
           updated_at: jakartaTime().toUnixInteger(),
           role_id: role!.id,
         },
-      });
+      }); */
     }
 
     // Kembalikan user ke Passport (akan masuk ke req.user)
