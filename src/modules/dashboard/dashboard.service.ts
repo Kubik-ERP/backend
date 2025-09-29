@@ -403,10 +403,10 @@ export class DashboardService {
     const summary = {
       // sales kotor (ini itu brarti ya penjualan total secara kasar, tunai dan nontunai, smua pokok e) - retur penjualan
       totalSales: {
-        value: currentMetrics.totalSales,
+        value: currentMetrics.totalNett,
         percentageChange: this.calculatePercentageChange(
-          currentMetrics.totalSales,
-          previousMetrics.totalSales,
+          currentMetrics.totalNett,
+          previousMetrics.totalNett,
         ),
       },
       // persediaan awal + pembelian persediaan - persediaan akhir (hasil dari pembelian barang)
