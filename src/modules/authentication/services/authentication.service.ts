@@ -110,7 +110,7 @@ export class AuthenticationService {
 
     const emailExists = await this._usersService.findOneByEmail(email);
     if (emailExists) {
-      throw new BadRequestException(`User already exists`);
+      return emailExists;
     }
 
     /**
