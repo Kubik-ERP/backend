@@ -145,6 +145,11 @@ export class UsersService {
       where: { id },
       include: {
         roles: true, // Include roles if needed
+        employees: {
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
