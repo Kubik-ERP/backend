@@ -80,7 +80,24 @@ export class DashboardService {
       return acc + total;
     }, 0);
 
-    return { totalSales, totalGross };
+    const nett = await this.prisma.invoice.findMany({
+      where: {
+        paid_at: {
+          gte: startDate,
+          lte: endDate,
+        },
+        store_id: storeId,
+        payment_status: 'paid',
+      },
+      select: {
+        grand_total: true,
+      },
+    });
+    const totalNett = nett.reduce((acc, item) => {
+      return acc + (item.grand_total ?? 0);
+    }, 0);
+
+    return { totalSales, totalGross, totalNett };
   }
 
   private async getPaymentMethodDashboardData(
@@ -158,7 +175,7 @@ export class DashboardService {
 
       salesByMonth.push({
         label: monthNames[month],
-        value: monthlyMetrics.totalSales,
+        value: monthlyMetrics.totalNett,
       });
     }
 
@@ -292,7 +309,7 @@ export class DashboardService {
 
       dailySales.push({
         label: formattedDate,
-        value: metrics.totalSales,
+        value: metrics.totalNett,
       });
 
       currentDate.setDate(currentDate.getDate() + 1);
@@ -324,7 +341,7 @@ export class DashboardService {
 
       hourlySales.push({
         label: label,
-        value: metrics.totalSales,
+        value: metrics.totalNett,
       });
     }
 
@@ -386,10 +403,10 @@ export class DashboardService {
     const summary = {
       // sales kotor (ini itu brarti ya penjualan total secara kasar, tunai dan nontunai, smua pokok e) - retur penjualan
       totalSales: {
-        value: currentMetrics.totalSales,
+        value: currentMetrics.totalNett,
         percentageChange: this.calculatePercentageChange(
-          currentMetrics.totalSales,
-          previousMetrics.totalSales,
+          currentMetrics.totalNett,
+          previousMetrics.totalNett,
         ),
       },
       // persediaan awal + pembelian persediaan - persediaan akhir (hasil dari pembelian barang)
