@@ -95,7 +95,7 @@ export class ProceedInstantPaymentDto extends ProductListDto {
   })
   @IsString()
   @IsOptional()
-  public customerId?: string;
+  public customerId?: string | null;
 
   @ApiProperty({
     description: 'Table Code',
