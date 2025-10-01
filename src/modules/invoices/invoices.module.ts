@@ -1,6 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { InvoiceService } from './services/invoices.service';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaModule } from 'src/prisma/prisma.module';
 import { InvoiceController } from './controllers/invoices.controller';
 import { PaymentFactory } from './factories/payment.factory';
 import { MidtransProvider } from './providers/midtrans.provider';
@@ -22,6 +22,7 @@ import { Reflector } from '@nestjs/core';
 
 @Module({
   imports: [
+    PrismaModule,
     MailModule,
     StorageServiceModule,
     KitchenModule,
@@ -30,7 +31,6 @@ import { Reflector } from '@nestjs/core';
   providers: [
     InvoiceService,
     PaymentFactory,
-    PrismaService,
     MidtransProvider,
     NotificationHelper,
     PaymentLogsService,
@@ -46,7 +46,6 @@ import { Reflector } from '@nestjs/core';
   controllers: [InvoiceSettingController, InvoiceController],
   exports: [
     InvoiceService,
-    PrismaService,
     NotificationHelper,
     PaymentLogsService,
     ChargesService,
