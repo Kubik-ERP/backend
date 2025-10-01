@@ -142,6 +142,7 @@ export class AuthenticationController {
       limitStore: result.store_quota ?? 0,
       isAccessRetail: result.isAccessRetail,
       staffId: result.employees?.id,
+      sub_expired_at: result.sub_expired_at,
     };
     return {
       success: true,
