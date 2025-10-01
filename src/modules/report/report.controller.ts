@@ -29,13 +29,13 @@ export class ReportController {
     @Query('startDate') startDate: Date,
     @Query('endDate') endDate: Date,
     @Query('type') type: NewFinancialReportType,
-    @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIdsString: string,
   ) {
     const data = await this.reportService.getNewFinancialReports(
       startDate,
       endDate,
       type,
-      req,
+      storeIdsString,
     );
     return {
       message: 'Dashboard summary retrieved successfully',
@@ -61,12 +61,16 @@ export class ReportController {
     @Query('endDate') endDate: Date,
     @Query('type') type: AdvancedSalesReportType,
     @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIdsString: string,
+    @Query('staff_ids') staffId?: string,
   ) {
     const data = await this.reportService.getAdvancedSalesReport(
       startDate,
       endDate,
       type,
       req,
+      storeIdsString,
+      staffId,
     );
     return {
       message: 'Advanced sales report data retrieved successfully',

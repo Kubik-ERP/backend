@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 export type NewFinancialReportType =
@@ -30,7 +31,7 @@ export class ReportService {
   private async getPaymentMethodData(
     begDate: Date,
     endDate: Date,
-    req: ICustomRequestHeaders,
+    storeIds: string[],
   ) {
     const paymentData = await this.prisma.invoice.findMany({
       where: {
@@ -38,7 +39,7 @@ export class ReportService {
           gte: begDate,
           lte: endDate,
         },
-        store_id: req.store_id,
+        store_id: { in: storeIds },
       },
       include: {
         payment_methods: true,
@@ -82,11 +83,11 @@ export class ReportService {
   private async getTaxAndServiceChargeReport(
     startDate: Date,
     endDate: Date,
-    req: ICustomRequestHeaders,
+    storeIds: string[],
   ) {
     const aggregation = await this.prisma.invoice.aggregate({
       where: {
-        store_id: req.store_id,
+        store_id: { in: storeIds },
         paid_at: {
           gte: startDate,
           lte: endDate,
@@ -102,7 +103,7 @@ export class ReportService {
 
     const chargeDetails = await this.prisma.charges.findMany({
       where: {
-        store_id: req.store_id,
+        store_id: { in: storeIds },
         type: { in: ['tax', 'service'] },
       },
     });
@@ -131,14 +132,12 @@ export class ReportService {
   private async getFinancialSummary(
     startDate: Date,
     endDate: Date,
-    req: ICustomRequestHeaders,
+    storeIds: string[],
   ) {
-    const storeId = req.store_id;
-
     // Agregasi utama untuk data invoice
     const invoiceAggregation = await this.prisma.invoice.aggregate({
       where: {
-        store_id: storeId,
+        store_id: { in: storeIds },
         payment_status: 'paid',
         paid_at: {
           gte: startDate,
@@ -156,7 +155,7 @@ export class ReportService {
     // Agregasi untuk penggunaan voucher secara spesifik
     const voucherUsageAggregation = await this.prisma.invoice.aggregate({
       where: {
-        store_id: storeId,
+        store_id: { in: storeIds },
         payment_status: 'paid',
         voucher_id: { not: null },
         paid_at: {
@@ -172,7 +171,7 @@ export class ReportService {
     // Agregasi untuk invoice yang belum dibayar (outstanding)
     const outstandingAggregation = await this.prisma.invoice.aggregate({
       where: {
-        store_id: storeId,
+        store_id: { in: storeIds },
         payment_status: 'unpaid',
         created_at: {
           // Asumsi: outstanding dihitung berdasarkan kapan dibuat
@@ -213,14 +212,12 @@ export class ReportService {
   private async getPaymentSummary(
     startDate: Date,
     endDate: Date,
-    req: ICustomRequestHeaders,
+    storeIds: string[],
   ) {
-    const storeId = req.store_id;
-
     // Ambil data untuk widget ringkasan
     const summaryAggregation = await this.prisma.invoice.aggregate({
       where: {
-        store_id: storeId,
+        store_id: { in: storeIds },
         payment_status: 'paid',
         paid_at: {
           gte: startDate,
@@ -239,7 +236,7 @@ export class ReportService {
     // Ambil data voucher usage
     const voucherUsageAggregation = await this.prisma.invoice.aggregate({
       where: {
-        store_id: storeId,
+        store_id: { in: storeIds },
         payment_status: 'paid',
         voucher_id: { not: null },
         paid_at: {
@@ -255,7 +252,7 @@ export class ReportService {
     const paymentList = await this.getPaymentMethodData(
       startDate,
       endDate,
-      req,
+      storeIds,
     );
 
     return {
@@ -278,14 +275,12 @@ export class ReportService {
   private async getDiscountSummary(
     startDate: Date,
     endDate: Date,
-    req: ICustomRequestHeaders,
+    storeIds: string[],
   ) {
-    const storeId = req.store_id;
-
     // Ambil data untuk widget
     const discountAggregation = await this.prisma.invoice.aggregate({
       where: {
-        store_id: storeId,
+        store_id: { in: storeIds },
         payment_status: 'paid',
         total_product_discount: {
           gt: 0,
@@ -304,7 +299,7 @@ export class ReportService {
     // Ambil daftar invoice yang memiliki diskon
     const discountedInvoices = await this.prisma.invoice.findMany({
       where: {
-        store_id: storeId,
+        store_id: { in: storeIds },
         payment_status: 'paid',
         total_product_discount: {
           gt: 0,
@@ -339,10 +334,14 @@ export class ReportService {
     startDateString: Date,
     endDateString: Date,
     type: NewFinancialReportType,
-    req: ICustomRequestHeaders,
+    storeIdsString: String,
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
+    if (!storeIdsString) {
+      throw new BadRequestException('store_ids is required.');
+    }
+    const storeIds = storeIdsString.split(',');
 
     endDate.setHours(23, 59, 59, 999);
     if (startDate > endDate) {
@@ -353,13 +352,13 @@ export class ReportService {
 
     switch (type) {
       case 'financial-summary':
-        return this.getFinancialSummary(startDate, endDate, req);
+        return this.getFinancialSummary(startDate, endDate, storeIds);
       case 'payment-summary':
-        return this.getPaymentSummary(startDate, endDate, req);
+        return this.getPaymentSummary(startDate, endDate, storeIds);
       case 'discount-summary':
-        return this.getDiscountSummary(startDate, endDate, req);
+        return this.getDiscountSummary(startDate, endDate, storeIds);
       case 'tax-and-service-summary':
-        return this.getTaxAndServiceChargeReport(startDate, endDate, req);
+        return this.getTaxAndServiceChargeReport(startDate, endDate, storeIds);
       default:
         throw new BadRequestException('Invalid report type provided');
     }
@@ -368,10 +367,11 @@ export class ReportService {
   private async getProcessedSalesData(
     startDate: Date,
     endDate: Date,
-    req: ICustomRequestHeaders,
+    storeIds: string[],
     groupBy: AdvancedSalesReportType,
+    staffId?: string,
   ) {
-    const storeId = req.store_id;
+    let cashierId: number | undefined = undefined;
 
     const createDefaultSummary = () => ({
       jumlahTerjual: 0,
@@ -383,13 +383,32 @@ export class ReportService {
       countPenggunaanVoucher: 0,
     });
 
+    if (staffId && staffId !== 'all') {
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+
+      if (employee) {
+        cashierId = employee.user_id;
+      } else {
+        // Jika staffId tidak valid, kembalikan hasil kosong agar tidak error
+        return { overallSummary: createDefaultSummary(), groupedSummary: [] };
+      }
+    }
+
+    const invoiceWhere: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      payment_status: 'paid',
+      paid_at: { gte: startDate, lte: endDate },
+    };
+    if (cashierId !== undefined) {
+      invoiceWhere.cashier_id = cashierId;
+    }
+
     const invoiceDetails = await this.prisma.invoice_details.findMany({
       where: {
-        invoice: {
-          store_id: storeId,
-          payment_status: 'paid',
-          paid_at: { gte: startDate, lte: endDate },
-        },
+        invoice: invoiceWhere,
       },
       include: {
         products: {
@@ -498,14 +517,14 @@ export class ReportService {
     switch (groupBy) {
       case 'item':
         const allProducts = await this.prisma.products.findMany({
-          where: { stores_id: storeId },
+          where: { stores_id: { in: storeIds } },
           select: { name: true },
         });
         masterGroups = allProducts.map((p) => p.name ?? 'Unknown Item');
         break;
       case 'category':
         const allProductCategories = await this.prisma.products.findMany({
-          where: { stores_id: storeId },
+          where: { stores_id: { in: storeIds } },
           include: {
             categories_has_products: { include: { categories: true } },
           },
@@ -523,14 +542,14 @@ export class ReportService {
         break;
       case 'staff':
         const allStaff = await this.prisma.users.findMany({
-          where: { employees: { stores_id: storeId } },
+          where: { employees: { stores_id: { in: storeIds } } },
           select: { fullname: true },
         });
         masterGroups = allStaff.map((s) => s.fullname ?? 'Unknown Staff');
         break;
       case 'customer':
         const allCustomers = await this.prisma.customer.findMany({
-          where: { stores_id: storeId },
+          where: { stores_id: { in: storeIds } },
           select: { name: true },
         });
         masterGroups = allCustomers.map((c) => c.name ?? 'Guest Customer');
@@ -600,9 +619,15 @@ export class ReportService {
     endDateString: Date,
     type: AdvancedSalesReportType,
     req: ICustomRequestHeaders,
+    storeIdsString: string,
+    staffId?: string,
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
+    if (!storeIdsString) {
+      throw new BadRequestException('store_ids is required.');
+    }
+    const storeIds = storeIdsString.split(',');
 
     // Ini adalah bagian kunci: Set waktu endDate ke akhir hari
     endDate.setHours(23, 59, 59, 999);
@@ -612,7 +637,13 @@ export class ReportService {
       );
     }
 
-    return this.getProcessedSalesData(startDate, endDate, req, type);
+    return this.getProcessedSalesData(
+      startDate,
+      endDate,
+      storeIds,
+      type,
+      staffId,
+    );
   }
 
   async getInventoryValuation(req: ICustomRequestHeaders) {
