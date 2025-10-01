@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { KitchenController } from './controllers/kitchen.controller';
 import { KitchenService } from './services/kitchen.service';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaModule } from 'src/prisma/prisma.module';
 import { Reflector } from '@nestjs/core';
 
 @Module({
+  imports: [PrismaModule],
   controllers: [KitchenController],
-  providers: [KitchenService, PrismaService, Reflector],
-  exports: [KitchenService, PrismaService],
+  providers: [KitchenService, Reflector],
+  exports: [KitchenService],
 })
 export class KitchenModule {}
