@@ -46,6 +46,11 @@ export class FindAllEmployeeQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  store_ids?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   orderBy?: string;
 
   @ApiPropertyOptional()
