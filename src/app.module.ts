@@ -9,6 +9,7 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentMethodModule } from './modules/payment-methods/payment-method.module';
 import { TemplatesEmailModule } from './modules/templates-email/templates-email.module';
 import { UsersModule } from './modules/users/users.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 // NestJS Libraries
 import { CacheModule } from '@nestjs/cache-manager';
@@ -76,6 +77,7 @@ import { ReportModule } from './modules/report/report.module';
     DatabasePostgresConfigModule,
 
     // Core Feature Modules
+    PrismaModule,
     AuthenticationModule,
     BankModule,
     BrandsModule,
