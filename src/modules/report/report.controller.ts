@@ -61,12 +61,16 @@ export class ReportController {
     @Query('endDate') endDate: Date,
     @Query('type') type: AdvancedSalesReportType,
     @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIdsString: string,
+    @Query('staff_ids') staffId?: string,
   ) {
     const data = await this.reportService.getAdvancedSalesReport(
       startDate,
       endDate,
       type,
       req,
+      storeIdsString,
+      staffId,
     );
     return {
       message: 'Advanced sales report data retrieved successfully',

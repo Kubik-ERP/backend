@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 export type NewFinancialReportType =
@@ -368,10 +369,11 @@ export class ReportService {
   private async getProcessedSalesData(
     startDate: Date,
     endDate: Date,
-    req: ICustomRequestHeaders,
+    storeIds: string[],
     groupBy: AdvancedSalesReportType,
+    staffId?: string,
   ) {
-    const storeId = req.store_id;
+    let cashierId: number | undefined = undefined;
 
     const createDefaultSummary = () => ({
       jumlahTerjual: 0,
@@ -383,13 +385,32 @@ export class ReportService {
       countPenggunaanVoucher: 0,
     });
 
+    if (staffId && staffId !== 'all') {
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+
+      if (employee) {
+        cashierId = employee.user_id;
+      } else {
+        // Jika staffId tidak valid, kembalikan hasil kosong agar tidak error
+        return { overallSummary: createDefaultSummary(), groupedSummary: [] };
+      }
+    }
+
+    const invoiceWhere: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      payment_status: 'paid',
+      paid_at: { gte: startDate, lte: endDate },
+    };
+    if (cashierId !== undefined) {
+      invoiceWhere.cashier_id = cashierId;
+    }
+
     const invoiceDetails = await this.prisma.invoice_details.findMany({
       where: {
-        invoice: {
-          store_id: storeId,
-          payment_status: 'paid',
-          paid_at: { gte: startDate, lte: endDate },
-        },
+        invoice: invoiceWhere,
       },
       include: {
         products: {
@@ -498,14 +519,14 @@ export class ReportService {
     switch (groupBy) {
       case 'item':
         const allProducts = await this.prisma.products.findMany({
-          where: { stores_id: storeId },
+          where: { stores_id: { in: storeIds } },
           select: { name: true },
         });
         masterGroups = allProducts.map((p) => p.name ?? 'Unknown Item');
         break;
       case 'category':
         const allProductCategories = await this.prisma.products.findMany({
-          where: { stores_id: storeId },
+          where: { stores_id: { in: storeIds } },
           include: {
             categories_has_products: { include: { categories: true } },
           },
@@ -523,14 +544,14 @@ export class ReportService {
         break;
       case 'staff':
         const allStaff = await this.prisma.users.findMany({
-          where: { employees: { stores_id: storeId } },
+          where: { employees: { stores_id: { in: storeIds } } },
           select: { fullname: true },
         });
         masterGroups = allStaff.map((s) => s.fullname ?? 'Unknown Staff');
         break;
       case 'customer':
         const allCustomers = await this.prisma.customer.findMany({
-          where: { stores_id: storeId },
+          where: { stores_id: { in: storeIds } },
           select: { name: true },
         });
         masterGroups = allCustomers.map((c) => c.name ?? 'Guest Customer');
@@ -600,9 +621,15 @@ export class ReportService {
     endDateString: Date,
     type: AdvancedSalesReportType,
     req: ICustomRequestHeaders,
+    storeIdsString: string,
+    staffId?: string,
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
+    if (!storeIdsString) {
+      throw new BadRequestException('store_ids is required.');
+    }
+    const storeIds = storeIdsString.split(',');
 
     // Ini adalah bagian kunci: Set waktu endDate ke akhir hari
     endDate.setHours(23, 59, 59, 999);
@@ -612,7 +639,13 @@ export class ReportService {
       );
     }
 
-    return this.getProcessedSalesData(startDate, endDate, req, type);
+    return this.getProcessedSalesData(
+      startDate,
+      endDate,
+      storeIds,
+      type,
+      staffId,
+    );
   }
 
   async getInventoryValuation(req: ICustomRequestHeaders) {
