@@ -29,13 +29,13 @@ export class ReportController {
     @Query('startDate') startDate: Date,
     @Query('endDate') endDate: Date,
     @Query('type') type: NewFinancialReportType,
-    @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIdsString: string,
   ) {
     const data = await this.reportService.getNewFinancialReports(
       startDate,
       endDate,
       type,
-      req,
+      storeIdsString,
     );
     return {
       message: 'Dashboard summary retrieved successfully',
