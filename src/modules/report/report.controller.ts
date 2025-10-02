@@ -30,15 +30,17 @@ export class ReportController {
     @Query('endDate') endDate: Date,
     @Query('type') type: NewFinancialReportType,
     @Query('store_ids') storeIdsString: string,
+    @Query('staff_ids') staffId?: string,
   ) {
     const data = await this.reportService.getNewFinancialReports(
       startDate,
       endDate,
       type,
       storeIdsString,
+      staffId,
     );
     return {
-      message: 'Dashboard summary retrieved successfully',
+      message: 'Financial summary retrieved successfully',
       result: toCamelCase(data),
     };
   }

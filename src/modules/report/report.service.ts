@@ -32,15 +32,17 @@ export class ReportService {
     begDate: Date,
     endDate: Date,
     storeIds: string[],
+    staffId: number | undefined,
   ) {
+    const invoiceWhere: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      paid_at: { gte: begDate, lte: endDate },
+    };
+    if (staffId !== undefined) {
+      invoiceWhere.cashier_id = staffId;
+    }
     const paymentData = await this.prisma.invoice.findMany({
-      where: {
-        paid_at: {
-          gte: begDate,
-          lte: endDate,
-        },
-        store_id: { in: storeIds },
-      },
+      where: invoiceWhere,
       include: {
         payment_methods: true,
       },
@@ -84,16 +86,32 @@ export class ReportService {
     startDate: Date,
     endDate: Date,
     storeIds: string[],
+    staffId?: string,
   ) {
-    const aggregation = await this.prisma.invoice.aggregate({
-      where: {
-        store_id: { in: storeIds },
-        paid_at: {
-          gte: startDate,
-          lte: endDate,
-          not: null,
-        },
+    let cashierId: number | undefined = undefined;
+    if (staffId && staffId !== 'all') {
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+
+      if (employee) {
+        cashierId = employee.user_id;
+      }
+    }
+    const invoiceWhere: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      paid_at: {
+        gte: startDate,
+        lte: endDate,
+        not: null,
       },
+    };
+    if (cashierId !== undefined) {
+      invoiceWhere.cashier_id = cashierId;
+    }
+    const aggregation = await this.prisma.invoice.aggregate({
+      where: invoiceWhere,
       _sum: {
         subtotal: true,
         tax_amount: true,
@@ -133,17 +151,30 @@ export class ReportService {
     startDate: Date,
     endDate: Date,
     storeIds: string[],
+    staffId?: string,
   ) {
+    let cashierId: number | undefined = undefined;
+    if (staffId && staffId !== 'all') {
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+
+      if (employee) {
+        cashierId = employee.user_id;
+      }
+    }
+    const invoiceWhere: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      payment_status: 'paid',
+      paid_at: { gte: startDate, lte: endDate },
+    };
+    if (cashierId !== undefined) {
+      invoiceWhere.cashier_id = cashierId;
+    }
     // Agregasi utama untuk data invoice
     const invoiceAggregation = await this.prisma.invoice.aggregate({
-      where: {
-        store_id: { in: storeIds },
-        payment_status: 'paid',
-        paid_at: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
+      where: invoiceWhere,
       _sum: {
         subtotal: true,
         discount_amount: true,
@@ -153,32 +184,33 @@ export class ReportService {
     });
 
     // Agregasi untuk penggunaan voucher secara spesifik
+    const invoiceWhereVouch: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      payment_status: 'paid',
+      voucher_id: { not: null },
+      paid_at: { gte: startDate, lte: endDate },
+    };
+    if (cashierId !== undefined) {
+      invoiceWhere.cashier_id = cashierId;
+    }
     const voucherUsageAggregation = await this.prisma.invoice.aggregate({
-      where: {
-        store_id: { in: storeIds },
-        payment_status: 'paid',
-        voucher_id: { not: null },
-        paid_at: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
+      where: invoiceWhereVouch,
       _sum: {
         discount_amount: true,
       },
     });
 
     // Agregasi untuk invoice yang belum dibayar (outstanding)
-    const outstandingAggregation = await this.prisma.invoice.aggregate({
-      where: {
-        store_id: { in: storeIds },
-        payment_status: 'unpaid',
-        created_at: {
-          // Asumsi: outstanding dihitung berdasarkan kapan dibuat
-          gte: startDate,
-          lte: endDate,
-        },
+    const invoiceWhereOutstanding: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      payment_status: 'unpaid',
+      created_at: {
+        gte: startDate,
+        lte: endDate,
       },
+    };
+    const outstandingAggregation = await this.prisma.invoice.aggregate({
+      where: invoiceWhereOutstanding,
       _sum: {
         grand_total: true,
       },
@@ -213,17 +245,30 @@ export class ReportService {
     startDate: Date,
     endDate: Date,
     storeIds: string[],
+    staffId?: string,
   ) {
+    let cashierId: number | undefined = undefined;
+    if (staffId && staffId !== 'all') {
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+
+      if (employee) {
+        cashierId = employee.user_id;
+      }
+    }
+    const invoiceWhere: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      payment_status: 'paid',
+      paid_at: { gte: startDate, lte: endDate },
+    };
+    if (cashierId !== undefined) {
+      invoiceWhere.cashier_id = cashierId;
+    }
     // Ambil data untuk widget ringkasan
     const summaryAggregation = await this.prisma.invoice.aggregate({
-      where: {
-        store_id: { in: storeIds },
-        payment_status: 'paid',
-        paid_at: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
+      where: invoiceWhere,
       _count: {
         id: true,
       },
@@ -234,16 +279,17 @@ export class ReportService {
     });
 
     // Ambil data voucher usage
+    const invoiceWhereVouch: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      payment_status: 'paid',
+      voucher_id: { not: null },
+      paid_at: { gte: startDate, lte: endDate },
+    };
+    if (cashierId !== undefined) {
+      invoiceWhere.cashier_id = cashierId;
+    }
     const voucherUsageAggregation = await this.prisma.invoice.aggregate({
-      where: {
-        store_id: { in: storeIds },
-        payment_status: 'paid',
-        voucher_id: { not: null },
-        paid_at: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
+      where: invoiceWhereVouch,
       _sum: {
         discount_amount: true,
       },
@@ -253,6 +299,7 @@ export class ReportService {
       startDate,
       endDate,
       storeIds,
+      cashierId,
     );
 
     return {
@@ -276,20 +323,33 @@ export class ReportService {
     startDate: Date,
     endDate: Date,
     storeIds: string[],
+    staffId?: string,
   ) {
+    let cashierId: number | undefined = undefined;
+    if (staffId && staffId !== 'all') {
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+
+      if (employee) {
+        cashierId = employee.user_id;
+      }
+    }
+    const invoiceWhere: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      payment_status: 'paid',
+      paid_at: { gte: startDate, lte: endDate },
+      total_product_discount: {
+        gt: 0,
+      },
+    };
+    if (cashierId !== undefined) {
+      invoiceWhere.cashier_id = cashierId;
+    }
     // Ambil data untuk widget
     const discountAggregation = await this.prisma.invoice.aggregate({
-      where: {
-        store_id: { in: storeIds },
-        payment_status: 'paid',
-        total_product_discount: {
-          gt: 0,
-        },
-        paid_at: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
+      where: invoiceWhere,
       _sum: {
         total_product_discount: true,
         subtotal: true,
@@ -298,17 +358,7 @@ export class ReportService {
 
     // Ambil daftar invoice yang memiliki diskon
     const discountedInvoices = await this.prisma.invoice.findMany({
-      where: {
-        store_id: { in: storeIds },
-        payment_status: 'paid',
-        total_product_discount: {
-          gt: 0,
-        },
-        paid_at: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
+      where: invoiceWhere,
       select: {
         invoice_number: true,
         subtotal: true,
@@ -335,6 +385,7 @@ export class ReportService {
     endDateString: Date,
     type: NewFinancialReportType,
     storeIdsString: String,
+    staffId?: string,
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
@@ -352,13 +403,18 @@ export class ReportService {
 
     switch (type) {
       case 'financial-summary':
-        return this.getFinancialSummary(startDate, endDate, storeIds);
+        return this.getFinancialSummary(startDate, endDate, storeIds, staffId);
       case 'payment-summary':
-        return this.getPaymentSummary(startDate, endDate, storeIds);
+        return this.getPaymentSummary(startDate, endDate, storeIds, staffId);
       case 'discount-summary':
-        return this.getDiscountSummary(startDate, endDate, storeIds);
+        return this.getDiscountSummary(startDate, endDate, storeIds, staffId);
       case 'tax-and-service-summary':
-        return this.getTaxAndServiceChargeReport(startDate, endDate, storeIds);
+        return this.getTaxAndServiceChargeReport(
+          startDate,
+          endDate,
+          storeIds,
+          staffId,
+        );
       default:
         throw new BadRequestException('Invalid report type provided');
     }
