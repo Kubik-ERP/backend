@@ -1,11 +1,9 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Headers,
   HttpCode,
-  Param,
   Post,
   Put,
   UseGuards,
@@ -69,40 +67,21 @@ export class StoreTableController {
 
   @HttpCode(200)
   @RequirePermissions('table_management')
-  @Put(':id')
+  @Put()
   async update(
     @Req() req: ICustomRequestHeaders,
-    @Param('id') id: string,
     @Body() dto: CreateAccountStoreConfigurationDto,
     @Headers('x-store-id') storeId: string,
   ) {
     if (!storeId) throw new BadRequestException('x-store-id wajib');
     const ownerId = req.user.ownerId;
     const result = await this.storeTableService.update(
-      id,
       dto,
       storeId,
       ownerId,
     );
     return {
       message: 'Store table updated successfully',
-      result: toCamelCase(result),
-    };
-  }
-
-  @HttpCode(200)
-  @RequirePermissions('table_management')
-  @Delete(':id')
-  async delete(
-    @Req() req: ICustomRequestHeaders,
-    @Param('id') id: string,
-    @Headers('x-store-id') storeId: string,
-  ) {
-    if (!storeId) throw new BadRequestException('x-store-id wajib');
-    const ownerId = req.user.ownerId;
-    const result = await this.storeTableService.delete(id, storeId, ownerId);
-    return {
-      message: 'Store table deleted successfully',
       result: toCamelCase(result),
     };
   }
