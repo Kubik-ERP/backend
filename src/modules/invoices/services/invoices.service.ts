@@ -448,13 +448,12 @@ export class InvoiceService {
     let grandTotal: number = 0;
     let totalProductDiscount: number = 0;
     let kitchenQueue: KitchenQueueAdd[] = [];
-
     await this._prisma.$transaction(
       async (tx) => {
         const invoiceData = {
           id: invoiceId,
           payment_methods_id: request.paymentMethodId,
-          customer_id: request.customerId ?? null,
+          customer_id: request.customerId?.trim() || null,
           table_code: request.tableCode,
           payment_status:
             request.provider === 'cash'
@@ -486,7 +485,7 @@ export class InvoiceService {
           rounding_setting_id: null,
           rounding_amount: null,
         };
-
+        console.log(invoiceData);
         // create invoice with status unpaid
         await this.create(tx, invoiceData);
 
