@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateAccountStoreConfigurationDto } from '../dtos/store-table.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -19,7 +15,7 @@ export class StoreTableService {
     const result = [];
 
     for (const floor of dto.configurations) {
-      const floorId = uuidv4();
+      const floorId = floor.id ?? uuidv4();
       const createdFloor = await this.prisma.store_floors.create({
         data: {
           id: floorId,
@@ -31,7 +27,7 @@ export class StoreTableService {
 
       if (floor.tables?.length) {
         const tableData = floor.tables.map((table) => ({
-          id: uuidv4(),
+          id: table.id ?? uuidv4(),
           uid: ownerId,
           store_id: storeId,
           floor_id: floorId,
@@ -55,52 +51,136 @@ export class StoreTableService {
   }
 
   async update(
-    floorId: string,
     dto: CreateAccountStoreConfigurationDto,
     storeId: string,
     ownerId: number,
   ) {
-    const floor = await this.prisma.store_floors.findFirst({
-      where: { id: floorId, store_id: storeId, uid: ownerId },
+    const configurations = dto.configurations ?? [];
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingFloors = await tx.store_floors.findMany({
+        where: { store_id: storeId, uid: ownerId },
+        include: { store_tables: true },
+      });
+
+      const floorMap = new Map(
+        existingFloors.map((floor) => [floor.id, floor]),
+      );
+
+      const existingTables = existingFloors.flatMap((floor) => floor.store_tables);
+      const tableMap = new Map(existingTables.map((table) => [table.id, table]));
+
+      const floorIdsToKeep = new Set<string>();
+      const tableIdsToKeep = new Set<string>();
+
+      for (const config of configurations) {
+        const floorId = config.id ?? uuidv4();
+        const existingFloor = config.id ? floorMap.get(config.id) : undefined;
+
+        if (config.id && !existingFloor) {
+          throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
+        }
+
+        if (existingFloor) {
+          await tx.store_floors.update({
+            where: { id: floorId },
+            data: {
+              floor_name: config.floorName,
+            },
+          });
+        } else {
+          await tx.store_floors.create({
+            data: {
+              id: floorId,
+              uid: ownerId,
+              store_id: storeId,
+              floor_name: config.floorName,
+            },
+          });
+        }
+
+        floorIdsToKeep.add(floorId);
+
+        const tables = config.tables ?? [];
+
+        for (const table of tables) {
+          const tableId = table.id ?? uuidv4();
+          const existingTable = table.id ? tableMap.get(table.id) : undefined;
+
+          if (table.id && !existingTable) {
+            throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
+          }
+
+          const tableData = {
+            uid: ownerId,
+            store_id: storeId,
+            floor_id: floorId,
+            name: table.name,
+            seats: table.seats,
+            shape: table.shape,
+            width: table.width,
+            height: table.height,
+            position_x: table.positionX,
+            position_y: table.positionY,
+            is_enable_qr_code: table.isEnableQrCode,
+          };
+
+          if (existingTable) {
+            if (existingTable.store_id !== storeId || existingTable.uid !== ownerId) {
+              throw new ForbiddenException(
+                'Data tidak ditemukan atau bukan milikmu',
+              );
+            }
+
+            await tx.store_tables.update({
+              where: { id: tableId },
+              data: tableData,
+            });
+          } else {
+            await tx.store_tables.create({
+              data: { id: tableId, ...tableData },
+            });
+          }
+
+          tableIdsToKeep.add(tableId);
+          tableMap.set(tableId, { ...tableData, id: tableId });
+        }
+      }
+
+      const floorsToDelete = existingFloors
+        .filter((floor) => !floorIdsToKeep.has(floor.id))
+        .map((floor) => floor.id);
+
+      const tablesToDelete = existingTables
+        .filter((table) => !tableIdsToKeep.has(table.id))
+        .map((table) => table.id);
+
+      if (tablesToDelete.length) {
+        await tx.store_tables.deleteMany({
+          where: {
+            id: { in: tablesToDelete },
+            store_id: storeId,
+          },
+        });
+      }
+
+      if (floorsToDelete.length) {
+        await tx.store_floors.deleteMany({
+          where: {
+            id: { in: floorsToDelete },
+            store_id: storeId,
+            uid: ownerId,
+          },
+        });
+      }
+
+      const updatedFloors = await tx.store_floors.findMany({
+        where: { store_id: storeId, uid: ownerId },
+        include: { store_tables: true },
+      });
+
+      return { success: true, configurations: updatedFloors };
     });
-
-    if (!floor)
-      throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
-
-    const config = dto.configurations[0];
-    if (!config) throw new NotFoundException('Data konfigurasi kosong');
-
-    await this.prisma.store_floors.update({
-      where: { id: floorId },
-      data: {
-        floor_name: config.floorName,
-      },
-    });
-
-    await this.prisma.store_tables.deleteMany({
-      where: { floor_id: floorId },
-    });
-
-    if (config.tables?.length) {
-      const tableData = config.tables.map((table) => ({
-        id: uuidv4(),
-        uid: ownerId,
-        store_id: storeId,
-        floor_id: floorId,
-        name: table.name,
-        seats: table.seats,
-        shape: table.shape,
-        width: table.width,
-        height: table.height,
-        position_x: table.positionX,
-        position_y: table.positionY,
-        is_enable_qr_code: table.isEnableQrCode,
-      }));
-
-      await this.prisma.store_tables.createMany({ data: tableData });
-    }
-
-    return { success: true, updatedFloorId: floorId };
   }
 
   async findAll(storeId: string, ownerId: number) {
@@ -154,22 +234,4 @@ export class StoreTableService {
     return floor;
   }
 
-  async delete(id: string, storeId: string, ownerId: number) {
-    const floor = await this.prisma.store_floors.findFirst({
-      where: { id, store_id: storeId, uid: ownerId },
-    });
-
-    if (!floor)
-      throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
-
-    await this.prisma.store_tables.deleteMany({
-      where: { floor_id: id },
-    });
-
-    await this.prisma.store_floors.delete({
-      where: { id },
-    });
-
-    return { success: true, deletedFloorId: id };
-  }
 }

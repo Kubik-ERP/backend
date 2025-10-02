@@ -18,6 +18,11 @@ export enum TableShape {
 }
 
 export class CreateAccountStoreTableDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
   @ApiProperty()
   @IsString()
   floorName: string;
@@ -59,6 +64,11 @@ export class CreateAccountStoreTableDto {
 }
 
 export class CreateAccountStoreFloorDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
   @ApiProperty()
   @IsString()
   floorName: string;

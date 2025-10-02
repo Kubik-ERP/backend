@@ -23,6 +23,14 @@ export class AuthenticationJWTGuard extends AuthGuard('jwt') {
       throw error || new UnauthorizedException();
     }
 
+    const subExpiredAt = user.sub_expired_at
+      ? new Date(user.sub_expired_at)
+      : null;
+
+    if (subExpiredAt && subExpiredAt <= new Date()) {
+      throw new UnauthorizedException('Subscription has expired');
+    }
+
     return user;
   }
 }
