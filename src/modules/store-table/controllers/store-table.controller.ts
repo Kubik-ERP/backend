@@ -75,11 +75,7 @@ export class StoreTableController {
   ) {
     if (!storeId) throw new BadRequestException('x-store-id wajib');
     const ownerId = req.user.ownerId;
-    const result = await this.storeTableService.update(
-      dto,
-      storeId,
-      ownerId,
-    );
+    const result = await this.storeTableService.update(dto, storeId, ownerId);
     return {
       message: 'Store table updated successfully',
       result: toCamelCase(result),
