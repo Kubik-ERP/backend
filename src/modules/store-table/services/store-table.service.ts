@@ -12,6 +12,7 @@ export class StoreTableService {
     storeId: string,
     ownerId: number,
   ) {
+    const ownerIdBigInt = BigInt(ownerId);
     const result = [];
 
     for (const floor of dto.configurations) {
@@ -19,7 +20,7 @@ export class StoreTableService {
       const createdFloor = await this.prisma.store_floors.create({
         data: {
           id: floorId,
-          uid: ownerId,
+          uid: ownerIdBigInt,
           store_id: storeId,
           floor_name: floor.floorName,
         },
@@ -28,7 +29,7 @@ export class StoreTableService {
       if (floor.tables?.length) {
         const tableData = floor.tables.map((table) => ({
           id: table.id ?? uuidv4(),
-          uid: ownerId,
+          uid: ownerIdBigInt,
           store_id: storeId,
           floor_id: floorId,
           name: table.name,
@@ -55,11 +56,12 @@ export class StoreTableService {
     storeId: string,
     ownerId: number,
   ) {
+    const ownerIdBigInt = BigInt(ownerId);
     const configurations = dto.configurations ?? [];
 
     return this.prisma.$transaction(async (tx) => {
       const existingFloors = await tx.store_floors.findMany({
-        where: { store_id: storeId, uid: ownerId },
+        where: { store_id: storeId, uid: ownerIdBigInt },
         include: { store_tables: true },
       });
 
@@ -67,8 +69,12 @@ export class StoreTableService {
         existingFloors.map((floor) => [floor.id, floor]),
       );
 
-      const existingTables = existingFloors.flatMap((floor) => floor.store_tables);
-      const tableMap = new Map(existingTables.map((table) => [table.id, table]));
+      const existingTables = existingFloors.flatMap(
+        (floor) => floor.store_tables,
+      );
+      const tableMap = new Map(
+        existingTables.map((table) => [table.id, table]),
+      );
 
       const floorIdsToKeep = new Set<string>();
       const tableIdsToKeep = new Set<string>();
@@ -78,7 +84,9 @@ export class StoreTableService {
         const existingFloor = config.id ? floorMap.get(config.id) : undefined;
 
         if (config.id && !existingFloor) {
-          throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
+          throw new ForbiddenException(
+            'Data tidak ditemukan atau bukan milikmu',
+          );
         }
 
         if (existingFloor) {
@@ -92,7 +100,7 @@ export class StoreTableService {
           await tx.store_floors.create({
             data: {
               id: floorId,
-              uid: ownerId,
+              uid: ownerIdBigInt,
               store_id: storeId,
               floor_name: config.floorName,
             },
@@ -108,11 +116,13 @@ export class StoreTableService {
           const existingTable = table.id ? tableMap.get(table.id) : undefined;
 
           if (table.id && !existingTable) {
-            throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
+            throw new ForbiddenException(
+              'Data tidak ditemukan atau bukan milikmu',
+            );
           }
 
           const tableData = {
-            uid: ownerId,
+            uid: ownerIdBigInt,
             store_id: storeId,
             floor_id: floorId,
             name: table.name,
@@ -126,7 +136,10 @@ export class StoreTableService {
           };
 
           if (existingTable) {
-            if (existingTable.store_id !== storeId || existingTable.uid !== ownerId) {
+            if (
+              existingTable.store_id !== storeId ||
+              existingTable.uid !== ownerIdBigInt
+            ) {
               throw new ForbiddenException(
                 'Data tidak ditemukan atau bukan milikmu',
               );
@@ -143,7 +156,13 @@ export class StoreTableService {
           }
 
           tableIdsToKeep.add(tableId);
-          tableMap.set(tableId, { ...tableData, id: tableId });
+          tableMap.set(tableId, {
+            ...(existingTable ?? {}),
+            ...tableData,
+            id: tableId,
+            created_at: existingTable?.created_at ?? null,
+            updated_at: existingTable?.updated_at ?? null,
+          });
         }
       }
 
@@ -169,13 +188,13 @@ export class StoreTableService {
           where: {
             id: { in: floorsToDelete },
             store_id: storeId,
-            uid: ownerId,
+            uid: ownerIdBigInt,
           },
         });
       }
 
       const updatedFloors = await tx.store_floors.findMany({
-        where: { store_id: storeId, uid: ownerId },
+        where: { store_id: storeId, uid: ownerIdBigInt },
         include: { store_tables: true },
       });
 
@@ -184,8 +203,9 @@ export class StoreTableService {
   }
 
   async findAll(storeId: string, ownerId: number) {
+    const ownerIdBigInt = BigInt(ownerId);
     const floors = await this.prisma.store_floors.findMany({
-      where: { store_id: storeId, uid: ownerId },
+      where: { store_id: storeId, uid: ownerIdBigInt },
       include: {
         store_tables: true,
       },
@@ -224,8 +244,9 @@ export class StoreTableService {
   }
 
   async findOne(id: string, storeId: string, ownerId: number) {
+    const ownerIdBigInt = BigInt(ownerId);
     const floor = await this.prisma.store_floors.findFirst({
-      where: { id, store_id: storeId, uid: ownerId },
+      where: { id, store_id: storeId, uid: ownerIdBigInt },
       include: { store_tables: true },
     });
 
@@ -233,5 +254,4 @@ export class StoreTableService {
       throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
     return floor;
   }
-
 }
