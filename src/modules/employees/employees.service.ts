@@ -225,6 +225,7 @@ export class EmployeesService {
       search,
       title,
       permission,
+      store_ids,
       orderBy,
       orderDirection,
     } = query;
@@ -234,6 +235,15 @@ export class EmployeesService {
     if (!store_id) {
       throw new BadRequestException('store_id is required');
     }
+
+    let storeIds = [];
+    if (store_ids) {
+      storeIds = store_ids?.split(',') || [];
+    } else {
+      storeIds.push(store_id);
+    }
+
+    console.log(storeIds);
 
     const conditions: Prisma.employeesWhereInput[] = [];
     let orderByClause = {};
@@ -246,7 +256,7 @@ export class EmployeesService {
     }
 
     conditions.push({
-      stores_id: store_id,
+      stores_id: { in: storeIds },
     });
 
     if (search) {
