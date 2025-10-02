@@ -43,6 +43,13 @@ export class ReportService {
     }
     const paymentData = await this.prisma.invoice.findMany({
       where: invoiceWhere,
+      where: {
+        paid_at: {
+          gte: begDate,
+          lte: endDate,
+        },
+        store_id: { in: storeIds },
+      },
       include: {
         payment_methods: true,
       },
