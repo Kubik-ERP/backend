@@ -3,7 +3,7 @@
 
 // DTOs
 import { GenerateOtpDto } from '../dtos/generate-otp.dto';
-import { LoginUsernameDto, LoginWithAccessToken } from '../dtos/login.dto';
+import { LoginGoogleDto, LoginUsernameDto } from '../dtos/login.dto';
 import { RegisterEmailDto, SetPinDto } from '../dtos/register.dto';
 import { VerifyOtpDto } from '../dtos/verify-otp.dto';
 import { StaffLoginDto } from '../dtos/staff-signin.dto';
@@ -31,6 +31,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Redirect,
   Req,
   Res,
@@ -82,7 +83,10 @@ export class AuthenticationController {
     @Body() _body: LoginUsernameDto,
     @Req() req: ICustomRequestHeaders,
   ) {
-    const result = await this._authenticationService.login(req.user);
+    const result = await this._authenticationService.login(
+      req.user,
+      _body.rememberMe,
+    );
     const sentEmailLoginNotification =
       await this.templatesEmailService.sendEmailLoginNotification(
         EmailTemplateType.LOGIN_NOTIFICATION,
@@ -103,15 +107,18 @@ export class AuthenticationController {
   //@ApiBaseResponse(UsersEntity)
   public async create(@Body() requestBody: RegisterEmailDto) {
     const result = await this._authenticationService.register(requestBody);
-    const login = await this._authenticationService.login({
-      email: result.email,
-      phone: parseInt(result.phone?.toString()),
-      fullname: result.fullname?.toString(),
-      id: result.id,
-      username: result.email,
-      ext: result.ext,
-      ownerId: result.id,
-    });
+    const login = await this._authenticationService.login(
+      {
+        email: result.email,
+        phone: parseInt(result.phone?.toString()),
+        fullname: result.fullname?.toString(),
+        id: result.id,
+        username: result.email,
+        ext: result.ext,
+        ownerId: result.id,
+      },
+      false,
+    );
 
     return {
       message: 'User registered successfully',
@@ -304,8 +311,14 @@ export class AuthenticationController {
   @Get('google/redirect')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Google OAuth2 callback endpoint' })
-  async googleAuthRedirect(@Req() req: ICustomRequestHeaders) {
-    const result = await this._authenticationService.login(req.user);
+  async googleAuthRedirect(
+    @Req() req: ICustomRequestHeaders,
+    @Query() query: LoginGoogleDto,
+  ) {
+    const result = await this._authenticationService.login(
+      req.user,
+      query.rememberMe === 'true',
+    );
     return {
       message: 'User logged in successfully',
       result,
