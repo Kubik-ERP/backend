@@ -280,23 +280,31 @@ export class DashboardService {
     req: ICustomRequestHeaders,
   ) {
     const dailySales = [];
+    // Create a cursor that we can safely move day by day
     const currentDate = new Date(startDate);
+    // Ensure the starting cursor is at the beginning of its UTC day
+    currentDate.setUTCHours(0, 0, 0, 0);
 
     while (currentDate <= endDate) {
+      // 1. For the current day in the loop, define the START of that day in UTC
       const dayStartForQuery = new Date(currentDate);
+      dayStartForQuery.setUTCHours(0, 0, 0, 0);
 
-      const dayEndForQuery = new Date(dayStartForQuery);
-      dayEndForQuery.setHours(dayEndForQuery.getHours() + 24);
-      dayEndForQuery.setMilliseconds(dayEndForQuery.getMilliseconds() - 1);
+      // 2. Define the END of that same day in UTC
+      const dayEndForQuery = new Date(currentDate);
+      dayEndForQuery.setUTCHours(23, 59, 59, 999);
 
+      // 3. Get the metrics for this precise calendar day
       const metrics = await this.getMetricsForPeriod(
         dayStartForQuery,
         dayEndForQuery,
         req,
       );
-      const day = String(currentDate.getDate()).padStart(2, '0');
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const year = currentDate.getFullYear();
+
+      // 4. Create the label based on the UTC date components
+      const day = String(currentDate.getUTCDate()).padStart(2, '0');
+      const month = String(currentDate.getUTCMonth() + 1).padStart(2, '0');
+      const year = currentDate.getUTCFullYear();
       const formattedDate = `${day}-${month}-${year}`;
 
       dailySales.push({
@@ -304,7 +312,8 @@ export class DashboardService {
         value: metrics.totalNett,
       });
 
-      currentDate.setDate(currentDate.getDate() + 1);
+      // 5. Safely advance the cursor to the next UTC day
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
 
     return dailySales;
