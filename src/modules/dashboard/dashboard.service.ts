@@ -19,8 +19,6 @@ export class DashboardService {
     endDate: Date,
     req: ICustomRequestHeaders,
   ) {
-    console.log('start date:' + startDate);
-    console.log('end date: ' + endDate);
     const storeId = req.store_id;
     // 1. Calculate Total Sales using Prisma's aggregate feature
     const salesItems = await this.prisma.invoice_details.findMany({
@@ -151,10 +149,16 @@ export class DashboardService {
     ];
 
     for (let month = 0; month < 12; month++) {
+      // 1. Create the start of the month in the server's local timezone.
       const startDate = new Date(year, month, 1);
+
+      // 2. Create the end of the month in the server's local timezone.
       const endDate = new Date(year, month + 1, 0);
       endDate.setHours(23, 59, 59, 999);
 
+      // This part is the same, but now it receives the correct local time range.
+      // Prisma will correctly convert this local range to the corresponding UTC
+      // range for the query.
       const monthlyMetrics = await this.getMetricsForPeriod(
         startDate,
         endDate,
@@ -276,23 +280,31 @@ export class DashboardService {
     req: ICustomRequestHeaders,
   ) {
     const dailySales = [];
+    // Create a cursor that we can safely move day by day
     const currentDate = new Date(startDate);
+    // Ensure the starting cursor is at the beginning of its UTC day
+    currentDate.setUTCHours(0, 0, 0, 0);
 
     while (currentDate <= endDate) {
+      // 1. For the current day in the loop, define the START of that day in UTC
       const dayStartForQuery = new Date(currentDate);
+      dayStartForQuery.setUTCHours(0, 0, 0, 0);
 
-      const dayEndForQuery = new Date(dayStartForQuery);
-      dayEndForQuery.setHours(dayEndForQuery.getHours() + 24);
-      dayEndForQuery.setMilliseconds(dayEndForQuery.getMilliseconds() - 1);
+      // 2. Define the END of that same day in UTC
+      const dayEndForQuery = new Date(currentDate);
+      dayEndForQuery.setUTCHours(23, 59, 59, 999);
 
+      // 3. Get the metrics for this precise calendar day
       const metrics = await this.getMetricsForPeriod(
         dayStartForQuery,
         dayEndForQuery,
         req,
       );
-      const day = String(currentDate.getDate()).padStart(2, '0');
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const year = currentDate.getFullYear();
+
+      // 4. Create the label based on the UTC date components
+      const day = String(currentDate.getUTCDate()).padStart(2, '0');
+      const month = String(currentDate.getUTCMonth() + 1).padStart(2, '0');
+      const year = currentDate.getUTCFullYear();
       const formattedDate = `${day}-${month}-${year}`;
 
       dailySales.push({
@@ -300,7 +312,8 @@ export class DashboardService {
         value: metrics.totalNett,
       });
 
-      currentDate.setDate(currentDate.getDate() + 1);
+      // 5. Safely advance the cursor to the next UTC day
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
 
     return dailySales;
@@ -373,7 +386,7 @@ export class DashboardService {
       ),
       this.getSalesByTimeOnDate(startDate, endDate, req),
       this.getDailySalesInRange(startDate, endDate, req),
-      this.getMonthlySalesThisYear(req, startDate),
+      this.getMonthlySalesThisYear(req, endDate),
       this.getTopProductSales(startDate, endDate, req),
       this.getPaymentMethodDashboardData(startDate, endDate, req),
       this.getProductStockStatus(req),
