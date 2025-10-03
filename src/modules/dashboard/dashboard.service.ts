@@ -280,31 +280,32 @@ export class DashboardService {
     req: ICustomRequestHeaders,
   ) {
     const dailySales = [];
-    // Create a cursor that we can safely move day by day
+    // Use a cursor to loop through each day in the provided range
     const currentDate = new Date(startDate);
-    // Ensure the starting cursor is at the beginning of its UTC day
-    currentDate.setUTCHours(0, 0, 0, 0);
 
     while (currentDate <= endDate) {
-      // 1. For the current day in the loop, define the START of that day in UTC
+      // 1. For the current day in the loop, define its START in LOCAL time
       const dayStartForQuery = new Date(currentDate);
-      dayStartForQuery.setUTCHours(0, 0, 0, 0);
+      // Use setHours() to work in the server's local timezone (WIB)
+      dayStartForQuery.setHours(0, 0, 0, 0);
 
-      // 2. Define the END of that same day in UTC
+      // 2. Define the END of that same day in LOCAL time
       const dayEndForQuery = new Date(currentDate);
-      dayEndForQuery.setUTCHours(23, 59, 59, 999);
+      dayEndForQuery.setHours(23, 59, 59, 999);
 
-      // 3. Get the metrics for this precise calendar day
+      // 3. Get metrics for this precise local day. Prisma will convert this
+      //    local range to the correct UTC range for the query, e.g.,
+      //    Oct 2nd 00:00 WIB -> Oct 1st 17:00 UTC
       const metrics = await this.getMetricsForPeriod(
         dayStartForQuery,
         dayEndForQuery,
         req,
       );
 
-      // 4. Create the label based on the UTC date components
-      const day = String(currentDate.getUTCDate()).padStart(2, '0');
-      const month = String(currentDate.getUTCMonth() + 1).padStart(2, '0');
-      const year = currentDate.getUTCFullYear();
+      // 4. Create the label based on the LOCAL date components
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const year = currentDate.getFullYear();
       const formattedDate = `${day}-${month}-${year}`;
 
       dailySales.push({
@@ -312,8 +313,8 @@ export class DashboardService {
         value: metrics.totalNett,
       });
 
-      // 5. Safely advance the cursor to the next UTC day
-      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      // 5. Advance the cursor to the next LOCAL day
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
     return dailySales;
