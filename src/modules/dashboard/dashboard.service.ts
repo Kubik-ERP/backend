@@ -312,20 +312,28 @@ export class DashboardService {
     req: ICustomRequestHeaders,
   ) {
     const hourlySales = [];
-    const targetDate = new Date(startDate);
+    // The starting point of our 24-hour loop, directly from the FE request.
+    const loopStartDate = new Date(startDate);
 
-    for (let hour = 0; hour < 24; hour++) {
-      const hourStart = new Date(targetDate);
-      hourStart.setHours(hour, 0, 0, 0);
-      // hourStart.setHours(hourStart.getHours() + 7); // Adjust for WIB
+    // Loop 24 times to get 24 distinct hours.
+    for (let hourOffset = 0; hourOffset < 24; hourOffset++) {
+      // 1. Calculate the exact date and time for the start of the current hour.
+      const hourStart = new Date(loopStartDate);
+      // Use setUTCHours to safely add hours, it handles rolling over days/months.
+      hourStart.setUTCHours(loopStartDate.getUTCHours() + hourOffset);
+      hourStart.setUTCMinutes(0, 0, 0); // Set to the beginning of the hour.
 
-      const hourEnd = new Date(targetDate);
-      hourEnd.setHours(hour, 59, 59, 999);
-      // hourEnd.setHours(hourEnd.getHours() + 7); // Adjust for WIB
+      // 2. Calculate the exact end of the current hour.
+      const hourEnd = new Date(hourStart);
+      hourEnd.setUTCMinutes(59, 59, 999); // Set to the end of the hour.
 
+      // 3. Fetch the metrics for this specific one-hour window.
       const metrics = await this.getMetricsForPeriod(hourStart, hourEnd, req);
 
-      const label = `${hour.toString().padStart(2, '0')}:00`;
+      // 4. Use the full ISO 8601 string as the label.
+      //    e.g., "2025-10-02T17:00:00.000Z"
+      //    The front end can now parse this into a local date object.
+      const label = hourStart.toISOString();
 
       hourlySales.push({
         label: label,
