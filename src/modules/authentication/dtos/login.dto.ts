@@ -1,5 +1,5 @@
 // Class Validator
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 // Interfaces
 import { ILogin } from '../interfaces/authentication.interface';
@@ -35,6 +35,13 @@ export class LoginUsernameDto {
   @IsOptional()
   @IsString()
   public country: string;
+
+  @ApiProperty({
+    description: 'Remember me (30 days)',
+    example: true,
+  })
+  @IsBoolean()
+  public rememberMe: boolean = false;
 }
 
 export class LoginWithAccessToken implements ILogin {

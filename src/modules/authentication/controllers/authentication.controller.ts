@@ -82,7 +82,10 @@ export class AuthenticationController {
     @Body() _body: LoginUsernameDto,
     @Req() req: ICustomRequestHeaders,
   ) {
-    const result = await this._authenticationService.login(req.user);
+    const result = await this._authenticationService.login(
+      req.user,
+      _body.rememberMe,
+    );
     const sentEmailLoginNotification =
       await this.templatesEmailService.sendEmailLoginNotification(
         EmailTemplateType.LOGIN_NOTIFICATION,
@@ -103,15 +106,18 @@ export class AuthenticationController {
   //@ApiBaseResponse(UsersEntity)
   public async create(@Body() requestBody: RegisterEmailDto) {
     const result = await this._authenticationService.register(requestBody);
-    const login = await this._authenticationService.login({
-      email: result.email,
-      phone: parseInt(result.phone?.toString()),
-      fullname: result.fullname?.toString(),
-      id: result.id,
-      username: result.email,
-      ext: result.ext,
-      ownerId: result.id,
-    });
+    const login = await this._authenticationService.login(
+      {
+        email: result.email,
+        phone: parseInt(result.phone?.toString()),
+        fullname: result.fullname?.toString(),
+        id: result.id,
+        username: result.email,
+        ext: result.ext,
+        ownerId: result.id,
+      },
+      false,
+    );
 
     return {
       message: 'User registered successfully',
@@ -305,7 +311,7 @@ export class AuthenticationController {
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Google OAuth2 callback endpoint' })
   async googleAuthRedirect(@Req() req: ICustomRequestHeaders) {
-    const result = await this._authenticationService.login(req.user);
+    const result = await this._authenticationService.login(req.user, false); // TODO(auth): adjust setelah di FE sudah ada rememberMe
     return {
       message: 'User logged in successfully',
       result,
