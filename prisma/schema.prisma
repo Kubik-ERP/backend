@@ -926,7 +926,7 @@ model master_inventory_items {
   name                        String                        @db.VarChar(150)
   brand_id                    String?                       @db.Uuid
   barcode                     String?                       @db.VarChar(64)
-  sku                         String                        @db.VarChar(64)
+  sku                         String?                       @db.VarChar(64)
   category_id                 String                        @db.Uuid
   unit                        String                        @db.VarChar(64)
   notes                       String?

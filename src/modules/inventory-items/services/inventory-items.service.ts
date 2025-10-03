@@ -1063,7 +1063,9 @@ export class InventoryItemsService {
       this.validateDateFormat(dto.expiryDate);
     }
 
-    await this.ensureNotDuplicateSku(dto.sku, undefined, store_id);
+    if (dto.sku) {
+      await this.ensureNotDuplicateSku(dto.sku, undefined, store_id);
+    }
 
     // Check if store is retail type
     const store = await this._prisma.stores.findUnique({

@@ -350,6 +350,11 @@ export class CategoriesService {
           include: {
             products: {
               include: {
+                master_inventory_items: {
+                  select: {
+                    stock_quantity: true,
+                  },
+                },
                 variant_has_products: {
                   include: {
                     variant: true,
@@ -378,6 +383,8 @@ export class CategoriesService {
         pictureUrl: categoryProduct.products.picture_url,
         barcode: categoryProduct.products.barcode,
         isPercent: categoryProduct.products.is_percent,
+        stockQuantity:
+          categoryProduct.products?.master_inventory_items?.stock_quantity,
         variant: categoryProduct.products.variant_has_products.map(
           (variantProduct) => ({
             id: variantProduct.variant.id,

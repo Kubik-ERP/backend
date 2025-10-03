@@ -1,5 +1,11 @@
 // Class Validator
-import { IsEmail, IsNotEmpty, IsString, Length } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  Length,
+} from 'class-validator';
 
 // NestJS Libraries
 import { ApiProperty } from '@nestjs/swagger';
@@ -23,4 +29,11 @@ export class StaffLoginDto {
   @IsNotEmpty({ message: 'Device code is required' })
   @Length(9, 9, { message: 'Device code must be exactly 9 characters' })
   public deviceCode: string;
+
+  @ApiProperty({
+    description: 'Remember me (30 days)',
+    example: true,
+  })
+  @IsBoolean()
+  public rememberMe: boolean = false;
 }

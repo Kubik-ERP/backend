@@ -6,12 +6,6 @@ import { SummaryType } from './dashboard.controller';
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private adjustDateForWIB(date: Date): Date {
-    // const sevenHoursInMs = 7 * 60 * 60 * 1000;
-    const sevenHoursInMs = 0;
-    return new Date(date.getTime() - sevenHoursInMs);
-  }
-
   private calculatePercentageChange(current: number, previous: number): number {
     if (previous === 0) {
       return current > 0 ? 100 : 0;
@@ -30,20 +24,12 @@ export class DashboardService {
     const salesItems = await this.prisma.invoice_details.findMany({
       where: {
         invoice: {
-          AND: [
-            {
-              paid_at: {
-                gte: startDate,
-              },
-            },
-            {
-              paid_at: {
-                lte: endDate,
-              },
-            },
-            { payment_status: 'paid' },
-            { store_id: storeId },
-          ],
+          paid_at: {
+            gte: startDate,
+            lte: endDate,
+          },
+          payment_status: 'paid',
+          store_id: storeId,
         },
       },
       select: {
@@ -97,7 +83,7 @@ export class DashboardService {
       return acc + (item.grand_total ?? 0);
     }, 0);
 
-    return { totalSales, totalGross, totalNett };
+    return { totalSales, totalGross, totalNett, nett };
   }
 
   private async getPaymentMethodDashboardData(
@@ -163,10 +149,16 @@ export class DashboardService {
     ];
 
     for (let month = 0; month < 12; month++) {
+      // 1. Create the start of the month in the server's local timezone.
       const startDate = new Date(year, month, 1);
+
+      // 2. Create the end of the month in the server's local timezone.
       const endDate = new Date(year, month + 1, 0);
       endDate.setHours(23, 59, 59, 999);
 
+      // This part is the same, but now it receives the correct local time range.
+      // Prisma will correctly convert this local range to the corresponding UTC
+      // range for the query.
       const monthlyMetrics = await this.getMetricsForPeriod(
         startDate,
         endDate,
@@ -290,11 +282,11 @@ export class DashboardService {
     const dailySales = [];
     const currentDate = new Date(startDate);
 
-    while (currentDate <= endDate) {
+    while (currentDate < endDate) {
       const dayStartForQuery = new Date(currentDate);
 
       const dayEndForQuery = new Date(dayStartForQuery);
-      dayEndForQuery.setHours(dayEndForQuery.getHours() + 24);
+      dayEndForQuery.setUTCHours(dayEndForQuery.getUTCHours() + 24);
       dayEndForQuery.setMilliseconds(dayEndForQuery.getMilliseconds() - 1);
 
       const metrics = await this.getMetricsForPeriod(
@@ -302,17 +294,20 @@ export class DashboardService {
         dayEndForQuery,
         req,
       );
-      const day = String(currentDate.getDate()).padStart(2, '0');
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const year = currentDate.getFullYear();
+
+      const labelDate = new Date(currentDate);
+
+      const day = String(labelDate.getUTCDate()).padStart(2, '0');
+      const month = String(labelDate.getUTCMonth() + 1).padStart(2, '0');
+      const year = labelDate.getUTCFullYear();
       const formattedDate = `${day}-${month}-${year}`;
 
       dailySales.push({
-        label: formattedDate,
+        label: labelDate,
         value: metrics.totalNett,
       });
 
-      currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setUTCHours(currentDate.getUTCHours() + 24);
     }
 
     return dailySales;
@@ -324,20 +319,18 @@ export class DashboardService {
     req: ICustomRequestHeaders,
   ) {
     const hourlySales = [];
-    const targetDate = new Date(startDate);
+    const loopStartDate = new Date(startDate);
 
-    for (let hour = 0; hour < 24; hour++) {
-      const hourStart = new Date(targetDate);
-      hourStart.setHours(hour, 0, 0, 0);
-      hourStart.setHours(hourStart.getHours() - 7); // Adjust for WIB
+    for (let hourOffset = 0; hourOffset < 24; hourOffset++) {
+      const hourStart = new Date(loopStartDate);
+      hourStart.setUTCHours(loopStartDate.getUTCHours() + hourOffset);
+      hourStart.setUTCMinutes(0, 0, 0);
 
-      const hourEnd = new Date(targetDate);
-      hourEnd.setHours(hour, 59, 59, 999);
-      hourEnd.setHours(hourEnd.getHours() - 7); // Adjust for WIB
+      const hourEnd = new Date(hourStart);
+      hourEnd.setUTCMinutes(59, 59, 999);
 
       const metrics = await this.getMetricsForPeriod(hourStart, hourEnd, req);
-
-      const label = `${hour.toString().padStart(2, '0')}:00`;
+      const label = hourStart.toISOString();
 
       hourlySales.push({
         label: label,
@@ -354,8 +347,9 @@ export class DashboardService {
     type: SummaryType,
     req: ICustomRequestHeaders,
   ) {
-    const startDate = this.adjustDateForWIB(rawStartDate);
-    const endDate = this.adjustDateForWIB(rawEndDate);
+    const startDate = new Date(rawStartDate);
+    const endDate = new Date(rawEndDate);
+
     if (startDate > endDate) {
       throw new BadRequestException(
         'Start date must be earlier than or equal to end date',
@@ -386,7 +380,7 @@ export class DashboardService {
       ),
       this.getSalesByTimeOnDate(startDate, endDate, req),
       this.getDailySalesInRange(startDate, endDate, req),
-      this.getMonthlySalesThisYear(req, startDate),
+      this.getMonthlySalesThisYear(req, endDate),
       this.getTopProductSales(startDate, endDate, req),
       this.getPaymentMethodDashboardData(startDate, endDate, req),
       this.getProductStockStatus(req),
