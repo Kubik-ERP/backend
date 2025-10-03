@@ -280,41 +280,34 @@ export class DashboardService {
     req: ICustomRequestHeaders,
   ) {
     const dailySales = [];
-    // Use a cursor to loop through each day in the provided range
     const currentDate = new Date(startDate);
 
-    while (currentDate <= endDate) {
-      // 1. For the current day in the loop, define its START in LOCAL time
+    while (currentDate < endDate) {
       const dayStartForQuery = new Date(currentDate);
-      // Use setHours() to work in the server's local timezone (WIB)
-      dayStartForQuery.setHours(0, 0, 0, 0);
 
-      // 2. Define the END of that same day in LOCAL time
-      const dayEndForQuery = new Date(currentDate);
-      dayEndForQuery.setHours(23, 59, 59, 999);
+      const dayEndForQuery = new Date(dayStartForQuery);
+      dayEndForQuery.setUTCHours(dayEndForQuery.getUTCHours() + 24);
+      dayEndForQuery.setMilliseconds(dayEndForQuery.getMilliseconds() - 1);
 
-      // 3. Get metrics for this precise local day. Prisma will convert this
-      //    local range to the correct UTC range for the query, e.g.,
-      //    Oct 2nd 00:00 WIB -> Oct 1st 17:00 UTC
       const metrics = await this.getMetricsForPeriod(
         dayStartForQuery,
         dayEndForQuery,
         req,
       );
 
-      // 4. Create the label based on the LOCAL date components
-      const day = String(currentDate.getDate()).padStart(2, '0');
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const year = currentDate.getFullYear();
+      const labelDate = new Date(currentDate);
+
+      const day = String(labelDate.getUTCDate()).padStart(2, '0');
+      const month = String(labelDate.getUTCMonth() + 1).padStart(2, '0');
+      const year = labelDate.getUTCFullYear();
       const formattedDate = `${day}-${month}-${year}`;
 
       dailySales.push({
-        label: formattedDate,
+        label: labelDate,
         value: metrics.totalNett,
       });
 
-      // 5. Advance the cursor to the next LOCAL day
-      currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setUTCHours(currentDate.getUTCHours() + 24);
     }
 
     return dailySales;
