@@ -34,6 +34,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
@@ -369,6 +370,14 @@ export class AuthenticationService {
 
     if (!owner) {
       throw new BadRequestException('Owner not found');
+    }
+
+    const ownerSubExpiredAt = owner.sub_expired_at
+      ? new Date(owner.sub_expired_at)
+      : null;
+
+    if (ownerSubExpiredAt && ownerSubExpiredAt <= new Date()) {
+      throw new UnauthorizedException('Subscription has expired');
     }
 
     const accessToken = this._jwtService.sign(
