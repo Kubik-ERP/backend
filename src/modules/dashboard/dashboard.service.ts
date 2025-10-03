@@ -19,8 +19,6 @@ export class DashboardService {
     endDate: Date,
     req: ICustomRequestHeaders,
   ) {
-    console.log('start date:' + startDate);
-    console.log('end date: ' + endDate);
     const storeId = req.store_id;
     // 1. Calculate Total Sales using Prisma's aggregate feature
     const salesItems = await this.prisma.invoice_details.findMany({
@@ -151,10 +149,16 @@ export class DashboardService {
     ];
 
     for (let month = 0; month < 12; month++) {
+      // 1. Create the start of the month in the server's local timezone.
       const startDate = new Date(year, month, 1);
+
+      // 2. Create the end of the month in the server's local timezone.
       const endDate = new Date(year, month + 1, 0);
       endDate.setHours(23, 59, 59, 999);
 
+      // This part is the same, but now it receives the correct local time range.
+      // Prisma will correctly convert this local range to the corresponding UTC
+      // range for the query.
       const monthlyMetrics = await this.getMetricsForPeriod(
         startDate,
         endDate,
@@ -373,7 +377,7 @@ export class DashboardService {
       ),
       this.getSalesByTimeOnDate(startDate, endDate, req),
       this.getDailySalesInRange(startDate, endDate, req),
-      this.getMonthlySalesThisYear(req, startDate),
+      this.getMonthlySalesThisYear(req, endDate),
       this.getTopProductSales(startDate, endDate, req),
       this.getPaymentMethodDashboardData(startDate, endDate, req),
       this.getProductStockStatus(req),
