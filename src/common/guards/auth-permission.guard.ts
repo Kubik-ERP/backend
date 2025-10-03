@@ -40,6 +40,14 @@ export class AuthPermissionGuard extends AuthGuard('jwt') {
       throw error || new UnauthorizedException('Unauthorized');
     }
 
+    const subExpiredAt = user.sub_expired_at
+      ? new Date(user.sub_expired_at)
+      : null;
+
+    if (subExpiredAt && subExpiredAt <= new Date()) {
+      throw new UnauthorizedException('Subscription has expired');
+    }
+
     // Extract permissions from the user object if available
     // Permissions are already filtered by store_id in JWT strategy
     if (user.roles?.store_role_permissions) {

@@ -34,6 +34,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
@@ -84,7 +85,7 @@ export class AuthenticationService {
   /**
    * @description Handle business logic for logging in a user
    */
-  public async login(user: IRequestUser): Promise<ILogin> {
+  public async login(user: IRequestUser, rememberMe: boolean): Promise<ILogin> {
     const payload = {
       username: user.username,
       sub: parseInt(user.id.toString()),
@@ -97,7 +98,9 @@ export class AuthenticationService {
       is_staff: false,
     };
     return {
-      accessToken: this._jwtService.sign(payload),
+      accessToken: this._jwtService.sign(payload, {
+        expiresIn: rememberMe ? '30d' : '1d',
+      }),
     };
   }
 
@@ -369,23 +372,36 @@ export class AuthenticationService {
       throw new BadRequestException('Owner not found');
     }
 
-    const accessToken = this._jwtService.sign({
-      username: employee.users.username,
-      sub: employee.users.id,
-      email: employee.users.email,
-      phone: employee.users.phone,
-      ext: employee.users.ext,
-      fullname: employee.users.fullname,
-      verified_at: parseInt(employee.users.verified_at?.toString() || '0'),
-      role: employee.users.role_id,
-      is_staff: true, // Flag to identify staff login
+    const ownerSubExpiredAt = owner.sub_expired_at
+      ? new Date(owner.sub_expired_at)
+      : null;
 
-      // Staff specific data
-      employeeId: employee.id,
-      storeId: deviceCodeRecord.store_id,
-      deviceCodeId: deviceCodeRecord.id,
-      ownerId: owner.id,
-    });
+    if (ownerSubExpiredAt && ownerSubExpiredAt <= new Date()) {
+      throw new UnauthorizedException('Subscription has expired');
+    }
+
+    const accessToken = this._jwtService.sign(
+      {
+        username: employee.users.username,
+        sub: employee.users.id,
+        email: employee.users.email,
+        phone: employee.users.phone,
+        ext: employee.users.ext,
+        fullname: employee.users.fullname,
+        verified_at: parseInt(employee.users.verified_at?.toString() || '0'),
+        role: employee.users.role_id,
+        is_staff: true, // Flag to identify staff login
+
+        // Staff specific data
+        employeeId: employee.id,
+        storeId: deviceCodeRecord.store_id,
+        deviceCodeId: deviceCodeRecord.id,
+        ownerId: owner.id,
+      },
+      {
+        expiresIn: payload.rememberMe ? '30d' : '1d',
+      },
+    );
 
     // Buat sesi login
     const expiresAt = new Date();
