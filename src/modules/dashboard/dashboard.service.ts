@@ -6,12 +6,6 @@ import { SummaryType } from './dashboard.controller';
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private adjustDateForWIB(date: Date): Date {
-    // const sevenHoursInMs = 7 * 60 * 60 * 1000;
-    const sevenHoursInMs = 0;
-    return new Date(date.getTime() - sevenHoursInMs);
-  }
-
   private calculatePercentageChange(current: number, previous: number): number {
     if (previous === 0) {
       return current > 0 ? 100 : 0;
@@ -25,25 +19,19 @@ export class DashboardService {
     endDate: Date,
     req: ICustomRequestHeaders,
   ) {
+    console.log('start date:' + startDate);
+    console.log('end date: ' + endDate);
     const storeId = req.store_id;
     // 1. Calculate Total Sales using Prisma's aggregate feature
     const salesItems = await this.prisma.invoice_details.findMany({
       where: {
         invoice: {
-          AND: [
-            {
-              paid_at: {
-                gte: startDate,
-              },
-            },
-            {
-              paid_at: {
-                lte: endDate,
-              },
-            },
-            { payment_status: 'paid' },
-            { store_id: storeId },
-          ],
+          paid_at: {
+            gte: startDate,
+            lte: endDate,
+          },
+          payment_status: 'paid',
+          store_id: storeId,
         },
       },
       select: {
@@ -97,7 +85,7 @@ export class DashboardService {
       return acc + (item.grand_total ?? 0);
     }, 0);
 
-    return { totalSales, totalGross, totalNett };
+    return { totalSales, totalGross, totalNett, nett };
   }
 
   private async getPaymentMethodDashboardData(
@@ -329,11 +317,11 @@ export class DashboardService {
     for (let hour = 0; hour < 24; hour++) {
       const hourStart = new Date(targetDate);
       hourStart.setHours(hour, 0, 0, 0);
-      hourStart.setHours(hourStart.getHours() - 7); // Adjust for WIB
+      // hourStart.setHours(hourStart.getHours() + 7); // Adjust for WIB
 
       const hourEnd = new Date(targetDate);
       hourEnd.setHours(hour, 59, 59, 999);
-      hourEnd.setHours(hourEnd.getHours() - 7); // Adjust for WIB
+      // hourEnd.setHours(hourEnd.getHours() + 7); // Adjust for WIB
 
       const metrics = await this.getMetricsForPeriod(hourStart, hourEnd, req);
 
@@ -354,8 +342,9 @@ export class DashboardService {
     type: SummaryType,
     req: ICustomRequestHeaders,
   ) {
-    const startDate = this.adjustDateForWIB(rawStartDate);
-    const endDate = this.adjustDateForWIB(rawEndDate);
+    const startDate = new Date(rawStartDate);
+    const endDate = new Date(rawEndDate);
+
     if (startDate > endDate) {
       throw new BadRequestException(
         'Start date must be earlier than or equal to end date',
