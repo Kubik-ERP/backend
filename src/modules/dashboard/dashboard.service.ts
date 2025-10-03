@@ -312,20 +312,18 @@ export class DashboardService {
     req: ICustomRequestHeaders,
   ) {
     const hourlySales = [];
-    const targetDate = new Date(startDate);
+    const loopStartDate = new Date(startDate);
 
-    for (let hour = 0; hour < 24; hour++) {
-      const hourStart = new Date(targetDate);
-      hourStart.setHours(hour, 0, 0, 0);
-      // hourStart.setHours(hourStart.getHours() + 7); // Adjust for WIB
+    for (let hourOffset = 0; hourOffset < 24; hourOffset++) {
+      const hourStart = new Date(loopStartDate);
+      hourStart.setUTCHours(loopStartDate.getUTCHours() + hourOffset);
+      hourStart.setUTCMinutes(0, 0, 0);
 
-      const hourEnd = new Date(targetDate);
-      hourEnd.setHours(hour, 59, 59, 999);
-      // hourEnd.setHours(hourEnd.getHours() + 7); // Adjust for WIB
+      const hourEnd = new Date(hourStart);
+      hourEnd.setUTCMinutes(59, 59, 999);
 
       const metrics = await this.getMetricsForPeriod(hourStart, hourEnd, req);
-
-      const label = `${hour.toString().padStart(2, '0')}:00`;
+      const label = hourStart.toISOString();
 
       hourlySales.push({
         label: label,
