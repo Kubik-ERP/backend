@@ -3,7 +3,7 @@
 
 // DTOs
 import { GenerateOtpDto } from '../dtos/generate-otp.dto';
-import { LoginUsernameDto, LoginWithAccessToken } from '../dtos/login.dto';
+import { LoginGoogleDto, LoginUsernameDto } from '../dtos/login.dto';
 import { RegisterEmailDto, SetPinDto } from '../dtos/register.dto';
 import { VerifyOtpDto } from '../dtos/verify-otp.dto';
 import { StaffLoginDto } from '../dtos/staff-signin.dto';
@@ -31,6 +31,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Redirect,
   Req,
   Res,
@@ -310,8 +311,14 @@ export class AuthenticationController {
   @Get('google/redirect')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Google OAuth2 callback endpoint' })
-  async googleAuthRedirect(@Req() req: ICustomRequestHeaders) {
-    const result = await this._authenticationService.login(req.user, false); // TODO(auth): adjust setelah di FE sudah ada rememberMe
+  async googleAuthRedirect(
+    @Req() req: ICustomRequestHeaders,
+    @Query() query: LoginGoogleDto,
+  ) {
+    const result = await this._authenticationService.login(
+      req.user,
+      query.rememberMe === 'true',
+    );
     return {
       message: 'User logged in successfully',
       result,
