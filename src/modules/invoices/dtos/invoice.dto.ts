@@ -43,6 +43,15 @@ export class GetListInvoiceDto {
   invoiceNumber: string;
 
   @ApiProperty({
+    description: 'Staff to search',
+    required: false,
+    example: '1',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  staffId?: number;
+
+  @ApiProperty({
     description: 'Order type of the invoice',
     required: false,
     example: 'take_away',
