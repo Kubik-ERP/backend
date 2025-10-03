@@ -89,6 +89,7 @@ export class InvoiceService {
       createdAtTo,
       orderType,
       paymentStatus,
+      staffId,
     } = request;
 
     const createdAtFilter: Record<string, Date> = {};
@@ -112,6 +113,11 @@ export class InvoiceService {
           in: Array.isArray(paymentStatus) ? paymentStatus : [paymentStatus],
         },
       }),
+      ...(staffId && {
+        cashier_id: {
+          equals: staffId,
+        },
+      }),
       ...(orderType && {
         order_type: { in: Array.isArray(orderType) ? orderType : [orderType] },
       }),
@@ -124,6 +130,9 @@ export class InvoiceService {
         where: filters,
         include: {
           customer: true,
+          users: true,
+          invoice_details: true,
+          payment_methods: true,
         },
         skip: (page - 1) * pageSize,
         take: pageSize,

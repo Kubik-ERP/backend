@@ -19,8 +19,6 @@ export class DashboardService {
     endDate: Date,
     req: ICustomRequestHeaders,
   ) {
-    console.log('start date:' + startDate);
-    console.log('end date: ' + endDate);
     const storeId = req.store_id;
     // 1. Calculate Total Sales using Prisma's aggregate feature
     const salesItems = await this.prisma.invoice_details.findMany({
