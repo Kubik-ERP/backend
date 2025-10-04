@@ -177,9 +177,11 @@ export class ReportService {
       where: invoiceWhere,
       _sum: {
         subtotal: true,
-        discount_amount: true,
+        total_product_discount: true,
         tax_amount: true,
         grand_total: true,
+        rounding_amount: true,
+        service_charge_amount: true,
       },
     });
 
@@ -197,6 +199,7 @@ export class ReportService {
       where: invoiceWhereVouch,
       _sum: {
         discount_amount: true,
+        total_product_discount: true,
       },
     });
 
@@ -217,10 +220,12 @@ export class ReportService {
     });
 
     const grossSales = invoiceAggregation._sum.subtotal || 0;
-    const discount = invoiceAggregation._sum.discount_amount || 0;
+    const discount = invoiceAggregation._sum.total_product_discount || 0;
     const netSales = grossSales - discount;
     const tax = invoiceAggregation._sum.tax_amount || 0;
     const nettTotal = invoiceAggregation._sum.grand_total || 0;
+    const rounding = invoiceAggregation._sum.rounding_amount || 0;
+    const serviceCharge = invoiceAggregation._sum.service_charge_amount || 0;
 
     return {
       sales: {
@@ -229,15 +234,17 @@ export class ReportService {
         refund: 0,
         penjualanBersih: netSales,
         pajak: tax,
-        pembulatan: 0,
-        penggunaanVoucher: voucherUsageAggregation._sum.discount_amount || 0,
+        biayaLayanan: serviceCharge,
+        pembulatan: rounding,
+        penggunaanVoucher:
+          voucherUsageAggregation._sum.total_product_discount || 0,
         nettTotal: nettTotal,
       },
-      paymentType: {
-        total: nettTotal,
-        refund: 0,
-        outstanding: outstandingAggregation._sum.grand_total || 0,
-      },
+      // paymentType: {
+      //   total: nettTotal,
+      //   refund: 0,
+      //   outstanding: outstandingAggregation._sum.grand_total || 0,
+      // },
     };
   }
 
