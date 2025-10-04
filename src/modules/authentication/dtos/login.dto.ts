@@ -61,6 +61,7 @@ export class LoginGoogleDto {
     example: 'true',
   })
   @IsString()
+  @IsOptional()
   @IsIn(['true', 'false'])
-  public rememberMe: 'true' | 'false';
+  public rememberMe?: 'true' | 'false' = 'false';
 }
