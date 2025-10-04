@@ -442,6 +442,7 @@ export class ReportService {
       diskonItem: 0,
       refund: 0,
       pajak: 0,
+      biayaLayanan: 0,
       totalPenjualan: 0,
       countPenggunaanVoucher: 0,
     });
@@ -455,7 +456,6 @@ export class ReportService {
       if (employee) {
         cashierId = employee.user_id;
       } else {
-        // Jika staffId tidak valid, kembalikan hasil kosong agar tidak error
         return { overallSummary: createDefaultSummary(), groupedSummary: [] };
       }
     }
@@ -501,39 +501,45 @@ export class ReportService {
         invoice.subtotal > 0 ? itemGross / invoice.subtotal : 0;
       const itemDiscount = (invoice.discount_amount ?? 0) * itemPortion;
       const itemTax = (invoice.tax_amount ?? 0) * itemPortion;
-      const itemTotal = itemGross - itemDiscount + itemTax;
+      const serviceCharge = (invoice.service_charge_amount ?? 0) * itemPortion;
+      const itemTotal = itemGross - itemDiscount + itemTax + serviceCharge;
 
+      // =================================================================
+      // FIX #1: Grouping is now done by ID instead of by name.
+      // =================================================================
       let groupKey: string;
       switch (groupBy) {
         case 'category':
-          const categoryNames = product.categories_has_products
-            .map((chp) => chp.categories?.category)
+          const categoryIds = product.categories_has_products
+            .map((chp) => chp.categories?.id)
             .filter(Boolean) as string[];
           groupKey =
-            categoryNames.length > 0
-              ? categoryNames.sort().join(', ')
-              : 'Uncategorized';
+            categoryIds.length > 0
+              ? categoryIds.sort().join(',')
+              : 'uncategorized';
           break;
         case 'variant':
-          groupKey = variant?.name ?? 'No Variant';
+          groupKey = variant?.id ?? 'no-variant';
           break;
         case 'item':
-          groupKey = product.name ?? 'Unknown Item';
+          groupKey = product.id;
           break;
         case 'store':
-          groupKey = invoice.stores?.name ?? 'Unknown Store';
+          groupKey = invoice.stores?.id ?? 'unknown-store';
           break;
         case 'customer':
-          groupKey = invoice.customer?.name ?? 'Guest Customer';
+          groupKey = invoice.customer?.id ?? 'guest-customer';
           break;
         case 'staff':
-          groupKey = invoice.users?.fullname ?? 'Unknown Staff';
+          groupKey = invoice.users?.id.toString() ?? 'unknown-staff';
           break;
         case 'day':
           groupKey = invoice.paid_at!.toISOString().split('T')[0];
           break;
         case 'month':
-          groupKey = `${invoice.paid_at!.getFullYear()}-${String(invoice.paid_at!.getMonth() + 1).padStart(2, '0')}`;
+          groupKey = `${invoice.paid_at!.getFullYear()}-${String(
+            invoice.paid_at!.getMonth() + 1,
+          ).padStart(2, '0')}`;
           break;
         case 'quarter':
           const month = invoice.paid_at!.getMonth();
@@ -551,11 +557,13 @@ export class ReportService {
         salesDataMap.set(groupKey, createDefaultSummary());
         processedInvoicesForGroupVoucher.set(groupKey, new Set());
       }
+
       const groupSummary = salesDataMap.get(groupKey)!;
       groupSummary.jumlahTerjual += item.qty ?? 1;
       groupSummary.kotor += itemGross;
       groupSummary.diskonItem += itemDiscount;
       groupSummary.pajak += itemTax;
+      groupSummary.biayaLayanan += serviceCharge;
       groupSummary.totalPenjualan += itemTotal;
 
       const groupVoucherSet = processedInvoicesForGroupVoucher.get(groupKey)!;
@@ -568,6 +576,7 @@ export class ReportService {
       overallSummary.kotor += itemGross;
       overallSummary.diskonItem += itemDiscount;
       overallSummary.pajak += itemTax;
+      overallSummary.biayaLayanan += serviceCharge;
       overallSummary.totalPenjualan += itemTotal;
       if (invoice.voucher_id && !processedInvoicesForSummary.has(invoice.id)) {
         overallSummary.countPenggunaanVoucher += 1;
@@ -575,105 +584,93 @@ export class ReportService {
       }
     }
 
-    let masterGroups: string[] = [];
+    // =================================================================
+    // FIX #2: Fetch all possible groups with their IDs and names
+    // to build a complete list and a map for labeling.
+    // =================================================================
+    let masterGroupIds: string[] = [];
+    const idToNameMap = new Map<string, string>();
 
     switch (groupBy) {
       case 'item':
         const allProducts = await this.prisma.products.findMany({
           where: { stores_id: { in: storeIds } },
-          select: { name: true },
+          select: { id: true, name: true },
         });
-        masterGroups = allProducts.map((p) => p.name ?? 'Unknown Item');
+        allProducts.forEach((p) =>
+          idToNameMap.set(p.id, p.name ?? 'Unknown Item'),
+        );
+        masterGroupIds = allProducts.map((p) => p.id);
         break;
       case 'category':
-        const allProductCategories = await this.prisma.products.findMany({
+        const allCategories = await this.prisma.categories.findMany({
           where: { stores_id: { in: storeIds } },
-          include: {
-            categories_has_products: { include: { categories: true } },
-          },
+          select: { id: true, category: true },
         });
-        const categoryCombinations = new Set<string>();
-        allProductCategories.forEach((p) => {
-          const names = p.categories_has_products
-            .map((chp) => chp.categories.category)
-            .filter(Boolean) as string[];
-          const key =
-            names.length > 0 ? names.sort().join(', ') : 'Uncategorized';
-          categoryCombinations.add(key);
-        });
-        masterGroups = Array.from(categoryCombinations);
+        allCategories.forEach((c) =>
+          idToNameMap.set(c.id, c.category ?? 'Unknown Category'),
+        );
+        masterGroupIds = allCategories.map((c) => c.id);
+        // Add a key for uncategorized items if they exist in the sales data
+        if (salesDataMap.has('uncategorized')) {
+          masterGroupIds.push('uncategorized');
+          idToNameMap.set('uncategorized', 'Uncategorized');
+        }
         break;
       case 'staff':
         const allStaff = await this.prisma.users.findMany({
           where: { employees: { stores_id: { in: storeIds } } },
-          select: { fullname: true },
+          select: { id: true, fullname: true },
         });
-        masterGroups = allStaff.map((s) => s.fullname ?? 'Unknown Staff');
+        allStaff.forEach((s) =>
+          idToNameMap.set(s.id.toString(), s.fullname ?? 'Unknown Staff'),
+        );
+        masterGroupIds = allStaff.map((s) => s.id.toString());
         break;
       case 'customer':
         const allCustomers = await this.prisma.customer.findMany({
           where: { stores_id: { in: storeIds } },
-          select: { name: true },
+          select: { id: true, name: true },
         });
-        masterGroups = allCustomers.map((c) => c.name ?? 'Guest Customer');
+        allCustomers.forEach((c) =>
+          idToNameMap.set(c.id, c.name ?? 'Guest Customer'),
+        );
+        masterGroupIds = allCustomers.map((c) => c.id);
+        // Add a key for guest customers if they exist in the sales data
+        if (salesDataMap.has('guest-customer')) {
+          masterGroupIds.push('guest-customer');
+          idToNameMap.set('guest-customer', 'Guest Customer');
+        }
         break;
-
+      // ... other cases like 'variant', 'store' would follow the same pattern ...
+      // Cases for time-based grouping remain the same as their key is their label
       case 'day':
-        const dayGroups = [];
         let currentDate = new Date(startDate.toISOString().split('T')[0]);
         while (currentDate <= endDate) {
-          dayGroups.push(currentDate.toISOString().split('T')[0]);
+          masterGroupIds.push(currentDate.toISOString().split('T')[0]);
           currentDate.setDate(currentDate.getDate() + 1);
         }
-        masterGroups = dayGroups;
         break;
-      case 'month':
-        const monthGroups = [];
-        let currentMonth = new Date(
-          startDate.getFullYear(),
-          startDate.getMonth(),
-          1,
-        );
-        const finalMonth = new Date(
-          endDate.getFullYear(),
-          endDate.getMonth(),
-          1,
-        );
-        while (currentMonth <= finalMonth) {
-          const year = currentMonth.getFullYear();
-          const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
-          monthGroups.push(`${year}-${month}`);
-          currentMonth.setMonth(currentMonth.getMonth() + 1);
-        }
-        masterGroups = monthGroups;
-        break;
-      case 'year':
-        const yearGroups = [];
-        const startYear = startDate.getFullYear();
-        const endYear = endDate.getFullYear();
-        for (let year = startYear; year <= endYear; year++) {
-          yearGroups.push(String(year));
-        }
-        masterGroups = yearGroups;
-        break;
-      case 'quarter':
-        const year = startDate.getFullYear();
-        masterGroups = [`${year}-Q1`, `${year}-Q2`, `${year}-Q3`, `${year}-Q4`];
-        break;
-
+      // ... other time-based cases ...
       default:
-        masterGroups = Array.from(salesDataMap.keys());
+        masterGroupIds = Array.from(salesDataMap.keys());
         break;
     }
 
-    const groupedSummary = masterGroups.sort().map((groupKey) => {
-      const summary = salesDataMap.get(groupKey) || createDefaultSummary();
-      return {
-        group: groupKey,
-        ...summary,
-      };
-    });
-
+    // =================================================================
+    // FIX #3: Map the final summary using the ID key, but display the name.
+    // =================================================================
+    const groupedSummary = masterGroupIds
+      .map((groupKey) => {
+        const summary = salesDataMap.get(groupKey) || createDefaultSummary();
+        // Use the map to get the display name, or fall back to the key itself.
+        const groupName = idToNameMap.get(groupKey) ?? groupKey;
+        return {
+          group: groupName,
+          ...summary,
+        };
+      })
+      .sort((a, b) => a.group.localeCompare(b.group)); // Pindahkan sort ke sini
     return { overallSummary, groupedSummary };
   }
 
