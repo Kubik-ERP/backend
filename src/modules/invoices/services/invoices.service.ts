@@ -131,7 +131,18 @@ export class InvoiceService {
         include: {
           customer: true,
           users: true,
-          invoice_details: true,
+          invoice_details: {
+            include: {
+              products: {
+                include: {
+                  categories_has_products: {
+                    include: { categories: true },
+                  },
+                },
+              },
+              variant: true,
+            },
+          },
           payment_methods: true,
         },
         skip: (page - 1) * pageSize,

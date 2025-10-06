@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,7 +18,6 @@ import {
   UpdateInventoryItemDto,
   UpdateStockAdjustmentDto,
 } from '../dtos';
-import { Prisma } from '@prisma/client';
 
 type OrderByKey = 'id' | 'created_at' | 'name' | 'updated_at' | 'sku';
 
@@ -1396,6 +1396,18 @@ export class InventoryItemsService {
         },
       });
 
+    const existingCategory = await tx.categories.findFirst({
+      where: {
+        category: inventoryCategory.name,
+        stores_id: storeId,
+      },
+    });
+    if (existingCategory) {
+      throw new BadRequestException(
+        `Category product with name '${inventoryCategory.name}' already exists in this store`,
+      );
+    }
+
     const categoryCatalogCreated = await tx.categories.create({
       data: {
         category: inventoryCategory.name,
@@ -1417,6 +1429,14 @@ export class InventoryItemsService {
     storeId: string,
     inventoryItemId?: string,
   ) => {
+    const existing = await tx.products.findFirst({
+      where: { name: dto.name, stores_id: storeId },
+    });
+    if (existing && existing.master_inventory_item_id !== inventoryItemId) {
+      throw new BadRequestException(
+        `Product with name '${dto.name}' already exists in this store`,
+      );
+    }
     const result = await tx.products.upsert({
       where: {
         master_inventory_item_id: inventoryItemId,
