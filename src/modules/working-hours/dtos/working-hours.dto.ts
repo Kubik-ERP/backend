@@ -3,7 +3,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsArray,
   IsDateString,
+  IsIn,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   ValidateNested,
@@ -63,6 +65,12 @@ export class CreateWorkingHoursDto {
   notes: string;
 
   @ApiProperty({ example: 'daily' })
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['daily', 'not_repeat', 'weekly_on_monday', 'weekday'], {
+    message:
+      'repeat_type must be one of: daily, not_repeat, weekly_on_monday, weekday',
+  })
   repeatType: string;
 
   @ApiProperty({ type: CustomRecurrenceDto, nullable: true })

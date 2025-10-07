@@ -534,17 +534,6 @@ export class CustomerService {
         );
       }
 
-      const customerData: any = {
-        name: updateCustomerDto.name,
-        code: updateCustomerDto.code,
-        number: updateCustomerDto.number,
-        email: updateCustomerDto.email,
-        dob: updateCustomerDto.dob
-          ? new Date(updateCustomerDto.dob)
-          : undefined,
-        address: updateCustomerDto.address,
-      };
-
       if (updateCustomerDto.tags !== undefined) {
         await this.prisma.customers_has_tag.deleteMany({
           where: { customer_id: id },
@@ -577,7 +566,17 @@ export class CustomerService {
 
       const updatedCustomer = await this.prisma.customer.update({
         where: { id },
-        data: customerData,
+        data: {
+          name: updateCustomerDto.name ?? existingCustomer.name,
+          gender: updateCustomerDto.gender ?? existingCustomer.gender,
+          dob: updateCustomerDto.dob
+            ? new Date(updateCustomerDto.dob)
+            : existingCustomer.dob,
+          number: updateCustomerDto.number ?? existingCustomer.number,
+          code: updateCustomerDto.code ?? existingCustomer.code,
+          email: updateCustomerDto.email ?? existingCustomer.email,
+          address: updateCustomerDto.address ?? existingCustomer.address,
+        },
         include: {
           customers_has_tag: { include: { tag: true } },
           stores: true,
