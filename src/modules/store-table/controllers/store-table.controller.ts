@@ -90,17 +90,17 @@ export class StoreTableController {
     @Body()
     body: {
       table_id: string;
-      status_override: 'available' | 'occupied';
+      new_status: 'available' | 'occupied';
     },
   ) {
     if (!storeId) throw new BadRequestException('x-store-id wajib');
     if (!body.table_id) throw new BadRequestException('table_id wajib');
 
-    const { status_override } = body;
+    const { new_status } = body;
     const result = await this.storeTableService.updateTableOverrideStatus(
       storeId,
       body.table_id,
-      status_override,
+      new_status,
     );
 
     return {
