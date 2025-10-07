@@ -1047,6 +1047,14 @@ export class InventoryItemsService {
     new_quantity: true,
     created_at: true,
     updated_at: true,
+    created_by: true,
+    users: {
+      select: {
+        id: true,
+        username: true,
+        email: true,
+      },
+    },
   } as const;
 
   constructor(private readonly _prisma: PrismaService) {}
@@ -1679,6 +1687,7 @@ export class InventoryItemsService {
         notes: dto.notes,
         previous_quantity: prevQty,
         new_quantity: newQty,
+        created_by: header.user?.id || null, // Add created_by field with user ID
       };
       // if (slId) adjData.storage_location_id = slId;
       const adj = await tx.inventory_stock_adjustments.create({
@@ -1740,6 +1749,7 @@ export class InventoryItemsService {
             adjustment_quantity: dto.adjustmentQuantity,
           }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
+          created_by: header.user?.id || null, // Track who updated the adjustment
           updated_at: new Date(),
         },
         select: {
