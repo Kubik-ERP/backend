@@ -4,6 +4,7 @@ import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.gua
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import {
   AdvancedSalesReportType,
+  InventoryReportType,
   NewFinancialReportType,
   ReportService,
   StaffReportType,
@@ -93,8 +94,18 @@ export class ReportController {
     summary:
       'Get inventory valuation report data for the main dashboard within a date range.',
   })
-  async getInventoryValuation(@Req() req: ICustomRequestHeaders) {
-    const data = await this.reportService.getInventoryValuation(req);
+  async getInventoryValuation(
+    @Query('startDate') startDate: Date,
+    @Query('endDate') endDate: Date,
+    @Query('type') type: InventoryReportType,
+    @Query('store_ids') storeIdsString: string,
+  ) {
+    const data = await this.reportService.getInventoryValuation(
+      storeIdsString,
+      startDate,
+      endDate,
+      type,
+    );
     return {
       message: 'Inventory data retrieved successfully',
       result: data,

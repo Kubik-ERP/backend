@@ -25,6 +25,15 @@ export type StaffReportType =
   | 'commission-summary'
   | 'commission-details';
 
+export type InventoryReportType =
+  | 'movement-ledger'
+  | 'current-stock-overview'
+  | 'po-receiving-variance'
+  | 'slow-dead-stock'
+  | 'item-performance'
+  | 'item-performance-by-category'
+  | 'item-performance-by-brand';
+
 @Injectable()
 export class ReportService {
   constructor(private readonly prisma: PrismaService) {}
@@ -706,65 +715,471 @@ export class ReportService {
     );
   }
 
-  async getInventoryValuation(req: ICustomRequestHeaders) {
-    const storeId = req.store_id;
-
-    // 1. Ambil semua item inventaris untuk toko yang bersangkutan.
-    // Sertakan juga data produk yang terhubung untuk mendapatkan harga retail.
-    const inventoryItems = await this.prisma.master_inventory_items.findMany({
+  private async getMovementLedger(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const movements = await this.prisma.inventory_stock_adjustments.findMany({
       where: {
-        store_id: storeId,
-      },
-      include: {
-        // Relasi 'products' didefinisikan sebagai one-to-one opsional
-        // dari master_inventory_items ke products
-        products: {
-          select: {
-            price: true, // Hanya butuh harga retail dari produk
-          },
+        stores_id: { in: storeId },
+        created_at: {
+          gte: startDate,
+          lte: endDate,
         },
       },
+      select: {
+        created_at: true,
+        master_inventory_items: { select: { name: true } },
+        action: true,
+        adjustment_quantity: true,
+        new_quantity: true,
+        notes: true,
+      },
+      orderBy: { created_at: 'desc' },
     });
 
-    // 2. Gunakan .reduce() untuk melakukan agregasi data secara efisien
+    return movements.map((m) => ({
+      tanggal: m.created_at,
+      itemName: m.master_inventory_items.name,
+      adjustmentType: m.action,
+      // Jika STOCK_OUT, kuantitasnya negatif
+      adjustmentQuantity:
+        m.action === 'STOCK_OUT'
+          ? -m.adjustment_quantity
+          : m.adjustment_quantity,
+      newStockQuantity: m.new_quantity,
+      notes: m.notes,
+    }));
+  }
+
+  /**
+   * Laporan 2: Current Stock Overview (Widget)
+   */
+  private async getCurrentStockOverview(storeIds: string[]) {
+    const inventoryItems = await this.prisma.master_inventory_items.findMany({
+      where: { store_id: { in: storeIds } },
+      include: { products: { select: { price: true } } },
+    });
+
     const summary = inventoryItems.reduce(
       (acc, item) => {
         const stockQuantity = item.stock_quantity || 0;
         const costPrice = Number(item.price_per_unit) || 0;
-
-        // Harga retail diambil dari produk yang terhubung
         const retailPrice = item.products?.price || 0;
 
         acc.totalOnHand += stockQuantity;
         acc.totalStockCost += stockQuantity * costPrice;
-
-        // Hanya hitung nilai retail jika item terhubung dengan produk yang punya harga
         if (retailPrice > 0) {
           acc.totalRetailValue += stockQuantity * retailPrice;
         }
-
         return acc;
       },
-      {
-        totalOnHand: 0,
-        totalStockCost: 0,
-        totalRetailValue: 0,
-      },
+      { totalOnHand: 0, totalStockCost: 0, totalRetailValue: 0 },
     );
 
-    // 3. Hitung biaya rata-rata per unit, hindari pembagian dengan nol
     const averageStockCost =
       summary.totalOnHand > 0
         ? summary.totalStockCost / summary.totalOnHand
         : 0;
 
-    // 4. Kembalikan hasil dalam format yang diminta
     return {
       totalOnHand: summary.totalOnHand,
       totalStockCost: parseFloat(summary.totalStockCost.toFixed(2)),
       averageStockCost: parseFloat(averageStockCost.toFixed(2)),
       totalRetailPrice: parseFloat(summary.totalRetailValue.toFixed(2)),
     };
+  }
+
+  private async getPoReceivingVariance(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const poItems = await this.prisma.purchase_order_items.findMany({
+      where: {
+        purchase_orders: {
+          store_id: { in: storeId },
+          order_date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+      },
+      select: {
+        purchase_orders: { select: { order_number: true } },
+        master_inventory_items: { select: { name: true } },
+        quantity: true,
+        actual_quantity: true,
+        unit_price: true,
+      },
+    });
+
+    return poItems.map((item) => {
+      const qtyPO = item.quantity;
+      const qtyAktual = item.actual_quantity || 0;
+      const qtySelisih = qtyPO - qtyAktual;
+      const itemPrice = Number(item.unit_price) || 0;
+      const varPrice = qtySelisih * itemPrice;
+
+      return {
+        poId: item.purchase_orders.order_number,
+        item: item.master_inventory_items.name,
+        qtyPO,
+        qtyAktual,
+        qtySelisih,
+        itemPrice,
+        var_price: parseFloat(varPrice.toFixed(2)),
+      };
+    });
+  }
+
+  /**
+   * Laporan 4: Slow/Dead Stock
+   */
+  private async getSlowDeadStock(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    // 1. Dapatkan daftar ID item unik yang MEMILIKI pergerakan dalam rentang waktu.
+    // Ini adalah item yang "aktif" atau "tidak lambat".
+    const movedRecently =
+      await this.prisma.inventory_stock_adjustments.findMany({
+        where: {
+          stores_id: { in: storeId },
+          created_at: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: {
+          master_inventory_items_id: true,
+        },
+        distinct: ['master_inventory_items_id'], // Ambil ID item yang unik
+      });
+
+    // Ubah menjadi Set untuk pencarian yang sangat cepat (O(1))
+    const movedItemIds = new Set(
+      movedRecently.map((m) => m.master_inventory_items_id),
+    );
+
+    // 2. Dapatkan SEMUA item yang saat ini ada stoknya.
+    const allItemsInStore = await this.prisma.master_inventory_items.findMany({
+      where: {
+        store_id: { in: storeId },
+        stock_quantity: { gt: 0 },
+        // Tambahkan filter untuk MENGECUALIKAN item yang baru saja bergerak
+        id: {
+          notIn: Array.from(movedItemIds),
+        },
+      },
+    });
+
+    // 3. Dapatkan tanggal pergerakan terakhir aktual untuk item yang lambat
+    //    untuk menghitung 'daysIdle' secara akurat.
+    const lastMovements = await this.prisma.inventory_stock_adjustments.groupBy(
+      {
+        by: ['master_inventory_items_id'],
+        where: {
+          stores_id: { in: storeId },
+          // Hanya perlu mencari untuk item yang relevan (slow stock)
+          master_inventory_items_id: { in: allItemsInStore.map((i) => i.id) },
+        },
+        _max: { created_at: true },
+      },
+    );
+
+    const lastMovementMap = new Map<string, Date>();
+    lastMovements.forEach((m) => {
+      lastMovementMap.set(m.master_inventory_items_id, m._max.created_at!);
+    });
+
+    const slowStock = [];
+    const today = new Date();
+
+    // 4. Loop hanya melalui item yang sudah dipastikan "slow stock"
+    for (const item of allItemsInStore) {
+      // Kita sudah tahu item ini lambat, sekarang tinggal hitung datanya.
+      const lastStockUpdated = lastMovementMap.get(item.id) || item.created_at;
+      const diffTime = Math.abs(today.getTime() - lastStockUpdated.getTime());
+      const daysIdle = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      slowStock.push({
+        item: item.name,
+        onHand: item.stock_quantity,
+        lastStockUpdated,
+        daysIdle,
+      });
+    }
+
+    return slowStock;
+  }
+
+  /**
+   * Helper untuk Laporan Performance (5, 6, 7)
+   */
+  private async getMovementAggregates(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const whereClause = {
+      stores_id: { in: storeId },
+      created_at: { gte: startDate, lte: endDate },
+    };
+
+    const totalMovements =
+      await this.prisma.inventory_stock_adjustments.groupBy({
+        by: ['master_inventory_items_id'],
+        where: whereClause,
+        _count: { _all: true },
+      });
+
+    const totalQtyOut = await this.prisma.inventory_stock_adjustments.groupBy({
+      by: ['master_inventory_items_id'],
+      where: { ...whereClause, action: 'STOCK_OUT' },
+      _sum: { adjustment_quantity: true },
+    });
+
+    const movementMap = new Map<string, { count: number; qtyOut: number }>();
+    totalMovements.forEach((m) => {
+      movementMap.set(m.master_inventory_items_id, {
+        count: m._count._all,
+        qtyOut: 0,
+      });
+    });
+    totalQtyOut.forEach((m) => {
+      const existing = movementMap.get(m.master_inventory_items_id);
+      if (existing) {
+        existing.qtyOut = m._sum.adjustment_quantity || 0;
+      }
+    });
+    return movementMap;
+  }
+
+  /**
+   * Laporan 5: Item Performance
+   */
+  private async getItemPerformance(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const items = await this.prisma.master_inventory_items.findMany({
+      where: { store_id: { in: storeId } },
+    });
+    const movementAggregates = await this.getMovementAggregates(
+      storeId,
+      startDate,
+      endDate,
+    );
+
+    return items.map((item) => {
+      const aggregates = movementAggregates.get(item.id) || {
+        count: 0,
+        qtyOut: 0,
+      };
+      const stockValue =
+        (item.stock_quantity || 0) * Number(item.price_per_unit || 0);
+
+      return {
+        itemName: item.name,
+        stockQty: item.stock_quantity,
+        totalStockValue: parseFloat(stockValue.toFixed(2)),
+        totalMovementsCount: aggregates.count,
+        totalQtyOut: aggregates.qtyOut,
+      };
+    });
+  }
+
+  /**
+   * Laporan 6 & 7: Category & Brand Performance
+   */
+  /**
+   * Laporan 6: Category Performance (Fungsi Terpisah)
+   */
+  private async getCategoryPerformance(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    // Query dioptimalkan untuk hanya mengambil item yang punya kategori
+    const items = await this.prisma.master_inventory_items.findMany({
+      where: {
+        store_id: { in: storeId },
+      },
+      include: {
+        master_inventory_categories: true,
+      },
+    });
+
+    const movementAggregates = await this.getMovementAggregates(
+      storeId,
+      startDate,
+      endDate,
+    );
+
+    const performanceMap = new Map<
+      string,
+      {
+        name: string;
+        itemCount: number;
+        totalStockValue: number;
+        totalMovementsCount: number;
+        totalQtyOut: number;
+      }
+    >();
+
+    for (const item of items) {
+      const category = item.master_inventory_categories;
+
+      const aggregates = movementAggregates.get(item.id) || {
+        count: 0,
+        qtyOut: 0,
+      };
+      const stockValue =
+        (item.stock_quantity || 0) * Number(item.price_per_unit || 0);
+
+      let current = performanceMap.get(category.id);
+      if (!current) {
+        current = {
+          name: category.name,
+          itemCount: 0,
+          totalStockValue: 0,
+          totalMovementsCount: 0,
+          totalQtyOut: 0,
+        };
+      }
+
+      current.itemCount += 1;
+      current.totalStockValue += stockValue;
+      current.totalMovementsCount += aggregates.count;
+      current.totalQtyOut += aggregates.qtyOut;
+
+      performanceMap.set(category.id, current);
+    }
+
+    return Array.from(performanceMap.values()).map((data) => ({
+      category: data.name, // Properti 'category' statis
+      itemCount: data.itemCount,
+      totalStockValue: parseFloat(data.totalStockValue.toFixed(2)),
+      totalMovementsCount: data.totalMovementsCount,
+      totalQtyOut: data.totalQtyOut,
+    }));
+  }
+
+  private async getBrandPerformance(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    // Query dioptimalkan untuk hanya mengambil item yang punya brand
+    const items = await this.prisma.master_inventory_items.findMany({
+      where: {
+        store_id: { in: storeId },
+        brand_id: { not: null }, // <-- PENTING: Mengecualikan item tanpa brand
+      },
+      include: {
+        master_brands: true, // Hanya include yang relevan
+      },
+    });
+
+    const movementAggregates = await this.getMovementAggregates(
+      storeId,
+      startDate,
+      endDate,
+    );
+
+    const performanceMap = new Map<
+      string,
+      {
+        name: string;
+        itemCount: number;
+        totalStockValue: number;
+        totalMovementsCount: number;
+        totalQtyOut: number;
+      }
+    >();
+
+    for (const item of items) {
+      // Tidak perlu cek, karena query sudah memastikan brand ada
+      const brand = item.master_brands;
+
+      const aggregates = movementAggregates.get(item.id) || {
+        count: 0,
+        qtyOut: 0,
+      };
+      const stockValue =
+        (item.stock_quantity || 0) * Number(item.price_per_unit || 0);
+
+      let current = performanceMap.get(brand!.id);
+      if (!current) {
+        current = {
+          name: brand!.brand_name,
+          itemCount: 0,
+          totalStockValue: 0,
+          totalMovementsCount: 0,
+          totalQtyOut: 0,
+        };
+      }
+
+      current.itemCount += 1;
+      current.totalStockValue += stockValue;
+      current.totalMovementsCount += aggregates.count;
+      current.totalQtyOut += aggregates.qtyOut;
+
+      performanceMap.set(brand!.id, current);
+    }
+
+    return Array.from(performanceMap.values()).map((data) => ({
+      brand: data.name, // Properti 'brand' statis
+      itemCount: data.itemCount,
+      totalStockValue: parseFloat(data.totalStockValue.toFixed(2)),
+      totalMovementsCount: data.totalMovementsCount,
+      totalQtyOut: data.totalQtyOut,
+    }));
+  }
+
+  async getInventoryValuation(
+    storeIdsString: string,
+    startDateString: Date,
+    endDateString: Date,
+    type: InventoryReportType,
+  ) {
+    const startDate = new Date(startDateString);
+    const endDate = new Date(endDateString);
+    if (!storeIdsString) {
+      throw new BadRequestException('store_ids is required.');
+    }
+    const storeIds = storeIdsString.split(',');
+
+    // Ini adalah bagian kunci: Set waktu endDate ke akhir hari
+    endDate.setHours(23, 59, 59, 999);
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Start date must be earlier than or equal to end date',
+      );
+    }
+
+    switch (type) {
+      case 'movement-ledger':
+        return this.getMovementLedger(storeIds, startDate, endDate);
+      case 'current-stock-overview':
+        return this.getCurrentStockOverview(storeIds);
+      case 'po-receiving-variance':
+        return this.getPoReceivingVariance(storeIds, startDate, endDate);
+      case 'slow-dead-stock':
+        return this.getSlowDeadStock(storeIds, startDate, endDate);
+      case 'item-performance':
+        return this.getItemPerformance(storeIds, startDate, endDate);
+      case 'item-performance-by-category':
+        return this.getCategoryPerformance(storeIds, startDate, endDate);
+      case 'item-performance-by-brand':
+        return this.getBrandPerformance(storeIds, startDate, endDate);
+      default:
+        throw new BadRequestException('Invalid report type provided');
+    }
   }
 
   async getVoucherStatusReport(req: ICustomRequestHeaders) {
