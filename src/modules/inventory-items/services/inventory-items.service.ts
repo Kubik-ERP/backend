@@ -1089,7 +1089,7 @@ export class InventoryItemsService {
           name: dto.name,
           brand_id: dto.brandId,
           barcode: dto.barcode,
-          sku: dto.sku,
+          sku: dto.sku ?? '',
           category_id: dto.categoryId,
           unit: dto.unit,
           notes: dto.notes,
