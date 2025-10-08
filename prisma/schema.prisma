@@ -553,7 +553,7 @@ model store_tables {
   position_x        Int
   position_y        Int
   is_enable_qr_code Boolean      @default(false)
-  status_override String?
+  status_override   String?
   created_at        DateTime?    @default(now()) @db.Timestamptz(6)
   updated_at        DateTime?    @default(now()) @db.Timestamptz(6)
   store_floors      store_floors @relation(fields: [floor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
