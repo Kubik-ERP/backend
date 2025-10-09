@@ -131,7 +131,7 @@ export class ReportController {
   })
   async getVoucherStatusReport(
     @Req() req: ICustomRequestHeaders,
-    @Query('storeIds') storeIds?: string,
+    @Query('store_ids') storeIds?: string,
   ) {
     const data = await this.reportService.getVoucherStatusReport(req, storeIds);
     return {
@@ -158,7 +158,7 @@ export class ReportController {
     @Query('endDate') endDate: Date,
     @Query('type') type: StaffReportType,
     @Req() req: ICustomRequestHeaders,
-    @Query('storeIds') storeIds?: string,
+    @Query('store_ids') storeIds?: string,
   ) {
     const data = await this.reportService.getStaffReports(
       startDate,
@@ -188,7 +188,7 @@ export class ReportController {
   })
   async getCustomerReport(
     @Req() req: ICustomRequestHeaders,
-    @Query('storeIds') storeIds?: string,
+    @Query('store_ids') storeIds?: string,
   ) {
     const data = await this.reportService.getCustomerReport(req, storeIds);
     return {
