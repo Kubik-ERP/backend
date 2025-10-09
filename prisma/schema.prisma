@@ -283,21 +283,25 @@ model invoice_charges {
 }
 
 model invoice_details {
-  id               String    @db.Uuid
-  product_id       String?   @db.Uuid
-  product_price    Float?
-  variant_id       String?   @db.Uuid
-  notes            String?   @db.VarChar(45)
-  qty              Int?
-  invoice_id       String    @db.Uuid
-  variant_price    Float?
-  product_discount Float?
-  invoice          invoice   @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
-  products         products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
-  variant          variant?  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
+  id                     String                   @db.Uuid
+  product_id             String?                  @db.Uuid
+  product_price          Float?
+  variant_id             String?                  @db.Uuid
+  catalog_bundling_id    String?                  @db.Uuid
+  notes                  String?                  @db.VarChar(45)
+  qty                    Int?
+  invoice_id             String                   @db.Uuid
+  variant_price          Float?
+  product_discount       Float?
+  invoice                invoice                  @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  products               products?                @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
+  variant                variant?                 @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
+  catalog_bundling       catalog_bundling?        @relation(fields: [catalog_bundling_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoice_bundling_items invoice_bundling_items[]
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
+  @@index([catalog_bundling_id])
 }
 
 model invoice_settings {
@@ -323,24 +327,38 @@ model invoice_settings {
   stores                         stores  @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_invoice_settings_store")
 }
 
+model invoice_bundling_items {
+  id                        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_detail_id         String           @db.Uuid
+  product_id                String           @db.Uuid
+  product_name              String           @db.VarChar(45)
+  qty                       Int              @default(1)
+  created_at                DateTime         @db.Timestamp(6)
+  updated_at                DateTime?        @db.Timestamp(6)
+  invoice_details           invoice_details? @relation(fields: [invoice_detailsId, invoice_detailsInvoice_id], references: [id, invoice_id])
+  invoice_detailsId         String?          @db.Uuid
+  invoice_detailsInvoice_id String?          @db.Uuid
+}
+
 model kitchen_queue {
-  id           String       @id(map: "kitchen_queue_pk") @db.Uuid
-  invoice_id   String       @db.Uuid
-  product_id   String       @db.Uuid
-  variant_id   String?      @db.Uuid
-  order_status order_status
-  notes        String?      @db.VarChar(255)
-  created_at   DateTime     @db.Timestamp(6)
-  updated_at   DateTime?    @db.Timestamp(6)
-  store_id     String       @db.Uuid
-  table_code   String?      @db.VarChar
-  order_type   order_type
-  customer_id  String?      @db.Uuid
-  customer     customer?    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_customer_fk")
-  invoice      invoice      @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_invoice_fk")
-  products     products     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_products_fk")
-  stores       stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_stores_fk")
-  variant      variant?     @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_variant_fk")
+  id                  String       @id(map: "kitchen_queue_pk") @db.Uuid
+  invoice_id          String       @db.Uuid
+  product_id          String?      @db.Uuid
+  variant_id          String?      @db.Uuid
+  catalog_bundling_id String?      @db.Uuid
+  order_status        order_status
+  notes               String?      @db.VarChar(255)
+  created_at          DateTime     @db.Timestamp(6)
+  updated_at          DateTime?    @db.Timestamp(6)
+  store_id            String       @db.Uuid
+  table_code          String?      @db.VarChar
+  order_type          order_type
+  customer_id         String?      @db.Uuid
+  customer            customer?    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_customer_fk")
+  invoice             invoice      @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_invoice_fk")
+  products            products?    @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_products_fk")
+  stores              stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_stores_fk")
+  variant             variant?     @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_variant_fk")
 }
 
 model material {
@@ -1053,6 +1071,7 @@ model catalog_bundling {
   updated_at                   DateTime?                      @default(now()) @db.Timestamp(6)
   stores                       stores                         @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_facilities_fk")
   catalog_bundling_has_product catalog_bundling_has_product[]
+  invoice_details              invoice_details[]
 }
 
 model catalog_bundling_has_product {

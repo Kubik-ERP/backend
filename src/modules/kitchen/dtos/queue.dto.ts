@@ -33,7 +33,8 @@ export class KitchenQueueUpdateOrderStatusDto {
 export class KitchenQueueAdd {
   id: string;
   invoice_id: string;
-  product_id: string;
+  product_id?: string;
+  catalog_bundling_id?: string;
   variant_id?: string;
   store_id: string;
   notes?: string;

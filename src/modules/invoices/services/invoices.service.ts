@@ -639,7 +639,8 @@ export class InvoiceService {
           const invoiceDetailData = {
             id: invoiceDetailId,
             invoice_id: invoiceId,
-            product_id: detail.productId,
+            product_id: detail.type == 'single' ? detail.productId : null,
+            catalog_bundling_id: detail.type == 'bundling' ? detail.bundlingId : null,
             product_price: originalPrice, // menggunakan original price
             notes: detail.notes,
             order_type: request.orderType,
@@ -888,7 +889,8 @@ export class InvoiceService {
         const invoiceDetailData = {
           id: invoiceDetailId,
           invoice_id: invoiceId,
-          product_id: detail.productId,
+          product_id: detail.type == 'single' ? detail.productId : null,
+          catalog_bundling_id: detail.type == 'bundling' ? detail.bundlingId : null,
           product_price: originalPrice, // menggunakan original price
           notes: detail.notes,
           order_type: request.orderType,
@@ -1157,7 +1159,7 @@ export class InvoiceService {
         // Handle deletion of products that were removed from frontend payload
         const toDeleteProductIds = kitchenQueues
           .map((q) => q.product_id)
-          .filter((pid) => !feProductIds.includes(pid));
+          .filter((pid) => !feProductIds.includes(pid ?? ''));
 
         const uniqueToDelete = [...new Set(toDeleteProductIds)];
 
@@ -1175,7 +1177,7 @@ export class InvoiceService {
             (q) => q.order_status !== order_status.placed,
           );
 
-          if (hasInProgress) {
+          if (hasInProgress && productId) {
             // Get product name for better error message
             const product = await tx.products.findUnique({
               where: { id: productId },
@@ -1262,7 +1264,8 @@ export class InvoiceService {
     const invoiceDetailData = {
       id: uuidv4(),
       invoice_id: invoice.id,
-      product_id: product.productId,
+      product_id: product.type == 'single' ? product.productId : null,
+      catalog_bundling_id: product.type == 'bundling' ? product.bundlingId : null,
       product_price: productPrice,
       notes: product.notes ?? null,
       qty: product.quantity,
