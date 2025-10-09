@@ -1053,6 +1053,7 @@ export class InventoryItemsService {
         id: true,
         username: true,
         email: true,
+        fullname: true,
       },
     },
   } as const;
