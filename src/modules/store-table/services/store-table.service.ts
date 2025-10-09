@@ -249,7 +249,7 @@ export class StoreTableService {
           statusTable: finalStatus,
           from: table.status_override ? 'manual' : 'auto', // Indicates the source of the current status
         };
-      })
+      }),
     }));
 
     return floorsWithStatus;
@@ -267,12 +267,16 @@ export class StoreTableService {
     return floor;
   }
 
-  async updateTableOverrideStatus(storeId: string, tableId: string, newStatus: 'available' | 'occupied') {
+  async updateTableOverrideStatus(
+    storeId: string,
+    tableId: string,
+    newStatus: 'available' | 'occupied',
+  ) {
     // Find the table first
     const table = await this.prisma.store_tables.findFirst({
       where: {
         id: tableId,
-        store_id: storeId
+        store_id: storeId,
       },
     });
 
@@ -284,7 +288,7 @@ export class StoreTableService {
     const updatedTable = await this.prisma.store_tables.update({
       where: { id: table.id },
       data: {
-        status_override: newStatus
+        status_override: newStatus,
       },
     });
 

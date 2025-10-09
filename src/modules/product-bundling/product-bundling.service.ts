@@ -67,7 +67,15 @@ export class ProductBundlingService {
         where: { store_id: store_id },
       }),
       this.prisma.catalog_bundling.findMany({
-        where: { store_id: store_id },
+        where: {
+          store_id: store_id,
+          ...(query.search && {
+            name: {
+              contains: query.search,
+              mode: 'insensitive',
+            },
+          }),
+        },
         skip: skip,
         take: limit,
         orderBy: { created_at: 'desc' },

@@ -105,7 +105,7 @@ export class StoreTableController {
 
     return {
       message: 'Table status updated successfully',
-      result: toCamelCase(result)
+      result: toCamelCase(result),
     };
   }
 }
