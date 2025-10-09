@@ -400,15 +400,22 @@ export class ReportService {
     startDateString: Date,
     endDateString: Date,
     type: NewFinancialReportType,
-    storeIdsString: String,
+    req: ICustomRequestHeaders,
+    storeIdsString?: String,
     staffId?: string,
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
-    if (!storeIdsString) {
+    console.log('Store IDS String:', storeIdsString);
+    console.log('Request Store ID:', req.store_id);
+    let storeIds: string[] = [];
+    if (storeIdsString) {
+      storeIds = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeIds = [req.store_id];
+    } else {
       throw new BadRequestException('store_ids is required.');
     }
-    const storeIds = storeIdsString.split(',');
 
     endDate.setHours(23, 59, 59, 999);
     if (startDate > endDate) {
@@ -688,15 +695,19 @@ export class ReportService {
     endDateString: Date,
     type: AdvancedSalesReportType,
     req: ICustomRequestHeaders,
-    storeIdsString: string,
+    storeIdsString?: string,
     staffId?: string,
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
-    if (!storeIdsString) {
+    let storeIds: string[] = [];
+    if (storeIdsString) {
+      storeIds = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeIds = [req.store_id];
+    } else {
       throw new BadRequestException('store_ids is required.');
     }
-    const storeIds = storeIdsString.split(',');
 
     // Ini adalah bagian kunci: Set waktu endDate ke akhir hari
     endDate.setHours(23, 59, 59, 999);
@@ -1142,17 +1153,22 @@ export class ReportService {
   }
 
   async getInventoryValuation(
-    storeIdsString: string,
     startDateString: Date,
     endDateString: Date,
     type: InventoryReportType,
+    req: ICustomRequestHeaders,
+    storeIdsString?: string,
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
-    if (!storeIdsString) {
+    let storeIds: string[] = [];
+    if (storeIdsString) {
+      storeIds = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeIds = [req.store_id];
+    } else {
       throw new BadRequestException('store_ids is required.');
     }
-    const storeIds = storeIdsString.split(',');
 
     // Ini adalah bagian kunci: Set waktu endDate ke akhir hari
     endDate.setHours(23, 59, 59, 999);
@@ -1182,13 +1198,20 @@ export class ReportService {
     }
   }
 
-  async getVoucherStatusReport(req: ICustomRequestHeaders) {
-    const storeId = req.store_id;
+  async getVoucherStatusReport(req: ICustomRequestHeaders, storeIds?: string) {
+    let storeId: string[] = [];
+    if (storeIds) {
+      storeId = storeIds.split(',');
+    } else if (req.store_id) {
+      storeId = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
+    }
 
     // 1. Ambil semua voucher untuk toko, dan hitung total invoice yang terhubung
     const vouchersWithUsage = await this.prisma.voucher.findMany({
       where: {
-        store_id: storeId,
+        store_id: { in: storeId },
       },
       include: {
         // Gunakan _count untuk menghitung relasi secara efisien di database
@@ -1247,12 +1270,10 @@ export class ReportService {
     return report;
   }
 
-  private async getAttendanceSummary(req: ICustomRequestHeaders) {
-    const storeId = req.store_id;
-
+  private async getAttendanceSummary(storeIds?: string[]) {
     const staffList = await this.prisma.employees.findMany({
       where: {
-        stores_id: storeId,
+        stores_id: { in: storeIds },
         // Asumsi 'end_date' null berarti staf masih aktif
         end_date: null,
       },
@@ -1283,14 +1304,12 @@ export class ReportService {
   private async getCommissionReport(
     startDate: Date,
     endDate: Date,
-    req: ICustomRequestHeaders,
+    storeIds: string[],
   ) {
-    const storeId = req.store_id;
-
     // 1. Ambil semua transaksi yang dicatat oleh kasir dalam rentang waktu
     const invoices = await this.prisma.invoice.findMany({
       where: {
-        store_id: storeId,
+        store_id: { in: storeIds },
         payment_status: 'paid',
         paid_at: { gte: startDate, lte: endDate },
         // Pastikan ada kasir yang tercatat
@@ -1440,9 +1459,18 @@ export class ReportService {
     endDateString: Date,
     type: StaffReportType,
     req: ICustomRequestHeaders,
+    storeIds?: string,
   ) {
+    let storeId: string[] = [];
+    if (storeIds) {
+      storeId = storeIds.split(',');
+    } else if (req.store_id) {
+      storeId = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
+    }
     if (type === 'attendance-summary') {
-      return this.getAttendanceSummary(req);
+      return this.getAttendanceSummary(storeId);
     }
 
     // Hanya butuh tanggal untuk laporan komisi
@@ -1459,7 +1487,7 @@ export class ReportService {
     const commissionData = await this.getCommissionReport(
       startDate,
       endDate,
-      req,
+      storeId,
     );
 
     if (type === 'commission-summary') {
@@ -1475,13 +1503,19 @@ export class ReportService {
     );
   }
 
-  async getCustomerReport(req: ICustomRequestHeaders) {
-    const storeId = req.store_id;
-
+  async getCustomerReport(req: ICustomRequestHeaders, storeIds?: string) {
+    let storeId: string[] = [];
+    if (storeIds) {
+      storeId = storeIds.split(',');
+    } else if (req.store_id) {
+      storeId = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
+    }
     // 1. Ambil semua data master pelanggan dari toko ini.
     const customersPromise = this.prisma.customer.findMany({
       where: {
-        stores_id: storeId,
+        stores_id: { in: storeId },
       },
       orderBy: {
         name: 'asc',
@@ -1492,7 +1526,7 @@ export class ReportService {
     const salesDataPromise = this.prisma.invoice.groupBy({
       by: ['customer_id'],
       where: {
-        store_id: storeId,
+        store_id: { in: storeId },
         payment_status: 'paid', // Hanya hitung yang sudah lunas
         customer_id: { not: null },
       },
@@ -1505,7 +1539,7 @@ export class ReportService {
     const outstandingDataPromise = this.prisma.invoice.groupBy({
       by: ['customer_id'],
       where: {
-        store_id: storeId,
+        store_id: { in: storeId },
         payment_status: 'unpaid', // Hanya hitung yang belum lunas
         customer_id: { not: null },
       },
