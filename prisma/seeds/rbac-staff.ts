@@ -63,6 +63,7 @@ const permissionsMaster = [
     permissions: [
       { name: 'Product Category', key: 'product_category' },
       { name: 'Product Management', key: 'product_management' },
+      { name: 'Recipe Management', key: 'recipe_management' },
     ],
   },
   {
@@ -172,6 +173,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'manage_purchase_order',
     'manage_staff_member',
     'manage_staff_attendance',
+    'recipe_management',
     'integration',
   ],
   Supervisor: [
@@ -208,6 +210,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'manage_purchase_order',
     'manage_staff_member',
     'manage_staff_attendance',
+    'recipe_management',
     'integration',
   ],
   Senior: [
@@ -238,6 +241,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'manage_purchase_order',
     'manage_staff_member',
     'manage_staff_attendance',
+    'recipe_management',
   ],
   Cashier: [
     'set_up_cash_drawer',
