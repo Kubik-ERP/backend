@@ -109,27 +109,45 @@ model charges {
 }
 
 model customer {
-  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                   String?                  @db.VarChar(45)
-  code                   String?                  @db.VarChar(45)
-  number                 String?                  @db.VarChar
-  dob                    DateTime?                @db.Date
-  email                  String?                  @db.VarChar(45)
-  username               String?                  @db.VarChar(45)
-  address                String?                  @db.VarChar(255)
-  gender                 String?                  @db.VarChar(45)
-  tag                    String?                  @db.VarChar(45)
-  point                  Int?
-  stores_id              String?                  @db.Uuid
-  created_at             DateTime?                @default(now()) @db.Timestamp(6)
-  updated_at             DateTime?                @default(now()) @db.Timestamp(6)
-  deleted_at             DateTime?                @db.Timestamp(6)
-  stores                 stores?                  @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_customers_fk")
-  customers_has_invoices customers_has_invoices[]
-  customers_has_tag      customers_has_tag[]
-  invoice                invoice[]
-  kitchen_queue          kitchen_queue[]
-  trn_customer_points    trn_customer_points[]
+  id                            String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                          String?                         @db.VarChar(45)
+  code                          String?                         @db.VarChar(45)
+  number                        String?                         @db.VarChar
+  dob                           DateTime?                       @db.Date
+  email                         String?                         @db.VarChar(45)
+  username                      String?                         @db.VarChar(45)
+  address                       String?                         @db.VarChar(255)
+  gender                        String?                         @db.VarChar(45)
+  tag                           String?                         @db.VarChar(45)
+  point                         Int?
+  stores_id                     String?                         @db.Uuid
+  created_at                    DateTime?                       @default(now()) @db.Timestamp(6)
+  updated_at                    DateTime?                       @default(now()) @db.Timestamp(6)
+  deleted_at                    DateTime?                       @db.Timestamp(6)
+  stores                        stores?                         @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_customers_fk")
+  customers_has_invoices        customers_has_invoices[]
+  customers_has_tag             customers_has_tag[]
+  invoice                       invoice[]
+  kitchen_queue                 kitchen_queue[]
+  trn_customer_points           trn_customer_points[]
+  customer_loyalty_transactions customer_loyalty_transactions[]
+}
+
+model customer_loyalty_transactions {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id String    @db.Uuid
+  invoice_id  String?   @db.Uuid
+  type        String    @db.VarChar(20)
+  points      Int       @default(0)
+  description String?   @db.Text
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+
+  customer customer @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyalty_transactions_customer_fk")
+  invoice  invoice? @relation(fields: [invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "loyalty_transactions_invoice_fk")
+
+  @@index([customer_id], map: "idx_loyalty_transactions_customer")
+  @@index([invoice_id], map: "idx_loyalty_transactions_invoice")
 }
 
 model customers_has_invoices {
@@ -223,48 +241,49 @@ model floor {
 }
 
 model invoice {
-  id                                         String                     @id @db.Uuid
-  payment_methods_id                         String?                    @db.Uuid
-  customer_id                                String?                    @db.Uuid
+  id                                         String                          @id @db.Uuid
+  payment_methods_id                         String?                         @db.Uuid
+  customer_id                                String?                         @db.Uuid
   discount_amount                            Float?
-  table_code                                 String?                    @db.VarChar(45)
+  table_code                                 String?                         @db.VarChar(45)
   payment_status                             invoice_type?
-  created_at                                 DateTime?                  @db.Timestamp(6)
-  update_at                                  DateTime?                  @db.Timestamp(6)
-  delete_at                                  DateTime?                  @db.Timestamp(6)
+  created_at                                 DateTime?                       @db.Timestamp(6)
+  update_at                                  DateTime?                       @db.Timestamp(6)
+  delete_at                                  DateTime?                       @db.Timestamp(6)
   subtotal                                   Float
   order_type                                 order_type?
-  paid_at                                    DateTime?                  @db.Timestamp(6)
-  tax_id                                     String?                    @db.Uuid
-  service_charge_id                          String?                    @db.Uuid
+  paid_at                                    DateTime?                       @db.Timestamp(6)
+  tax_id                                     String?                         @db.Uuid
+  service_charge_id                          String?                         @db.Uuid
   tax_amount                                 Float?
   service_charge_amount                      Float?
   grand_total                                Float?
   cashier_id                                 Int?
-  invoice_number                             String?                    @db.VarChar(100)
-  store_id                                   String?                    @db.Uuid
-  complete_order_at                          DateTime?                  @db.Timestamp(6)
+  invoice_number                             String?                         @db.VarChar(100)
+  store_id                                   String?                         @db.Uuid
+  complete_order_at                          DateTime?                       @db.Timestamp(6)
   order_status                               order_status?
   payment_amount                             Float?
   change_amount                              Float?
-  voucher_amount                             Float                      @default(0)
-  voucher_id                                 String?                    @db.Uuid
+  voucher_amount                             Float                           @default(0)
+  voucher_id                                 String?                         @db.Uuid
   total_product_discount                     Float?
-  rounding_setting_id                        String?                    @db.Uuid
+  rounding_setting_id                        String?                         @db.Uuid
   rounding_amount                            Float?
   customers_has_invoices                     customers_has_invoices[]
-  customer                                   customer?                  @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
-  payment_methods                            payment_methods?           @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
-  payment_rounding_settings                  payment_rounding_settings? @relation(fields: [rounding_setting_id], references: [id], map: "fk_invoice_rounding")
-  charges_invoice_tax_idTocharges            charges?                   @relation("invoice_tax_idTocharges", fields: [tax_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk")
-  charges_invoice_service_charge_idTocharges charges?                   @relation("invoice_service_charge_idTocharges", fields: [service_charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk_1")
-  stores                                     stores?                    @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_stores_fk")
-  users                                      users?                     @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
-  voucher                                    voucher?                   @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_voucher_fk")
+  customer                                   customer?                       @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
+  payment_methods                            payment_methods?                @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
+  payment_rounding_settings                  payment_rounding_settings?      @relation(fields: [rounding_setting_id], references: [id], map: "fk_invoice_rounding")
+  charges_invoice_tax_idTocharges            charges?                        @relation("invoice_tax_idTocharges", fields: [tax_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk")
+  charges_invoice_service_charge_idTocharges charges?                        @relation("invoice_service_charge_idTocharges", fields: [service_charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk_1")
+  stores                                     stores?                         @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_stores_fk")
+  users                                      users?                          @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
+  voucher                                    voucher?                        @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_voucher_fk")
   invoice_charges                            invoice_charges[]
   invoice_details                            invoice_details[]
   kitchen_queue                              kitchen_queue[]
   trn_customer_points                        trn_customer_points[]
+  customer_loyalty_transactions              customer_loyalty_transactions[]
 
   @@index([customer_id], map: "fk_invoice_customer1_idx")
   @@index([payment_methods_id], map: "fk_invoice_payment_methods1_idx")
