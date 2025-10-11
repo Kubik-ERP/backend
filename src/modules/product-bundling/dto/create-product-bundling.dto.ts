@@ -56,4 +56,8 @@ export class CreateProductBundlingDto {
   @IsOptional()
   @Type(() => Number)
   price?: number;
+
+  @IsOptional()
+  @IsString()
+  image?: string;
 }
