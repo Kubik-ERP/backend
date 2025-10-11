@@ -26,7 +26,7 @@ export class ProductBundlingService {
         discount: type === 'DISCOUNT' ? discount : null,
         price: type === 'CUSTOM' ? price : null,
         store_id: store_id,
-        picture_url: image,
+        picture_url: image ?? null,
       },
     });
     const bundlingProducts = products.map((product) => ({

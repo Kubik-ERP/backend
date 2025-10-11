@@ -179,6 +179,11 @@ export class KitchenService {
           include: {
             products: true,
             variant: true,
+            invoice_bundling_items: {
+              include: {
+                products: true
+              },
+            },
           },
         },
       },
