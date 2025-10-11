@@ -30,13 +30,15 @@ export class ReportController {
     @Query('startDate') startDate: Date,
     @Query('endDate') endDate: Date,
     @Query('type') type: NewFinancialReportType,
-    @Query('store_ids') storeIdsString: string,
+    @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIdsString?: string,
     @Query('staff_ids') staffId?: string,
   ) {
     const data = await this.reportService.getNewFinancialReports(
       startDate,
       endDate,
       type,
+      req,
       storeIdsString,
       staffId,
     );
@@ -64,7 +66,7 @@ export class ReportController {
     @Query('endDate') endDate: Date,
     @Query('type') type: AdvancedSalesReportType,
     @Req() req: ICustomRequestHeaders,
-    @Query('store_ids') storeIdsString: string,
+    @Query('store_ids') storeIdsString?: string,
     @Query('staff_ids') staffId?: string,
   ) {
     const data = await this.reportService.getAdvancedSalesReport(
@@ -98,13 +100,15 @@ export class ReportController {
     @Query('startDate') startDate: Date,
     @Query('endDate') endDate: Date,
     @Query('type') type: InventoryReportType,
-    @Query('store_ids') storeIdsString: string,
+    @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIdsString?: string,
   ) {
     const data = await this.reportService.getInventoryValuation(
-      storeIdsString,
       startDate,
       endDate,
       type,
+      req,
+      storeIdsString,
     );
     return {
       message: 'Inventory data retrieved successfully',
@@ -125,8 +129,11 @@ export class ReportController {
     summary:
       'Get inventory valuation report data for the main dashboard within a date range.',
   })
-  async getVoucherStatusReport(@Req() req: ICustomRequestHeaders) {
-    const data = await this.reportService.getVoucherStatusReport(req);
+  async getVoucherStatusReport(
+    @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIds?: string,
+  ) {
+    const data = await this.reportService.getVoucherStatusReport(req, storeIds);
     return {
       message: 'Voucher status report data retrieved successfully',
       result: data,
@@ -151,12 +158,14 @@ export class ReportController {
     @Query('endDate') endDate: Date,
     @Query('type') type: StaffReportType,
     @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIds?: string,
   ) {
     const data = await this.reportService.getStaffReports(
       startDate,
       endDate,
       type,
       req,
+      storeIds,
     );
     return {
       message: 'Staff report data retrieved successfully',
@@ -177,8 +186,11 @@ export class ReportController {
     summary:
       'Get customer report data for the main dashboard within a date range.',
   })
-  async getCustomerReport(@Req() req: ICustomRequestHeaders) {
-    const data = await this.reportService.getCustomerReport(req);
+  async getCustomerReport(
+    @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIds?: string,
+  ) {
+    const data = await this.reportService.getCustomerReport(req, storeIds);
     return {
       message: 'Customer report data retrieved successfully',
       result: data,
