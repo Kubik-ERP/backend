@@ -1442,10 +1442,10 @@ export class InvoiceService {
 
       // update invoice
       await this.update(tx, invoice.id, {
-        payment_status: invoice_type.paid,
+        payment_status: invoice_type.unpaid,
         subtotal: calculation.subTotal, // harga sebelum potongan voucher
         tax_id: calculation.taxId,
-        paid_at: new Date(),
+        paid_at: request.provider === 'cash' ? new Date() : undefined,
         service_charge_id: calculation.serviceChargeId,
         tax_amount: calculation.tax,
         service_charge_amount: calculation.serviceCharge,
@@ -1457,13 +1457,20 @@ export class InvoiceService {
       });
     });
 
+    const integration = await this._prisma.integrations.findFirst({
+      where: { stores_id: storeId },
+    });
     if (request.provider !== 'cash') {
-      await this.initiatePaymentBasedOnMethod(
+      const response = await this.initiatePaymentBasedOnMethod(
         request.paymentMethodId,
         paymentProvider,
         invoice.id,
         grandTotal,
       );
+      return {
+        ...response,
+        qrImage: integration?.image || null,
+      };
     }
 
     // get opened cash drawer
@@ -1490,7 +1497,6 @@ export class InvoiceService {
 
     // Create stock adjustments for completed payment
     await this.createStockAdjustmentsForInvoice(invoice.id, storeId);
-
     return {
       paymentMethodId: request.paymentMethodId,
       invoiceId: invoice.id,
