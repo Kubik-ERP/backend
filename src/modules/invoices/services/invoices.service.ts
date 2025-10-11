@@ -1442,7 +1442,8 @@ export class InvoiceService {
 
       // update invoice
       await this.update(tx, invoice.id, {
-        payment_status: invoice_type.unpaid,
+        payment_status:
+          request.provider === 'cash' ? invoice_type.paid : invoice_type.unpaid,
         subtotal: calculation.subTotal, // harga sebelum potongan voucher
         tax_id: calculation.taxId,
         paid_at: request.provider === 'cash' ? new Date() : undefined,
@@ -1460,15 +1461,17 @@ export class InvoiceService {
     const integration = await this._prisma.integrations.findFirst({
       where: { stores_id: storeId },
     });
-    if (request.provider !== 'cash') {
-      const response = await this.initiatePaymentBasedOnMethod(
-        request.paymentMethodId,
-        paymentProvider,
-        invoice.id,
-        grandTotal,
-      );
+    if (request.provider === 'qris') {
+      // const response = await this.initiatePaymentBasedOnMethod(
+      //   request.paymentMethodId,
+      //   paymentProvider,
+      //   invoice.id,
+      //   grandTotal,
+      // );
       return {
-        ...response,
+        paymentMethodId: request.paymentMethodId,
+        invoiceId: invoice.id,
+        grandTotal: grandTotal,
         qrImage: integration?.image || null,
       };
     }
@@ -1940,7 +1943,6 @@ export class InvoiceService {
         message: 'Cash payment does not require gateway initiation',
       };
     }
-
     switch (paymentMethod?.name) {
       case 'Snap':
         return await provider.initiatePaymentSnap(orderId, amount);
