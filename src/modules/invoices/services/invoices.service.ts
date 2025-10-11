@@ -719,6 +719,7 @@ export class InvoiceService {
       );
       return {
         ...response,
+        invoiceId: invoiceId,
         qrImage: integration?.image || null,
       };
     }
