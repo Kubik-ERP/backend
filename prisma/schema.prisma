@@ -1063,6 +1063,7 @@ model store_facilities {
 model catalog_bundling {
   id                           String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   store_id                     String                         @db.Uuid
+  picture_url                  String?                        @db.VarChar(45)
   name                         String?                        @db.VarChar(100)
   description                  String?                        @default("-") @db.VarChar(100)
   type                         bundling_price_type

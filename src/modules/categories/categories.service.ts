@@ -301,76 +301,64 @@ export class CategoriesService {
     categoryId?: string,
     header?: ICustomRequestHeaders,
   ) {
+    console.log('service findCatalogProducts search:', search);
     const store_id = header?.store_id;
 
     if (!store_id) {
       throw new BadRequestException('store_id is required');
     }
 
-    const baseConditions: Prisma.categoriesWhereInput[] = [];
-
-    if (search) {
-      baseConditions.push({
+    // Build dynamic where clause
+    const whereClause: Prisma.categoriesWhereInput = {
+      stores_id: store_id,
+      ...(categoryId && { id: categoryId }),
+      ...(search && {
         categories_has_products: {
           some: {
             products: {
               OR: [
-                {
-                  name: {
-                    contains: search,
-                    mode: 'insensitive',
-                  },
-                },
-                {
-                  barcode: {
-                    contains: search,
-                    mode: 'insensitive',
-                  },
-                },
+                { name: { contains: search, mode: 'insensitive' } },
+                { barcode: { contains: search, mode: 'insensitive' } },
               ],
             },
           },
         },
-      });
-    }
-    baseConditions.push({ stores_id: store_id });
+      }),
+    };
 
-    if (categoryId) {
-      baseConditions.push({ id: categoryId });
-    }
-
-    const whereClause: Prisma.categoriesWhereInput =
-      baseConditions.length > 0 ? { AND: baseConditions } : {};
-
-    // Get categories with their products
+    // Fetch categories and only products that match the search
     const categories = await this.prisma.categories.findMany({
       where: whereClause,
       include: {
         categories_has_products: {
+          where: search
+            ? {
+                products: {
+                  OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { barcode: { contains: search, mode: 'insensitive' } },
+                  ],
+                },
+              }
+            : undefined,
           include: {
             products: {
               include: {
                 master_inventory_items: {
-                  select: {
-                    stock_quantity: true,
-                  },
+                  select: { stock_quantity: true },
                 },
                 variant_has_products: {
-                  include: {
-                    variant: true,
-                  },
+                  include: { variant: true },
                 },
               },
             },
           },
         },
       },
-      orderBy: {
-        category: 'asc',
-      },
+      orderBy: { category: 'asc' },
     });
 
-    // Transform the data to match the required format
+    // Transform result data
     const transformedData = categories.map((category) => ({
       id: category.id,
       category: category.category,
@@ -396,7 +384,7 @@ export class CategoriesService {
       })),
     }));
 
-    // Filter out categories with no items if search is applied
+    // Filter out empty categories if a search is applied
     return transformedData.filter(
       (category) => !search || category.items.length > 0,
     );
