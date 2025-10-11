@@ -130,7 +130,7 @@ export class ProductBundlingController {
     }
     const data = await this.productBundlingService.update(id, {
       ...updateProductBundlingDto,
-      image: relativePath || '',
+      image: relativePath,
     });
     return {
       message: 'Product bundling successfully updated',

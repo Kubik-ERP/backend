@@ -322,13 +322,17 @@ export class ProductsService {
           ? updateProductDto.discount_price
           : updateProductDto.price;
 
+        console.log('updateProductDto.image:', updateProductDto.image);
+
         return await tx.products.update({
           where: { id },
           data: {
             name: updateProductDto.name,
             price: updateProductDto.price ?? 0,
             discount_price: discountValue ?? 0,
-            picture_url: updateProductDto.image ?? null,
+            ...(updateProductDto.image === 'undefined'
+              ? {}
+              : { picture_url: updateProductDto.image }),
             is_percent: updateProductDto.is_percent ?? false,
           },
           include: {

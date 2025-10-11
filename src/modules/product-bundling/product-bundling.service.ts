@@ -180,7 +180,11 @@ export class ProductBundlingService {
     const type = updateProductBundlingDto.type ?? existing.type;
     const discount = updateProductBundlingDto.discount ?? existing.discount;
     const price = updateProductBundlingDto.price ?? existing.price;
-    const image = updateProductBundlingDto.image ?? existing.picture_url;
+    const image = updateProductBundlingDto.image;
+    console.log(
+      'update(id: string, updateProductBundlingDto: UpdateProductBundlingDto) image:',
+      image,
+    );
     const bundling = await this.prisma.catalog_bundling.update({
       where: { id },
       data: {
