@@ -297,7 +297,7 @@ model invoice_details {
   products               products?                @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
   variant                variant?                 @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
   catalog_bundling       catalog_bundling?        @relation(fields: [catalog_bundling_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  invoice_bundling_items invoice_bundling_items[]
+  invoice_bundling_items invoice_bundling_items[] @relation("InvoiceDetailToBundlingItems")
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
@@ -328,16 +328,16 @@ model invoice_settings {
 }
 
 model invoice_bundling_items {
-  id                        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  invoice_detail_id         String           @db.Uuid
-  product_id                String           @db.Uuid
-  product_name              String           @db.VarChar(45)
-  qty                       Int              @default(1)
-  created_at                DateTime         @db.Timestamp(6)
-  updated_at                DateTime?        @db.Timestamp(6)
-  invoice_details           invoice_details? @relation(fields: [invoice_detailsId, invoice_detailsInvoice_id], references: [id, invoice_id])
-  invoice_detailsId         String?          @db.Uuid
-  invoice_detailsInvoice_id String?          @db.Uuid
+  id                String    @id @default(uuid())
+  invoice_id        String    @db.Uuid
+  invoice_detail_id String    @db.Uuid
+  product_id        String    @db.Uuid
+  qty               Int       @default(1)
+  created_at        DateTime  @default(now())
+  updated_at        DateTime?
+
+  products        products        @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  invoice_details invoice_details @relation("InvoiceDetailToBundlingItems", fields: [invoice_detail_id, invoice_id], references: [id, invoice_id], onDelete: Cascade)
 }
 
 model kitchen_queue {
@@ -491,6 +491,7 @@ model products {
   recipe                       recipe[]
   variant_has_products         variant_has_products[]
   voucher_has_products         voucher_has_products[]
+  invoice_bundling_items       invoice_bundling_items[]
 }
 
 model recipe {

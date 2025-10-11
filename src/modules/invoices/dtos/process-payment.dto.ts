@@ -21,18 +21,20 @@ import { Type } from 'class-transformer';
 export class ProductDto {
   @ApiProperty({
     description: 'Product ID',
-    required: true,
+    required: false,
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
+  @IsOptional()
   @IsString()
   public productId: string;
 
   @ApiProperty({
     description: 'Variant ID',
-    required: true,
+    required: false,
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
   @IsString()
+  @IsOptional()
   public variantId: string;
 
   @ApiProperty({ description: 'Quantity', required: true, example: 1 })
@@ -52,6 +54,7 @@ export class ProductDto {
   public type: string;
 
   @IsString()
+  @IsOptional()
   public bundlingId: string;
 }
 
