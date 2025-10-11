@@ -1381,7 +1381,10 @@ export class InvoiceService {
       throw new BadRequestException(`Invoice status is not unpaid`);
     }
 
-    await this.validatePaymentMethod(request.paymentMethodId, request.provider);
+    const method = await this.validatePaymentMethod(
+      request.paymentMethodId,
+      request.provider,
+    );
 
     // define payment method and provider
     const paymentProvider =
@@ -1443,10 +1446,10 @@ export class InvoiceService {
       // update invoice
       await this.update(tx, invoice.id, {
         payment_status:
-          request.provider === 'cash' ? invoice_type.paid : invoice_type.unpaid,
+          method.name === 'Cash' ? invoice_type.paid : invoice_type.unpaid,
         subtotal: calculation.subTotal, // harga sebelum potongan voucher
         tax_id: calculation.taxId,
-        paid_at: request.provider === 'cash' ? new Date() : undefined,
+        paid_at: method.name === 'Cash' ? new Date() : undefined,
         service_charge_id: calculation.serviceChargeId,
         tax_amount: calculation.tax,
         service_charge_amount: calculation.serviceCharge,
@@ -1461,7 +1464,7 @@ export class InvoiceService {
     const integration = await this._prisma.integrations.findFirst({
       where: { stores_id: storeId },
     });
-    if (request.provider === 'qris') {
+    if (method.name === 'Qris') {
       // const response = await this.initiatePaymentBasedOnMethod(
       //   request.paymentMethodId,
       //   paymentProvider,
