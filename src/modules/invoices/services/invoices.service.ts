@@ -876,6 +876,7 @@ export class InvoiceService {
       );
       return {
         ...response,
+        invoiceId: invoiceId,
         qrImage: integration?.image || null,
       };
     }
@@ -1685,7 +1686,10 @@ export class InvoiceService {
       throw new BadRequestException(`Invoice status is not unpaid`);
     }
 
-    await this.validatePaymentMethod(request.paymentMethodId, request.provider);
+    const method = await this.validatePaymentMethod(
+      request.paymentMethodId,
+      request.provider,
+    );
 
     // define payment method and provider
     const paymentProvider =
@@ -1746,10 +1750,11 @@ export class InvoiceService {
 
       // update invoice
       await this.update(tx, invoice.id, {
-        payment_status: invoice_type.paid,
+        payment_status:
+          method.name === 'Cash' ? invoice_type.paid : invoice_type.unpaid,
         subtotal: calculation.subTotal, // harga sebelum potongan voucher
         tax_id: calculation.taxId,
-        paid_at: new Date(),
+        paid_at: method.name === 'Cash' ? new Date() : undefined,
         service_charge_id: calculation.serviceChargeId,
         tax_amount: calculation.tax,
         service_charge_amount: calculation.serviceCharge,
@@ -1761,13 +1766,22 @@ export class InvoiceService {
       });
     });
 
-    if (request.provider !== 'cash') {
-      await this.initiatePaymentBasedOnMethod(
-        request.paymentMethodId,
-        paymentProvider,
-        invoice.id,
-        grandTotal,
-      );
+    const integration = await this._prisma.integrations.findFirst({
+      where: { stores_id: storeId },
+    });
+    if (method.name === 'Qris') {
+      // const response = await this.initiatePaymentBasedOnMethod(
+      //   request.paymentMethodId,
+      //   paymentProvider,
+      //   invoice.id,
+      //   grandTotal,
+      // );
+      return {
+        paymentMethodId: request.paymentMethodId,
+        invoiceId: invoice.id,
+        grandTotal: grandTotal,
+        qrImage: integration?.image || null,
+      };
     }
 
     // get opened cash drawer
@@ -1794,7 +1808,6 @@ export class InvoiceService {
 
     // Create stock adjustments for completed payment
     await this.createStockAdjustmentsForInvoice(invoice.id, storeId);
-
     return {
       paymentMethodId: request.paymentMethodId,
       invoiceId: invoice.id,
@@ -2275,7 +2288,6 @@ export class InvoiceService {
         message: 'Cash payment does not require gateway initiation',
       };
     }
-
     switch (paymentMethod?.name) {
       case 'Snap':
         return await provider.initiatePaymentSnap(orderId, amount);

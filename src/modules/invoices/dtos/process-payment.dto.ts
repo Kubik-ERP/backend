@@ -15,7 +15,7 @@ import { order_type } from '@prisma/client';
 
 // NestJS Libraries
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 // DTO Product
 export class ProductDto {
@@ -51,7 +51,9 @@ export class ProductDto {
   public notes: string;
 
   @IsString()
-  public type: string;
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === null ? 'single' : value))
+  public type: string = 'single';
 
   @IsString()
   @IsOptional()
