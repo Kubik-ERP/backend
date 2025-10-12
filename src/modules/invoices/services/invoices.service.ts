@@ -2599,7 +2599,7 @@ export class InvoiceService {
                   const invoiceDetail = invoiceDetails.find(
                     (d) => d.product_id === item.product_id,
                   );
-                  
+
                   if (invoiceDetail) {
                     const qty = invoiceDetail.qty ?? 0;
                     const minimumPurchase = item.minimum_transaction ?? 0;
