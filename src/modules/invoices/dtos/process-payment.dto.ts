@@ -52,7 +52,9 @@ export class ProductDto {
 
   @IsString()
   @IsOptional()
-  @Transform(({ value }) => (value === undefined || value === null ? 'single' : value))
+  @Transform(({ value }) =>
+    value === undefined || value === null ? 'single' : value,
+  )
   public type: string = 'single';
 
   @IsString()
@@ -133,6 +135,26 @@ export class ProceedInstantPaymentDto extends ProductListDto {
   @IsOptional()
   @IsNumber()
   public rounding_amount?: number;
+
+  @ApiProperty({
+    description: 'Loyalty redemption details',
+    required: false,
+    example: {
+      loyalty_points_benefit_id: '1e38a39c-dbd5-4d8b-8df8-d88d792280fe',
+    },
+  })
+  @IsOptional()
+  public redeemLoyalty?: RedeemLoyaltyDto | null;
+}
+
+export class RedeemLoyaltyDto {
+  @ApiProperty({
+    description: 'The ID of the loyalty points benefit used for redemption',
+    example: '1e38a39c-dbd5-4d8b-8df8-d88d792280fe',
+  })
+  @IsUUID()
+  @IsOptional()
+  public loyalty_points_benefit_id?: string;
 }
 
 export class ProceedCheckoutInvoiceDto extends ProductListDto {
