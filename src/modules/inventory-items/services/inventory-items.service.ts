@@ -1108,6 +1108,44 @@ export class InventoryItemsService {
         },
       });
 
+      // Create unit conversions if provided
+      if (dto.conversions && dto.conversions.length > 0) {
+        for (const conversion of dto.conversions) {
+          // Validate that conversion is an object with required fields
+          if (
+            !conversion ||
+            typeof conversion !== 'object' ||
+            !conversion.unitName ||
+            !conversion.value ||
+            isNaN(Number(conversion.value))
+          ) {
+            throw new BadRequestException(
+              `Invalid conversion data: ${JSON.stringify(conversion)}. Expected format: {"unitName":"string","unitSymbol":"string","value":number}`,
+            );
+          }
+
+          const conversionValue = Number(conversion.value);
+          if (conversionValue <= 0) {
+            throw new BadRequestException(
+              `Conversion value must be greater than 0: ${conversionValue}`,
+            );
+          }
+
+          await tx.master_inventory_item_conversions.create({
+            data: {
+              item_id: item.id,
+              unit_name: String(conversion.unitName).trim(),
+              unit_symbol: conversion.unitSymbol
+                ? String(conversion.unitSymbol).trim()
+                : null,
+              conversion_value: conversionValue,
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+          });
+        }
+      }
+
       if (isRetail) await this.upsertCatalog(tx, dto, store_id, item.id);
 
       return item;
