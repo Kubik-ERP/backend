@@ -15,24 +15,26 @@ import { order_type } from '@prisma/client';
 
 // NestJS Libraries
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 // DTO Product
 export class ProductDto {
   @ApiProperty({
     description: 'Product ID',
-    required: true,
+    required: false,
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
-  @IsNotEmpty()
+  @IsOptional()
+  @IsString()
   public productId: string;
 
   @ApiProperty({
     description: 'Variant ID',
-    required: true,
+    required: false,
     example: '6930b42f-c074-4aa4-b36d-87a9169c7204',
   })
   @IsString()
+  @IsOptional()
   public variantId: string;
 
   @ApiProperty({ description: 'Quantity', required: true, example: 1 })
@@ -47,6 +49,15 @@ export class ProductDto {
   })
   @IsString()
   public notes: string;
+
+  @IsString()
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === null ? 'single' : value))
+  public type: string = 'single';
+
+  @IsString()
+  @IsOptional()
+  public bundlingId: string;
 }
 
 export class ProductListDto {

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional } from 'class-validator';
+import { IsInt, IsOptional, IsString } from 'class-validator';
 
 export class QueryProductBundling {
   @IsOptional()
@@ -11,4 +11,9 @@ export class QueryProductBundling {
   @Type(() => Number)
   @IsInt()
   limit?: number;
+
+  @IsOptional()
+  @Type(() => String)
+  @IsString()
+  search?: string;
 }

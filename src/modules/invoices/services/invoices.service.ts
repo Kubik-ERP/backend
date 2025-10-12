@@ -57,6 +57,7 @@ import {
 } from '../dtos/setting-invoice.dto';
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
+import e from 'express';
 
 @Injectable()
 export class InvoiceService {
@@ -215,6 +216,12 @@ export class InvoiceService {
           include: {
             products: true,
             variant: true,
+            catalog_bundling: true,
+            invoice_bundling_items: {
+              include: {
+                products: true,
+              },
+            },
           },
         },
         users: {
@@ -505,7 +512,6 @@ export class InvoiceService {
           rounding_setting_id: null,
           rounding_amount: null,
         };
-        console.log(invoiceData);
         // create invoice with status unpaid
         await this.create(tx, invoiceData);
 
@@ -514,44 +520,93 @@ export class InvoiceService {
         let calculatedTotalProductDiscount = 0;
 
         for (const detail of request.products) {
-          const product = await this._prisma.products.findUnique({
-            where: { id: detail.productId },
-            select: { price: true, discount_price: true },
-          });
-
-          if (!product) {
-            this.logger.error(`Product with ID ${detail.productId} not found`);
-            throw new NotFoundException(
-              `Product with ID ${detail.productId} not found`,
-            );
-          }
-
-          const originalPrice = product.price ?? 0;
-          const discountPrice = product.discount_price ?? 0;
-          const productDiscount = originalPrice - discountPrice;
-
-          // Get variant price if variant exists
-          let variantPrice = 0;
-          const validVariantId = await this.validateProductVariant(
-            detail.productId,
-            detail.variantId,
-          );
-
-          if (validVariantId) {
-            const variant = await this._prisma.variant.findUnique({
-              where: { id: validVariantId },
-              select: { price: true },
+          if (detail.type === 'single') {
+            const product = await this._prisma.products.findUnique({
+              where: { id: detail.productId },
+              select: { price: true, discount_price: true },
             });
 
-            if (variant) {
-              variantPrice = variant.price ?? 0;
+            if (!product) {
+              this.logger.error(
+                `Product with ID ${detail.productId} not found`,
+              );
+              throw new NotFoundException(
+                `Product with ID ${detail.productId} not found`,
+              );
             }
-          }
 
-          // Calculate subtotal including variant price
-          const itemSubtotal = (originalPrice + variantPrice) * detail.quantity;
-          originalSubtotal += itemSubtotal;
-          calculatedTotalProductDiscount += productDiscount * detail.quantity;
+            const originalPrice = product.price ?? 0;
+            const discountPrice = product.discount_price ?? 0;
+            const productDiscount = originalPrice - discountPrice;
+
+            // Get variant price if variant exists
+            let variantPrice = 0;
+            const validVariantId = await this.validateProductVariant(
+              detail.productId,
+              detail.variantId,
+            );
+
+            if (validVariantId) {
+              const variant = await this._prisma.variant.findUnique({
+                where: { id: validVariantId },
+                select: { price: true },
+              });
+
+              if (variant) {
+                variantPrice = variant.price ?? 0;
+              }
+            }
+
+            // Calculate subtotal including variant price
+            const itemSubtotal =
+              (originalPrice + variantPrice) * detail.quantity;
+            originalSubtotal += itemSubtotal;
+            calculatedTotalProductDiscount += productDiscount * detail.quantity;
+          } else if (detail.type === 'bundling') {
+            const productBundling =
+              await this._prisma.catalog_bundling.findUnique({
+                where: { id: detail.bundlingId },
+              });
+
+            if (!productBundling) {
+              throw new NotFoundException(
+                `Product Bundling with ID ${detail.bundlingId} not found`,
+              );
+            }
+
+            const products =
+              await this._prisma.catalog_bundling_has_product.findMany({
+                where: { catalog_bundling_id: detail.bundlingId },
+              });
+
+            let originalSubtotalBundling = 0;
+            for (const item of products) {
+              const product = await this._prisma.products.findUnique({
+                where: { id: item.product_id },
+                select: { price: true, discount_price: true },
+              });
+
+              if (!product) {
+                this.logger.error(
+                  `Product with ID ${detail.productId} not found`,
+                );
+                throw new NotFoundException(
+                  `Product with ID ${detail.productId} not found`,
+                );
+              }
+
+              const originalPrice = product.price ?? 0;
+              originalSubtotalBundling += originalPrice * detail.quantity;
+            }
+
+            originalSubtotal += originalSubtotalBundling;
+            calculatedTotalProductDiscount +=
+              (originalSubtotalBundling - (productBundling.price ?? 0)) *
+              detail.quantity;
+          } else {
+            this.logger.error(`Invalid product type ${detail.type}`);
+            throw new NotFoundException(`Invalid product type ${detail.type}`);
+          }
         }
 
         // Set the total product discount to be used outside transaction
@@ -600,76 +655,178 @@ export class InvoiceService {
         }
 
         for (const detail of request.products) {
-          // Get product data for prices
-          const product = await this._prisma.products.findUnique({
-            where: { id: detail.productId },
-            select: { price: true, discount_price: true },
-          });
+          if (detail.type == 'single') {
+            // Get product data for prices
+            const product = await this._prisma.products.findUnique({
+              where: { id: detail.productId },
+              select: { price: true, discount_price: true },
+            });
 
-          if (!product) {
-            this.logger.error(`Product with ID ${detail.productId} not found`);
-            throw new NotFoundException(
-              `Product with ID ${detail.productId} not found`,
+            if (!product) {
+              this.logger.error(
+                `Product with ID ${detail.productId} not found`,
+              );
+              throw new NotFoundException(
+                `Product with ID ${detail.productId} not found`,
+              );
+            }
+
+            const originalPrice = product.price ?? 0;
+            const discountPrice = product.discount_price ?? 0;
+            const productDiscount = originalPrice - discountPrice;
+
+            // find variant price
+            let variantPrice = 0;
+            const found = calculation.items.find(
+              (p) =>
+                p.productId === detail.productId &&
+                p.variantId === detail.variantId,
             );
-          }
+            if (found) {
+              variantPrice = found.variantPrice;
+            }
 
-          const originalPrice = product.price ?? 0;
-          const discountPrice = product.discount_price ?? 0;
-          const productDiscount = originalPrice - discountPrice;
+            // validate product has variant
+            const validVariantId = await this.validateProductVariant(
+              detail.productId,
+              detail.variantId,
+            );
 
-          // find variant price
-          let variantPrice = 0;
-          const found = calculation.items.find(
-            (p) =>
-              p.productId === detail.productId &&
-              p.variantId === detail.variantId,
-          );
-          if (found) {
-            variantPrice = found.variantPrice;
-          }
-
-          // validate product has variant
-          const validVariantId = await this.validateProductVariant(
-            detail.productId,
-            detail.variantId,
-          );
-
-          // create invoice detail ID
-          const invoiceDetailId = uuidv4();
-          const invoiceDetailData = {
-            id: invoiceDetailId,
-            invoice_id: invoiceId,
-            product_id: detail.productId,
-            product_price: originalPrice, // menggunakan original price
-            notes: detail.notes,
-            order_type: request.orderType,
-            qty: detail.quantity,
-            variant_id: validVariantId,
-            variant_price: variantPrice,
-            product_discount: productDiscount, // discount per unit
-          };
-
-          // create invoice with status unpaid
-          await this.createInvoiceDetail(tx, invoiceDetailData);
-
-          // looping each quantity
-          for (let i = 0; i < detail.quantity; i++) {
-            const queue: KitchenQueueAdd = {
-              id: uuidv4(),
+            // create invoice detail ID
+            const invoiceDetailId = uuidv4();
+            const invoiceDetailData = {
+              id: invoiceDetailId,
               invoice_id: invoiceId,
+              product_id: detail.productId ?? null,
+              catalog_bundling_id: null,
+              product_price: originalPrice, // menggunakan original price
+              notes: detail.notes,
               order_type: request.orderType,
-              order_status: order_status.placed,
-              product_id: detail.productId,
-              variant_id: detail.variantId ?? null,
-              store_id: storeId,
-              customer_id: request.customerId,
-              notes: detail.notes ?? '',
-              created_at: now,
-              updated_at: now,
-              table_code: request.tableCode,
+              qty: detail.quantity,
+              variant_id: validVariantId,
+              variant_price: variantPrice,
+              product_discount: productDiscount, // discount per unit
             };
 
-            kitchenQueue.push(queue);
+            // create invoice with status unpaid
+            await this.createInvoiceDetail(tx, invoiceDetailData);
+
+            // looping each quantity
+            for (let i = 0; i < detail.quantity; i++) {
+              const queue: KitchenQueueAdd = {
+                id: uuidv4(),
+                invoice_id: invoiceId,
+                order_type: request.orderType,
+                order_status: order_status.placed,
+                product_id: detail.productId,
+                variant_id: detail.variantId ?? null,
+                store_id: storeId,
+                customer_id: request.customerId,
+                notes: detail.notes ?? '',
+                created_at: now,
+                updated_at: now,
+                table_code: request.tableCode,
+              };
+
+              kitchenQueue.push(queue);
+            }
+          } else if (detail.type == 'bundling') {
+            const productBundling =
+              await this._prisma.catalog_bundling.findUnique({
+                where: { id: detail.bundlingId },
+              });
+
+            if (!productBundling) {
+              throw new NotFoundException(
+                `Product Bundling with ID ${detail.bundlingId} not found`,
+              );
+            }
+
+            const bundlingProducts =
+              await this._prisma.catalog_bundling_has_product.findMany({
+                where: { catalog_bundling_id: detail.bundlingId },
+              });
+
+            let originSubBundling = 0;
+            let discountSubBundling = 0;
+
+            for (const item of bundlingProducts) {
+              const product = await this._prisma.products.findUnique({
+                where: { id: item.product_id },
+                select: { price: true, discount_price: true },
+              });
+
+              if (!product) {
+                this.logger.error(
+                  `Product with ID ${detail.productId} not found`,
+                );
+                throw new NotFoundException(
+                  `Product with ID ${detail.productId} not found`,
+                );
+              }
+
+              const originalPrice = product.price ?? 0;
+              originSubBundling += originalPrice * detail.quantity;
+            }
+
+            discountSubBundling =
+              originSubBundling -
+              (productBundling.price ?? 0) * detail.quantity;
+
+            // create invoice detail ID
+            const invoiceDetailId = uuidv4();
+            const invoiceDetailData = {
+              id: invoiceDetailId,
+              invoice_id: invoiceId,
+              product_id: null,
+              catalog_bundling_id: detail.bundlingId ?? null,
+              product_price: originSubBundling, // menggunakan original price
+              notes: detail.notes,
+              order_type: request.orderType,
+              qty: detail.quantity,
+              variant_id: null,
+              variant_price: null,
+              product_discount: discountSubBundling, // discount per unit
+            };
+
+            // create invoice with status unpaid
+            await this.createInvoiceDetail(tx, invoiceDetailData);
+
+            // insert all bundled products to invoice_bundling_items
+            for (const bp of bundlingProducts) {
+              await tx.invoice_bundling_items.create({
+                data: {
+                  id: uuidv4(),
+                  invoice_id: invoiceId,
+                  invoice_detail_id: invoiceDetailId,
+                  product_id: bp.product_id,
+                  qty: detail.quantity ?? 1,
+                  created_at: now,
+                  updated_at: now,
+                },
+              });
+
+              // Add each product in bundling to kitchen queue
+              for (let i = 0; i < (bp.quantity ?? 1) * detail.quantity; i++) {
+                kitchenQueue.push({
+                  id: uuidv4(),
+                  invoice_id: invoiceId,
+                  order_type: request.orderType,
+                  order_status: order_status.placed,
+                  product_id: bp.product_id,
+                  catalog_bundling_id: bp.catalog_bundling_id,
+                  store_id: storeId,
+                  customer_id: request.customerId,
+                  notes: detail.notes ?? null,
+                  created_at: now,
+                  updated_at: now,
+                  table_code: request.tableCode,
+                });
+              }
+            }
+          } else {
+            this.logger.error(`Invalid product type ${detail.type}`);
+            throw new NotFoundException(`Invalid product type ${detail.type}`);
           }
         }
 
@@ -756,44 +913,89 @@ export class InvoiceService {
       let calculatedTotalProductDiscount = 0;
 
       for (const detail of request.products) {
-        const product = await this._prisma.products.findUnique({
-          where: { id: detail.productId },
-          select: { price: true, discount_price: true },
-        });
-
-        if (!product) {
-          this.logger.error(`Product with ID ${detail.productId} not found`);
-          throw new NotFoundException(
-            `Product with ID ${detail.productId} not found`,
-          );
-        }
-
-        const originalPrice = product.price ?? 0;
-        const discountPrice = product.discount_price ?? 0;
-        const productDiscount = originalPrice - discountPrice;
-
-        // Get variant price if variant exists
-        let variantPrice = 0;
-        const validVariantId = await this.validateProductVariant(
-          detail.productId,
-          detail.variantId,
-        );
-
-        if (validVariantId) {
-          const variant = await this._prisma.variant.findUnique({
-            where: { id: validVariantId },
-            select: { price: true },
+        if (detail.type === 'single') {
+          const product = await this._prisma.products.findUnique({
+            where: { id: detail.productId },
+            select: { price: true, discount_price: true },
           });
 
-          if (variant) {
-            variantPrice = variant.price ?? 0;
+          if (!product) {
+            this.logger.error(`Product with ID ${detail.productId} not found`);
+            throw new NotFoundException(
+              `Product with ID ${detail.productId} not found`,
+            );
           }
-        }
 
-        // Calculate subtotal including variant price
-        const itemSubtotal = (originalPrice + variantPrice) * detail.quantity;
-        originalSubtotal += itemSubtotal;
-        calculatedTotalProductDiscount += productDiscount * detail.quantity;
+          const originalPrice = product.price ?? 0;
+          const discountPrice = product.discount_price ?? 0;
+          const productDiscount = originalPrice - discountPrice;
+
+          // Get variant price if variant exists
+          let variantPrice = 0;
+          const validVariantId = await this.validateProductVariant(
+            detail.productId,
+            detail.variantId,
+          );
+
+          if (validVariantId) {
+            const variant = await this._prisma.variant.findUnique({
+              where: { id: validVariantId },
+              select: { price: true },
+            });
+
+            if (variant) {
+              variantPrice = variant.price ?? 0;
+            }
+          }
+
+          // Calculate subtotal including variant price
+          const itemSubtotal = (originalPrice + variantPrice) * detail.quantity;
+          originalSubtotal += itemSubtotal;
+          calculatedTotalProductDiscount += productDiscount * detail.quantity;
+        } else if (detail.type === 'bundling') {
+          const productBundling = await this._prisma.catalog_bundling.findUnique({
+            where: { id: detail.bundlingId },
+          });
+
+          if (!productBundling) {
+            throw new NotFoundException(
+              `Product Bundling with ID ${detail.bundlingId} not found`,
+            );
+          }
+
+          const products =
+            await this._prisma.catalog_bundling_has_product.findMany({
+              where: { catalog_bundling_id: detail.bundlingId },
+            });
+
+          let originalSubtotalBundling = 0;
+          for (const item of products) {
+            const product = await this._prisma.products.findUnique({
+              where: { id: item.product_id },
+              select: { price: true, discount_price: true },
+            });
+
+            if (!product) {
+              this.logger.error(
+                `Product with ID ${detail.productId} not found`,
+              );
+              throw new NotFoundException(
+                `Product with ID ${detail.productId} not found`,
+              );
+            }
+
+            const originalPrice = product.price ?? 0;
+            originalSubtotalBundling += originalPrice * detail.quantity;
+          }
+
+          originalSubtotal += originalSubtotalBundling;
+          calculatedTotalProductDiscount +=
+            (originalSubtotalBundling - (productBundling.price ?? 0)) *
+            detail.quantity;
+        } else {
+          this.logger.error(`Invalid product type ${detail.type}`);
+          throw new NotFoundException(`Invalid product type ${detail.type}`);
+        }
       }
 
       // Set the total product discount to be used outside transaction
@@ -850,76 +1052,176 @@ export class InvoiceService {
       await this.create(tx, invoiceData);
 
       for (const detail of request.products) {
-        // Get product data for prices
-        const product = await this._prisma.products.findUnique({
-          where: { id: detail.productId },
-          select: { price: true, discount_price: true },
-        });
+        if (detail.type == 'single') {
+          // Get product data for prices
+          const product = await this._prisma.products.findUnique({
+            where: { id: detail.productId },
+            select: { price: true, discount_price: true },
+          });
 
-        if (!product) {
-          this.logger.error(`Product with ID ${detail.productId} not found`);
-          throw new NotFoundException(
-            `Product with ID ${detail.productId} not found`,
+          if (!product) {
+            this.logger.error(`Product with ID ${detail.productId} not found`);
+            throw new NotFoundException(
+              `Product with ID ${detail.productId} not found`,
+            );
+          }
+
+          const originalPrice = product.price ?? 0;
+          const discountPrice = product.discount_price ?? 0;
+          const productDiscount = originalPrice - discountPrice;
+
+          // find the price
+          let variantPrice = 0;
+          const found = calculation.items.find(
+            (p) =>
+              p.productId === detail.productId &&
+              p.variantId === detail.variantId,
           );
-        }
+          if (found) {
+            variantPrice = found.variantPrice;
+          }
 
-        const originalPrice = product.price ?? 0;
-        const discountPrice = product.discount_price ?? 0;
-        const productDiscount = originalPrice - discountPrice;
+          // validate product has variant
+          const validVariantId = await this.validateProductVariant(
+            detail.productId,
+            detail.variantId,
+          );
 
-        // find the price
-        let variantPrice = 0;
-        const found = calculation.items.find(
-          (p) =>
-            p.productId === detail.productId &&
-            p.variantId === detail.variantId,
-        );
-        if (found) {
-          variantPrice = found.variantPrice;
-        }
-
-        // validate product has variant
-        const validVariantId = await this.validateProductVariant(
-          detail.productId,
-          detail.variantId,
-        );
-
-        // create invoice detail ID
-        const invoiceDetailId = uuidv4();
-        const invoiceDetailData = {
-          id: invoiceDetailId,
-          invoice_id: invoiceId,
-          product_id: detail.productId,
-          product_price: originalPrice, // menggunakan original price
-          notes: detail.notes,
-          order_type: request.orderType,
-          qty: detail.quantity,
-          variant_id: validVariantId,
-          variant_price: variantPrice,
-          product_discount: productDiscount, // discount per unit
-        };
-
-        // create invoice with status unpaid
-        await this.createInvoiceDetail(tx, invoiceDetailData);
-
-        // looping each quantity
-        for (let i = 0; i < detail.quantity; i++) {
-          const queue: KitchenQueueAdd = {
-            id: uuidv4(),
+          // create invoice detail ID
+          const invoiceDetailId = uuidv4();
+          const invoiceDetailData = {
+            id: invoiceDetailId,
             invoice_id: invoiceId,
+            product_id: detail.productId ?? null,
+            catalog_bundling_id: detail.bundlingId ?? null,
+            product_price: originalPrice, // menggunakan original price
+            notes: detail.notes,
             order_type: request.orderType,
-            order_status: order_status.placed,
-            product_id: detail.productId,
-            variant_id: detail.variantId ?? null,
-            store_id: storeId,
-            customer_id: request.customerId,
-            notes: detail.notes ?? '',
-            created_at: now,
-            updated_at: now,
-            table_code: request.tableCode,
+            qty: detail.quantity,
+            variant_id: validVariantId,
+            variant_price: variantPrice,
+            product_discount: productDiscount, // discount per unit
           };
 
-          kitchenQueue.push(queue);
+          // create invoice with status unpaid
+          await this.createInvoiceDetail(tx, invoiceDetailData);
+
+          // looping each quantity
+          for (let i = 0; i < detail.quantity; i++) {
+            const queue: KitchenQueueAdd = {
+              id: uuidv4(),
+              invoice_id: invoiceId,
+              order_type: request.orderType,
+              order_status: order_status.placed,
+              product_id: detail.productId,
+              variant_id: detail.variantId ?? null,
+              store_id: storeId,
+              customer_id: request.customerId,
+              notes: detail.notes ?? '',
+              created_at: now,
+              updated_at: now,
+              table_code: request.tableCode,
+            };
+
+            kitchenQueue.push(queue);
+          }
+        } else if (detail.type == 'bundling') {
+          const productBundling =
+            await this._prisma.catalog_bundling.findUnique({
+              where: { id: detail.bundlingId },
+            });
+
+          if (!productBundling) {
+            throw new NotFoundException(
+              `Product Bundling with ID ${detail.bundlingId} not found`,
+            );
+          }
+
+          const bundlingProducts =
+            await this._prisma.catalog_bundling_has_product.findMany({
+              where: { catalog_bundling_id: detail.bundlingId },
+            });
+
+          let originSubBundling = 0;
+          let discountSubBundling = 0;
+
+          for (const item of bundlingProducts) {
+            const product = await this._prisma.products.findUnique({
+              where: { id: item.product_id },
+              select: { price: true, discount_price: true },
+            });
+
+            if (!product) {
+              this.logger.error(
+                `Product with ID ${detail.productId} not found`,
+              );
+              throw new NotFoundException(
+                `Product with ID ${detail.productId} not found`,
+              );
+            }
+
+            const originalPrice = product.price ?? 0;
+            originSubBundling += originalPrice * detail.quantity;
+          }
+
+          discountSubBundling =
+            originSubBundling -
+            (productBundling.price ?? 0) * detail.quantity;
+
+          // create invoice detail ID
+          const invoiceDetailId = uuidv4();
+          const invoiceDetailData = {
+            id: invoiceDetailId,
+            invoice_id: invoiceId,
+            product_id: null,
+            catalog_bundling_id: detail.bundlingId ?? null,
+            product_price: originSubBundling, // menggunakan original price
+            notes: detail.notes,
+            order_type: request.orderType,
+            qty: detail.quantity,
+            variant_id: null,
+            variant_price: null,
+            product_discount: discountSubBundling, // discount per unit
+          };
+
+          // create invoice with status unpaid
+          await this.createInvoiceDetail(tx, invoiceDetailData);
+
+          // insert all bundled products to invoice_bundling_items
+          for (const bp of bundlingProducts) {
+            await tx.invoice_bundling_items.create({
+              data: {
+                id: uuidv4(),
+                invoice_id: invoiceId,
+                invoice_detail_id: invoiceDetailId,
+                product_id: bp.product_id,
+                qty: detail.quantity ?? 1,
+                created_at: now,
+                updated_at: now,
+              },
+            });
+
+            // Add each product in bundling to kitchen queue
+            for (let i = 0; i < (bp.quantity ?? 1) * detail.quantity; i++) {
+              kitchenQueue.push({
+                id: uuidv4(),
+                invoice_id: invoiceId,
+                order_type: request.orderType,
+                order_status: order_status.placed,
+                product_id: bp.product_id,
+                catalog_bundling_id: bp.catalog_bundling_id,
+                store_id: storeId,
+                customer_id: request.customerId,
+                notes: detail.notes ?? null,
+                created_at: now,
+                updated_at: now,
+                table_code: request.tableCode,
+              });
+            }
+          }
+        } else {
+          this.logger.error(`Invalid product type ${detail.type}`);
+          throw new NotFoundException(`Invalid product type ${detail.type}`);
         }
       }
 
@@ -1158,7 +1460,7 @@ export class InvoiceService {
         // Handle deletion of products that were removed from frontend payload
         const toDeleteProductIds = kitchenQueues
           .map((q) => q.product_id)
-          .filter((pid) => !feProductIds.includes(pid));
+          .filter((pid) => !feProductIds.includes(pid ?? ''));
 
         const uniqueToDelete = [...new Set(toDeleteProductIds)];
 
@@ -1176,7 +1478,7 @@ export class InvoiceService {
             (q) => q.order_status !== order_status.placed,
           );
 
-          if (hasInProgress) {
+          if (hasInProgress && productId) {
             // Get product name for better error message
             const product = await tx.products.findUnique({
               where: { id: productId },
@@ -1263,7 +1565,9 @@ export class InvoiceService {
     const invoiceDetailData = {
       id: uuidv4(),
       invoice_id: invoice.id,
-      product_id: product.productId,
+      type: product.type ?? null,
+      product_id: product.productId ?? null,
+      catalog_bundling_id: product.bundlingId ?? null,
       product_price: productPrice,
       notes: product.notes ?? null,
       qty: product.quantity,
@@ -1657,62 +1961,95 @@ export class InvoiceService {
     const items = [];
 
     for (const item of request.products) {
-      const product = await this._prisma.products.findUnique({
-        where: { id: item.productId },
-        select: { price: true, discount_price: true },
-      });
-
-      if (!product) {
-        this.logger.error(`Product with ID ${item.productId} not found`);
-        throw new NotFoundException(
-          `Product with ID ${item.productId} not found`,
-        );
-      }
-
-      // using the discounted price to proceed calculation
-      const originalPrice = product.price ?? 0;
-      const discountedPrice =
-        product.discount_price !== null && product.discount_price > 0
-          ? product.discount_price
-          : originalPrice;
-      const productPrice = discountedPrice;
-      let variantPrice = 0;
-
-      const validVariantId = await this.validateProductVariant(
-        item.productId,
-        item.variantId,
-      );
-
-      if (validVariantId) {
-        const variant = await this._prisma.variant.findUnique({
-          where: { id: validVariantId },
-          select: { price: true },
+      if (item.type === 'single') {
+        const product = await this._prisma.products.findUnique({
+          where: { id: item.productId },
+          select: { price: true, discount_price: true },
         });
 
-        if (variant) {
-          variantPrice = variant.price ?? 0;
-        } else {
-          this.logger.warn(
-            `Variant with ID ${validVariantId} not found, skipping variant price`,
+        if (!product) {
+          this.logger.error(`Product with ID ${item.productId} not found`);
+          throw new NotFoundException(
+            `Product with ID ${item.productId} not found`,
           );
         }
+
+        // using the discounted price to proceed calculation
+        const originalPrice = product.price ?? 0;
+        const discountedPrice =
+          product.discount_price !== null && product.discount_price > 0
+            ? product.discount_price
+            : originalPrice;
+        const productPrice = discountedPrice;
+        let variantPrice = 0;
+
+        const validVariantId = await this.validateProductVariant(
+          item.productId,
+          item.variantId,
+        );
+
+        if (validVariantId) {
+          const variant = await this._prisma.variant.findUnique({
+            where: { id: validVariantId },
+            select: { price: true },
+          });
+
+          if (variant) {
+            variantPrice = variant.price ?? 0;
+          } else {
+            this.logger.warn(
+              `Variant with ID ${validVariantId} not found, skipping variant price`,
+            );
+          }
+        }
+
+        const discountAmount =
+          (originalPrice - discountedPrice) * item.quantity;
+        const lineTotal = (originalPrice + variantPrice) * item.quantity;
+        discountTotal += discountAmount;
+        total += lineTotal;
+
+        items.push({
+          type: 'single' as const,
+          productId: item.productId,
+          variantId: item.variantId,
+          bundlingId: null,
+          productPrice,
+          originalPrice,
+          variantPrice,
+          qty: item.quantity,
+          discountAmount: discountAmount,
+          subtotal: lineTotal,
+        });
+      } else if (item.type === 'bundling') {
+        const bundling = await this._prisma.catalog_bundling.findUnique({
+          where: { id: item.bundlingId },
+          select: { name: true, price: true, discount: true },
+        });
+
+        if (!bundling) {
+          this.logger.error(`Bundling data not found in request for item.`);
+          throw new BadRequestException(`Bundling data not found in request`);
+        }
+
+        items.push({
+          type: 'bundling' as const,
+          productId: null,
+          variantId: null,
+          bundlingId: item.bundlingId ?? null,
+          name: bundling.name,
+          productPrice: bundling.price ?? 0,
+          variantPrice: 0,
+          qty: item.quantity,
+          subtotal: (bundling.price ?? 0) * item.quantity,
+          discountAmount: 0,
+        });
+
+        total += (bundling.price ?? 0) * item.quantity;
+      } else {
+        this.logger.error(`Invalid product type ${item.type}`);
+        throw new NotFoundException(`Invalid product type ${item.type}`);
       }
-
-      const discountAmount = (originalPrice - discountedPrice) * item.quantity;
-      const lineTotal = (originalPrice + variantPrice) * item.quantity;
-      discountTotal += discountAmount;
-      total += lineTotal;
-
-      items.push({
-        productId: item.productId,
-        variantId: item.variantId,
-        productPrice,
-        originalPrice,
-        variantPrice,
-        qty: item.quantity,
-        discountAmount: discountAmount,
-        subtotal: lineTotal,
-      });
     }
 
     // harga sebelum potongan voucher
@@ -1722,11 +2059,15 @@ export class InvoiceService {
 
     let voucherAmount = 0;
     if (request?.voucherId) {
+      const productIds = request.products
+        .filter((p) => p.type === 'single')
+        .map((p) => p.productId);
+
       const voucherCalculation = await this._voucherService.voucherCalculation(
         // voucher id
         request.voucherId,
         // product ids
-        request.products.map((product) => product.productId),
+        productIds,
         // grand total
         total,
         // biar tidak ngitung max quota
@@ -2350,7 +2691,8 @@ export class InvoiceService {
         data: {
           id: invoiceDetail.id,
           invoice_id: invoiceDetail.invoice_id,
-          product_id: invoiceDetail.product_id,
+          product_id: invoiceDetail.product_id ?? null,
+          catalog_bundling_id: invoiceDetail.catalog_bundling_id ?? null,
           product_price: invoiceDetail.product_price,
           variant_price: invoiceDetail.variant_price,
           notes: invoiceDetail.notes,

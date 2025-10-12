@@ -142,7 +142,8 @@ export class KitchenService {
     const kitchenQueues: kitchen_queue[] = queues.map((queue) => ({
       id: queue.id,
       invoice_id: queue.invoice_id,
-      product_id: queue.product_id,
+      product_id: queue.product_id ?? null,
+      catalog_bundling_id: queue.catalog_bundling_id ?? null,
       variant_id: queue.variant_id || null,
       store_id: queue.store_id,
       notes: queue.notes || null,
@@ -178,6 +179,11 @@ export class KitchenService {
           include: {
             products: true,
             variant: true,
+            invoice_bundling_items: {
+              include: {
+                products: true,
+              },
+            },
           },
         },
       },

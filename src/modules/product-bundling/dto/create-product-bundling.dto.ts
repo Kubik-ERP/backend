@@ -1,10 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { bundling_price_type } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEnum,
   IsNumber,
+  IsNumberString,
   IsOptional,
   IsString,
   ValidateNested,
@@ -46,9 +47,9 @@ export class CreateProductBundlingDto {
   type: bundling_price_type;
 
   @ApiProperty({ example: '10', required: true })
-  @IsNumber()
   @IsOptional()
   @Type(() => Decimal)
+  @Transform(({ value }) => (value ? new Decimal(value) : undefined))
   discount?: Decimal;
 
   @ApiProperty({ example: '100000', required: true })
@@ -56,4 +57,8 @@ export class CreateProductBundlingDto {
   @IsOptional()
   @Type(() => Number)
   price?: number;
+
+  @IsOptional()
+  @IsString()
+  image?: string;
 }
