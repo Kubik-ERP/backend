@@ -889,13 +889,26 @@ export class InvoiceService {
 
     // Check loyalty points if customer exists
     if (request.customerId && request.provider === 'cash') {
-      await this.calculateLoyaltyPoints(
-        invoiceId,
-        request.customerId,
-        grandTotal,
+      const getPoints = await this.calculateLoyaltyPoints(
         storeId,
+        request.products,
+        grandTotal,
         request.redeemLoyalty ?? null,
       );
+
+      if (getPoints.earnPointsBySpend > 0 || getPoints.earnPointsByProduct > 0) {
+        await this._prisma.customer_loyalty_transactions.create({
+          data: {
+            customer_id: request.customerId,
+            invoice_id: invoiceId,
+            type: 'earn',
+            points: getPoints.earnPointsBySpend + getPoints.earnPointsByProduct,
+            description: getPoints.description,
+          },
+        });
+
+        await this.updateCustomerPoint(request.customerId);
+      }
     }
 
     return {
@@ -2524,141 +2537,133 @@ export class InvoiceService {
   }
 
   private async calculateLoyaltyPoints(
-    invoiceId: string,
-    customerId: string,
-    grandTotal: number,
     storeId: string,
+    products: any = [],
+    grandTotal: number,
     redeemLoyalty: RedeemLoyaltyDto | null,
-  ): Promise<void> {
-    try {
-      let earnPointsBySpend = 0;
-      let earnPointsByProduct = 0;
-      let descriptionBySpend = '';
-      let descriptionByProduct = '';
+  ) {
+    let earnPointsBySpend = 0;
+    let earnPointsByProduct = 0;
+    let descriptionBySpend = '';
+    let descriptionByProduct = '';
+    let description = '';
 
-      const loyaltySettings =
-        await this._prisma.loyalty_point_settings.findFirst({
-          where: { storesId: storeId },
-        });
+    const loyaltySettings =
+      await this._prisma.loyalty_point_settings.findFirst({
+        where: { storesId: storeId },
+      });
 
-      if (loyaltySettings) {
-        // Calculate points if spend based is enabled
-        if (loyaltySettings.spend_based) {
-          const minTrans = loyaltySettings.minimum_transaction ?? 0;
-          const pointsPerTrans = loyaltySettings.points_per_transaction ?? 0;
-          const getPointsOnSpendBaseRedemption =
-            loyaltySettings.spend_based_get_points_on_redemption ?? false;
-          const canEarnPoints =
-            !redeemLoyalty || (redeemLoyalty && getPointsOnSpendBaseRedemption);
+    if (loyaltySettings) {
+      // Calculate points if spend based is enabled
+      if (loyaltySettings.spend_based) {
+        const minTrans = loyaltySettings.minimum_transaction ?? 0;
+        const pointsPerTrans = loyaltySettings.points_per_transaction ?? 0;
+        const getPointsOnSpendBaseRedemption =
+          loyaltySettings.spend_based_get_points_on_redemption ?? false;
+        const canEarnPoints =
+          !redeemLoyalty || (redeemLoyalty && getPointsOnSpendBaseRedemption);
 
-          if (canEarnPoints && grandTotal >= minTrans) {
-            if (loyaltySettings.spend_based_points_apply_multiple) {
-              const multiplier = Math.floor(grandTotal / minTrans);
-              earnPointsBySpend += multiplier * pointsPerTrans;
-            } else {
-              earnPointsBySpend += pointsPerTrans;
-            }
-
-            descriptionBySpend =
-              earnPointsBySpend > 0
-                ? 'Earned from based spend = ' + earnPointsBySpend
-                : '';
+        if (canEarnPoints && grandTotal >= minTrans) {
+          if (loyaltySettings.spend_based_points_apply_multiple) {
+            const multiplier = Math.floor(grandTotal / minTrans);
+            earnPointsBySpend += multiplier * pointsPerTrans;
+          } else {
+            earnPointsBySpend += pointsPerTrans;
           }
+
+          descriptionBySpend =
+            earnPointsBySpend > 0
+              ? 'Earned from based spend = ' + earnPointsBySpend
+              : '';
         }
+      }
 
-        // Calculate points if product based is enabled
-        if (loyaltySettings.product_based) {
-          const getPointsOnProductBaseRedemption =
-            loyaltySettings.product_based_get_points_on_redemption ?? false;
-          const canEarnPoints =
-            !redeemLoyalty ||
-            (redeemLoyalty && getPointsOnProductBaseRedemption);
+      // Calculate points if product based is enabled
+      if (loyaltySettings.product_based) {
+        const getPointsOnProductBaseRedemption =
+          loyaltySettings.product_based_get_points_on_redemption ?? false;
+        const canEarnPoints =
+          !redeemLoyalty ||
+          (redeemLoyalty && getPointsOnProductBaseRedemption);
 
-          if (canEarnPoints) {
-            const invoiceDetails = await this._prisma.invoice_details.findMany({
+        if (canEarnPoints) {
+          for (const product of products) {
+            const loyaltyItem = await this._prisma.loyalty_product_item.findFirst({
               where: {
-                invoice_id: invoiceId,
-                product_id: { not: null },
-              },
+                loyalty_point_setting_id: loyaltySettings.id,
+                product_id: product.productId
+              }
             });
 
-            const productIds = invoiceDetails.flatMap((r) =>
-              r.product_id ? [r.product_id] : [],
-            );
-            if (productIds.length > 0) {
-              const loyaltyProductItems =
-                await this._prisma.loyalty_product_item.findMany({
-                  where: {
-                    loyalty_point_setting_id: loyaltySettings.id,
-                    product_id: { in: productIds },
-                  },
-                });
+            if (loyaltyItem) {
+              const qty = product.quantity ?? 0;
+              const minimumPurchase = loyaltyItem.minimum_transaction ?? 0;
 
-              if (loyaltyProductItems.length > 0) {
-                for (const item of loyaltyProductItems) {
-                  const invoiceDetail = invoiceDetails.find(
-                    (d) => d.product_id === item.product_id,
+              if (qty >= minimumPurchase) {
+                if (loyaltySettings.product_based_points_apply_multiple) {
+                  const multiplierProduct = Math.floor(
+                    qty / minimumPurchase,
                   );
-
-                  if (invoiceDetail) {
-                    const qty = invoiceDetail.qty ?? 0;
-                    const minimumPurchase = item.minimum_transaction ?? 0;
-
-                    if (qty >= minimumPurchase) {
-                      if (loyaltySettings.product_based_points_apply_multiple) {
-                        const multiplierProduct = Math.floor(
-                          qty / minimumPurchase,
-                        );
-                        earnPointsByProduct +=
-                          multiplierProduct * (item.points ?? 0);
-                      } else {
-                        earnPointsByProduct += item.points ?? 0;
-                      }
-                    }
-                  }
+                  earnPointsByProduct +=
+                    multiplierProduct * (loyaltyItem.points ?? 0);
+                } else {
+                  earnPointsByProduct += loyaltyItem.points ?? 0;
                 }
               }
             }
-
-            descriptionByProduct =
-              earnPointsByProduct > 0
-                ? 'Earned from product spend = ' + earnPointsByProduct
-                : '';
-          }
-        }
-
-        // Insert data to customer_loyalty_transactions
-        if (earnPointsBySpend > 0 || earnPointsByProduct > 0) {
-          let descriptionParts: string[] = [];
-
-          if (descriptionBySpend) {
-            descriptionParts.push(descriptionBySpend);
           }
 
-          if (descriptionByProduct) {
-            descriptionParts.push(descriptionByProduct);
-          }
-
-          const description = descriptionParts.join(' and ');
-
-          await this._prisma.customer_loyalty_transactions.create({
-            data: {
-              customer_id: customerId,
-              invoice_id: invoiceId,
-              type: 'earn',
-              points: earnPointsBySpend + earnPointsByProduct,
-              description: description,
-            },
-          });
+          descriptionByProduct =
+            earnPointsByProduct > 0
+              ? 'Earned from product spend = ' + earnPointsByProduct
+              : '';
         }
       }
-    } catch (error) {
-      this.logger.error('Failed to calculate loyalty points:', error);
-      throw new BadRequestException('Failed to calculate loyalty points');
+
+      if (earnPointsBySpend > 0 || earnPointsByProduct > 0) {
+        let descriptionParts: string[] = [];
+
+        if (descriptionBySpend) {
+          descriptionParts.push(descriptionBySpend);
+        }
+
+        if (descriptionByProduct) {
+          descriptionParts.push(descriptionByProduct);
+        }
+
+        description = descriptionParts.join(' and ');
+      }
+    }
+
+    return {
+      earnPointsBySpend,
+      earnPointsByProduct,
+      description
     }
   }
 
-  private async createCustLoyaltyTransaction() {}
+  private async updateCustomerPoint(customerId: string) {
+    const [earnAndAdjustment, redeem] = await Promise.all([
+      this._prisma.customer_loyalty_transactions.aggregate({
+        where: { customer_id: customerId, type: { in: ['earn', 'adjustment'] } },
+        _sum: { points: true },
+      }),
+      this._prisma.customer_loyalty_transactions.aggregate({
+        where: { customer_id: customerId, type: 'redeem' },
+        _sum: { points: true },
+      }),
+    ]);
+
+    const totalActivePoints =
+      (earnAndAdjustment._sum.points ?? 0) - (redeem._sum.points ?? 0);
+
+    await this._prisma.customer.update({
+      where: { id: customerId },
+      data: { point: totalActivePoints },
+    });
+
+    return totalActivePoints;
+  }
 
   // End of private function
 
