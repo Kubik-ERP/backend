@@ -245,4 +245,8 @@ export class CalculationEstimationDto extends ProductListDto {
   @IsString()
   @IsOptional()
   public voucherId?: string;
+
+  @IsString()
+  @IsOptional()
+  public customerId?: string | null;
 }

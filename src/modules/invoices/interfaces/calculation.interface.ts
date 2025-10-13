@@ -38,4 +38,6 @@ export interface CalculationResult {
     roundingValue: number;
     isEnabled: boolean;
   } | null;
+
+  totalPointsEarn?: number;
 }
