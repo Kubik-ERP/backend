@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsArray,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -98,4 +99,29 @@ export class CreateInventoryItemDto {
   @IsOptional()
   @IsString()
   image?: string;
+
+  @ApiProperty({
+    description:
+      'Unit conversions - JSON string format: [{"unitName":"Gram","unitSymbol":"g","value":1000}]',
+    type: String,
+    required: false,
+    example:
+      '[{"unitName":"Gram","unitSymbol":"g","value":1000},{"unitName":"Kilogram","unitSymbol":"kg","value":2000}]',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    // Handle form data where conversions comes as JSON string
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        // If JSON parsing fails, return empty array
+        return [];
+      }
+    }
+    // If it's already an array, return as is
+    return Array.isArray(value) ? value : [];
+  })
+  conversions?: any[];
 }
