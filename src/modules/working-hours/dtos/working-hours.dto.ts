@@ -1,5 +1,5 @@
 // src/working-hours/dto/create-working-hours.dto.ts
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
   IsDateString,
@@ -9,9 +9,11 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
+import { UUID } from 'crypto';
 
 class TimeSlotDto {
   @ApiProperty({ example: '07:00', nullable: true })
@@ -57,7 +59,7 @@ class CustomRecurrenceDto {
 export class CreateWorkingHoursDto {
   @ApiProperty({ example: 1, nullable: true })
   @IsOptional()
-  staffId: number | null;
+  staffId: UUID | null;
 
   @ApiProperty({ example: '2025-09-10' })
   @IsDateString()
@@ -87,4 +89,24 @@ export class CreateWorkingHoursDto {
   @ValidateNested()
   @Type(() => CustomRecurrenceDto)
   customRecurrence: CustomRecurrenceDto | null;
+}
+
+export class WorkingHoursListDto {
+  @ApiPropertyOptional({ description: 'Page number', example: 1 })
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return 1;
+    return parseInt(value, 10);
+  })
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @ApiPropertyOptional({ description: 'Items per page', example: 10 })
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return 10;
+    return parseInt(value, 10);
+  })
+  @IsInt()
+  @Min(1)
+  pageSize: number = 10;
 }
