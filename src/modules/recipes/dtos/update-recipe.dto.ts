@@ -4,9 +4,11 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -57,6 +59,37 @@ export class UpdateRecipeDto {
   @IsInt()
   @Min(1)
   targetYield?: number;
+
+  @ApiProperty({
+    description: 'Cost per portion',
+    example: 18000,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  costPortion?: number;
+
+  @ApiProperty({
+    description: 'Margin per selling price in Rupiah',
+    example: 14000,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  marginPerSellingPriceRp?: number;
+
+  @ApiProperty({
+    description: 'Margin per selling price in percent',
+    example: 45,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  marginPerSellingPricePercent?: number;
 
   @ApiProperty({
     description: 'Recipe ingredients',

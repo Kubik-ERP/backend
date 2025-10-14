@@ -9,6 +9,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateRecipeDto } from '../dtos/create-recipe.dto';
 import { IngredientDto } from '../dtos/ingredient.dto';
 import { UpdateRecipeDto } from '../dtos/update-recipe.dto';
+import { GetRecipesDto } from '../dtos/list-recipes.dto';
 
 @Injectable()
 export class RecipesService {
@@ -48,6 +49,10 @@ export class RecipesService {
             base_recipe: dto.baseRecipe || false,
             product_id: dto.productId || null,
             target_yield: dto.targetYield || null,
+            cost_portion: dto.costPortion || null,
+            margin_per_selling_price_rp: dto.marginPerSellingPriceRp || null,
+            margin_per_selling_price_percent:
+              dto.marginPerSellingPricePercent || null,
             store_id: store_id,
             created_at: new Date(),
             updated_at: new Date(),
@@ -92,6 +97,85 @@ export class RecipesService {
 
     this.logger.log(`Recipe created: ${recipe.recipe_name}`);
     return this.toPlainRecipe(recipe);
+  }
+
+  async list(query: GetRecipesDto, header: ICustomRequestHeaders) {
+    const store_id = header.store_id;
+    if (!store_id) {
+      throw new BadRequestException('store_id is required');
+    }
+
+    const {
+      page = 1,
+      pageSize = 10,
+      search,
+      orderBy = 'created_at',
+      orderDirection = 'desc',
+    } = query;
+
+    const skip = (page - 1) * pageSize;
+
+    const where: any = {
+      store_id: store_id,
+    };
+
+    if (search) {
+      where.recipe_name = {
+        contains: search,
+        mode: 'insensitive',
+      };
+    }
+
+    const [recipes, total] = await Promise.all([
+      this._prisma.menu_recipes.findMany({
+        where,
+        select: {
+          recipe_id: true,
+          recipe_name: true,
+          output_unit: true,
+          base_recipe: true,
+          target_yield: true,
+          cost_portion: true,
+          margin_per_selling_price_rp: true,
+          margin_per_selling_price_percent: true,
+          updated_at: true,
+        },
+        orderBy: { [orderBy]: orderDirection },
+        skip,
+        take: pageSize,
+      }),
+      this._prisma.menu_recipes.count({ where }),
+    ]);
+
+    const mapped = recipes.map((recipe) => ({
+      id: recipe.recipe_id,
+      isBaseRecipe: recipe.base_recipe || false,
+      recipeName: recipe.recipe_name,
+      output: recipe.output_unit || '',
+      yieldTarget: recipe.target_yield || 0,
+      costPerPortion:
+        recipe.cost_portion &&
+        typeof recipe.cost_portion === 'object' &&
+        typeof recipe.cost_portion.toNumber === 'function'
+          ? recipe.cost_portion.toNumber()
+          : recipe.cost_portion || 0,
+      marginRp:
+        recipe.margin_per_selling_price_rp &&
+        typeof recipe.margin_per_selling_price_rp === 'object' &&
+        typeof recipe.margin_per_selling_price_rp.toNumber === 'function'
+          ? recipe.margin_per_selling_price_rp.toNumber()
+          : recipe.margin_per_selling_price_rp || 0,
+      marginPercent:
+        recipe.margin_per_selling_price_percent &&
+        typeof recipe.margin_per_selling_price_percent === 'object' &&
+        typeof recipe.margin_per_selling_price_percent.toNumber === 'function'
+          ? recipe.margin_per_selling_price_percent.toNumber()
+          : recipe.margin_per_selling_price_percent || 0,
+      updatedAt: this.formatDateToDDMMYYYY(recipe.updated_at),
+    }));
+
+    const totalPages = Math.ceil(total / pageSize);
+    return { items: mapped, meta: { page, pageSize, total, totalPages } };
   }
 
   async findRecipeById(recipeId: string, storeId: string): Promise<any> {
@@ -189,6 +273,10 @@ export class RecipesService {
             base_recipe: updateData.baseRecipe,
             product_id: updateData.productId,
             target_yield: updateData.targetYield,
+            cost_portion: updateData.costPortion,
+            margin_per_selling_price_rp: updateData.marginPerSellingPriceRp,
+            margin_per_selling_price_percent:
+              updateData.marginPerSellingPricePercent,
             updated_at: new Date(),
           },
         });
@@ -291,6 +379,24 @@ export class RecipesService {
       base_recipe: recipe.base_recipe,
       product_id: recipe.product_id,
       target_yield: recipe.target_yield,
+      cost_portion:
+        recipe.cost_portion &&
+        typeof recipe.cost_portion === 'object' &&
+        typeof recipe.cost_portion.toNumber === 'function'
+          ? recipe.cost_portion.toNumber()
+          : recipe.cost_portion,
+      margin_per_selling_price_rp:
+        recipe.margin_per_selling_price_rp &&
+        typeof recipe.margin_per_selling_price_rp === 'object' &&
+        typeof recipe.margin_per_selling_price_rp.toNumber === 'function'
+          ? recipe.margin_per_selling_price_rp.toNumber()
+          : recipe.margin_per_selling_price_rp,
+      margin_per_selling_price_percent:
+        recipe.margin_per_selling_price_percent &&
+        typeof recipe.margin_per_selling_price_percent === 'object' &&
+        typeof recipe.margin_per_selling_price_percent.toNumber === 'function'
+          ? recipe.margin_per_selling_price_percent.toNumber()
+          : recipe.margin_per_selling_price_percent,
       store_id: recipe.store_id,
       created_at: recipe.created_at,
       updated_at: recipe.updated_at,
@@ -305,6 +411,24 @@ export class RecipesService {
       base_recipe: recipe.base_recipe,
       product_id: recipe.product_id,
       target_yield: recipe.target_yield,
+      cost_portion:
+        recipe.cost_portion &&
+        typeof recipe.cost_portion === 'object' &&
+        typeof recipe.cost_portion.toNumber === 'function'
+          ? recipe.cost_portion.toNumber()
+          : recipe.cost_portion,
+      margin_per_selling_price_rp:
+        recipe.margin_per_selling_price_rp &&
+        typeof recipe.margin_per_selling_price_rp === 'object' &&
+        typeof recipe.margin_per_selling_price_rp.toNumber === 'function'
+          ? recipe.margin_per_selling_price_rp.toNumber()
+          : recipe.margin_per_selling_price_rp,
+      margin_per_selling_price_percent:
+        recipe.margin_per_selling_price_percent &&
+        typeof recipe.margin_per_selling_price_percent === 'object' &&
+        typeof recipe.margin_per_selling_price_percent.toNumber === 'function'
+          ? recipe.margin_per_selling_price_percent.toNumber()
+          : recipe.margin_per_selling_price_percent,
       store_id: recipe.store_id,
       created_at: recipe.created_at,
       updated_at: recipe.updated_at,
@@ -337,5 +461,13 @@ export class RecipesService {
           }))
         : [],
     };
+  }
+
+  private formatDateToDDMMYYYY(date: Date | null): string {
+    if (!date) return '';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   }
 }

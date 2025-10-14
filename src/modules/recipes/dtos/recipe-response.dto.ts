@@ -31,6 +31,15 @@ export class RecipeResponseDto {
   target_yield?: number;
 
   @ApiProperty({ required: false })
+  cost_portion?: number;
+
+  @ApiProperty({ required: false })
+  margin_per_selling_price_rp?: number;
+
+  @ApiProperty({ required: false })
+  margin_per_selling_price_percent?: number;
+
+  @ApiProperty({ required: false })
   store_id?: string;
 
   @ApiProperty()

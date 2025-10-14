@@ -9,6 +9,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
 } from '@nestjs/common';
 import {
@@ -22,12 +23,41 @@ import { CreateRecipeDto } from '../dtos/create-recipe.dto';
 import { UpdateRecipeDto } from '../dtos/update-recipe.dto';
 import { RecipeResponseDto } from '../dtos/recipe-response.dto';
 import { RecipeDetailResponseDto } from '../dtos/recipe-detail-response.dto';
+import { GetRecipesDto, RecipeListResponseDto } from '../dtos/list-recipes.dto';
 import { RecipesService } from '../services/recipes.service';
 
 @ApiTags('Recipes')
 @Controller('recipes')
 export class RecipesController {
   constructor(private readonly recipesService: RecipesService) {}
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get list of recipes' })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recipes retrieved successfully',
+    type: RecipeListResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid query parameters',
+  })
+  async list(@Query() query: GetRecipesDto, @Req() req: ICustomRequestHeaders) {
+    const recipes = await this.recipesService.list(query, req);
+    return {
+      success: true,
+      message: 'Recipes retrieved successfully',
+      result: recipes,
+    };
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
