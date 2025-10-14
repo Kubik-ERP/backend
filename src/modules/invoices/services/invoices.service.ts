@@ -896,7 +896,12 @@ export class InvoiceService {
         request.redeemLoyalty ?? null,
       );
 
-      await this.updateCustomerPoint(invoiceId, request.customerId, request.redeemLoyalty ?? null, getPoints);
+      await this.updateCustomerPoint(
+        invoiceId,
+        request.customerId,
+        request.redeemLoyalty ?? null,
+        getPoints,
+      );
     }
 
     return {
@@ -1824,7 +1829,10 @@ export class InvoiceService {
 
     // Update loyalty points
     if (method.name === 'Cash') {
-      const getData = await this.prepareUpdateLoyaltyPoints(storeId, invoice.id);
+      const getData = await this.prepareUpdateLoyaltyPoints(
+        storeId,
+        invoice.id,
+      );
       if (getData.canUpdateLoyalty) {
         const getPoints = await this.calculateLoyaltyPoints(
           storeId,
@@ -1833,7 +1841,12 @@ export class InvoiceService {
           getData.redeemLoyalty,
         );
 
-        await this.updateCustomerPoint(invoice.id, invoice.customer_id ?? null, getData.redeemLoyalty, getPoints);
+        await this.updateCustomerPoint(
+          invoice.id,
+          invoice.customer_id ?? null,
+          getData.redeemLoyalty,
+          getPoints,
+        );
       }
     }
 
@@ -1889,7 +1902,10 @@ export class InvoiceService {
 
       // Update loyalty points
       if (invoice.store_id) {
-        const getData = await this.prepareUpdateLoyaltyPoints(invoice.store_id, invoice.id);
+        const getData = await this.prepareUpdateLoyaltyPoints(
+          invoice.store_id,
+          invoice.id,
+        );
         if (getData.canUpdateLoyalty) {
           const getPoints = await this.calculateLoyaltyPoints(
             invoice.store_id,
@@ -1898,7 +1914,12 @@ export class InvoiceService {
             getData.redeemLoyalty,
           );
 
-          await this.updateCustomerPoint(invoice.id, invoice.customer_id ?? null, getData.redeemLoyalty, getPoints);
+          await this.updateCustomerPoint(
+            invoice.id,
+            invoice.customer_id ?? null,
+            getData.redeemLoyalty,
+            getPoints,
+          );
         }
       }
     }
@@ -1980,7 +2001,10 @@ export class InvoiceService {
 
       // Update loyalty points
       if (invoice.store_id) {
-        const getData = await this.prepareUpdateLoyaltyPoints(invoice.store_id, invoice.id);
+        const getData = await this.prepareUpdateLoyaltyPoints(
+          invoice.store_id,
+          invoice.id,
+        );
         if (getData.canUpdateLoyalty) {
           const getPoints = await this.calculateLoyaltyPoints(
             invoice.store_id,
@@ -1989,7 +2013,12 @@ export class InvoiceService {
             getData.redeemLoyalty,
           );
 
-          await this.updateCustomerPoint(invoice.id, invoice.customer_id ?? null, getData.redeemLoyalty, getPoints);
+          await this.updateCustomerPoint(
+            invoice.id,
+            invoice.customer_id ?? null,
+            getData.redeemLoyalty,
+            getPoints,
+          );
         }
       }
     }
@@ -2642,11 +2671,14 @@ export class InvoiceService {
 
     const loyaltySetting = await this._prisma.loyalty_point_settings.findFirst({
       where: {
-        storesId: storeId
-      }
+        storesId: storeId,
+      },
     });
 
-    if (loyaltySetting && (loyaltySetting.spend_based || loyaltySetting.product_based)) {
+    if (
+      loyaltySetting &&
+      (loyaltySetting.spend_based || loyaltySetting.product_based)
+    ) {
       canUpdateLoyalty = true;
 
       const getInvoice = await this._prisma.invoice.findFirst({
@@ -2663,16 +2695,17 @@ export class InvoiceService {
         },
       });
 
-      products = getInvoice?.invoice_details.map((d) => ({
-        ...d.products
-      })) ?? [];
+      products =
+        getInvoice?.invoice_details.map((d) => ({
+          ...d.products,
+        })) ?? [];
     }
 
     return {
       canUpdateLoyalty,
       products,
-      redeemLoyalty
-    }
+      redeemLoyalty,
+    };
   }
 
   private async calculateLoyaltyPoints(
@@ -2782,12 +2815,15 @@ export class InvoiceService {
     };
   }
 
-  private async updateCustomerPoint(invoiceId: string, customerId: string | null, redeemLoyalty: RedeemLoyaltyDto | null, points: any) {
+  private async updateCustomerPoint(
+    invoiceId: string,
+    customerId: string | null,
+    redeemLoyalty: RedeemLoyaltyDto | null,
+    points: any,
+  ) {
     if (
-      customerId && (
-        points.earnPointsBySpend > 0 ||
-        points.earnPointsByProduct > 0
-      )
+      customerId &&
+      (points.earnPointsBySpend > 0 || points.earnPointsByProduct > 0)
     ) {
       await this._prisma.customer_loyalty_transactions.create({
         data: {
