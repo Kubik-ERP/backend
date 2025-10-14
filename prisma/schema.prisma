@@ -313,15 +313,18 @@ model invoice_details {
   variant_price          Float?
   product_discount       Float?
   catalog_bundling_id    String?                  @db.Uuid
+  benefit_free_items_id  String?                  @db.Uuid
   invoice_bundling_items invoice_bundling_items[] @relation("InvoiceDetailToBundlingItems")
   invoice                invoice                  @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
   catalog_bundling       catalog_bundling?        @relation(fields: [catalog_bundling_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   products               products?                @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
   variant                variant?                 @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
+  benefit_free_items     benefit_free_items?      @relation(fields: [benefit_free_items_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
   @@index([catalog_bundling_id])
+  @@index([benefit_free_items_id])
 }
 
 model invoice_settings {
@@ -840,6 +843,7 @@ model benefit_free_items {
   updated_at               DateTime?              @default(now()) @db.Timestamp(6)
   loyalty_points_benefit   loyalty_points_benefit @relation(fields: [loyalty_point_benefit_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "benefit_free_items_loyalty_points_benefit_fk")
   products                 products               @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "benefit_free_items_products_fk")
+  invoice_details          invoice_details[]
 }
 
 model loyalty_point_settings {
