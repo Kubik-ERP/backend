@@ -1108,6 +1108,44 @@ export class InventoryItemsService {
         },
       });
 
+      // Create unit conversions if provided
+      if (dto.conversions && dto.conversions.length > 0) {
+        for (const conversion of dto.conversions) {
+          // Validate that conversion is an object with required fields
+          if (
+            !conversion ||
+            typeof conversion !== 'object' ||
+            !conversion.unitName ||
+            !conversion.value ||
+            isNaN(Number(conversion.value))
+          ) {
+            throw new BadRequestException(
+              `Invalid conversion data: ${JSON.stringify(conversion)}. Expected format: {"unitName":"string","unitSymbol":"string","value":number}`,
+            );
+          }
+
+          const conversionValue = Number(conversion.value);
+          if (conversionValue <= 0) {
+            throw new BadRequestException(
+              `Conversion value must be greater than 0: ${conversionValue}`,
+            );
+          }
+
+          await tx.master_inventory_item_conversions.create({
+            data: {
+              item_id: item.id,
+              unit_name: String(conversion.unitName).trim(),
+              unit_symbol: conversion.unitSymbol
+                ? String(conversion.unitSymbol).trim()
+                : null,
+              conversion_value: conversionValue,
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+          });
+        }
+      }
+
       if (isRetail) await this.upsertCatalog(tx, dto, store_id, item.id);
 
       return item;
@@ -1231,6 +1269,14 @@ export class InventoryItemsService {
         notes: true,
         price_grosir: true,
         products: { select: { picture_url: true } },
+        master_inventory_item_conversions: {
+          select: {
+            id: true,
+            unit_name: true,
+            unit_symbol: true,
+            conversion_value: true,
+          },
+        },
       },
     });
     if (!item)
@@ -1260,6 +1306,12 @@ export class InventoryItemsService {
       created_at: item.created_at,
       notes: item.notes,
       price_grosir: item.price_grosir,
+      conversions: item.master_inventory_item_conversions.map((conv) => ({
+        id: conv.id,
+        unitName: conv.unit_name,
+        unitSymbol: conv.unit_symbol,
+        value: Number(conv.conversion_value),
+      })),
       imageUrl: item.products?.picture_url ?? null,
     };
 
@@ -1370,6 +1422,52 @@ export class InventoryItemsService {
         where: { id },
         data: updateData,
       });
+
+      // Handle unit conversions update if provided
+      if (dto.conversions !== undefined) {
+        // Delete existing conversions for this item
+        await tx.master_inventory_item_conversions.deleteMany({
+          where: { item_id: id },
+        });
+
+        // Create new conversions if provided
+        if (dto.conversions && dto.conversions.length > 0) {
+          for (const conversion of dto.conversions) {
+            // Validate that conversion is an object with required fields
+            if (
+              !conversion ||
+              typeof conversion !== 'object' ||
+              !conversion.unitName ||
+              !conversion.value ||
+              isNaN(Number(conversion.value))
+            ) {
+              throw new BadRequestException(
+                `Invalid conversion data: ${JSON.stringify(conversion)}. Expected format: {"unitName":"string","unitSymbol":"string","value":number}`,
+              );
+            }
+
+            const conversionValue = Number(conversion.value);
+            if (conversionValue <= 0) {
+              throw new BadRequestException(
+                `Conversion value must be greater than 0: ${conversionValue}`,
+              );
+            }
+
+            await tx.master_inventory_item_conversions.create({
+              data: {
+                item_id: id,
+                unit_name: String(conversion.unitName).trim(),
+                unit_symbol: conversion.unitSymbol
+                  ? String(conversion.unitSymbol).trim()
+                  : null,
+                conversion_value: conversionValue,
+                created_at: new Date(),
+                updated_at: new Date(),
+              },
+            });
+          }
+        }
+      }
 
       if (isRetail) await this.upsertCatalog(tx, dto, store_id, id);
 

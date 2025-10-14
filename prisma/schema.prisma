@@ -306,17 +306,17 @@ model invoice_details {
   product_id             String?                  @db.Uuid
   product_price          Float?
   variant_id             String?                  @db.Uuid
-  catalog_bundling_id    String?                  @db.Uuid
   notes                  String?                  @db.VarChar(45)
   qty                    Int?
   invoice_id             String                   @db.Uuid
   variant_price          Float?
   product_discount       Float?
+  catalog_bundling_id    String?                  @db.Uuid
+  invoice_bundling_items invoice_bundling_items[] @relation("InvoiceDetailToBundlingItems")
   invoice                invoice                  @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  catalog_bundling       catalog_bundling?        @relation(fields: [catalog_bundling_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   products               products?                @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
   variant                variant?                 @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
-  catalog_bundling       catalog_bundling?        @relation(fields: [catalog_bundling_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  invoice_bundling_items invoice_bundling_items[] @relation("InvoiceDetailToBundlingItems")
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
@@ -347,16 +347,15 @@ model invoice_settings {
 }
 
 model invoice_bundling_items {
-  id                String    @id @default(uuid())
-  invoice_id        String    @db.Uuid
-  invoice_detail_id String    @db.Uuid
-  product_id        String    @db.Uuid
-  qty               Int       @default(1)
-  created_at        DateTime  @default(now())
+  id                String          @id @default(uuid())
+  invoice_id        String          @db.Uuid
+  invoice_detail_id String          @db.Uuid
+  product_id        String          @db.Uuid
+  qty               Int             @default(1)
+  created_at        DateTime        @default(now())
   updated_at        DateTime?
-
-  products        products        @relation(fields: [product_id], references: [id], onDelete: Cascade)
-  invoice_details invoice_details @relation("InvoiceDetailToBundlingItems", fields: [invoice_detail_id, invoice_id], references: [id, invoice_id], onDelete: Cascade)
+  invoice_details   invoice_details @relation("InvoiceDetailToBundlingItems", fields: [invoice_detail_id, invoice_id], references: [id, invoice_id], onDelete: Cascade)
+  products          products        @relation(fields: [product_id], references: [id], onDelete: Cascade)
 }
 
 model kitchen_queue {
@@ -364,7 +363,6 @@ model kitchen_queue {
   invoice_id          String       @db.Uuid
   product_id          String?      @db.Uuid
   variant_id          String?      @db.Uuid
-  catalog_bundling_id String?      @db.Uuid
   order_status        order_status
   notes               String?      @db.VarChar(255)
   created_at          DateTime     @db.Timestamp(6)
@@ -373,6 +371,7 @@ model kitchen_queue {
   table_code          String?      @db.VarChar
   order_type          order_type
   customer_id         String?      @db.Uuid
+  catalog_bundling_id String?      @db.Uuid
   customer            customer?    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_customer_fk")
   invoice             invoice      @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_invoice_fk")
   products            products?    @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_products_fk")
@@ -501,6 +500,7 @@ model products {
   benefit_free_items           benefit_free_items[]
   catalog_bundling_has_product catalog_bundling_has_product[]
   categories_has_products      categories_has_products[]
+  invoice_bundling_items       invoice_bundling_items[]
   invoice_details              invoice_details[]
   kitchen_queue                kitchen_queue[]
   loyalty_product_item         loyalty_product_item[]
@@ -510,7 +510,6 @@ model products {
   recipe                       recipe[]
   variant_has_products         variant_has_products[]
   voucher_has_products         voucher_has_products[]
-  invoice_bundling_items       invoice_bundling_items[]
 }
 
 model recipe {
@@ -962,34 +961,35 @@ model purchase_orders {
 }
 
 model master_inventory_items {
-  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                        String                        @db.VarChar(150)
-  brand_id                    String?                       @db.Uuid
-  barcode                     String?                       @db.VarChar(64)
-  sku                         String?                       @db.VarChar(64)
-  category_id                 String                        @db.Uuid
-  unit                        String                        @db.VarChar(64)
-  notes                       String?
-  stock_quantity              Int
-  reorder_level               Int
-  minimum_stock_quantity      Int
-  expiry_date                 DateTime?                     @db.Date
-  storage_location_id         String?                       @db.Uuid
-  price_per_unit              Decimal                       @db.Decimal(18, 2)
-  supplier_id                 String                        @db.Uuid
-  created_at                  DateTime                      @default(now()) @db.Timestamptz(6)
-  updated_at                  DateTime                      @default(now()) @db.Timestamptz(6)
-  store_id                    String?                       @db.Uuid
-  price_grosir                Decimal?                      @db.Decimal(18, 2)
-  inventory_stock_adjustments inventory_stock_adjustments[]
-  master_brands               master_brands?                @relation(fields: [brand_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  master_inventory_categories master_inventory_categories   @relation(fields: [category_id], references: [id], onUpdate: NoAction)
-  master_storage_locations    master_storage_locations?     @relation(fields: [storage_location_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  stores                      stores?                       @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  master_suppliers            master_suppliers              @relation(fields: [supplier_id], references: [id], onUpdate: NoAction)
-  products                    products?
-  purchase_order_items        purchase_order_items[]
-  stock_opname_items          stock_opname_items[]
+  id                                String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                              String                              @db.VarChar(150)
+  brand_id                          String?                             @db.Uuid
+  barcode                           String?                             @db.VarChar(64)
+  sku                               String?                             @db.VarChar(64)
+  category_id                       String                              @db.Uuid
+  unit                              String                              @db.VarChar(64)
+  notes                             String?
+  stock_quantity                    Int
+  reorder_level                     Int
+  minimum_stock_quantity            Int
+  expiry_date                       DateTime?                           @db.Date
+  storage_location_id               String?                             @db.Uuid
+  price_per_unit                    Decimal                             @db.Decimal(18, 2)
+  supplier_id                       String                              @db.Uuid
+  created_at                        DateTime                            @default(now()) @db.Timestamptz(6)
+  updated_at                        DateTime                            @default(now()) @db.Timestamptz(6)
+  store_id                          String?                             @db.Uuid
+  price_grosir                      Decimal?                            @db.Decimal(18, 2)
+  inventory_stock_adjustments       inventory_stock_adjustments[]
+  master_inventory_item_conversions master_inventory_item_conversions[]
+  master_brands                     master_brands?                      @relation(fields: [brand_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  master_inventory_categories       master_inventory_categories         @relation(fields: [category_id], references: [id], onUpdate: NoAction)
+  master_storage_locations          master_storage_locations?           @relation(fields: [storage_location_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  stores                            stores?                             @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  master_suppliers                  master_suppliers                    @relation(fields: [supplier_id], references: [id], onUpdate: NoAction)
+  products                          products?
+  purchase_order_items              purchase_order_items[]
+  stock_opname_items                stock_opname_items[]
 
   @@index([brand_id], map: "idx_mii_brand_id")
   @@index([category_id], map: "idx_mii_category_id")
@@ -1082,7 +1082,6 @@ model store_facilities {
 model catalog_bundling {
   id                           String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   store_id                     String                         @db.Uuid
-  picture_url                  String?                        @db.VarChar(45)
   name                         String?                        @db.VarChar(100)
   description                  String?                        @default("-") @db.VarChar(100)
   type                         bundling_price_type
@@ -1090,6 +1089,7 @@ model catalog_bundling {
   price                        Int?
   created_at                   DateTime?                      @default(now()) @db.Timestamp(6)
   updated_at                   DateTime?                      @default(now()) @db.Timestamp(6)
+  picture_url                  String?                        @db.VarChar(45)
   stores                       stores                         @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_facilities_fk")
   catalog_bundling_has_product catalog_bundling_has_product[]
   invoice_details              invoice_details[]
@@ -1364,6 +1364,19 @@ model temp_import_products {
   category_id    String?   @db.Uuid
   error_messages String?
   imported_at    DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model master_inventory_item_conversions {
+  id                     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id                String                 @db.Uuid
+  unit_name              String                 @db.VarChar(64)
+  unit_symbol            String?                @db.VarChar(16)
+  conversion_value       Decimal                @db.Decimal(18, 6)
+  created_at             DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime               @default(now()) @db.Timestamptz(6)
+  master_inventory_items master_inventory_items @relation(fields: [item_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_item_conversion_item")
+
+  @@unique([item_id, unit_symbol], map: "uq_item_unit")
 }
 
 enum cash_drawer_type {
