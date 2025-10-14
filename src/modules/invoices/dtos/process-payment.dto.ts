@@ -249,4 +249,14 @@ export class CalculationEstimationDto extends ProductListDto {
   @IsString()
   @IsOptional()
   public customerId?: string | null;
+
+  @ApiProperty({
+    description: 'Loyalty redemption details',
+    required: false,
+    example: {
+      loyalty_points_benefit_id: '1e38a39c-dbd5-4d8b-8df8-d88d792280fe',
+    },
+  })
+  @IsOptional()
+  public redeemLoyalty?: RedeemLoyaltyDto | null;
 }

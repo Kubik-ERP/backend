@@ -910,6 +910,26 @@ export class InvoiceService {
           },
         });
 
+        if (request.redeemLoyalty) {
+          const benefit = await this._prisma.loyalty_points_benefit.findFirst({
+            where: {
+              id: request.redeemLoyalty.loyalty_points_benefit_id
+            }
+          });
+
+          if (benefit) {
+            await this._prisma.customer_loyalty_transactions.create({
+              data: {
+                customer_id: request.customerId,
+                invoice_id: invoiceId,
+                type: 'redeem',
+                points: benefit.points_needs ?? 0,
+                description: 'Redeem ' + benefit.benefit_name,
+              },
+            });
+          }
+        }
+
         await this.updateCustomerPoint(request.customerId);
       }
     }
@@ -1987,6 +2007,7 @@ export class InvoiceService {
     let paymentAmount = 0;
     let changeAmount = 0;
     let totalPointsEarn = 0;
+    let totalRedeemDiscount = 0;
     const items = [];
 
     for (const item of request.products) {
@@ -2259,8 +2280,39 @@ export class InvoiceService {
 
     // Calculate total points
     if (request.customerId && storeId) {
-      const getPoints = await this.calculateLoyaltyPoints(storeId, request.products, grandTotal, null);
-      totalPointsEarn = getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+      const getPoints = await this.calculateLoyaltyPoints(
+        storeId,
+        request.products,
+        grandTotal,
+        null,
+      );
+      totalPointsEarn =
+        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+
+      if (request.redeemLoyalty) {
+        const benefit = await this._prisma.loyalty_points_benefit.findFirst({
+          where: {
+            id: request.redeemLoyalty.loyalty_points_benefit_id
+          }
+        });
+
+        if (benefit && benefit.type == 'discount') {
+          const discountValue = benefit.discount_value ?? 0;
+          const isPercent = benefit.is_percent ?? false;
+
+          if (isPercent) {
+            totalRedeemDiscount = grandTotal * (discountValue / 100);
+          } else {
+            totalRedeemDiscount = discountValue;
+          }
+
+          if (totalRedeemDiscount > grandTotal) {
+            totalRedeemDiscount = grandTotal;
+          }
+
+          grandTotal -= totalRedeemDiscount;
+        }
+      }
     }
 
     return {
@@ -2280,7 +2332,8 @@ export class InvoiceService {
       items,
       roundingAdjustment,
       paymentRoundingSetting,
-      totalPointsEarn
+      totalPointsEarn,
+      totalRedeemDiscount
     };
   }
 
@@ -2599,25 +2652,27 @@ export class InvoiceService {
 
         if (canEarnPoints) {
           for (const product of products) {
-            const loyaltyItem =
-              await this._prisma.loyalty_product_item.findFirst({
-                where: {
-                  loyalty_point_setting_id: loyaltySettings.id,
-                  product_id: product.productId,
-                },
-              });
+            if (product.type == 'single') {
+              const loyaltyItem =
+                await this._prisma.loyalty_product_item.findFirst({
+                  where: {
+                    loyalty_point_setting_id: loyaltySettings.id,
+                    product_id: product.productId,
+                  },
+                });
 
-            if (loyaltyItem) {
-              const qty = product.quantity ?? 0;
-              const minimumPurchase = loyaltyItem.minimum_transaction ?? 0;
+              if (loyaltyItem) {
+                const qty = product.quantity ?? 0;
+                const minimumPurchase = loyaltyItem.minimum_transaction ?? 0;
 
-              if (qty >= minimumPurchase) {
-                if (loyaltySettings.product_based_points_apply_multiple) {
-                  const multiplierProduct = Math.floor(qty / minimumPurchase);
-                  earnPointsByProduct +=
-                    multiplierProduct * (loyaltyItem.points ?? 0);
-                } else {
-                  earnPointsByProduct += loyaltyItem.points ?? 0;
+                if (qty >= minimumPurchase) {
+                  if (loyaltySettings.product_based_points_apply_multiple) {
+                    const multiplierProduct = Math.floor(qty / minimumPurchase);
+                    earnPointsByProduct +=
+                      multiplierProduct * (loyaltyItem.points ?? 0);
+                  } else {
+                    earnPointsByProduct += loyaltyItem.points ?? 0;
+                  }
                 }
               }
             }

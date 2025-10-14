@@ -40,4 +40,5 @@ export interface CalculationResult {
   } | null;
 
   totalPointsEarn?: number;
+  totalRedeemDiscount?: number;
 }
