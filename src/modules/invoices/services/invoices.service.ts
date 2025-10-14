@@ -953,9 +953,10 @@ export class InvoiceService {
           originalSubtotal += itemSubtotal;
           calculatedTotalProductDiscount += productDiscount * detail.quantity;
         } else if (detail.type === 'bundling') {
-          const productBundling = await this._prisma.catalog_bundling.findUnique({
-            where: { id: detail.bundlingId },
-          });
+          const productBundling =
+            await this._prisma.catalog_bundling.findUnique({
+              where: { id: detail.bundlingId },
+            });
 
           if (!productBundling) {
             throw new NotFoundException(
@@ -1165,8 +1166,7 @@ export class InvoiceService {
           }
 
           discountSubBundling =
-            originSubBundling -
-            (productBundling.price ?? 0) * detail.quantity;
+            originSubBundling - (productBundling.price ?? 0) * detail.quantity;
 
           // create invoice detail ID
           const invoiceDetailId = uuidv4();

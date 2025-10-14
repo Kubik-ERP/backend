@@ -8,6 +8,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -15,10 +16,18 @@ import { Type } from 'class-transformer';
 class TimeSlotDto {
   @ApiProperty({ example: '07:00', nullable: true })
   @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'openTime must be in HH:mm format',
+  })
   openTime: string | null;
 
   @ApiProperty({ example: '12:00', nullable: true })
   @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'closeTime must be in HH:mm format',
+  })
   closeTime: string | null;
 }
 

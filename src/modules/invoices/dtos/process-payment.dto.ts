@@ -52,7 +52,9 @@ export class ProductDto {
 
   @IsString()
   @IsOptional()
-  @Transform(({ value }) => (value === undefined || value === null ? 'single' : value))
+  @Transform(({ value }) =>
+    value === undefined || value === null ? 'single' : value,
+  )
   public type: string = 'single';
 
   @IsString()
