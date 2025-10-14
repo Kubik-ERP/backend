@@ -2147,8 +2147,12 @@ export class InvoiceService {
             const price = bp.products?.price ?? 0;
             return acc + qty * price;
           }, 0);
-        const totalDiscountBundling =
-          totalBundlingOrigin - (bundling.price ?? 0);
+        
+        let totalDiscountBundling = 0;
+        if (bundling.price && (totalBundlingOrigin > bundling.price)) {
+          totalDiscountBundling = totalBundlingOrigin - (bundling.price ?? 0);
+        }
+
         discountTotal += totalDiscountBundling;
 
         items.push({
