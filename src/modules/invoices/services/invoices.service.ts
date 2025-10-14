@@ -707,7 +707,7 @@ export class InvoiceService {
               variant_id: validVariantId,
               variant_price: variantPrice,
               product_discount: productDiscount, // discount per unit
-              benefit_free_items_id: null
+              benefit_free_items_id: null,
             };
 
             // create invoice with status unpaid
@@ -789,7 +789,7 @@ export class InvoiceService {
               variant_id: null,
               variant_price: null,
               product_discount: discountSubBundling, // discount per unit
-              benefit_free_items_id: null
+              benefit_free_items_id: null,
             };
 
             // create invoice with status unpaid
@@ -1122,7 +1122,7 @@ export class InvoiceService {
             variant_id: validVariantId,
             variant_price: variantPrice,
             product_discount: productDiscount, // discount per unit
-            benefit_free_items_id: null
+            benefit_free_items_id: null,
           };
 
           // create invoice with status unpaid
@@ -1203,7 +1203,7 @@ export class InvoiceService {
             variant_id: null,
             variant_price: null,
             product_discount: discountSubBundling, // discount per unit
-            benefit_free_items_id: null
+            benefit_free_items_id: null,
           };
 
           // create invoice with status unpaid
@@ -1596,7 +1596,7 @@ export class InvoiceService {
       variant_id: product.variantId ?? null,
       variant_price: variantPrice ?? 0,
       product_discount: 0,
-      benefit_free_items_id: null
+      benefit_free_items_id: null,
     };
 
     await this.createInvoiceDetail(tx, invoiceDetailData);
@@ -2123,6 +2123,7 @@ export class InvoiceService {
             name: true,
             price: true,
             discount: true,
+            type: true,
             catalog_bundling_has_product: {
               select: {
                 quantity: true,
@@ -2147,8 +2148,21 @@ export class InvoiceService {
             const price = bp.products?.price ?? 0;
             return acc + qty * price;
           }, 0);
-        const totalDiscountBundling =
-          totalBundlingOrigin - (bundling.price ?? 0);
+
+        let totalDiscountBundling = 0;
+
+        if (bundling.type == 'DISCOUNT') {
+          totalDiscountBundling =
+            totalBundlingOrigin -
+            (totalBundlingOrigin *
+              (bundling.discount ? Number(bundling.discount) : 0)) /
+              100;
+        } else if (bundling.type == 'CUSTOM') {
+          if (bundling.price && totalBundlingOrigin > bundling.price) {
+            totalDiscountBundling = totalBundlingOrigin - (bundling.price ?? 0);
+          }
+        }
+
         discountTotal += totalDiscountBundling;
 
         items.push({
