@@ -2074,20 +2074,20 @@ export class InvoiceService {
       } else if (item.type === 'bundling') {
         const bundling = await this._prisma.catalog_bundling.findUnique({
           where: { id: item.bundlingId },
-          select: { 
-            name: true, 
-            price: true, 
+          select: {
+            name: true,
+            price: true,
             discount: true,
             catalog_bundling_has_product: {
               select: {
                 quantity: true,
                 products: {
                   select: {
-                    price: true
-                  }
-                }
-              }
-            }
+                    price: true,
+                  },
+                },
+              },
+            },
           },
         });
 
@@ -2096,12 +2096,14 @@ export class InvoiceService {
           throw new BadRequestException(`Bundling data not found in request`);
         }
 
-        const totalBundlingOrigin = bundling.catalog_bundling_has_product.reduce((acc, bp) => {
-          const qty = bp.quantity ?? 1;
-          const price = bp.products?.price ?? 0;
-          return acc + qty * price;
-        }, 0);
-        const totalDiscountBundling = totalBundlingOrigin - (bundling.price ?? 0);
+        const totalBundlingOrigin =
+          bundling.catalog_bundling_has_product.reduce((acc, bp) => {
+            const qty = bp.quantity ?? 1;
+            const price = bp.products?.price ?? 0;
+            return acc + qty * price;
+          }, 0);
+        const totalDiscountBundling =
+          totalBundlingOrigin - (bundling.price ?? 0);
         discountTotal += totalDiscountBundling;
 
         items.push({
@@ -2110,10 +2112,10 @@ export class InvoiceService {
           variantId: null,
           bundlingId: item.bundlingId ?? null,
           name: bundling.name,
-          productPrice: bundling.price ?? 0,
+          productPrice: totalBundlingOrigin,
           variantPrice: 0,
           qty: item.quantity,
-          subtotal: (bundling.price ?? 0) * item.quantity,
+          subtotal: totalBundlingOrigin * item.quantity,
           discountAmount: totalDiscountBundling,
         });
 
