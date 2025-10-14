@@ -913,8 +913,8 @@ export class InvoiceService {
         if (request.redeemLoyalty) {
           const benefit = await this._prisma.loyalty_points_benefit.findFirst({
             where: {
-              id: request.redeemLoyalty.loyalty_points_benefit_id
-            }
+              id: request.redeemLoyalty.loyalty_points_benefit_id,
+            },
           });
 
           if (benefit) {
@@ -2292,8 +2292,8 @@ export class InvoiceService {
       if (request.redeemLoyalty) {
         const benefit = await this._prisma.loyalty_points_benefit.findFirst({
           where: {
-            id: request.redeemLoyalty.loyalty_points_benefit_id
-          }
+            id: request.redeemLoyalty.loyalty_points_benefit_id,
+          },
         });
 
         if (benefit && benefit.type == 'discount') {
@@ -2333,7 +2333,7 @@ export class InvoiceService {
       roundingAdjustment,
       paymentRoundingSetting,
       totalPointsEarn,
-      totalRedeemDiscount
+      totalRedeemDiscount,
     };
   }
 
