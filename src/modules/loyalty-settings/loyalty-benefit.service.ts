@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { LoyaltyProductItemQueryDto } from './dto/loyalty-product-items-query.dto';
@@ -199,7 +200,23 @@ export class LoyaltyBenefitService {
     return updatedBenefit;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} loyaltySetting`;
+  async remove(id: string) {
+    const existing = await this.prisma.loyalty_points_benefit.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException('Loyalty benefit not found');
+    }
+    const deletedItems = await this.prisma.benefit_free_items.deleteMany({
+      where: { loyalty_point_benefit_id: id },
+    });
+    console.log(`Deleted ${deletedItems.count} associated free items.`);
+    const deletedBenefit = await this.prisma.loyalty_points_benefit.delete({
+      where: { id },
+    });
+    return {
+      message: 'Loyalty benefit removed successfully',
+      result: toCamelCase(deletedBenefit),
+    };
   }
 }

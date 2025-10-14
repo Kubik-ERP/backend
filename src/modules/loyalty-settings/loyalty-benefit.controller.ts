@@ -11,8 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { LoyaltyProductItemQueryDto } from './dto/loyalty-product-items-query.dto';
@@ -92,7 +92,11 @@ export class LoyaltyBenefitController {
   @RequirePermissions('general_loyalty_point_configuration')
   @ApiBearerAuth()
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.loyaltyBenefitService.remove(+id);
+  async remove(@Param('id') id: string) {
+    const data = await this.loyaltyBenefitService.remove(id);
+    return {
+      message: 'Loyalty benefit removed successfully',
+      result: toCamelCase(data),
+    };
   }
 }

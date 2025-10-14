@@ -232,7 +232,15 @@ export class LoyaltySettingsService {
     return updatedSetting;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} loyaltySetting`;
+  async remove(id: string) {
+    const existing = await this.prisma.loyalty_product_item.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException('Loyalty product item not found');
+    }
+    return this.prisma.loyalty_product_item.delete({
+      where: { id },
+    });
   }
 }
