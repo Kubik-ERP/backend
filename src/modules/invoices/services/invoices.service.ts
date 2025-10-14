@@ -707,6 +707,7 @@ export class InvoiceService {
               variant_id: validVariantId,
               variant_price: variantPrice,
               product_discount: productDiscount, // discount per unit
+              benefit_free_items_id: null
             };
 
             // create invoice with status unpaid
@@ -788,6 +789,7 @@ export class InvoiceService {
               variant_id: null,
               variant_price: null,
               product_discount: discountSubBundling, // discount per unit
+              benefit_free_items_id: null
             };
 
             // create invoice with status unpaid
@@ -1120,6 +1122,7 @@ export class InvoiceService {
             variant_id: validVariantId,
             variant_price: variantPrice,
             product_discount: productDiscount, // discount per unit
+            benefit_free_items_id: null
           };
 
           // create invoice with status unpaid
@@ -1200,6 +1203,7 @@ export class InvoiceService {
             variant_id: null,
             variant_price: null,
             product_discount: discountSubBundling, // discount per unit
+            benefit_free_items_id: null
           };
 
           // create invoice with status unpaid
@@ -1592,6 +1596,7 @@ export class InvoiceService {
       variant_id: product.variantId ?? null,
       variant_price: variantPrice ?? 0,
       product_discount: 0,
+      benefit_free_items_id: null
     };
 
     await this.createInvoiceDetail(tx, invoiceDetailData);
