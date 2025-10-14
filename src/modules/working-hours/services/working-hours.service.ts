@@ -1,7 +1,14 @@
 // src/working-hours/working-hours.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CreateWorkingHoursDto } from '../dtos/working-hours.dto';
+import {
+  CreateWorkingHoursDto,
+  WorkingHoursListDto,
+} from '../dtos/working-hours.dto';
+import {
+  getOffset,
+  getTotalPages,
+} from 'src/common/helpers/pagination.helpers';
 
 @Injectable()
 export class WorkingHoursService {
@@ -42,12 +49,32 @@ export class WorkingHoursService {
     return result;
   }
 
-  async findAll() {
-    const result = await this.prisma.working_hours.findMany({
-      include: { working_hour_time_slots: true, working_hour_recurrence: true },
-      orderBy: { created_at: 'desc' },
-    });
-    return result;
+  async findAll(query: WorkingHoursListDto) {
+    const { page, pageSize } = query;
+
+    const [items, total] = await Promise.all([
+      this.prisma.working_hours.findMany({
+        include: {
+          working_hour_time_slots: true,
+          working_hour_recurrence: true,
+          employees: true,
+        },
+        orderBy: { created_at: 'desc' },
+        skip: getOffset(page, pageSize),
+        take: pageSize,
+      }),
+      this.prisma.working_hours.count(),
+    ]);
+
+    return {
+      items,
+      meta: {
+        page,
+        pageSize,
+        total,
+        totalPages: getTotalPages(total, pageSize),
+      },
+    };
   }
 
   async findOne(id: number) {

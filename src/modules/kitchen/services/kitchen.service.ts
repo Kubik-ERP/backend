@@ -55,7 +55,7 @@ export class KitchenService {
     const orderByField = request.orderBy ?? 'created_at';
     const orderDirection = request.orderDirection ?? 'desc';
 
-    const filters: Prisma.invoiceWhereInput = {
+    const baseFilters: Prisma.invoiceWhereInput = {
       ...(Object.keys(createdAtFilter).length > 0 && {
         created_at: createdAtFilter,
       }),
@@ -67,16 +67,20 @@ export class KitchenService {
       ...(orderType && {
         order_type: { in: Array.isArray(orderType) ? orderType : [orderType] },
       }),
+      ...(invoiceNumber && { invoice_number: { equals: invoiceNumber } }),
+      store_id: storeId,
+    };
+
+    const filters: Prisma.invoiceWhereInput = {
+      ...baseFilters,
       ...(orderStatus && {
         order_status: {
           in: Array.isArray(orderStatus) ? orderStatus : [orderStatus],
         },
       }),
-      ...(invoiceNumber && { invoice_number: { equals: invoiceNumber } }),
-      store_id: storeId,
     };
 
-    const [rawItems, total] = await Promise.all([
+    const [rawItems, total, placedCount, inProgressCount] = await Promise.all([
       this._prisma.invoice.findMany({
         where: filters,
         select: {
@@ -104,6 +108,18 @@ export class KitchenService {
       this._prisma.invoice.count({
         where: filters,
       }),
+      this._prisma.invoice.count({
+        where: {
+          ...baseFilters,
+          order_status: order_status.placed,
+        },
+      }),
+      this._prisma.invoice.count({
+        where: {
+          ...baseFilters,
+          order_status: order_status.in_progress,
+        },
+      }),
     ]);
 
     const items = rawItems.map((item) => ({
@@ -126,6 +142,10 @@ export class KitchenService {
         pageSize,
         total,
         totalPages: Math.ceil(total / pageSize),
+      },
+      queueStatusCounts: {
+        placed: placedCount,
+        inProgress: inProgressCount,
       },
     };
   }

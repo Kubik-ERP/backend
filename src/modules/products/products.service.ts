@@ -194,8 +194,19 @@ export class ProductsService {
       }),
     ]);
 
+    const productsWithDiscount = products.map((product) => {
+      const basePrice = product.price ?? 0;
+      const discountValue = product.discount_price ?? 0;
+      const priceAfterDiscount = Math.max(basePrice - discountValue, 0);
+
+      return {
+        ...product,
+        price_after_discount: priceAfterDiscount,
+      };
+    });
+
     return {
-      products,
+      products: productsWithDiscount,
       total,
       page,
       lastPage: Math.ceil(total / limit),
