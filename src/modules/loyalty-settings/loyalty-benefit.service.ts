@@ -147,7 +147,6 @@ export class LoyaltyBenefitService {
   }
 
   async update(id: string, updateBenefitDto: UpdateBenefitDto) {
-    console.log('Update Benefit DTO:', updateBenefitDto);
     const existingBenefit = await this.prisma.loyalty_points_benefit.findUnique(
       {
         where: { id },
@@ -156,23 +155,21 @@ export class LoyaltyBenefitService {
     if (!existingBenefit) {
       throw new NotFoundException('Loyalty benefit not found');
     }
-    if (existingBenefit.type === 'free_items' && updateBenefitDto.items) {
+    if (existingBenefit.type === 'free_items') {
       try {
-        console.log(
-          'Deleting existing item benefits for benefit ID:',
-          existingBenefit.id,
-        );
         await this.prisma.benefit_free_items.deleteMany({
           where: { loyalty_point_benefit_id: existingBenefit.id },
         });
-        const itemBenefits = updateBenefitDto.items.map((item) => ({
-          loyalty_point_benefit_id: existingBenefit.id,
-          product_id: item.productId,
-          quantity: item.quantity,
-        }));
-        await this.prisma.benefit_free_items.createMany({
-          data: itemBenefits,
-        });
+        if (updateBenefitDto.items && updateBenefitDto.items.length !== 0) {
+          const itemBenefits = updateBenefitDto.items.map((item) => ({
+            loyalty_point_benefit_id: existingBenefit.id,
+            product_id: item.productId,
+            quantity: item.quantity,
+          }));
+          await this.prisma.benefit_free_items.createMany({
+            data: itemBenefits,
+          });
+        }
       } catch (error) {
         console.error('Error deleting existing item benefits:', error);
         throw new BadRequestException('Error updating loyalty point items');

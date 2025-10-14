@@ -182,6 +182,9 @@ export class LoyaltySettingsService {
       },
     });
 
+    await this.prisma.loyalty_product_item.deleteMany({
+      where: { loyalty_point_setting_id: loyaltySetting.id },
+    });
     if (
       updateLoyaltySettingDto.product_based_items &&
       updateLoyaltySettingDto.product_based_items.length > 0
@@ -194,9 +197,6 @@ export class LoyaltySettingsService {
           minimum_transaction: item.minimum_purchase,
         }),
       );
-      await this.prisma.loyalty_product_item.deleteMany({
-        where: { loyalty_point_setting_id: loyaltySetting.id },
-      });
       await this.prisma.loyalty_product_item.createMany({
         data: productItems,
       });
