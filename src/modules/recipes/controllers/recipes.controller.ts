@@ -1,10 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
+  Get,
   Headers,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
+  Put,
   Req,
 } from '@nestjs/common';
 import {
@@ -15,7 +19,9 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CreateRecipeDto } from '../dtos/create-recipe.dto';
+import { UpdateRecipeDto } from '../dtos/update-recipe.dto';
 import { RecipeResponseDto } from '../dtos/recipe-response.dto';
+import { RecipeDetailResponseDto } from '../dtos/recipe-detail-response.dto';
 import { RecipesService } from '../services/recipes.service';
 
 @ApiTags('Recipes')
@@ -50,7 +56,110 @@ export class RecipesController {
     return {
       success: true,
       message: 'Recipe created successfully',
-      data: recipe,
+      result: recipe,
+    };
+  }
+
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get recipe details by ID' })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recipe details retrieved successfully',
+    type: RecipeDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Recipe not found',
+  })
+  async findById(
+    @Param('id') recipeId: string,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const recipe = await this.recipesService.findRecipeById(
+      recipeId,
+      req.store_id!,
+    );
+    return {
+      success: true,
+      message: 'Recipe details retrieved successfully',
+      result: recipe,
+    };
+  }
+
+  @Put(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update a recipe' })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recipe updated successfully',
+    type: RecipeResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid input data',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Recipe not found',
+  })
+  async update(
+    @Param('id') recipeId: string,
+    @Body() updateRecipeDto: UpdateRecipeDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const recipe = await this.recipesService.updateRecipe(
+      recipeId,
+      updateRecipeDto,
+      req.store_id!,
+    );
+    return {
+      success: true,
+      message: 'Recipe updated successfully',
+      result: recipe,
+    };
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete a recipe' })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recipe deleted successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Recipe not found',
+  })
+  async delete(
+    @Param('id') recipeId: string,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    await this.recipesService.deleteRecipe(recipeId, req.store_id!);
+    return {
+      success: true,
+      message: 'Recipe deleted successfully',
     };
   }
 }

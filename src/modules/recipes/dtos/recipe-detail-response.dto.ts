@@ -1,0 +1,59 @@
+import { ApiProperty } from '@nestjs/swagger';
+
+export class IngredientResponseDto {
+  @ApiProperty()
+  ingredient_id: string;
+
+  @ApiProperty()
+  item_id: string;
+
+  @ApiProperty()
+  item_name: string;
+
+  @ApiProperty()
+  qty: number;
+
+  @ApiProperty()
+  uom: string;
+
+  @ApiProperty({ required: false })
+  notes?: string;
+
+  @ApiProperty({ required: false })
+  cost?: number;
+}
+
+export class RecipeDetailResponseDto {
+  @ApiProperty()
+  recipe_id: string;
+
+  @ApiProperty()
+  recipe_name: string;
+
+  @ApiProperty({ required: false })
+  output_unit?: string;
+
+  @ApiProperty()
+  base_recipe: boolean;
+
+  @ApiProperty({ required: false })
+  product_id?: string;
+
+  @ApiProperty({ required: false })
+  product_name?: string;
+
+  @ApiProperty({ required: false })
+  target_yield?: number;
+
+  @ApiProperty({ required: false })
+  store_id?: string;
+
+  @ApiProperty()
+  created_at: Date;
+
+  @ApiProperty()
+  updated_at: Date;
+
+  @ApiProperty({ type: [IngredientResponseDto] })
+  ingredients: IngredientResponseDto[];
+}
