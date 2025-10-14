@@ -2074,13 +2074,35 @@ export class InvoiceService {
       } else if (item.type === 'bundling') {
         const bundling = await this._prisma.catalog_bundling.findUnique({
           where: { id: item.bundlingId },
-          select: { name: true, price: true, discount: true },
+          select: { 
+            name: true, 
+            price: true, 
+            discount: true,
+            catalog_bundling_has_product: {
+              select: {
+                quantity: true,
+                products: {
+                  select: {
+                    price: true
+                  }
+                }
+              }
+            }
+          },
         });
 
         if (!bundling) {
           this.logger.error(`Bundling data not found in request for item.`);
           throw new BadRequestException(`Bundling data not found in request`);
         }
+
+        const totalBundlingOrigin = bundling.catalog_bundling_has_product.reduce((acc, bp) => {
+          const qty = bp.quantity ?? 1;
+          const price = bp.products?.price ?? 0;
+          return acc + qty * price;
+        }, 0);
+        const totalDiscountBundling = totalBundlingOrigin - (bundling.price ?? 0);
+        discountTotal += totalDiscountBundling;
 
         items.push({
           type: 'bundling' as const,
@@ -2092,10 +2114,10 @@ export class InvoiceService {
           variantPrice: 0,
           qty: item.quantity,
           subtotal: (bundling.price ?? 0) * item.quantity,
-          discountAmount: 0,
+          discountAmount: totalDiscountBundling,
         });
 
-        total += (bundling.price ?? 0) * item.quantity;
+        total += totalBundlingOrigin * item.quantity;
       } else {
         this.logger.error(`Invalid product type ${item.type}`);
         throw new NotFoundException(`Invalid product type ${item.type}`);
