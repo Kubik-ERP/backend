@@ -12,8 +12,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
-import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CreateLoyaltySettingDto } from './dto/create-loyalty-setting.dto';
 import { LoyaltyProductItemQueryDto } from './dto/loyalty-product-items-query.dto';
@@ -140,7 +140,11 @@ export class LoyaltySettingsController {
   @RequirePermissions('general_loyalty_point_configuration')
   @ApiBearerAuth()
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.loyaltySettingsService.remove(+id);
+  async remove(@Param('id') id: string) {
+    const data = await this.loyaltySettingsService.remove(id);
+    return {
+      message: 'Loyalty setting removed successfully',
+      result: toCamelCase(data),
+    };
   }
 }
