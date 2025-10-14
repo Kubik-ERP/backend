@@ -2123,6 +2123,7 @@ export class InvoiceService {
             name: true,
             price: true,
             discount: true,
+            type: true,
             catalog_bundling_has_product: {
               select: {
                 quantity: true,
@@ -2149,8 +2150,13 @@ export class InvoiceService {
           }, 0);
         
         let totalDiscountBundling = 0;
-        if (bundling.price && (totalBundlingOrigin > bundling.price)) {
-          totalDiscountBundling = totalBundlingOrigin - (bundling.price ?? 0);
+
+        if (bundling.type == 'DISCOUNT') {
+          totalDiscountBundling = totalBundlingOrigin - (totalBundlingOrigin * (bundling.discount ? Number(bundling.discount) : 0) / 100);
+        } else if (bundling.type == 'CUSTOM') {
+          if ((bundling.price && (totalBundlingOrigin > bundling.price))) {
+            totalDiscountBundling = totalBundlingOrigin - (bundling.price ?? 0);
+          }
         }
 
         discountTotal += totalDiscountBundling;
