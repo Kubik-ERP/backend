@@ -868,7 +868,7 @@ export class InvoiceService {
           });
 
           if (redeemItem) {
-            const getProduct = redeemItem?.benefit_free_items.at(0);
+            const getProduct = redeemItem.benefit_free_items[0];
             if (getProduct) {
               // Create invoice detail
               const invoiceDetailId = uuidv4();
