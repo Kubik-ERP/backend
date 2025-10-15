@@ -785,9 +785,13 @@ export class InvoiceService {
               originSubBundling += originalPrice;
             }
 
-            discountSubBundling =
-              originSubBundling -
-              (productBundling.price ?? 0) * detail.quantity;
+            if (productBundling.type == 'DISCOUNT') {
+              discountSubBundling = (originSubBundling * (productBundling.discount ? Number(productBundling.discount) : 0)) / 100;
+            } else if (productBundling.type == 'CUSTOM') {
+              if (productBundling.price && originSubBundling > productBundling.price) {
+                discountSubBundling = originSubBundling - (productBundling.price ?? 0);
+              }
+            }
 
             // create invoice detail ID
             const invoiceDetailId = uuidv4();
