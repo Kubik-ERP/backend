@@ -225,6 +225,16 @@ export class InvoiceService {
             },
           },
         },
+
+        loyalty_points_benefit: {
+          include: {
+            benefit_free_items: {
+              include: {
+                products: true,
+              },
+            },
+          },
+        },
         users: {
           select: { id: true, fullname: true },
         },
