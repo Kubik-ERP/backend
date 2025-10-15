@@ -1028,10 +1028,17 @@ export class InvoiceService {
             originalSubtotalBundling += originalPrice * detail.quantity;
           }
 
-          originalSubtotal += originalSubtotalBundling;
-          calculatedTotalProductDiscount +=
-            (originalSubtotalBundling - (productBundling.price ?? 0)) *
-            detail.quantity;
+          let totalDiscountBundling = 0;
+          if (productBundling.type == 'DISCOUNT') {
+            totalDiscountBundling = (originalSubtotalBundling * (productBundling.discount ? Number(productBundling.discount) : 0)) / 100;
+          } else if (productBundling.type == 'CUSTOM') {
+            if (productBundling.price && originalSubtotalBundling > productBundling.price) {
+              totalDiscountBundling = originalSubtotalBundling - (productBundling.price ?? 0);
+            }
+          }
+
+          originalSubtotal += originalSubtotalBundling * detail.quantity;
+          calculatedTotalProductDiscount += totalDiscountBundling * detail.quantity;
         } else {
           this.logger.error(`Invalid product type ${detail.type}`);
           throw new NotFoundException(`Invalid product type ${detail.type}`);
@@ -1204,11 +1211,16 @@ export class InvoiceService {
             }
 
             const originalPrice = product.price ?? 0;
-            originSubBundling += originalPrice * detail.quantity;
+            originSubBundling += originalPrice;
           }
 
-          discountSubBundling =
-            originSubBundling - (productBundling.price ?? 0) * detail.quantity;
+          if (productBundling.type == 'DISCOUNT') {
+            discountSubBundling = (originSubBundling * (productBundling.discount ? Number(productBundling.discount) : 0)) / 100;
+          } else if (productBundling.type == 'CUSTOM') {
+            if (productBundling.price && originSubBundling > productBundling.price) {
+              discountSubBundling = originSubBundling - (productBundling.price ?? 0);
+            }
+          }
 
           // create invoice detail ID
           const invoiceDetailId = uuidv4();
