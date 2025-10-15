@@ -204,6 +204,7 @@ export class KitchenService {
                 products: true,
               },
             },
+            catalog_bundling: true,
           },
         },
       },
