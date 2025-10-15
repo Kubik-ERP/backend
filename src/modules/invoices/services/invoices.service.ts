@@ -614,11 +614,6 @@ export class InvoiceService {
 
             originalSubtotal += originalSubtotalBundling * detail.quantity;
             calculatedTotalProductDiscount += totalDiscountBundling * detail.quantity;
-
-            console.log(originalSubtotalBundling);
-            console.log(totalDiscountBundling);
-            console.log(originalSubtotal);
-            console.log(calculatedTotalProductDiscount);
           } else {
             this.logger.error(`Invalid product type ${detail.type}`);
             throw new NotFoundException(`Invalid product type ${detail.type}`);
@@ -787,7 +782,7 @@ export class InvoiceService {
               }
 
               const originalPrice = product.price ?? 0;
-              originSubBundling += originalPrice * detail.quantity;
+              originSubBundling += originalPrice;
             }
 
             discountSubBundling =
@@ -801,13 +796,13 @@ export class InvoiceService {
               invoice_id: invoiceId,
               product_id: null,
               catalog_bundling_id: detail.bundlingId ?? null,
-              product_price: originSubBundling, // menggunakan original price
+              product_price: originSubBundling,
               notes: detail.notes,
               order_type: request.orderType,
               qty: detail.quantity,
               variant_id: null,
               variant_price: null,
-              product_discount: discountSubBundling, // discount per unit
+              product_discount: discountSubBundling,
               benefit_free_items_id: null,
             };
 
