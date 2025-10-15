@@ -600,13 +600,25 @@ export class InvoiceService {
               }
 
               const originalPrice = product.price ?? 0;
-              originalSubtotalBundling += originalPrice * detail.quantity;
+              originalSubtotalBundling += originalPrice * (item.quantity ?? 0);
             }
 
-            originalSubtotal += originalSubtotalBundling;
-            calculatedTotalProductDiscount +=
-              (originalSubtotalBundling - (productBundling.price ?? 0)) *
-              detail.quantity;
+            let totalDiscountBundling = 0;
+            if (productBundling.type == 'DISCOUNT') {
+              totalDiscountBundling = (originalSubtotalBundling * (productBundling.discount ? Number(productBundling.discount) : 0)) / 100;
+            } else if (productBundling.type == 'CUSTOM') {
+              if (productBundling.price && originalSubtotalBundling > productBundling.price) {
+                totalDiscountBundling = originalSubtotalBundling - (productBundling.price ?? 0);
+              }
+            }
+
+            originalSubtotal += originalSubtotalBundling * detail.quantity;
+            calculatedTotalProductDiscount += totalDiscountBundling * detail.quantity;
+
+            console.log(originalSubtotalBundling);
+            console.log(totalDiscountBundling);
+            console.log(originalSubtotal);
+            console.log(calculatedTotalProductDiscount);
           } else {
             this.logger.error(`Invalid product type ${detail.type}`);
             throw new NotFoundException(`Invalid product type ${detail.type}`);
