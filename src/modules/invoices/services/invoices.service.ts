@@ -475,6 +475,7 @@ export class InvoiceService {
     const invoiceNumber = await this.generateInvoiceNumber(storeId);
     let grandTotal: number = 0;
     let totalProductDiscount: number = 0;
+    let totalRedeemDiscount: number = 0;
     let kitchenQueue: KitchenQueueAdd[] = [];
     await this._prisma.$transaction(
       async (tx) => {
@@ -512,6 +513,8 @@ export class InvoiceService {
           total_product_discount: 0,
           rounding_setting_id: null,
           rounding_amount: null,
+          loyalty_points_benefit_id: null,
+          loyalty_discount: 0
         };
         // create invoice with status unpaid
         await this.create(tx, invoiceData);
@@ -597,13 +600,20 @@ export class InvoiceService {
               }
 
               const originalPrice = product.price ?? 0;
-              originalSubtotalBundling += originalPrice * detail.quantity;
+              originalSubtotalBundling += originalPrice * (item.quantity ?? 0);
             }
 
-            originalSubtotal += originalSubtotalBundling;
-            calculatedTotalProductDiscount +=
-              (originalSubtotalBundling - (productBundling.price ?? 0)) *
-              detail.quantity;
+            let totalDiscountBundling = 0;
+            if (productBundling.type == 'DISCOUNT') {
+              totalDiscountBundling = (originalSubtotalBundling * (productBundling.discount ? Number(productBundling.discount) : 0)) / 100;
+            } else if (productBundling.type == 'CUSTOM') {
+              if (productBundling.price && originalSubtotalBundling > productBundling.price) {
+                totalDiscountBundling = originalSubtotalBundling - (productBundling.price ?? 0);
+              }
+            }
+
+            originalSubtotal += originalSubtotalBundling * detail.quantity;
+            calculatedTotalProductDiscount += totalDiscountBundling * detail.quantity;
           } else {
             this.logger.error(`Invalid product type ${detail.type}`);
             throw new NotFoundException(`Invalid product type ${detail.type}`);
@@ -621,6 +631,7 @@ export class InvoiceService {
           invoiceId,
         );
         grandTotal = calculation.grandTotal;
+        totalRedeemDiscount = calculation.totalRedeemDiscount ?? 0;
 
         // Get payment rounding setting for this store
         const paymentRoundingSetting =
@@ -648,6 +659,9 @@ export class InvoiceService {
           // payment rounding
           rounding_setting_id: paymentRoundingSetting?.id ?? undefined,
           rounding_amount: request.rounding_amount ?? undefined,
+          // redeem loyalty
+          loyalty_points_benefit_id: request.redeemLoyalty ? request.redeemLoyalty.loyalty_points_benefit_id : null,
+          loyalty_discount: calculation.totalRedeemDiscount
         });
 
         // insert the customer has invoice (if exists)
@@ -768,12 +782,16 @@ export class InvoiceService {
               }
 
               const originalPrice = product.price ?? 0;
-              originSubBundling += originalPrice * detail.quantity;
+              originSubBundling += originalPrice;
             }
 
-            discountSubBundling =
-              originSubBundling -
-              (productBundling.price ?? 0) * detail.quantity;
+            if (productBundling.type == 'DISCOUNT') {
+              discountSubBundling = (originSubBundling * (productBundling.discount ? Number(productBundling.discount) : 0)) / 100;
+            } else if (productBundling.type == 'CUSTOM') {
+              if (productBundling.price && originSubBundling > productBundling.price) {
+                discountSubBundling = originSubBundling - (productBundling.price ?? 0);
+              }
+            }
 
             // create invoice detail ID
             const invoiceDetailId = uuidv4();
@@ -782,13 +800,13 @@ export class InvoiceService {
               invoice_id: invoiceId,
               product_id: null,
               catalog_bundling_id: detail.bundlingId ?? null,
-              product_price: originSubBundling, // menggunakan original price
+              product_price: originSubBundling,
               notes: detail.notes,
               order_type: request.orderType,
               qty: detail.quantity,
               variant_id: null,
               variant_price: null,
-              product_discount: discountSubBundling, // discount per unit
+              product_discount: discountSubBundling,
               benefit_free_items_id: null,
             };
 
@@ -830,6 +848,66 @@ export class InvoiceService {
           } else {
             this.logger.error(`Invalid product type ${detail.type}`);
             throw new NotFoundException(`Invalid product type ${detail.type}`);
+          }
+        }
+
+        // Add redeem item
+        if (request.customerId && request.redeemLoyalty) {
+          const redeemItem = await this._prisma.loyalty_points_benefit.findFirst({
+            where: {
+              id: request.redeemLoyalty.loyalty_points_benefit_id,
+              type: 'free_items'
+            },
+            include: {
+              benefit_free_items: {
+                include: {
+                  products: true
+                }
+              }
+            }
+          });
+
+          if (redeemItem) {
+            const getProduct = redeemItem?.benefit_free_items.at(0);
+            if (getProduct) {
+              // Create invoice detail
+              const invoiceDetailId = uuidv4();
+              const invoiceDetailData = {
+                id: invoiceDetailId,
+                invoice_id: invoiceId,
+                product_id: getProduct.product_id,
+                catalog_bundling_id: null,
+                product_price: 0,
+                notes: null,
+                order_type: request.orderType,
+                qty: getProduct.quantity,
+                variant_id: null,
+                variant_price: null,
+                product_discount: null,
+                benefit_free_items_id: getProduct.id
+              };
+
+              // create invoice with status unpaid
+              await this.createInvoiceDetail(tx, invoiceDetailData);
+
+              // Create kithcen queue
+              const queue: KitchenQueueAdd = {
+                id: uuidv4(),
+                invoice_id: invoiceId,
+                order_type: request.orderType,
+                order_status: order_status.placed,
+                product_id: getProduct.product_id,
+                variant_id: null,
+                store_id: storeId,
+                customer_id: request.customerId,
+                notes: '',
+                created_at: now,
+                updated_at: now,
+                table_code: request.tableCode,
+              };
+
+              kitchenQueue.push(queue);
+            }
           }
         }
 
@@ -911,6 +989,7 @@ export class InvoiceService {
       invoiceId: invoiceId,
       grandTotal: grandTotal,
       totalProductDiscount: totalProductDiscount,
+      totalRedeemDiscount: totalRedeemDiscount
     };
   }
 
@@ -1009,10 +1088,17 @@ export class InvoiceService {
             originalSubtotalBundling += originalPrice * detail.quantity;
           }
 
-          originalSubtotal += originalSubtotalBundling;
-          calculatedTotalProductDiscount +=
-            (originalSubtotalBundling - (productBundling.price ?? 0)) *
-            detail.quantity;
+          let totalDiscountBundling = 0;
+          if (productBundling.type == 'DISCOUNT') {
+            totalDiscountBundling = (originalSubtotalBundling * (productBundling.discount ? Number(productBundling.discount) : 0)) / 100;
+          } else if (productBundling.type == 'CUSTOM') {
+            if (productBundling.price && originalSubtotalBundling > productBundling.price) {
+              totalDiscountBundling = originalSubtotalBundling - (productBundling.price ?? 0);
+            }
+          }
+
+          originalSubtotal += originalSubtotalBundling * detail.quantity;
+          calculatedTotalProductDiscount += totalDiscountBundling * detail.quantity;
         } else {
           this.logger.error(`Invalid product type ${detail.type}`);
           throw new NotFoundException(`Invalid product type ${detail.type}`);
@@ -1067,6 +1153,8 @@ export class InvoiceService {
         total_product_discount: calculatedTotalProductDiscount,
         rounding_setting_id: paymentRoundingSetting?.id ?? null,
         rounding_amount: request.rounding_amount ?? null,
+        loyalty_points_benefit_id: null,
+        loyalty_discount: 0
       };
 
       // create invoice with status unpaid
@@ -1183,11 +1271,16 @@ export class InvoiceService {
             }
 
             const originalPrice = product.price ?? 0;
-            originSubBundling += originalPrice * detail.quantity;
+            originSubBundling += originalPrice;
           }
 
-          discountSubBundling =
-            originSubBundling - (productBundling.price ?? 0) * detail.quantity;
+          if (productBundling.type == 'DISCOUNT') {
+            discountSubBundling = (originSubBundling * (productBundling.discount ? Number(productBundling.discount) : 0)) / 100;
+          } else if (productBundling.type == 'CUSTOM') {
+            if (productBundling.price && originSubBundling > productBundling.price) {
+              discountSubBundling = originSubBundling - (productBundling.price ?? 0);
+            }
+          }
 
           // create invoice detail ID
           const invoiceDetailId = uuidv4();
@@ -2152,18 +2245,16 @@ export class InvoiceService {
         let totalDiscountBundling = 0;
 
         if (bundling.type == 'DISCOUNT') {
-          totalDiscountBundling =
-            totalBundlingOrigin -
-            (totalBundlingOrigin *
-              (bundling.discount ? Number(bundling.discount) : 0)) /
-              100;
+          totalDiscountBundling = (totalBundlingOrigin * (bundling.discount ? Number(bundling.discount) : 0)) / 100;
         } else if (bundling.type == 'CUSTOM') {
           if (bundling.price && totalBundlingOrigin > bundling.price) {
             totalDiscountBundling = totalBundlingOrigin - (bundling.price ?? 0);
           }
         }
 
-        discountTotal += totalDiscountBundling;
+        if (totalDiscountBundling > 0) {
+          discountTotal += totalDiscountBundling * item.quantity;
+        }
 
         items.push({
           type: 'bundling' as const,
@@ -2175,7 +2266,7 @@ export class InvoiceService {
           variantPrice: 0,
           qty: item.quantity,
           subtotal: totalBundlingOrigin * item.quantity,
-          discountAmount: totalDiscountBundling,
+          discountAmount: totalDiscountBundling * item.quantity,
         });
 
         total += totalBundlingOrigin * item.quantity;
@@ -2303,6 +2394,43 @@ export class InvoiceService {
       }
     }
 
+    // Calculate total points
+    if (request.customerId && storeId) {
+      const getPoints = await this.calculateLoyaltyPoints(
+        storeId,
+        request.products,
+        grandTotal,
+        null,
+      );
+      totalPointsEarn =
+        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+
+      if (request.redeemLoyalty) {
+        const benefit = await this._prisma.loyalty_points_benefit.findFirst({
+          where: {
+            id: request.redeemLoyalty.loyalty_points_benefit_id,
+          },
+        });
+
+        if (benefit && benefit.type == 'discount') {
+          const discountValue = benefit.discount_value ?? 0;
+          const isPercent = benefit.is_percent ?? false;
+
+          if (isPercent) {
+            totalRedeemDiscount = grandTotal * (discountValue / 100);
+          } else {
+            totalRedeemDiscount = discountValue;
+          }
+
+          if (totalRedeemDiscount > grandTotal) {
+            totalRedeemDiscount = grandTotal;
+          }
+
+          grandTotal -= totalRedeemDiscount;
+        }
+      }
+    }
+
     // note: Calculate change_amount and payment_amount
     if (request.paymentAmount && request.provider == 'cash') {
       paymentAmount = request.paymentAmount;
@@ -2358,43 +2486,6 @@ export class InvoiceService {
           roundingValue: setting.rounding_value,
           isEnabled: setting.is_enabled,
         };
-      }
-    }
-
-    // Calculate total points
-    if (request.customerId && storeId) {
-      const getPoints = await this.calculateLoyaltyPoints(
-        storeId,
-        request.products,
-        grandTotal,
-        null,
-      );
-      totalPointsEarn =
-        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
-
-      if (request.redeemLoyalty) {
-        const benefit = await this._prisma.loyalty_points_benefit.findFirst({
-          where: {
-            id: request.redeemLoyalty.loyalty_points_benefit_id,
-          },
-        });
-
-        if (benefit && benefit.type == 'discount') {
-          const discountValue = benefit.discount_value ?? 0;
-          const isPercent = benefit.is_percent ?? false;
-
-          if (isPercent) {
-            totalRedeemDiscount = grandTotal * (discountValue / 100);
-          } else {
-            totalRedeemDiscount = discountValue;
-          }
-
-          if (totalRedeemDiscount > grandTotal) {
-            totalRedeemDiscount = grandTotal;
-          }
-
-          grandTotal -= totalRedeemDiscount;
-        }
       }
     }
 
@@ -3011,6 +3102,7 @@ export class InvoiceService {
         payment_method_id,
         voucher_id,
         rounding_setting_id,
+        loyalty_points_benefit_id,
         ...rest
       } = data;
 
@@ -3055,6 +3147,12 @@ export class InvoiceService {
         };
       }
 
+      if (loyalty_points_benefit_id) {
+        updateData.loyalty_points_benefit = {
+          connect: {id: loyalty_points_benefit_id}
+        }
+      }
+
       await tx.invoice.update({
         where: { id: invoiceId },
         data: updateData,
@@ -3089,6 +3187,7 @@ export class InvoiceService {
           variant_id:
             invoiceDetail.variant_id === '' ? null : invoiceDetail.variant_id,
           product_discount: invoiceDetail.product_discount ?? 0,
+          benefit_free_items_id: invoiceDetail.benefit_free_items_id ?? null
         },
       });
     } catch (error) {

@@ -326,4 +326,7 @@ export class InvoiceUpdateDto {
   // payment rounding
   rounding_setting_id?: string;
   rounding_amount?: number;
+  // redeem loyalty
+  loyalty_points_benefit_id?: string | null;
+  loyalty_discount?: number;
 }

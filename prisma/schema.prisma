@@ -270,6 +270,8 @@ model invoice {
   total_product_discount                     Float?
   rounding_setting_id                        String?                         @db.Uuid
   rounding_amount                            Float?
+  loyalty_points_benefit_id                  String?                         @db.Uuid
+  loyalty_discount                           Float?                          @default(0)
   customer_loyalty_transactions              customer_loyalty_transactions[]
   customers_has_invoices                     customers_has_invoices[]
   customer                                   customer?                       @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
@@ -280,6 +282,7 @@ model invoice {
   stores                                     stores?                         @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_stores_fk")
   users                                      users?                          @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
   voucher                                    voucher?                        @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_voucher_fk")
+  loyalty_points_benefit                     loyalty_points_benefit?         @relation(fields: [loyalty_points_benefit_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   invoice_charges                            invoice_charges[]
   invoice_details                            invoice_details[]
   kitchen_queue                              kitchen_queue[]
@@ -878,6 +881,7 @@ model loyalty_points_benefit {
   updated_at               DateTime?              @default(now()) @db.Timestamp(6)
   benefit_free_items       benefit_free_items[]
   loyalty_point_settings   loyalty_point_settings @relation(fields: [loyalty_point_setting_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyalty_points_benefit_loyalty_point_settings_fk")
+  invoice                  invoice[]
 }
 
 model loyalty_product_item {
