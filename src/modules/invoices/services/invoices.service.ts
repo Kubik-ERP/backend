@@ -475,6 +475,7 @@ export class InvoiceService {
     const invoiceNumber = await this.generateInvoiceNumber(storeId);
     let grandTotal: number = 0;
     let totalProductDiscount: number = 0;
+    let totalRedeemDiscount: number = 0;
     let kitchenQueue: KitchenQueueAdd[] = [];
     await this._prisma.$transaction(
       async (tx) => {
@@ -512,6 +513,8 @@ export class InvoiceService {
           total_product_discount: 0,
           rounding_setting_id: null,
           rounding_amount: null,
+          loyalty_points_benefit_id: null,
+          loyalty_discount: 0
         };
         // create invoice with status unpaid
         await this.create(tx, invoiceData);
@@ -621,6 +624,7 @@ export class InvoiceService {
           invoiceId,
         );
         grandTotal = calculation.grandTotal;
+        totalRedeemDiscount = calculation.totalRedeemDiscount ?? 0;
 
         // Get payment rounding setting for this store
         const paymentRoundingSetting =
@@ -648,6 +652,9 @@ export class InvoiceService {
           // payment rounding
           rounding_setting_id: paymentRoundingSetting?.id ?? undefined,
           rounding_amount: request.rounding_amount ?? undefined,
+          // redeem loyalty
+          loyalty_points_benefit_id: request.redeemLoyalty ? request.redeemLoyalty.loyalty_points_benefit_id : null,
+          loyalty_discount: calculation.totalRedeemDiscount
         });
 
         // insert the customer has invoice (if exists)
@@ -911,6 +918,7 @@ export class InvoiceService {
       invoiceId: invoiceId,
       grandTotal: grandTotal,
       totalProductDiscount: totalProductDiscount,
+      totalRedeemDiscount: totalRedeemDiscount
     };
   }
 
@@ -1067,6 +1075,8 @@ export class InvoiceService {
         total_product_discount: calculatedTotalProductDiscount,
         rounding_setting_id: paymentRoundingSetting?.id ?? null,
         rounding_amount: request.rounding_amount ?? null,
+        loyalty_points_benefit_id: null,
+        loyalty_discount: 0
       };
 
       // create invoice with status unpaid
@@ -2152,18 +2162,16 @@ export class InvoiceService {
         let totalDiscountBundling = 0;
 
         if (bundling.type == 'DISCOUNT') {
-          totalDiscountBundling =
-            totalBundlingOrigin -
-            (totalBundlingOrigin *
-              (bundling.discount ? Number(bundling.discount) : 0)) /
-              100;
+          totalDiscountBundling = (totalBundlingOrigin * (bundling.discount ? Number(bundling.discount) : 0)) / 100;
         } else if (bundling.type == 'CUSTOM') {
           if (bundling.price && totalBundlingOrigin > bundling.price) {
             totalDiscountBundling = totalBundlingOrigin - (bundling.price ?? 0);
           }
         }
 
-        discountTotal += totalDiscountBundling;
+        if (totalDiscountBundling > 0) {
+          discountTotal += totalDiscountBundling * item.quantity;
+        }
 
         items.push({
           type: 'bundling' as const,
@@ -2175,7 +2183,7 @@ export class InvoiceService {
           variantPrice: 0,
           qty: item.quantity,
           subtotal: totalBundlingOrigin * item.quantity,
-          discountAmount: totalDiscountBundling,
+          discountAmount: totalDiscountBundling * item.quantity,
         });
 
         total += totalBundlingOrigin * item.quantity;
@@ -2303,6 +2311,43 @@ export class InvoiceService {
       }
     }
 
+    // Calculate total points
+    if (request.customerId && storeId) {
+      const getPoints = await this.calculateLoyaltyPoints(
+        storeId,
+        request.products,
+        grandTotal,
+        null,
+      );
+      totalPointsEarn =
+        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+
+      if (request.redeemLoyalty) {
+        const benefit = await this._prisma.loyalty_points_benefit.findFirst({
+          where: {
+            id: request.redeemLoyalty.loyalty_points_benefit_id,
+          },
+        });
+
+        if (benefit && benefit.type == 'discount') {
+          const discountValue = benefit.discount_value ?? 0;
+          const isPercent = benefit.is_percent ?? false;
+
+          if (isPercent) {
+            totalRedeemDiscount = grandTotal * (discountValue / 100);
+          } else {
+            totalRedeemDiscount = discountValue;
+          }
+
+          if (totalRedeemDiscount > grandTotal) {
+            totalRedeemDiscount = grandTotal;
+          }
+
+          grandTotal -= totalRedeemDiscount;
+        }
+      }
+    }
+
     // note: Calculate change_amount and payment_amount
     if (request.paymentAmount && request.provider == 'cash') {
       paymentAmount = request.paymentAmount;
@@ -2358,43 +2403,6 @@ export class InvoiceService {
           roundingValue: setting.rounding_value,
           isEnabled: setting.is_enabled,
         };
-      }
-    }
-
-    // Calculate total points
-    if (request.customerId && storeId) {
-      const getPoints = await this.calculateLoyaltyPoints(
-        storeId,
-        request.products,
-        grandTotal,
-        null,
-      );
-      totalPointsEarn =
-        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
-
-      if (request.redeemLoyalty) {
-        const benefit = await this._prisma.loyalty_points_benefit.findFirst({
-          where: {
-            id: request.redeemLoyalty.loyalty_points_benefit_id,
-          },
-        });
-
-        if (benefit && benefit.type == 'discount') {
-          const discountValue = benefit.discount_value ?? 0;
-          const isPercent = benefit.is_percent ?? false;
-
-          if (isPercent) {
-            totalRedeemDiscount = grandTotal * (discountValue / 100);
-          } else {
-            totalRedeemDiscount = discountValue;
-          }
-
-          if (totalRedeemDiscount > grandTotal) {
-            totalRedeemDiscount = grandTotal;
-          }
-
-          grandTotal -= totalRedeemDiscount;
-        }
       }
     }
 
@@ -3011,6 +3019,7 @@ export class InvoiceService {
         payment_method_id,
         voucher_id,
         rounding_setting_id,
+        loyalty_points_benefit_id,
         ...rest
       } = data;
 
@@ -3053,6 +3062,12 @@ export class InvoiceService {
         updateData.payment_rounding_settings = {
           connect: { id: rounding_setting_id },
         };
+      }
+
+      if (loyalty_points_benefit_id) {
+        updateData.loyalty_points_benefit = {
+          connect: {id: loyalty_points_benefit_id}
+        }
       }
 
       await tx.invoice.update({
