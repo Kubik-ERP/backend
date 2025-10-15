@@ -868,23 +868,22 @@ export class InvoiceService {
           });
 
           if (redeemItem) {
-            const getProduct = redeemItem.benefit_free_items[0];
-            if (getProduct) {
+            for (const item of redeemItem.benefit_free_items) {
               // Create invoice detail
               const invoiceDetailId = uuidv4();
               const invoiceDetailData = {
                 id: invoiceDetailId,
                 invoice_id: invoiceId,
-                product_id: getProduct.product_id,
+                product_id: item.product_id,
                 catalog_bundling_id: null,
                 product_price: 0,
                 notes: null,
                 order_type: request.orderType,
-                qty: getProduct.quantity,
+                qty: item.quantity,
                 variant_id: null,
                 variant_price: null,
                 product_discount: null,
-                benefit_free_items_id: getProduct.id
+                benefit_free_items_id: item.id
               };
 
               // create invoice with status unpaid
@@ -896,7 +895,7 @@ export class InvoiceService {
                 invoice_id: invoiceId,
                 order_type: request.orderType,
                 order_status: order_status.placed,
-                product_id: getProduct.product_id,
+                product_id: item.product_id,
                 variant_id: null,
                 store_id: storeId,
                 customer_id: request.customerId,
