@@ -90,6 +90,16 @@ export class SettingInvoiceDto {
   @Transform(({ value }) => value === 'true' || value === true)
   isShowFooter: boolean;
 
+  @ApiProperty({ default: false })
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  isShowLoyaltyPointsUsed: boolean;
+
+  @ApiProperty({ default: false })
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  isShowTotalPointsAccumulated: boolean;
+
   @ApiPropertyOptional({ description: 'Jumlah kenaikan nomor invoice' })
   @IsOptional()
   @IsInt()

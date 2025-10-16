@@ -224,7 +224,6 @@ export class InvoiceService {
             },
           },
         },
-
         loyalty_points_benefit: {
           include: {
             benefit_free_items: {
@@ -275,6 +274,37 @@ export class InvoiceService {
       queueNumber = count + 1; // Queue starts from 1
     }
 
+    let totalEarnPoints = 0;
+    let totalPointsUsed = 0;
+
+    if (invoice.customer) {
+      const [earnPoints, redeemPoints] = await Promise.all([
+        this._prisma.customer_loyalty_transactions.aggregate({
+          where: {
+            invoice_id: invoice.id,
+            customer_id: invoice.customer.id,
+            type: 'earn',
+          },
+          _sum: {
+            points: true,
+          },
+        }),
+        this._prisma.customer_loyalty_transactions.aggregate({
+          where: {
+            invoice_id: invoice.id,
+            customer_id: invoice.customer.id,
+            type: 'redeem',
+          },
+          _sum: {
+            points: true,
+          },
+        }),
+      ]);
+
+      totalEarnPoints = earnPoints._sum.points ?? 0;
+      totalPointsUsed = redeemPoints._sum.points ?? 0;
+    }
+
     // formatting returned response
     const formatted = {
       ...invoice,
@@ -284,6 +314,8 @@ export class InvoiceService {
         percentage: (c.percentage as Prisma.Decimal).toNumber(),
         amount: (c.amount as Prisma.Decimal).toNumber(),
       })),
+      totalEarnPoints,
+      totalPointsUsed,
     };
 
     return formatted;
@@ -1984,7 +2016,7 @@ export class InvoiceService {
         const getPoints = await this.calculateLoyaltyPoints(
           storeId,
           getData.products,
-          invoice.grand_total ?? 0,
+          grandTotal,
           getData.redeemLoyalty,
         );
 
@@ -3446,6 +3478,8 @@ export class InvoiceService {
           is_show_table_number: body.isShowTableNumber,
           is_hide_item_prices: body.isHideItemPrices,
           is_show_footer: body.isShowFooter,
+          is_show_loyalty_points_used: body.isShowLoyaltyPointsUsed,
+          is_show_total_points_accumulated: body.isShowTotalPointsAccumulated,
           increment_by: body.incrementBy,
           reset_sequence: body.resetSequence,
           starting_number: body.startingNumber,
@@ -3465,6 +3499,8 @@ export class InvoiceService {
           is_show_table_number: body.isShowTableNumber,
           is_hide_item_prices: body.isHideItemPrices,
           is_show_footer: body.isShowFooter,
+          is_show_loyalty_points_used: body.isShowLoyaltyPointsUsed,
+          is_show_total_points_accumulated: body.isShowTotalPointsAccumulated,
           increment_by: body.incrementBy,
           reset_sequence: body.resetSequence,
           starting_number: body.startingNumber,
