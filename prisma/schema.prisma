@@ -347,6 +347,8 @@ model invoice_settings {
   is_show_table_number           Boolean @default(false)
   is_hide_item_prices            Boolean @default(false)
   is_show_footer                 Boolean @default(false)
+  is_show_loyalty_points_used    Boolean @default(false)
+  is_show_total_points_accumulated Boolean @default(false)
   increment_by                   Int?
   reset_sequence                 String?
   starting_number                Int?
