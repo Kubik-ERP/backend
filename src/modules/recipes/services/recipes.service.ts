@@ -178,6 +178,106 @@ export class RecipesService {
     return { items: mapped, meta: { page, pageSize, total, totalPages } };
   }
 
+  async getRecipeVersions(recipeId: string, storeId: string): Promise<any> {
+    try {
+      // First check if recipe exists and belongs to store
+      const recipe = await this._prisma.menu_recipes.findFirst({
+        where: {
+          recipe_id: recipeId,
+          store_id: storeId,
+        },
+      });
+
+      if (!recipe) {
+        throw new NotFoundException(
+          `Recipe with ID ${recipeId} not found in this store`,
+        );
+      }
+
+      // Get all versions for this recipe
+      const versions = await this._prisma.recipe_versions.findMany({
+        where: {
+          recipe_id: recipeId,
+        },
+        orderBy: {
+          version_number: 'desc',
+        },
+        select: {
+          version_id: true,
+          version_number: true,
+          created_at: true,
+        },
+      });
+
+      const mapped = versions.map((version) => ({
+        versionId: version.version_id,
+        versionNumber: version.version_number,
+        createdAt: this.formatDateTimeToDisplay(version.created_at),
+      }));
+
+      return { versions: mapped };
+    } catch (error) {
+      this.logger.error(`Error getting recipe versions: ${error.message}`);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to get recipe versions');
+    }
+  }
+
+  async getRecipeVersionDetail(
+    recipeId: string,
+    versionId: string,
+    storeId: string,
+  ): Promise<any> {
+    try {
+      // First check if recipe exists and belongs to store
+      const recipe = await this._prisma.menu_recipes.findFirst({
+        where: {
+          recipe_id: recipeId,
+          store_id: storeId,
+        },
+      });
+
+      if (!recipe) {
+        throw new NotFoundException(
+          `Recipe with ID ${recipeId} not found in this store`,
+        );
+      }
+
+      // Get version detail with ingredients
+      const version = await this._prisma.recipe_versions.findFirst({
+        where: {
+          version_id: versionId,
+          recipe_id: recipeId,
+        },
+        include: {
+          ingredient_versions: {
+            include: {
+              master_inventory_items: true,
+            },
+          },
+        },
+      });
+
+      if (!version) {
+        throw new NotFoundException(
+          `Version with ID ${versionId} not found for this recipe`,
+        );
+      }
+
+      return this.toPlainRecipeVersionWithIngredients(version);
+    } catch (error) {
+      this.logger.error(
+        `Error getting recipe version detail: ${error.message}`,
+      );
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to get recipe version detail');
+    }
+  }
+
   async findRecipeById(recipeId: string, storeId: string): Promise<any> {
     try {
       this.logger.log(
@@ -236,6 +336,9 @@ export class RecipesService {
           recipe_id: recipeId,
           store_id: storeId,
         },
+        include: {
+          ingredients: true,
+        },
       });
 
       if (!existingRecipe) {
@@ -260,9 +363,79 @@ export class RecipesService {
         }
       }
 
-      // Use transaction to update recipe and recreate ingredients
+      // Use transaction to update recipe, create version, and recreate ingredients
       const updatedRecipe = await this._prisma.$transaction(async (prisma) => {
-        // Update recipe
+        // Get current version number and increment
+        const latestVersion = await prisma.recipe_versions.findFirst({
+          where: { recipe_id: recipeId },
+          orderBy: { version_number: 'desc' },
+        });
+
+        const newVersionNumber = this.incrementVersion(
+          latestVersion?.version_number || '1.0',
+        );
+
+        // Create recipe version with current data before update
+        const recipeVersion = await prisma.recipe_versions.create({
+          data: {
+            recipe_id: recipeId,
+            version_number: newVersionNumber,
+            recipe_name: existingRecipe.recipe_name,
+            output_unit: existingRecipe.output_unit,
+            base_recipe: existingRecipe.base_recipe,
+            product_id: existingRecipe.product_id,
+            target_yield: existingRecipe.target_yield,
+            cost_portion: existingRecipe.cost_portion,
+            margin_per_selling_price_rp:
+              existingRecipe.margin_per_selling_price_rp,
+            margin_per_selling_price_percent:
+              existingRecipe.margin_per_selling_price_percent,
+            created_at: new Date(),
+            updated_at: new Date(),
+            created_by: null, // TODO: Get from header when user auth is available
+          },
+        });
+
+        // Create ingredient versions for current ingredients
+        if (
+          existingRecipe.ingredients &&
+          existingRecipe.ingredients.length > 0
+        ) {
+          // Ensure version_id is available before using it
+          const versionId = recipeVersion.version_id;
+
+          for (const ingredient of existingRecipe.ingredients) {
+            const ingredientVersionData = {
+              recipe_version_id: versionId,
+              ingredient_id: ingredient.ingredient_id,
+              item_id: ingredient.item_id,
+              // qty: new Prisma.Decimal(ingredient.qty.toString()),
+              qty: Number(ingredient.qty),
+              uom: ingredient.uom,
+              notes: ingredient.notes || null,
+              cost: Number(ingredient.cost),
+              // cost: ingredient.cost
+              //   ? new Prisma.Decimal(ingredient.cost.toString())
+              //   : null,
+              created_at: new Date(),
+              updated_at: new Date(),
+            };
+            console.log(
+              `ingredientVersionData: ${JSON.stringify(ingredientVersionData)}`,
+            );
+
+            // this._prisma.ingredient_versions.create({
+            let new_ingredient_versions =
+              await prisma.ingredient_versions.create({
+                data: ingredientVersionData,
+              });
+            console.log(
+              `Success create ingredientVersionData, ${JSON.stringify(new_ingredient_versions)}`,
+            );
+          }
+        }
+
+        // Update recipe with new data
         const recipe = await prisma.menu_recipes.update({
           where: {
             recipe_id: recipeId,
@@ -469,5 +642,84 @@ export class RecipesService {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
     return `${day}/${month}/${year}`;
+  }
+
+  private incrementVersion(currentVersion: string): string {
+    const [major, minor] = currentVersion.split('.').map(Number);
+    const newMinor = minor + 1;
+    return `${major}.${newMinor}`;
+  }
+
+  private formatDateTimeToDisplay(date: Date | null): string {
+    if (!date) return '';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${month} ${day}, ${hours}:${minutes}`;
+  }
+
+  private toPlainRecipeVersionWithIngredients(version: any) {
+    return {
+      version_id: version.version_id,
+      recipe_id: version.recipe_id,
+      version_number: version.version_number,
+      recipe_name: version.recipe_name,
+      output_unit: version.output_unit,
+      base_recipe: version.base_recipe,
+      product_id: version.product_id,
+      target_yield: version.target_yield,
+      cost_portion:
+        version.cost_portion &&
+        typeof version.cost_portion === 'object' &&
+        typeof version.cost_portion.toNumber === 'function'
+          ? version.cost_portion.toNumber()
+          : version.cost_portion,
+      margin_per_selling_price_rp:
+        version.margin_per_selling_price_rp &&
+        typeof version.margin_per_selling_price_rp === 'object' &&
+        typeof version.margin_per_selling_price_rp.toNumber === 'function'
+          ? version.margin_per_selling_price_rp.toNumber()
+          : version.margin_per_selling_price_rp,
+      margin_per_selling_price_percent:
+        version.margin_per_selling_price_percent &&
+        typeof version.margin_per_selling_price_percent === 'object' &&
+        typeof version.margin_per_selling_price_percent.toNumber === 'function'
+          ? version.margin_per_selling_price_percent.toNumber()
+          : version.margin_per_selling_price_percent,
+      created_at: version.created_at,
+      updated_at: version.updated_at,
+      created_by: version.created_by,
+      ingredients: version.ingredient_versions
+        ? version.ingredient_versions.map((ingredient: any) => ({
+            ingredient_version_id: ingredient.ingredient_version_id,
+            ingredient_id: ingredient.ingredient_id,
+            item_id: ingredient.item_id,
+            qty:
+              ingredient.qty &&
+              typeof ingredient.qty === 'object' &&
+              typeof ingredient.qty.toNumber === 'function'
+                ? ingredient.qty.toNumber()
+                : ingredient.qty,
+            uom: ingredient.uom,
+            notes: ingredient.notes,
+            cost:
+              ingredient.cost &&
+              typeof ingredient.cost === 'object' &&
+              typeof ingredient.cost.toNumber === 'function'
+                ? ingredient.cost.toNumber()
+                : ingredient.cost,
+            inventory_item: ingredient.master_inventory_items
+              ? {
+                  id: ingredient.master_inventory_items.id,
+                  item_name: ingredient.master_inventory_items.item_name,
+                  brand: ingredient.master_inventory_items.brand,
+                  uom: ingredient.master_inventory_items.uom,
+                }
+              : null,
+          }))
+        : [],
+    };
   }
 }
