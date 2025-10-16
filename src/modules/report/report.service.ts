@@ -1233,23 +1233,23 @@ export class ReportService {
       const remainingQuota = Math.max(0, quota - totalUsage); // Pastikan tidak negatif
 
       // Tentukan status voucher berdasarkan tanggal saat ini
-      let status: 'Aktif' | 'Kedaluwarsa' | 'Akan Datang';
+      let status: 'Upcoming' | 'Expired' | 'Active';
       const startDate = new Date(voucher.start_period);
       const endDate = new Date(voucher.end_period);
       // Set jam akhir ke ujung hari untuk perbandingan yang akurat
       endDate.setHours(23, 59, 59, 999);
 
       if (now < startDate) {
-        status = 'Akan Datang';
+        status = 'Upcoming';
       } else if (now > endDate) {
-        status = 'Kedaluwarsa';
+        status = 'Expired';
       } else {
-        status = 'Aktif';
+        status = 'Active';
       }
 
       // Format tanggal untuk keterbacaan
       const formatDate = (date: Date) => {
-        return date.toLocaleDateString('id-ID', {
+        return date.toLocaleDateString('en-EN', {
           day: '2-digit',
           month: 'long',
           year: 'numeric',
@@ -1259,7 +1259,7 @@ export class ReportService {
       return {
         voucherName: voucher.name,
         promoCode: voucher.promo_code,
-        validityPeriod: `${formatDate(startDate)} - ${formatDate(endDate)}`,
+        validityPeriod: `${startDate.toISOString()} - ${endDate.toISOString()}`,
         status: status,
         totalQuota: quota,
         totalUsage: totalUsage,

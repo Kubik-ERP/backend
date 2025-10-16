@@ -58,7 +58,6 @@ import {
 } from '../dtos/setting-invoice.dto';
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
-import e from 'express';
 
 @Injectable()
 export class InvoiceService {
@@ -2379,11 +2378,18 @@ export class InvoiceService {
       if (serviceApplicable) {
         const percentage = Number(serviceCharge.percentage);
         if (serviceCharge.is_include) {
-          // If service include, means has include total
-          serviceAmount = subTotal - subTotal / (1 + percentage);
+          if (serviceCharge.is_percent) {
+            serviceAmount = subTotal - subTotal / (1 + percentage);
+          } else {
+            serviceAmount = serviceCharge.percentage.toNumber();
+          }
         } else {
           // If service exclude, count service as an additional
-          serviceAmount = subTotal * percentage;
+          if (serviceCharge.is_percent) {
+            serviceAmount = subTotal * percentage;
+          } else {
+            serviceAmount = serviceCharge.percentage.toNumber();
+          }
           grandTotal += serviceAmount;
         }
 
@@ -2691,7 +2697,7 @@ export class InvoiceService {
       const invoiceChargeData = {
         invoice_id: request.invoice_id,
         charge_id: request.charge_id,
-        percentage: request.percentage,
+        percentage: new Prisma.Decimal(request.percentage),
         amount: request.amount,
         is_include: request.is_include,
       };
@@ -2699,8 +2705,8 @@ export class InvoiceService {
       return await this.createInvoiceCharge(tx, invoiceChargeData);
     } else {
       // if tax or service exist update
-      invoiceCharge.percentage = request.percentage;
-      invoiceCharge.amount = request.amount;
+      invoiceCharge.percentage = new Prisma.Decimal(request.percentage);
+      invoiceCharge.amount = new Prisma.Decimal(request.amount);
 
       await this.updateInvoiceCharge(tx, invoiceCharge);
       return invoiceCharge;

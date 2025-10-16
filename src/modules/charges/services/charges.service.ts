@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { UpsertChargeDto } from '../dtos/charges.dto';
 import { charge_type, charges, Prisma } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
 import { requireStoreId } from 'src/common/helpers/common.helpers';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { v4 as uuidv4 } from 'uuid';
+import { UpsertChargeDto } from '../dtos/charges.dto';
 
 @Injectable()
 export class ChargesService {
@@ -19,6 +19,7 @@ export class ChargesService {
 
     // check the tax or service is already setup by type
     const charge = await this.getChargeByType(request.chargeType, store_id);
+    console.log('Existing charge:', charge);
 
     if (charge == null) {
       // if tax or service not exist create
@@ -30,6 +31,7 @@ export class ChargesService {
         applied_to_takeaway: request.appliedToTakeaway,
         is_enabled: request.isEnabled,
         is_include: request.isInclude,
+        is_percent: request.isPercent,
         store_id: store_id,
       };
 
@@ -41,6 +43,7 @@ export class ChargesService {
       charge.applied_to_takeaway = request.appliedToTakeaway;
       charge.is_include = request.isInclude;
       charge.is_enabled = request.isEnabled;
+      charge.is_percent = request.isPercent;
       charge.store_id = store_id;
 
       await this.update(charge);
@@ -74,6 +77,7 @@ export class ChargesService {
           applied_to_takeaway: charge.applied_to_takeaway,
           is_enabled: charge.is_enabled,
           is_include: charge.is_include,
+          is_percent: charge.is_percent,
           store_id: charge.store_id,
         },
       });
@@ -100,6 +104,7 @@ export class ChargesService {
           applied_to_takeaway: charge.applied_to_takeaway,
           is_enabled: charge.is_enabled,
           is_include: charge.is_include,
+          is_percent: charge.is_percent,
         },
       });
       return result.count;
