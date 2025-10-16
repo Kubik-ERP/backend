@@ -296,7 +296,7 @@ model invoice {
 model invoice_charges {
   invoice_id String  @db.Uuid
   charge_id  String  @db.Uuid
-  percentage Decimal @db.Decimal(2, 2)
+  percentage Decimal @db.Decimal(12, 2)
   amount     Decimal @db.Decimal(12, 2)
   is_include Boolean
   charges    charges @relation(fields: [charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_charges_fk")
