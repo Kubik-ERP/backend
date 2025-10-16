@@ -316,7 +316,7 @@ export class InvoiceService {
         amount: (c.amount as Prisma.Decimal).toNumber(),
       })),
       totalEarnPoints,
-      totalPointsUsed
+      totalPointsUsed,
     };
 
     return formatted;

@@ -42,7 +42,7 @@ export class LoyaltySettingsService {
           createLoyaltySettingDto.product_based_expiration,
         storesId: store_id,
         show_points_earned: createLoyaltySettingDto.show_points_earned,
-        show_points_redeemed: createLoyaltySettingDto.show_points_redeemed
+        show_points_redeemed: createLoyaltySettingDto.show_points_redeemed,
       },
     });
 
@@ -186,7 +186,7 @@ export class LoyaltySettingsService {
           existingSetting.show_points_earned,
         show_points_redeemed:
           updateLoyaltySettingDto.show_points_redeemed ??
-          existingSetting.show_points_redeemed
+          existingSetting.show_points_redeemed,
       },
     });
 
