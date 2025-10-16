@@ -110,4 +110,22 @@ export class CreateLoyaltySettingDto {
   @IsBoolean()
   @Type(() => Boolean)
   product_based_earn_when_redeem?: boolean;
+
+  @ApiProperty({
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  show_points_earned?: boolean;
+
+  @ApiProperty({
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  show_points_redeemed?: boolean;
 }
