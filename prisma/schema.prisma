@@ -95,11 +95,12 @@ model charges {
   id                                         String            @id(map: "charges_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                                       String            @db.VarChar
   type                                       charge_type
-  percentage                                 Decimal           @db.Decimal(2, 2)
+  percentage                                 Decimal           @db.Decimal(12, 2)
   is_include                                 Boolean           @default(false)
   applied_to_takeaway                        Boolean           @default(true)
   is_enabled                                 Boolean           @default(true)
   store_id                                   String            @db.Uuid
+  is_percent                                 Boolean?          @default(true)
   stores                                     stores            @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "charges_stores_fk")
   invoice_invoice_tax_idTocharges            invoice[]         @relation("invoice_tax_idTocharges")
   invoice_invoice_service_charge_idTocharges invoice[]         @relation("invoice_service_charge_idTocharges")

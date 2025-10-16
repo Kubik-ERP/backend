@@ -50,4 +50,12 @@ export class UpsertChargeDto {
   })
   @IsString()
   chargeType: charge_type;
+
+  @ApiProperty({
+    description: 'Is the charge a fixed amount or a percentage',
+    required: true,
+    example: 'true',
+  })
+  @IsBoolean()
+  isPercent: boolean = true;
 }

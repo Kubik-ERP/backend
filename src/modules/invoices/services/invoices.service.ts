@@ -58,7 +58,6 @@ import {
 } from '../dtos/setting-invoice.dto';
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
-import e from 'express';
 
 @Injectable()
 export class InvoiceService {
@@ -2379,11 +2378,18 @@ export class InvoiceService {
       if (serviceApplicable) {
         const percentage = Number(serviceCharge.percentage);
         if (serviceCharge.is_include) {
-          // If service include, means has include total
-          serviceAmount = subTotal - subTotal / (1 + percentage);
+          if (serviceCharge.is_percent) {
+            serviceAmount = subTotal - subTotal / (1 + percentage);
+          } else {
+            serviceAmount = serviceCharge.percentage.toNumber();
+          }
         } else {
           // If service exclude, count service as an additional
-          serviceAmount = subTotal * percentage;
+          if (serviceCharge.is_percent) {
+            serviceAmount = subTotal * percentage;
+          } else {
+            serviceAmount = serviceCharge.percentage.toNumber();
+          }
           grandTotal += serviceAmount;
         }
 
