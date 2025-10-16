@@ -366,14 +366,35 @@ export class RecipesService {
       // Use transaction to update recipe, create version, and recreate ingredients
       const updatedRecipe = await this._prisma.$transaction(async (prisma) => {
         // Get current version number and increment
-        const latestVersion = await prisma.recipe_versions.findFirst({
+        const allVersions = await prisma.recipe_versions.findMany({
           where: { recipe_id: recipeId },
-          orderBy: { version_number: 'desc' },
+          select: { version_number: true },
         });
 
-        const newVersionNumber = this.incrementVersion(
-          latestVersion?.version_number || '1.0',
+        this.logger.log(
+          `All versions from database: ${JSON.stringify(allVersions.map((v) => v.version_number))}`,
         );
+
+        // Sort versions properly (not just string sorting)
+        const sortedVersions = allVersions
+          .map((v) => v.version_number)
+          .sort((a, b) => {
+            const [aMajor, aMinor] = a.split('.').map(Number);
+            const [bMajor, bMinor] = b.split('.').map(Number);
+
+            if (aMajor !== bMajor) {
+              return bMajor - aMajor; // Descending major
+            }
+            return bMinor - aMinor; // Descending minor
+          });
+
+        this.logger.log(`Sorted versions: ${JSON.stringify(sortedVersions)}`);
+
+        const latestVersionNumber = sortedVersions[0] || '1.0';
+        this.logger.log(`Latest version number: "${latestVersionNumber}"`);
+
+        const newVersionNumber = this.incrementVersion(latestVersionNumber);
+        this.logger.log(`Generated new version number: "${newVersionNumber}"`);
 
         // Create recipe version with current data before update
         const recipeVersion = await prisma.recipe_versions.create({
@@ -405,33 +426,29 @@ export class RecipesService {
           const versionId = recipeVersion.version_id;
 
           for (const ingredient of existingRecipe.ingredients) {
-            const ingredientVersionData = {
-              recipe_version_id: versionId,
-              ingredient_id: ingredient.ingredient_id,
-              item_id: ingredient.item_id,
-              // qty: new Prisma.Decimal(ingredient.qty.toString()),
-              qty: Number(ingredient.qty),
-              uom: ingredient.uom,
-              notes: ingredient.notes || null,
-              cost: Number(ingredient.cost),
-              // cost: ingredient.cost
-              //   ? new Prisma.Decimal(ingredient.cost.toString())
-              //   : null,
-              created_at: new Date(),
-              updated_at: new Date(),
-            };
-            console.log(
-              `ingredientVersionData: ${JSON.stringify(ingredientVersionData)}`,
-            );
+            try {
+              const ingredientVersionData = {
+                recipe_version_id: versionId,
+                item_id: ingredient.item_id,
+                qty: new Prisma.Decimal(ingredient.qty.toString()),
+                uom: ingredient.uom,
+                notes: ingredient.notes || null,
+                cost: ingredient.cost
+                  ? new Prisma.Decimal(ingredient.cost.toString())
+                  : null,
+                created_at: new Date(),
+                updated_at: new Date(),
+              };
 
-            // this._prisma.ingredient_versions.create({
-            let new_ingredient_versions =
               await prisma.ingredient_versions.create({
                 data: ingredientVersionData,
               });
-            console.log(
-              `Success create ingredientVersionData, ${JSON.stringify(new_ingredient_versions)}`,
-            );
+            } catch (ingredientError) {
+              this.logger.error(
+                `Error creating ingredient version for ingredient_id ${ingredient.ingredient_id}: ${ingredientError.message}`,
+              );
+              throw ingredientError;
+            }
           }
         }
 
@@ -645,9 +662,31 @@ export class RecipesService {
   }
 
   private incrementVersion(currentVersion: string): string {
-    const [major, minor] = currentVersion.split('.').map(Number);
+    // Handle null, undefined, or empty string
+    if (!currentVersion || currentVersion.trim() === '') {
+      return '1.1';
+    }
+
+    const versionParts = currentVersion.split('.');
+
+    // Ensure we have at least 2 parts
+    if (versionParts.length < 2) {
+      return '1.1';
+    }
+
+    const major = parseInt(versionParts[0], 10);
+    const minor = parseInt(versionParts[1], 10);
+
+    // Validate parsed numbers
+    if (isNaN(major) || isNaN(minor)) {
+      return '1.1';
+    }
+
     const newMinor = minor + 1;
-    return `${major}.${newMinor}`;
+    const newVersion = `${major}.${newMinor}`;
+
+    this.logger.log(`Incremented "${currentVersion}" to "${newVersion}"`);
+    return newVersion;
   }
 
   private formatDateTimeToDisplay(date: Date | null): string {
@@ -694,7 +733,6 @@ export class RecipesService {
       ingredients: version.ingredient_versions
         ? version.ingredient_versions.map((ingredient: any) => ({
             ingredient_version_id: ingredient.ingredient_version_id,
-            ingredient_id: ingredient.ingredient_id,
             item_id: ingredient.item_id,
             qty:
               ingredient.qty &&
