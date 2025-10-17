@@ -160,6 +160,7 @@ export class StoreTableService {
             ...(existingTable ?? {}),
             ...tableData,
             id: tableId,
+            status_override: existingTable?.status_override ?? null,
             created_at: existingTable?.created_at ?? null,
             updated_at: existingTable?.updated_at ?? null,
           });
@@ -204,6 +205,8 @@ export class StoreTableService {
 
   async findAll(storeId: string, ownerId: number) {
     const ownerIdBigInt = BigInt(ownerId);
+
+    // Fetch all floors and their associated tables
     const floors = await this.prisma.store_floors.findMany({
       where: { store_id: storeId, uid: ownerIdBigInt },
       include: {
@@ -211,7 +214,7 @@ export class StoreTableService {
       },
     });
 
-    // Get all unpaid invoices for this store
+    // Get all unpaid invoices for this store (used to determine occupied tables automatically)
     const unpaidInvoices = await this.prisma.invoice.findMany({
       where: {
         store_id: storeId,
@@ -228,16 +231,25 @@ export class StoreTableService {
       unpaidInvoices.map((invoice) => invoice.table_code).filter(Boolean),
     );
 
-    // Add statusTable and floorName to each table
+    // Add floor name and determine table status based on override or invoice status
     const floorsWithStatus = floors.map((floor) => ({
       ...floor,
-      store_tables: floor.store_tables.map((table) => ({
-        ...table,
-        floorName: floor.floor_name,
-        statusTable: occupiedTableCodes.has(table.name)
+      store_tables: floor.store_tables.map((table) => {
+        // Automatic status based on invoice
+        const autoStatus = occupiedTableCodes.has(table.name)
           ? 'occupied'
-          : 'available',
-      })),
+          : 'available';
+
+        // If there’s a manual override from the cashier, use it instead
+        const finalStatus = table.status_override ?? autoStatus;
+
+        return {
+          ...table,
+          floorName: floor.floor_name,
+          statusTable: finalStatus,
+          from: table.status_override ? 'manual' : 'auto', // Indicates the source of the current status
+        };
+      }),
     }));
 
     return floorsWithStatus;
@@ -253,5 +265,34 @@ export class StoreTableService {
     if (!floor)
       throw new ForbiddenException('Data tidak ditemukan atau bukan milikmu');
     return floor;
+  }
+
+  async updateTableOverrideStatus(
+    storeId: string,
+    tableId: string,
+    newStatus: 'available' | 'occupied',
+  ) {
+    // Find the table first
+    const table = await this.prisma.store_tables.findFirst({
+      where: {
+        id: tableId,
+        store_id: storeId,
+      },
+    });
+
+    if (!table) {
+      throw new ForbiddenException('Meja tidak ditemukan atau bukan milikmu');
+    }
+
+    // Update the status_override (can be 'available' or 'occupied')
+    const updatedTable = await this.prisma.store_tables.update({
+      where: { id: table.id },
+      data: {
+        status_override: newStatus,
+      },
+    });
+
+    // Return the updated result
+    return { success: true, table: updatedTable };
   }
 }

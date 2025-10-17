@@ -11,8 +11,9 @@ export interface CalculationResult {
   paymentAmount: number;
   changeAmount: number;
   items: {
-    productId: string;
-    variantId?: string;
+    productId?: string | null;
+    variantId?: string | null;
+    bundlingId?: string | null;
     productPrice: number;
     variantPrice: number;
     discountAmount: number;
@@ -37,4 +38,7 @@ export interface CalculationResult {
     roundingValue: number;
     isEnabled: boolean;
   } | null;
+
+  totalPointsEarn?: number;
+  totalRedeemDiscount?: number;
 }

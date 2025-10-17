@@ -81,4 +81,31 @@ export class StoreTableController {
       result: toCamelCase(result),
     };
   }
+
+  @HttpCode(200)
+  @RequirePermissions('table_management')
+  @Put('change-table-status')
+  async updateStatusOverride(
+    @Headers('x-store-id') storeId: string,
+    @Body()
+    body: {
+      table_id: string;
+      new_status: 'available' | 'occupied';
+    },
+  ) {
+    if (!storeId) throw new BadRequestException('x-store-id wajib');
+    if (!body.table_id) throw new BadRequestException('table_id wajib');
+
+    const { new_status } = body;
+    const result = await this.storeTableService.updateTableOverrideStatus(
+      storeId,
+      body.table_id,
+      new_status,
+    );
+
+    return {
+      message: 'Table status updated successfully',
+      result: toCamelCase(result),
+    };
+  }
 }

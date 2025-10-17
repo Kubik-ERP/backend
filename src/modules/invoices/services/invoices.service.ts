@@ -49,6 +49,7 @@ import {
   ProceedInstantPaymentDto,
   ProceedPaymentDto,
   ProductDto,
+  RedeemLoyaltyDto,
   UpsertInvoiceItemDto,
 } from '../dtos/process-payment.dto';
 import {
@@ -131,7 +132,18 @@ export class InvoiceService {
         include: {
           customer: true,
           users: true,
-          invoice_details: true,
+          invoice_details: {
+            include: {
+              products: {
+                include: {
+                  categories_has_products: {
+                    include: { categories: true },
+                  },
+                },
+              },
+              variant: true,
+            },
+          },
           payment_methods: true,
         },
         skip: (page - 1) * pageSize,
@@ -204,6 +216,21 @@ export class InvoiceService {
           include: {
             products: true,
             variant: true,
+            catalog_bundling: true,
+            invoice_bundling_items: {
+              include: {
+                products: true,
+              },
+            },
+          },
+        },
+        loyalty_points_benefit: {
+          include: {
+            benefit_free_items: {
+              include: {
+                products: true,
+              },
+            },
           },
         },
         users: {
@@ -247,6 +274,26 @@ export class InvoiceService {
       queueNumber = count + 1; // Queue starts from 1
     }
 
+    let totalEarnPoints = 0;
+    let totalPointsUsed = 0;
+
+    if (invoice.store_id && invoice.customer) {
+      const getData = await this.prepareUpdateLoyaltyPoints(
+        invoice.store_id,
+        invoice.id
+      );
+
+      const getPoints = await this.calculateLoyaltyPoints(
+        invoice.store_id,
+        getData.products,
+        (invoice.subtotal - ((invoice.total_product_discount ?? 0) + (invoice.loyalty_discount ?? 0))),
+        getData.redeemLoyalty
+      );
+
+      totalEarnPoints = getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+      totalPointsUsed = invoice.loyalty_points_benefit?.points_needs ?? 0;
+    }
+
     // formatting returned response
     const formatted = {
       ...invoice,
@@ -256,6 +303,8 @@ export class InvoiceService {
         percentage: (c.percentage as Prisma.Decimal).toNumber(),
         amount: (c.amount as Prisma.Decimal).toNumber(),
       })),
+      totalEarnPoints,
+      totalPointsUsed,
     };
 
     return formatted;
@@ -456,6 +505,7 @@ export class InvoiceService {
     const invoiceNumber = await this.generateInvoiceNumber(storeId);
     let grandTotal: number = 0;
     let totalProductDiscount: number = 0;
+    let totalRedeemDiscount: number = 0;
     let kitchenQueue: KitchenQueueAdd[] = [];
     await this._prisma.$transaction(
       async (tx) => {
@@ -493,8 +543,9 @@ export class InvoiceService {
           total_product_discount: 0,
           rounding_setting_id: null,
           rounding_amount: null,
+          loyalty_points_benefit_id: null,
+          loyalty_discount: 0,
         };
-        console.log(invoiceData);
         // create invoice with status unpaid
         await this.create(tx, invoiceData);
 
@@ -503,44 +554,110 @@ export class InvoiceService {
         let calculatedTotalProductDiscount = 0;
 
         for (const detail of request.products) {
-          const product = await this._prisma.products.findUnique({
-            where: { id: detail.productId },
-            select: { price: true, discount_price: true },
-          });
-
-          if (!product) {
-            this.logger.error(`Product with ID ${detail.productId} not found`);
-            throw new NotFoundException(
-              `Product with ID ${detail.productId} not found`,
-            );
-          }
-
-          const originalPrice = product.price ?? 0;
-          const discountPrice = product.discount_price ?? 0;
-          const productDiscount = originalPrice - discountPrice;
-
-          // Get variant price if variant exists
-          let variantPrice = 0;
-          const validVariantId = await this.validateProductVariant(
-            detail.productId,
-            detail.variantId,
-          );
-
-          if (validVariantId) {
-            const variant = await this._prisma.variant.findUnique({
-              where: { id: validVariantId },
-              select: { price: true },
+          if (detail.type === 'single') {
+            const product = await this._prisma.products.findUnique({
+              where: { id: detail.productId },
+              select: { price: true, discount_price: true },
             });
 
-            if (variant) {
-              variantPrice = variant.price ?? 0;
+            if (!product) {
+              this.logger.error(
+                `Product with ID ${detail.productId} not found`,
+              );
+              throw new NotFoundException(
+                `Product with ID ${detail.productId} not found`,
+              );
             }
-          }
 
-          // Calculate subtotal including variant price
-          const itemSubtotal = (originalPrice + variantPrice) * detail.quantity;
-          originalSubtotal += itemSubtotal;
-          calculatedTotalProductDiscount += productDiscount * detail.quantity;
+            const originalPrice = product.price ?? 0;
+            const discountPrice = product.discount_price ?? 0;
+            const productDiscount = originalPrice - discountPrice;
+
+            // Get variant price if variant exists
+            let variantPrice = 0;
+            const validVariantId = await this.validateProductVariant(
+              detail.productId,
+              detail.variantId,
+            );
+
+            if (validVariantId) {
+              const variant = await this._prisma.variant.findUnique({
+                where: { id: validVariantId },
+                select: { price: true },
+              });
+
+              if (variant) {
+                variantPrice = variant.price ?? 0;
+              }
+            }
+
+            // Calculate subtotal including variant price
+            const itemSubtotal =
+              (originalPrice + variantPrice) * detail.quantity;
+            originalSubtotal += itemSubtotal;
+            calculatedTotalProductDiscount += productDiscount * detail.quantity;
+          } else if (detail.type === 'bundling') {
+            const productBundling =
+              await this._prisma.catalog_bundling.findUnique({
+                where: { id: detail.bundlingId },
+              });
+
+            if (!productBundling) {
+              throw new NotFoundException(
+                `Product Bundling with ID ${detail.bundlingId} not found`,
+              );
+            }
+
+            const products =
+              await this._prisma.catalog_bundling_has_product.findMany({
+                where: { catalog_bundling_id: detail.bundlingId },
+              });
+
+            let originalSubtotalBundling = 0;
+            for (const item of products) {
+              const product = await this._prisma.products.findUnique({
+                where: { id: item.product_id },
+                select: { price: true, discount_price: true },
+              });
+
+              if (!product) {
+                this.logger.error(
+                  `Product with ID ${detail.productId} not found`,
+                );
+                throw new NotFoundException(
+                  `Product with ID ${detail.productId} not found`,
+                );
+              }
+
+              const originalPrice = product.price ?? 0;
+              originalSubtotalBundling += originalPrice * (item.quantity ?? 0);
+            }
+
+            let totalDiscountBundling = 0;
+            if (productBundling.type == 'DISCOUNT') {
+              totalDiscountBundling =
+                (originalSubtotalBundling *
+                  (productBundling.discount
+                    ? Number(productBundling.discount)
+                    : 0)) /
+                100;
+            } else if (productBundling.type == 'CUSTOM') {
+              if (
+                productBundling.price &&
+                originalSubtotalBundling > productBundling.price
+              ) {
+                totalDiscountBundling =
+                  originalSubtotalBundling - (productBundling.price ?? 0);
+              }
+            }
+
+            originalSubtotal += originalSubtotalBundling * detail.quantity;
+            calculatedTotalProductDiscount +=
+              totalDiscountBundling * detail.quantity;
+          } else {
+            this.logger.error(`Invalid product type ${detail.type}`);
+            throw new NotFoundException(`Invalid product type ${detail.type}`);
+          }
         }
 
         // Set the total product discount to be used outside transaction
@@ -554,6 +671,7 @@ export class InvoiceService {
           invoiceId,
         );
         grandTotal = calculation.grandTotal;
+        totalRedeemDiscount = calculation.totalRedeemDiscount ?? 0;
 
         // Get payment rounding setting for this store
         const paymentRoundingSetting =
@@ -581,6 +699,11 @@ export class InvoiceService {
           // payment rounding
           rounding_setting_id: paymentRoundingSetting?.id ?? undefined,
           rounding_amount: request.rounding_amount ?? undefined,
+          // redeem loyalty
+          loyalty_points_benefit_id: request.redeemLoyalty
+            ? request.redeemLoyalty.loyalty_points_benefit_id
+            : null,
+          loyalty_discount: calculation.totalRedeemDiscount,
         });
 
         // insert the customer has invoice (if exists)
@@ -589,76 +712,253 @@ export class InvoiceService {
         }
 
         for (const detail of request.products) {
-          // Get product data for prices
-          const product = await this._prisma.products.findUnique({
-            where: { id: detail.productId },
-            select: { price: true, discount_price: true },
-          });
+          if (detail.type == 'single') {
+            // Get product data for prices
+            const product = await this._prisma.products.findUnique({
+              where: { id: detail.productId },
+              select: { price: true, discount_price: true },
+            });
 
-          if (!product) {
-            this.logger.error(`Product with ID ${detail.productId} not found`);
-            throw new NotFoundException(
-              `Product with ID ${detail.productId} not found`,
+            if (!product) {
+              this.logger.error(
+                `Product with ID ${detail.productId} not found`,
+              );
+              throw new NotFoundException(
+                `Product with ID ${detail.productId} not found`,
+              );
+            }
+
+            const originalPrice = product.price ?? 0;
+            const discountPrice = product.discount_price ?? 0;
+            const productDiscount = originalPrice - discountPrice;
+
+            // find variant price
+            let variantPrice = 0;
+            const found = calculation.items.find(
+              (p) =>
+                p.productId === detail.productId &&
+                p.variantId === detail.variantId,
             );
-          }
+            if (found) {
+              variantPrice = found.variantPrice;
+            }
 
-          const originalPrice = product.price ?? 0;
-          const discountPrice = product.discount_price ?? 0;
-          const productDiscount = originalPrice - discountPrice;
+            // validate product has variant
+            const validVariantId = await this.validateProductVariant(
+              detail.productId,
+              detail.variantId,
+            );
 
-          // find variant price
-          let variantPrice = 0;
-          const found = calculation.items.find(
-            (p) =>
-              p.productId === detail.productId &&
-              p.variantId === detail.variantId,
-          );
-          if (found) {
-            variantPrice = found.variantPrice;
-          }
-
-          // validate product has variant
-          const validVariantId = await this.validateProductVariant(
-            detail.productId,
-            detail.variantId,
-          );
-
-          // create invoice detail ID
-          const invoiceDetailId = uuidv4();
-          const invoiceDetailData = {
-            id: invoiceDetailId,
-            invoice_id: invoiceId,
-            product_id: detail.productId,
-            product_price: originalPrice, // menggunakan original price
-            notes: detail.notes,
-            order_type: request.orderType,
-            qty: detail.quantity,
-            variant_id: validVariantId,
-            variant_price: variantPrice,
-            product_discount: productDiscount, // discount per unit
-          };
-
-          // create invoice with status unpaid
-          await this.createInvoiceDetail(tx, invoiceDetailData);
-
-          // looping each quantity
-          for (let i = 0; i < detail.quantity; i++) {
-            const queue: KitchenQueueAdd = {
-              id: uuidv4(),
+            // create invoice detail ID
+            const invoiceDetailId = uuidv4();
+            const invoiceDetailData = {
+              id: invoiceDetailId,
               invoice_id: invoiceId,
+              product_id: detail.productId ?? null,
+              catalog_bundling_id: null,
+              product_price: originalPrice, // menggunakan original price
+              notes: detail.notes,
               order_type: request.orderType,
-              order_status: order_status.placed,
-              product_id: detail.productId,
-              variant_id: detail.variantId ?? null,
-              store_id: storeId,
-              customer_id: request.customerId,
-              notes: detail.notes ?? '',
-              created_at: now,
-              updated_at: now,
-              table_code: request.tableCode,
+              qty: detail.quantity,
+              variant_id: validVariantId,
+              variant_price: variantPrice,
+              product_discount: productDiscount, // discount per unit
+              benefit_free_items_id: null,
             };
 
-            kitchenQueue.push(queue);
+            // create invoice with status unpaid
+            await this.createInvoiceDetail(tx, invoiceDetailData);
+
+            // looping each quantity
+            for (let i = 0; i < detail.quantity; i++) {
+              const queue: KitchenQueueAdd = {
+                id: uuidv4(),
+                invoice_id: invoiceId,
+                order_type: request.orderType,
+                order_status: order_status.placed,
+                product_id: detail.productId,
+                variant_id: detail.variantId ?? null,
+                store_id: storeId,
+                customer_id: request.customerId,
+                notes: detail.notes ?? '',
+                created_at: now,
+                updated_at: now,
+                table_code: request.tableCode,
+              };
+
+              kitchenQueue.push(queue);
+            }
+          } else if (detail.type == 'bundling') {
+            const productBundling =
+              await this._prisma.catalog_bundling.findUnique({
+                where: { id: detail.bundlingId },
+              });
+
+            if (!productBundling) {
+              throw new NotFoundException(
+                `Product Bundling with ID ${detail.bundlingId} not found`,
+              );
+            }
+
+            const bundlingProducts =
+              await this._prisma.catalog_bundling_has_product.findMany({
+                where: { catalog_bundling_id: detail.bundlingId },
+              });
+
+            let originSubBundling = 0;
+            let discountSubBundling = 0;
+
+            for (const item of bundlingProducts) {
+              const product = await this._prisma.products.findUnique({
+                where: { id: item.product_id },
+                select: { price: true, discount_price: true },
+              });
+
+              if (!product) {
+                this.logger.error(
+                  `Product with ID ${detail.productId} not found`,
+                );
+                throw new NotFoundException(
+                  `Product with ID ${detail.productId} not found`,
+                );
+              }
+
+              const originalPrice = product.price ?? 0;
+              originSubBundling += originalPrice;
+            }
+
+            if (productBundling.type == 'DISCOUNT') {
+              discountSubBundling =
+                (originSubBundling *
+                  (productBundling.discount
+                    ? Number(productBundling.discount)
+                    : 0)) /
+                100;
+            } else if (productBundling.type == 'CUSTOM') {
+              if (
+                productBundling.price &&
+                originSubBundling > productBundling.price
+              ) {
+                discountSubBundling =
+                  originSubBundling - (productBundling.price ?? 0);
+              }
+            }
+
+            // create invoice detail ID
+            const invoiceDetailId = uuidv4();
+            const invoiceDetailData = {
+              id: invoiceDetailId,
+              invoice_id: invoiceId,
+              product_id: null,
+              catalog_bundling_id: detail.bundlingId ?? null,
+              product_price: originSubBundling,
+              notes: detail.notes,
+              order_type: request.orderType,
+              qty: detail.quantity,
+              variant_id: null,
+              variant_price: null,
+              product_discount: discountSubBundling,
+              benefit_free_items_id: null,
+            };
+
+            // create invoice with status unpaid
+            await this.createInvoiceDetail(tx, invoiceDetailData);
+
+            // insert all bundled products to invoice_bundling_items
+            for (const bp of bundlingProducts) {
+              await tx.invoice_bundling_items.create({
+                data: {
+                  id: uuidv4(),
+                  invoice_id: invoiceId,
+                  invoice_detail_id: invoiceDetailId,
+                  product_id: bp.product_id,
+                  qty: detail.quantity ?? 1,
+                  created_at: now,
+                  updated_at: now,
+                },
+              });
+
+              // Add each product in bundling to kitchen queue
+              for (let i = 0; i < (bp.quantity ?? 1) * detail.quantity; i++) {
+                kitchenQueue.push({
+                  id: uuidv4(),
+                  invoice_id: invoiceId,
+                  order_type: request.orderType,
+                  order_status: order_status.placed,
+                  product_id: bp.product_id,
+                  catalog_bundling_id: bp.catalog_bundling_id,
+                  store_id: storeId,
+                  customer_id: request.customerId,
+                  notes: detail.notes ?? null,
+                  created_at: now,
+                  updated_at: now,
+                  table_code: request.tableCode,
+                });
+              }
+            }
+          } else {
+            this.logger.error(`Invalid product type ${detail.type}`);
+            throw new NotFoundException(`Invalid product type ${detail.type}`);
+          }
+        }
+
+        // Add redeem item
+        if (request.customerId && request.redeemLoyalty) {
+          const redeemItem =
+            await this._prisma.loyalty_points_benefit.findFirst({
+              where: {
+                id: request.redeemLoyalty.loyalty_points_benefit_id,
+                type: 'free_items',
+              },
+              include: {
+                benefit_free_items: {
+                  include: {
+                    products: true,
+                  },
+                },
+              },
+            });
+
+          if (redeemItem) {
+            for (const item of redeemItem.benefit_free_items) {
+              // Create invoice detail
+              const invoiceDetailId = uuidv4();
+              const invoiceDetailData = {
+                id: invoiceDetailId,
+                invoice_id: invoiceId,
+                product_id: item.product_id,
+                catalog_bundling_id: null,
+                product_price: 0,
+                notes: null,
+                order_type: request.orderType,
+                qty: item.quantity,
+                variant_id: null,
+                variant_price: null,
+                product_discount: null,
+                benefit_free_items_id: item.id,
+              };
+
+              // create invoice with status unpaid
+              await this.createInvoiceDetail(tx, invoiceDetailData);
+
+              // Create kithcen queue
+              const queue: KitchenQueueAdd = {
+                id: uuidv4(),
+                invoice_id: invoiceId,
+                order_type: request.orderType,
+                order_status: order_status.placed,
+                product_id: item.product_id,
+                variant_id: null,
+                store_id: storeId,
+                customer_id: request.customerId,
+                notes: '',
+                created_at: now,
+                updated_at: now,
+                table_code: request.tableCode,
+              };
+
+              kitchenQueue.push(queue);
+            }
           }
         }
 
@@ -708,6 +1008,7 @@ export class InvoiceService {
       );
       return {
         ...response,
+        invoiceId: invoiceId,
         qrImage: integration?.image || null,
       };
     }
@@ -717,11 +1018,29 @@ export class InvoiceService {
       await this.createStockAdjustmentsForInvoice(invoiceId, storeId);
     }
 
+    // Check loyalty points if customer exists
+    if (request.customerId && request.provider === 'cash') {
+      const getPoints = await this.calculateLoyaltyPoints(
+        storeId,
+        request.products,
+        grandTotal,
+        request.redeemLoyalty ?? null,
+      );
+
+      await this.updateCustomerPoint(
+        invoiceId,
+        request.customerId,
+        request.redeemLoyalty ?? null,
+        getPoints,
+      );
+    }
+
     return {
       paymentMethodId: request.paymentMethodId,
       invoiceId: invoiceId,
       grandTotal: grandTotal,
       totalProductDiscount: totalProductDiscount,
+      totalRedeemDiscount: totalRedeemDiscount,
     };
   }
 
@@ -744,50 +1063,113 @@ export class InvoiceService {
       let calculatedTotalProductDiscount = 0;
 
       for (const detail of request.products) {
-        const product = await this._prisma.products.findUnique({
-          where: { id: detail.productId },
-          select: { price: true, discount_price: true },
-        });
-
-        if (!product) {
-          this.logger.error(`Product with ID ${detail.productId} not found`);
-          throw new NotFoundException(
-            `Product with ID ${detail.productId} not found`,
-          );
-        }
-
-        const originalPrice = product.price ?? 0;
-        const discountPrice = product.discount_price ?? 0;
-        const productDiscount = originalPrice - discountPrice;
-
-        // Get variant price if variant exists
-        let variantPrice = 0;
-        const validVariantId = await this.validateProductVariant(
-          detail.productId,
-          detail.variantId,
-        );
-
-        if (validVariantId) {
-          const variant = await this._prisma.variant.findUnique({
-            where: { id: validVariantId },
-            select: { price: true },
+        if (detail.type === 'single') {
+          const product = await this._prisma.products.findUnique({
+            where: { id: detail.productId },
+            select: { price: true, discount_price: true },
           });
 
-          if (variant) {
-            variantPrice = variant.price ?? 0;
+          if (!product) {
+            this.logger.error(`Product with ID ${detail.productId} not found`);
+            throw new NotFoundException(
+              `Product with ID ${detail.productId} not found`,
+            );
           }
-        }
 
-        // Calculate subtotal including variant price
-        const itemSubtotal = (originalPrice + variantPrice) * detail.quantity;
-        originalSubtotal += itemSubtotal;
-        calculatedTotalProductDiscount += productDiscount * detail.quantity;
+          const originalPrice = product.price ?? 0;
+          const discountPrice = product.discount_price ?? 0;
+          const productDiscount = originalPrice - discountPrice;
+
+          // Get variant price if variant exists
+          let variantPrice = 0;
+          const validVariantId = await this.validateProductVariant(
+            detail.productId,
+            detail.variantId,
+          );
+
+          if (validVariantId) {
+            const variant = await this._prisma.variant.findUnique({
+              where: { id: validVariantId },
+              select: { price: true },
+            });
+
+            if (variant) {
+              variantPrice = variant.price ?? 0;
+            }
+          }
+
+          // Calculate subtotal including variant price
+          const itemSubtotal = (originalPrice + variantPrice) * detail.quantity;
+          originalSubtotal += itemSubtotal;
+          calculatedTotalProductDiscount += productDiscount * detail.quantity;
+        } else if (detail.type === 'bundling') {
+          const productBundling =
+            await this._prisma.catalog_bundling.findUnique({
+              where: { id: detail.bundlingId },
+            });
+
+          if (!productBundling) {
+            throw new NotFoundException(
+              `Product Bundling with ID ${detail.bundlingId} not found`,
+            );
+          }
+
+          const products =
+            await this._prisma.catalog_bundling_has_product.findMany({
+              where: { catalog_bundling_id: detail.bundlingId },
+            });
+
+          let originalSubtotalBundling = 0;
+          for (const item of products) {
+            const product = await this._prisma.products.findUnique({
+              where: { id: item.product_id },
+              select: { price: true, discount_price: true },
+            });
+
+            if (!product) {
+              this.logger.error(
+                `Product with ID ${detail.productId} not found`,
+              );
+              throw new NotFoundException(
+                `Product with ID ${detail.productId} not found`,
+              );
+            }
+
+            const originalPrice = product.price ?? 0;
+            originalSubtotalBundling += originalPrice * detail.quantity;
+          }
+
+          let totalDiscountBundling = 0;
+          if (productBundling.type == 'DISCOUNT') {
+            totalDiscountBundling =
+              (originalSubtotalBundling *
+                (productBundling.discount
+                  ? Number(productBundling.discount)
+                  : 0)) /
+              100;
+          } else if (productBundling.type == 'CUSTOM') {
+            if (
+              productBundling.price &&
+              originalSubtotalBundling > productBundling.price
+            ) {
+              totalDiscountBundling =
+                originalSubtotalBundling - (productBundling.price ?? 0);
+            }
+          }
+
+          originalSubtotal += originalSubtotalBundling * detail.quantity;
+          calculatedTotalProductDiscount +=
+            totalDiscountBundling * detail.quantity;
+        } else {
+          this.logger.error(`Invalid product type ${detail.type}`);
+          throw new NotFoundException(`Invalid product type ${detail.type}`);
+        }
       }
 
       // Set the total product discount to be used outside transaction
       totalProductDiscount = calculatedTotalProductDiscount;
 
-      const calculation = await this.calculateTotal(tx, request, storeId);
+      const calculation = await this.calculateTotal(tx, request, storeId, invoiceId);
 
       // Get payment rounding setting for this store
       const paymentRoundingSetting =
@@ -832,82 +1214,200 @@ export class InvoiceService {
         total_product_discount: calculatedTotalProductDiscount,
         rounding_setting_id: paymentRoundingSetting?.id ?? null,
         rounding_amount: request.rounding_amount ?? null,
+        loyalty_points_benefit_id:
+          request.redeemLoyalty?.loyalty_points_benefit_id ?? null,
+        loyalty_discount: calculation.totalRedeemDiscount ?? 0,
       };
 
       // create invoice with status unpaid
       await this.create(tx, invoiceData);
 
       for (const detail of request.products) {
-        // Get product data for prices
-        const product = await this._prisma.products.findUnique({
-          where: { id: detail.productId },
-          select: { price: true, discount_price: true },
-        });
+        if (detail.type == 'single') {
+          // Get product data for prices
+          const product = await this._prisma.products.findUnique({
+            where: { id: detail.productId },
+            select: { price: true, discount_price: true },
+          });
 
-        if (!product) {
-          this.logger.error(`Product with ID ${detail.productId} not found`);
-          throw new NotFoundException(
-            `Product with ID ${detail.productId} not found`,
+          if (!product) {
+            this.logger.error(`Product with ID ${detail.productId} not found`);
+            throw new NotFoundException(
+              `Product with ID ${detail.productId} not found`,
+            );
+          }
+
+          const originalPrice = product.price ?? 0;
+          const discountPrice = product.discount_price ?? 0;
+          const productDiscount = originalPrice - discountPrice;
+
+          // find the price
+          let variantPrice = 0;
+          const found = calculation.items.find(
+            (p) =>
+              p.productId === detail.productId &&
+              p.variantId === detail.variantId,
           );
-        }
+          if (found) {
+            variantPrice = found.variantPrice;
+          }
 
-        const originalPrice = product.price ?? 0;
-        const discountPrice = product.discount_price ?? 0;
-        const productDiscount = originalPrice - discountPrice;
+          // validate product has variant
+          const validVariantId = await this.validateProductVariant(
+            detail.productId,
+            detail.variantId,
+          );
 
-        // find the price
-        let variantPrice = 0;
-        const found = calculation.items.find(
-          (p) =>
-            p.productId === detail.productId &&
-            p.variantId === detail.variantId,
-        );
-        if (found) {
-          variantPrice = found.variantPrice;
-        }
-
-        // validate product has variant
-        const validVariantId = await this.validateProductVariant(
-          detail.productId,
-          detail.variantId,
-        );
-
-        // create invoice detail ID
-        const invoiceDetailId = uuidv4();
-        const invoiceDetailData = {
-          id: invoiceDetailId,
-          invoice_id: invoiceId,
-          product_id: detail.productId,
-          product_price: originalPrice, // menggunakan original price
-          notes: detail.notes,
-          order_type: request.orderType,
-          qty: detail.quantity,
-          variant_id: validVariantId,
-          variant_price: variantPrice,
-          product_discount: productDiscount, // discount per unit
-        };
-
-        // create invoice with status unpaid
-        await this.createInvoiceDetail(tx, invoiceDetailData);
-
-        // looping each quantity
-        for (let i = 0; i < detail.quantity; i++) {
-          const queue: KitchenQueueAdd = {
-            id: uuidv4(),
+          // create invoice detail ID
+          const invoiceDetailId = uuidv4();
+          const invoiceDetailData = {
+            id: invoiceDetailId,
             invoice_id: invoiceId,
+            product_id: detail.productId ?? null,
+            catalog_bundling_id: detail.bundlingId ?? null,
+            product_price: originalPrice, // menggunakan original price
+            notes: detail.notes,
             order_type: request.orderType,
-            order_status: order_status.placed,
-            product_id: detail.productId,
-            variant_id: detail.variantId ?? null,
-            store_id: storeId,
-            customer_id: request.customerId,
-            notes: detail.notes ?? '',
-            created_at: now,
-            updated_at: now,
-            table_code: request.tableCode,
+            qty: detail.quantity,
+            variant_id: validVariantId,
+            variant_price: variantPrice,
+            product_discount: productDiscount, // discount per unit
+            benefit_free_items_id: null,
           };
 
-          kitchenQueue.push(queue);
+          // create invoice with status unpaid
+          await this.createInvoiceDetail(tx, invoiceDetailData);
+
+          // looping each quantity
+          for (let i = 0; i < detail.quantity; i++) {
+            const queue: KitchenQueueAdd = {
+              id: uuidv4(),
+              invoice_id: invoiceId,
+              order_type: request.orderType,
+              order_status: order_status.placed,
+              product_id: detail.productId,
+              variant_id: detail.variantId ?? null,
+              store_id: storeId,
+              customer_id: request.customerId,
+              notes: detail.notes ?? '',
+              created_at: now,
+              updated_at: now,
+              table_code: request.tableCode,
+            };
+
+            kitchenQueue.push(queue);
+          }
+        } else if (detail.type == 'bundling') {
+          const productBundling =
+            await this._prisma.catalog_bundling.findUnique({
+              where: { id: detail.bundlingId },
+            });
+
+          if (!productBundling) {
+            throw new NotFoundException(
+              `Product Bundling with ID ${detail.bundlingId} not found`,
+            );
+          }
+
+          const bundlingProducts =
+            await this._prisma.catalog_bundling_has_product.findMany({
+              where: { catalog_bundling_id: detail.bundlingId },
+            });
+
+          let originSubBundling = 0;
+          let discountSubBundling = 0;
+
+          for (const item of bundlingProducts) {
+            const product = await this._prisma.products.findUnique({
+              where: { id: item.product_id },
+              select: { price: true, discount_price: true },
+            });
+
+            if (!product) {
+              this.logger.error(
+                `Product with ID ${detail.productId} not found`,
+              );
+              throw new NotFoundException(
+                `Product with ID ${detail.productId} not found`,
+              );
+            }
+
+            const originalPrice = product.price ?? 0;
+            originSubBundling += originalPrice;
+          }
+
+          if (productBundling.type == 'DISCOUNT') {
+            discountSubBundling =
+              (originSubBundling *
+                (productBundling.discount
+                  ? Number(productBundling.discount)
+                  : 0)) /
+              100;
+          } else if (productBundling.type == 'CUSTOM') {
+            if (
+              productBundling.price &&
+              originSubBundling > productBundling.price
+            ) {
+              discountSubBundling =
+                originSubBundling - (productBundling.price ?? 0);
+            }
+          }
+
+          // create invoice detail ID
+          const invoiceDetailId = uuidv4();
+          const invoiceDetailData = {
+            id: invoiceDetailId,
+            invoice_id: invoiceId,
+            product_id: null,
+            catalog_bundling_id: detail.bundlingId ?? null,
+            product_price: originSubBundling, // menggunakan original price
+            notes: detail.notes,
+            order_type: request.orderType,
+            qty: detail.quantity,
+            variant_id: null,
+            variant_price: null,
+            product_discount: discountSubBundling, // discount per unit
+            benefit_free_items_id: null,
+          };
+
+          // create invoice with status unpaid
+          await this.createInvoiceDetail(tx, invoiceDetailData);
+
+          // insert all bundled products to invoice_bundling_items
+          for (const bp of bundlingProducts) {
+            await tx.invoice_bundling_items.create({
+              data: {
+                id: uuidv4(),
+                invoice_id: invoiceId,
+                invoice_detail_id: invoiceDetailId,
+                product_id: bp.product_id,
+                qty: detail.quantity ?? 1,
+                created_at: now,
+                updated_at: now,
+              },
+            });
+
+            // Add each product in bundling to kitchen queue
+            for (let i = 0; i < (bp.quantity ?? 1) * detail.quantity; i++) {
+              kitchenQueue.push({
+                id: uuidv4(),
+                invoice_id: invoiceId,
+                order_type: request.orderType,
+                order_status: order_status.placed,
+                product_id: bp.product_id,
+                catalog_bundling_id: bp.catalog_bundling_id,
+                store_id: storeId,
+                customer_id: request.customerId,
+                notes: detail.notes ?? null,
+                created_at: now,
+                updated_at: now,
+                table_code: request.tableCode,
+              });
+            }
+          }
+        } else {
+          this.logger.error(`Invalid product type ${detail.type}`);
+          throw new NotFoundException(`Invalid product type ${detail.type}`);
         }
       }
 
@@ -1146,7 +1646,7 @@ export class InvoiceService {
         // Handle deletion of products that were removed from frontend payload
         const toDeleteProductIds = kitchenQueues
           .map((q) => q.product_id)
-          .filter((pid) => !feProductIds.includes(pid));
+          .filter((pid) => !feProductIds.includes(pid ?? ''));
 
         const uniqueToDelete = [...new Set(toDeleteProductIds)];
 
@@ -1164,7 +1664,7 @@ export class InvoiceService {
             (q) => q.order_status !== order_status.placed,
           );
 
-          if (hasInProgress) {
+          if (hasInProgress && productId) {
             // Get product name for better error message
             const product = await tx.products.findUnique({
               where: { id: productId },
@@ -1251,13 +1751,16 @@ export class InvoiceService {
     const invoiceDetailData = {
       id: uuidv4(),
       invoice_id: invoice.id,
-      product_id: product.productId,
+      type: product.type ?? null,
+      product_id: product.productId ?? null,
+      catalog_bundling_id: product.bundlingId ?? null,
       product_price: productPrice,
       notes: product.notes ?? null,
       qty: product.quantity,
       variant_id: product.variantId ?? null,
       variant_price: variantPrice ?? 0,
       product_discount: 0,
+      benefit_free_items_id: null,
     };
 
     await this.createInvoiceDetail(tx, invoiceDetailData);
@@ -1370,7 +1873,10 @@ export class InvoiceService {
       throw new BadRequestException(`Invoice status is not unpaid`);
     }
 
-    await this.validatePaymentMethod(request.paymentMethodId, request.provider);
+    const method = await this.validatePaymentMethod(
+      request.paymentMethodId,
+      request.provider,
+    );
 
     // define payment method and provider
     const paymentProvider =
@@ -1431,10 +1937,11 @@ export class InvoiceService {
 
       // update invoice
       await this.update(tx, invoice.id, {
-        payment_status: invoice_type.paid,
+        payment_status:
+          method.name === 'Cash' ? invoice_type.paid : invoice_type.unpaid,
         subtotal: calculation.subTotal, // harga sebelum potongan voucher
         tax_id: calculation.taxId,
-        paid_at: new Date(),
+        paid_at: method.name === 'Cash' ? new Date() : undefined,
         service_charge_id: calculation.serviceChargeId,
         tax_amount: calculation.tax,
         service_charge_amount: calculation.serviceCharge,
@@ -1446,13 +1953,22 @@ export class InvoiceService {
       });
     });
 
-    if (request.provider !== 'cash') {
-      await this.initiatePaymentBasedOnMethod(
-        request.paymentMethodId,
-        paymentProvider,
-        invoice.id,
-        grandTotal,
-      );
+    const integration = await this._prisma.integrations.findFirst({
+      where: { stores_id: storeId },
+    });
+    if (method.name === 'Qris') {
+      // const response = await this.initiatePaymentBasedOnMethod(
+      //   request.paymentMethodId,
+      //   paymentProvider,
+      //   invoice.id,
+      //   grandTotal,
+      // );
+      return {
+        paymentMethodId: request.paymentMethodId,
+        invoiceId: invoice.id,
+        grandTotal: grandTotal,
+        qrImage: integration?.image || null,
+      };
     }
 
     // get opened cash drawer
@@ -1479,6 +1995,29 @@ export class InvoiceService {
 
     // Create stock adjustments for completed payment
     await this.createStockAdjustmentsForInvoice(invoice.id, storeId);
+
+    // Update loyalty points
+    if (method.name === 'Cash') {
+      const getData = await this.prepareUpdateLoyaltyPoints(
+        storeId,
+        invoice.id,
+      );
+      if (getData.canUpdateLoyalty) {
+        const getPoints = await this.calculateLoyaltyPoints(
+          storeId,
+          getData.products,
+          grandTotal,
+          getData.redeemLoyalty,
+        );
+
+        await this.updateCustomerPoint(
+          invoice.id,
+          invoice.customer_id ?? null,
+          getData.redeemLoyalty,
+          getPoints,
+        );
+      }
+    }
 
     return {
       paymentMethodId: request.paymentMethodId,
@@ -1529,6 +2068,29 @@ export class InvoiceService {
     // Create stock adjustments if payment is successful
     if (status === invoice_type.paid) {
       await this.createStockAdjustmentsForInvoice(order_id, invoice.store_id!);
+
+      // Update loyalty points
+      if (invoice.store_id) {
+        const getData = await this.prepareUpdateLoyaltyPoints(
+          invoice.store_id,
+          invoice.id,
+        );
+        if (getData.canUpdateLoyalty) {
+          const getPoints = await this.calculateLoyaltyPoints(
+            invoice.store_id,
+            getData.products,
+            invoice.grand_total ?? 0,
+            getData.redeemLoyalty,
+          );
+
+          await this.updateCustomerPoint(
+            invoice.id,
+            invoice.customer_id ?? null,
+            getData.redeemLoyalty,
+            getPoints,
+          );
+        }
+      }
     }
 
     return {
@@ -1605,6 +2167,29 @@ export class InvoiceService {
         requestCallback.order_id,
         invoice.store_id!,
       );
+
+      // Update loyalty points
+      if (invoice.store_id) {
+        const getData = await this.prepareUpdateLoyaltyPoints(
+          invoice.store_id,
+          invoice.id,
+        );
+        if (getData.canUpdateLoyalty) {
+          const getPoints = await this.calculateLoyaltyPoints(
+            invoice.store_id,
+            getData.products,
+            invoice.grand_total ?? 0,
+            getData.redeemLoyalty,
+          );
+
+          await this.updateCustomerPoint(
+            invoice.id,
+            invoice.customer_id ?? null,
+            getData.redeemLoyalty,
+            getPoints,
+          );
+        }
+      }
     }
 
     return {
@@ -1630,65 +2215,139 @@ export class InvoiceService {
     let serviceChargeId = '';
     let paymentAmount = 0;
     let changeAmount = 0;
+    let totalPointsEarn = 0;
+    let totalRedeemDiscount = 0;
     const items = [];
 
     for (const item of request.products) {
-      const product = await this._prisma.products.findUnique({
-        where: { id: item.productId },
-        select: { price: true, discount_price: true },
-      });
-
-      if (!product) {
-        this.logger.error(`Product with ID ${item.productId} not found`);
-        throw new NotFoundException(
-          `Product with ID ${item.productId} not found`,
-        );
-      }
-
-      // using the discounted price to proceed calculation
-      const originalPrice = product.price ?? 0;
-      const discountedPrice =
-        product.discount_price !== null && product.discount_price > 0
-          ? product.discount_price
-          : originalPrice;
-      const productPrice = discountedPrice;
-      let variantPrice = 0;
-
-      const validVariantId = await this.validateProductVariant(
-        item.productId,
-        item.variantId,
-      );
-
-      if (validVariantId) {
-        const variant = await this._prisma.variant.findUnique({
-          where: { id: validVariantId },
-          select: { price: true },
+      if (item.type === 'single') {
+        const product = await this._prisma.products.findUnique({
+          where: { id: item.productId },
+          select: { price: true, discount_price: true },
         });
 
-        if (variant) {
-          variantPrice = variant.price ?? 0;
-        } else {
-          this.logger.warn(
-            `Variant with ID ${validVariantId} not found, skipping variant price`,
+        if (!product) {
+          this.logger.error(`Product with ID ${item.productId} not found`);
+          throw new NotFoundException(
+            `Product with ID ${item.productId} not found`,
           );
         }
+
+        // using the discounted price to proceed calculation
+        const originalPrice = product.price ?? 0;
+        const discountedPrice =
+          product.discount_price !== null && product.discount_price > 0
+            ? product.discount_price
+            : originalPrice;
+        const productPrice = discountedPrice;
+        let variantPrice = 0;
+
+        const validVariantId = await this.validateProductVariant(
+          item.productId,
+          item.variantId,
+        );
+
+        if (validVariantId) {
+          const variant = await this._prisma.variant.findUnique({
+            where: { id: validVariantId },
+            select: { price: true },
+          });
+
+          if (variant) {
+            variantPrice = variant.price ?? 0;
+          } else {
+            this.logger.warn(
+              `Variant with ID ${validVariantId} not found, skipping variant price`,
+            );
+          }
+        }
+
+        const discountAmount =
+          (originalPrice - discountedPrice) * item.quantity;
+        const lineTotal = (originalPrice + variantPrice) * item.quantity;
+        discountTotal += discountAmount;
+        total += lineTotal;
+
+        items.push({
+          type: 'single' as const,
+          productId: item.productId,
+          variantId: item.variantId,
+          bundlingId: null,
+          productPrice,
+          originalPrice,
+          variantPrice,
+          qty: item.quantity,
+          discountAmount: discountAmount,
+          subtotal: lineTotal,
+        });
+      } else if (item.type === 'bundling') {
+        const bundling = await this._prisma.catalog_bundling.findUnique({
+          where: { id: item.bundlingId },
+          select: {
+            name: true,
+            price: true,
+            discount: true,
+            type: true,
+            catalog_bundling_has_product: {
+              select: {
+                quantity: true,
+                products: {
+                  select: {
+                    price: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        if (!bundling) {
+          this.logger.error(`Bundling data not found in request for item.`);
+          throw new BadRequestException(`Bundling data not found in request`);
+        }
+
+        const totalBundlingOrigin =
+          bundling.catalog_bundling_has_product.reduce((acc, bp) => {
+            const qty = bp.quantity ?? 1;
+            const price = bp.products?.price ?? 0;
+            return acc + qty * price;
+          }, 0);
+
+        let totalDiscountBundling = 0;
+
+        if (bundling.type == 'DISCOUNT') {
+          totalDiscountBundling =
+            (totalBundlingOrigin *
+              (bundling.discount ? Number(bundling.discount) : 0)) /
+            100;
+        } else if (bundling.type == 'CUSTOM') {
+          if (bundling.price && totalBundlingOrigin > bundling.price) {
+            totalDiscountBundling = totalBundlingOrigin - (bundling.price ?? 0);
+          }
+        }
+
+        if (totalDiscountBundling > 0) {
+          discountTotal += totalDiscountBundling * item.quantity;
+        }
+
+        items.push({
+          type: 'bundling' as const,
+          productId: null,
+          variantId: null,
+          bundlingId: item.bundlingId ?? null,
+          name: bundling.name,
+          productPrice: totalBundlingOrigin,
+          variantPrice: 0,
+          qty: item.quantity,
+          subtotal: totalBundlingOrigin * item.quantity,
+          discountAmount: totalDiscountBundling * item.quantity,
+        });
+
+        total += totalBundlingOrigin * item.quantity;
+      } else {
+        this.logger.error(`Invalid product type ${item.type}`);
+        throw new NotFoundException(`Invalid product type ${item.type}`);
       }
-
-      const discountAmount = (originalPrice - discountedPrice) * item.quantity;
-      const lineTotal = (originalPrice + variantPrice) * item.quantity;
-      discountTotal += discountAmount;
-      total += lineTotal;
-
-      items.push({
-        productId: item.productId,
-        variantId: item.variantId,
-        productPrice,
-        originalPrice,
-        variantPrice,
-        qty: item.quantity,
-        discountAmount: discountAmount,
-        subtotal: lineTotal,
-      });
     }
 
     // harga sebelum potongan voucher
@@ -1698,11 +2357,15 @@ export class InvoiceService {
 
     let voucherAmount = 0;
     if (request?.voucherId) {
+      const productIds = request.products
+        .filter((p) => p.type === 'single')
+        .map((p) => p.productId);
+
       const voucherCalculation = await this._voucherService.voucherCalculation(
         // voucher id
         request.voucherId,
         // product ids
-        request.products.map((product) => product.productId),
+        productIds,
         // grand total
         total,
         // biar tidak ngitung max quota
@@ -1737,11 +2400,18 @@ export class InvoiceService {
       if (serviceApplicable) {
         const percentage = Number(serviceCharge.percentage);
         if (serviceCharge.is_include) {
-          // If service include, means has include total
-          serviceAmount = subTotal - subTotal / (1 + percentage);
+          if (serviceCharge.is_percent) {
+            serviceAmount = subTotal - subTotal / (1 + percentage);
+          } else {
+            serviceAmount = serviceCharge.percentage.toNumber();
+          }
         } else {
           // If service exclude, count service as an additional
-          serviceAmount = subTotal * percentage;
+          if (serviceCharge.is_percent) {
+            serviceAmount = subTotal * percentage;
+          } else {
+            serviceAmount = serviceCharge.percentage.toNumber();
+          }
           grandTotal += serviceAmount;
         }
 
@@ -1801,6 +2471,60 @@ export class InvoiceService {
             is_include: taxType,
           };
           await this.upsertInvoiceCharge(tx, invoiceCharge);
+        }
+      }
+    }
+
+    // Calculate total points
+    if ((request.customerId || invoiceId) && storeId) {
+      let redeemLoyalty = request.redeemLoyalty ?? null;
+
+      if (invoiceId) {
+        const getInvoice = await this._prisma.invoice.findFirst({
+          where: {
+            id: invoiceId
+          }
+        });
+
+        if (getInvoice && getInvoice.loyalty_points_benefit_id) {
+          redeemLoyalty = {
+            loyalty_points_benefit_id: getInvoice.loyalty_points_benefit_id
+          }
+        }
+      }
+
+      const getPoints = await this.calculateLoyaltyPoints(
+        storeId,
+        request.products,
+        grandTotal,
+        redeemLoyalty,
+      );
+
+      totalPointsEarn =
+        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+
+      if (redeemLoyalty) {
+        const benefit = await this._prisma.loyalty_points_benefit.findFirst({
+          where: {
+            id: redeemLoyalty.loyalty_points_benefit_id,
+          },
+        });
+
+        if (benefit && benefit.type == 'discount') {
+          const discountValue = benefit.discount_value ?? 0;
+          const isPercent = benefit.is_percent ?? false;
+
+          if (isPercent) {
+            totalRedeemDiscount = grandTotal * (discountValue / 100);
+          } else {
+            totalRedeemDiscount = discountValue;
+          }
+
+          if (totalRedeemDiscount > grandTotal) {
+            totalRedeemDiscount = grandTotal;
+          }
+
+          grandTotal -= totalRedeemDiscount;
         }
       }
     }
@@ -1880,6 +2604,8 @@ export class InvoiceService {
       items,
       roundingAdjustment,
       paymentRoundingSetting,
+      totalPointsEarn,
+      totalRedeemDiscount,
     };
   }
 
@@ -1923,7 +2649,6 @@ export class InvoiceService {
         message: 'Cash payment does not require gateway initiation',
       };
     }
-
     switch (paymentMethod?.name) {
       case 'Snap':
         return await provider.initiatePaymentSnap(orderId, amount);
@@ -2011,7 +2736,7 @@ export class InvoiceService {
       const invoiceChargeData = {
         invoice_id: request.invoice_id,
         charge_id: request.charge_id,
-        percentage: request.percentage,
+        percentage: new Prisma.Decimal(request.percentage),
         amount: request.amount,
         is_include: request.is_include,
       };
@@ -2019,8 +2744,8 @@ export class InvoiceService {
       return await this.createInvoiceCharge(tx, invoiceChargeData);
     } else {
       // if tax or service exist update
-      invoiceCharge.percentage = request.percentage;
-      invoiceCharge.amount = request.amount;
+      invoiceCharge.percentage = new Prisma.Decimal(request.percentage);
+      invoiceCharge.amount = new Prisma.Decimal(request.amount);
 
       await this.updateInvoiceCharge(tx, invoiceCharge);
       return invoiceCharge;
@@ -2147,6 +2872,223 @@ export class InvoiceService {
     }
   }
 
+  private async prepareUpdateLoyaltyPoints(storeId: string, invoiceId: string) {
+    let canUpdateLoyalty = false;
+    let products: any = [];
+    let redeemLoyalty = null;
+
+    const loyaltySetting = await this._prisma.loyalty_point_settings.findFirst({
+      where: {
+        storesId: storeId,
+      },
+    });
+
+    if (
+      loyaltySetting &&
+      (loyaltySetting.spend_based || loyaltySetting.product_based)
+    ) {
+      canUpdateLoyalty = true;
+
+      const getInvoice = await this._prisma.invoice.findFirst({
+        where: { id: invoiceId },
+        include: {
+          invoice_details: {
+            where: {
+              product_id: { not: null },
+            },
+            include: {
+              products: true,
+            },
+          },
+        },
+      });
+
+      products =
+        getInvoice?.invoice_details.map((d) => ({
+          ...d.products,
+        })) ?? [];
+    }
+
+    return {
+      canUpdateLoyalty,
+      products,
+      redeemLoyalty,
+    };
+  }
+
+  private async calculateLoyaltyPoints(
+    storeId: string,
+    products: any = [],
+    grandTotal: number,
+    redeemLoyalty: RedeemLoyaltyDto | null,
+  ) {
+    let earnPointsBySpend = 0;
+    let earnPointsByProduct = 0;
+    let descriptionBySpend = '';
+    let descriptionByProduct = '';
+    let description = '';
+
+    const loyaltySettings = await this._prisma.loyalty_point_settings.findFirst(
+      {
+        where: { storesId: storeId },
+      },
+    );
+
+    if (loyaltySettings) {
+      // Calculate points if spend based is enabled
+      if (loyaltySettings.spend_based) {
+        const minTrans = loyaltySettings.minimum_transaction ?? 0;
+        const pointsPerTrans = loyaltySettings.points_per_transaction ?? 0;
+        const getPointsOnSpendBaseRedemption =
+          loyaltySettings.spend_based_get_points_on_redemption ?? false;
+        const canEarnPoints =
+          !redeemLoyalty || (redeemLoyalty && getPointsOnSpendBaseRedemption);
+
+        if (canEarnPoints && grandTotal >= minTrans) {
+          if (loyaltySettings.spend_based_points_apply_multiple) {
+            const multiplier = Math.floor(grandTotal / minTrans);
+            earnPointsBySpend += multiplier * pointsPerTrans;
+          } else {
+            earnPointsBySpend += pointsPerTrans;
+          }
+
+          descriptionBySpend =
+            earnPointsBySpend > 0
+              ? 'Earned from based spend = ' + earnPointsBySpend
+              : '';
+        }
+      }
+
+      // Calculate points if product based is enabled
+      if (loyaltySettings.product_based) {
+        const getPointsOnProductBaseRedemption =
+          loyaltySettings.product_based_get_points_on_redemption ?? false;
+        const canEarnPoints =
+          !redeemLoyalty || (redeemLoyalty && getPointsOnProductBaseRedemption);
+
+        if (canEarnPoints) {
+          for (const product of products) {
+            if (product.type == 'single') {
+              const loyaltyItem =
+                await this._prisma.loyalty_product_item.findFirst({
+                  where: {
+                    loyalty_point_setting_id: loyaltySettings.id,
+                    product_id: product.productId,
+                  },
+                });
+
+              if (loyaltyItem) {
+                const qty = product.quantity ?? 0;
+                const minimumPurchase = loyaltyItem.minimum_transaction ?? 0;
+
+                if (qty >= minimumPurchase) {
+                  if (loyaltySettings.product_based_points_apply_multiple) {
+                    const multiplierProduct = Math.floor(qty / minimumPurchase);
+                    earnPointsByProduct +=
+                      multiplierProduct * (loyaltyItem.points ?? 0);
+                  } else {
+                    earnPointsByProduct += loyaltyItem.points ?? 0;
+                  }
+                }
+              }
+            }
+          }
+
+          descriptionByProduct =
+            earnPointsByProduct > 0
+              ? 'Earned from product spend = ' + earnPointsByProduct
+              : '';
+        }
+      }
+
+      if (earnPointsBySpend > 0 || earnPointsByProduct > 0) {
+        let descriptionParts: string[] = [];
+
+        if (descriptionBySpend) {
+          descriptionParts.push(descriptionBySpend);
+        }
+
+        if (descriptionByProduct) {
+          descriptionParts.push(descriptionByProduct);
+        }
+
+        description = descriptionParts.join(' and ');
+      }
+    }
+
+    return {
+      earnPointsBySpend,
+      earnPointsByProduct,
+      description,
+    };
+  }
+
+  private async updateCustomerPoint(
+    invoiceId: string,
+    customerId: string | null,
+    redeemLoyalty: RedeemLoyaltyDto | null,
+    points: any,
+  ) {
+    if (
+      customerId &&
+      (points.earnPointsBySpend > 0 || points.earnPointsByProduct > 0)
+    ) {
+      await this._prisma.customer_loyalty_transactions.create({
+        data: {
+          customer_id: customerId,
+          invoice_id: invoiceId,
+          type: 'earn',
+          points: points.earnPointsBySpend + points.earnPointsByProduct,
+          description: points.description,
+        },
+      });
+
+      if (redeemLoyalty) {
+        const benefit = await this._prisma.loyalty_points_benefit.findFirst({
+          where: {
+            id: redeemLoyalty.loyalty_points_benefit_id,
+          },
+        });
+
+        if (benefit) {
+          await this._prisma.customer_loyalty_transactions.create({
+            data: {
+              customer_id: customerId,
+              invoice_id: invoiceId,
+              type: 'redeem',
+              points: benefit.points_needs ?? 0,
+              description: 'Redeem ' + benefit.benefit_name,
+            },
+          });
+        }
+      }
+    }
+
+    if (customerId) {
+      const [earnAndAdjustment, redeem] = await Promise.all([
+        this._prisma.customer_loyalty_transactions.aggregate({
+          where: {
+            customer_id: customerId,
+            type: { in: ['earn', 'adjustment'] },
+          },
+          _sum: { points: true },
+        }),
+        this._prisma.customer_loyalty_transactions.aggregate({
+          where: { customer_id: customerId, type: 'redeem' },
+          _sum: { points: true },
+        }),
+      ]);
+
+      const totalActivePoints =
+        (earnAndAdjustment._sum.points ?? 0) - (redeem._sum.points ?? 0);
+
+      await this._prisma.customer.update({
+        where: { id: customerId },
+        data: { point: totalActivePoints },
+      });
+    }
+  }
+
   // End of private function
 
   // Query section
@@ -2227,6 +3169,9 @@ export class InvoiceService {
           // payment rounding
           rounding_setting_id: invoice.rounding_setting_id ?? null,
           rounding_amount: invoice.rounding_amount ?? null,
+          // loyalty points
+          loyalty_points_benefit_id: invoice.loyalty_points_benefit_id ?? null,
+          loyalty_discount: invoice.loyalty_discount ?? 0,
         },
       });
 
@@ -2258,6 +3203,7 @@ export class InvoiceService {
         payment_method_id,
         voucher_id,
         rounding_setting_id,
+        loyalty_points_benefit_id,
         ...rest
       } = data;
 
@@ -2302,6 +3248,12 @@ export class InvoiceService {
         };
       }
 
+      if (loyalty_points_benefit_id) {
+        updateData.loyalty_points_benefit = {
+          connect: { id: loyalty_points_benefit_id },
+        };
+      }
+
       await tx.invoice.update({
         where: { id: invoiceId },
         data: updateData,
@@ -2327,7 +3279,8 @@ export class InvoiceService {
         data: {
           id: invoiceDetail.id,
           invoice_id: invoiceDetail.invoice_id,
-          product_id: invoiceDetail.product_id,
+          product_id: invoiceDetail.product_id ?? null,
+          catalog_bundling_id: invoiceDetail.catalog_bundling_id ?? null,
           product_price: invoiceDetail.product_price,
           variant_price: invoiceDetail.variant_price,
           notes: invoiceDetail.notes,
@@ -2335,6 +3288,7 @@ export class InvoiceService {
           variant_id:
             invoiceDetail.variant_id === '' ? null : invoiceDetail.variant_id,
           product_discount: invoiceDetail.product_discount ?? 0,
+          benefit_free_items_id: invoiceDetail.benefit_free_items_id ?? null,
         },
       });
     } catch (error) {
@@ -2534,6 +3488,8 @@ export class InvoiceService {
           is_show_table_number: body.isShowTableNumber,
           is_hide_item_prices: body.isHideItemPrices,
           is_show_footer: body.isShowFooter,
+          is_show_loyalty_points_used: body.isShowLoyaltyPointsUsed,
+          is_show_total_points_accumulated: body.isShowTotalPointsAccumulated,
           increment_by: body.incrementBy,
           reset_sequence: body.resetSequence,
           starting_number: body.startingNumber,
@@ -2553,6 +3509,8 @@ export class InvoiceService {
           is_show_table_number: body.isShowTableNumber,
           is_hide_item_prices: body.isHideItemPrices,
           is_show_footer: body.isShowFooter,
+          is_show_loyalty_points_used: body.isShowLoyaltyPointsUsed,
+          is_show_total_points_accumulated: body.isShowTotalPointsAccumulated,
           increment_by: body.incrementBy,
           reset_sequence: body.resetSequence,
           starting_number: body.startingNumber,

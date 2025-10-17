@@ -7,12 +7,16 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { WorkingHoursService } from '../services/working-hours.service';
-import { CreateWorkingHoursDto } from '../dtos/working-hours.dto';
+import {
+  CreateWorkingHoursDto,
+  WorkingHoursListDto,
+} from '../dtos/working-hours.dto';
 
 @ApiTags('Working Hours')
 @ApiBearerAuth()
@@ -28,8 +32,8 @@ export class WorkingHoursController {
   }
 
   @Get()
-  async findAll() {
-    const data = await this.service.findAll();
+  async findAll(@Query() query: WorkingHoursListDto) {
+    const data = await this.service.findAll(query);
     return { message: 'Working hours list', result: data };
   }
 

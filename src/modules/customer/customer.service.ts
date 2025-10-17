@@ -375,13 +375,33 @@ export class CustomerService {
     const existingCustomer = await this.prisma.customer.findUnique({
       where: { id: dto.customer_id },
     });
+
     if (!existingCustomer) {
       throw new NotFoundException('Customer not found');
     }
+
+    // Ensure point is initialized to 0 if null
+    if (existingCustomer.point === null) {
+      await this.prisma.customer.update({
+        where: { id: dto.customer_id },
+        data: { point: 0 },
+      });
+    }
+
+    const currentPoint = existingCustomer.point ?? 0;
+
+    console.log({
+      type,
+      'dto.customer_id': dto.customer_id,
+      'dto.value': dto.value,
+      currentPoint,
+    });
+
     if (type === 'point_addition') {
       if (dto.value <= 0) {
         throw new BadRequestException('Invalid point addition');
       }
+
       await this.prisma.customer.update({
         where: { id: dto.customer_id },
         data: {
@@ -391,10 +411,12 @@ export class CustomerService {
         },
       });
     }
+
     if (type === 'point_deduction') {
-      if (dto.value <= 0 || (existingCustomer.point ?? 0) - dto.value < 0) {
+      if (dto.value <= 0 || currentPoint - dto.value < 0) {
         throw new BadRequestException('Invalid point deduction');
       }
+
       await this.prisma.customer.update({
         where: { id: dto.customer_id },
         data: {
@@ -404,10 +426,12 @@ export class CustomerService {
         },
       });
     }
+
     const dataToCreate = {
       ...dto,
       type,
     };
+
     try {
       const result = await this.prisma.trn_customer_points.create({
         data: dataToCreate,
@@ -434,6 +458,14 @@ export class CustomerService {
         const customer = await tx.customer.findUniqueOrThrow({
           where: { id: existingPoints.customer_id },
         });
+
+        // Ensure point is initialized to 0 if null
+        if (customer.point === null) {
+          await this.prisma.customer.update({
+            where: { id: existingPoints.customer_id },
+            data: { point: 0 },
+          });
+        }
 
         const valueDifference = newValue - existingPoints.value;
         const netPointChange =
@@ -534,17 +566,6 @@ export class CustomerService {
         );
       }
 
-      const customerData: any = {
-        name: updateCustomerDto.name,
-        code: updateCustomerDto.code,
-        number: updateCustomerDto.number,
-        email: updateCustomerDto.email,
-        dob: updateCustomerDto.dob
-          ? new Date(updateCustomerDto.dob)
-          : undefined,
-        address: updateCustomerDto.address,
-      };
-
       if (updateCustomerDto.tags !== undefined) {
         await this.prisma.customers_has_tag.deleteMany({
           where: { customer_id: id },
@@ -577,7 +598,17 @@ export class CustomerService {
 
       const updatedCustomer = await this.prisma.customer.update({
         where: { id },
-        data: customerData,
+        data: {
+          name: updateCustomerDto.name ?? existingCustomer.name,
+          gender: updateCustomerDto.gender ?? existingCustomer.gender,
+          dob: updateCustomerDto.dob
+            ? new Date(updateCustomerDto.dob)
+            : existingCustomer.dob,
+          number: updateCustomerDto.number ?? existingCustomer.number,
+          code: updateCustomerDto.code ?? existingCustomer.code,
+          email: updateCustomerDto.email ?? existingCustomer.email,
+          address: updateCustomerDto.address ?? existingCustomer.address,
+        },
         include: {
           customers_has_tag: { include: { tag: true } },
           stores: true,

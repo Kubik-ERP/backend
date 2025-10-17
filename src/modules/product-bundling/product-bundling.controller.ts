@@ -8,20 +8,30 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiHeader,
+  ApiOperation,
+} from '@nestjs/swagger';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { CreateProductBundlingDto } from './dto/create-product-bundling.dto';
 import { QueryProductBundling } from './dto/query-product-bundling.dto';
 import { UpdateProductBundlingDto } from './dto/update-product-bundling.dto';
 import { ProductBundlingService } from './product-bundling.service';
+import { ImageUploadInterceptor } from 'src/common/interceptors/image-upload.interceptor';
+import { StorageService } from '../storage-service/services/storage-service.service';
 
 @Controller('product-bundling')
 export class ProductBundlingController {
   constructor(
     private readonly productBundlingService: ProductBundlingService,
+    private readonly storageService: StorageService,
   ) {}
 
   @ApiOperation({ summary: 'Create Product Bundling' })
@@ -34,13 +44,27 @@ export class ProductBundlingController {
     required: true,
     schema: { type: 'string' },
   })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
   @Post()
   async create(
     @Body() createProductBundlingDto: CreateProductBundlingDto,
     @Req() req: ICustomRequestHeaders,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
+    let relativePath = '';
+    if (file) {
+      const result = await this.storageService.uploadImage(
+        file.buffer,
+        file.originalname,
+      );
+      relativePath = result.filename;
+    }
     const data = await this.productBundlingService.create(
-      createProductBundlingDto,
+      {
+        ...createProductBundlingDto,
+        image: relativePath || '',
+      },
       req,
     );
     return {
@@ -89,14 +113,25 @@ export class ProductBundlingController {
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('product_management')
   @Patch(':id')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(ImageUploadInterceptor('image'))
   async update(
     @Param('id') id: string,
     @Body() updateProductBundlingDto: UpdateProductBundlingDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    const data = await this.productBundlingService.update(
-      id,
-      updateProductBundlingDto,
-    );
+    let relativePath = '';
+    if (file) {
+      const result = await this.storageService.uploadImage(
+        file.buffer,
+        file.originalname,
+      );
+      relativePath = result.filename;
+    }
+    const data = await this.productBundlingService.update(id, {
+      ...updateProductBundlingDto,
+      image: relativePath,
+    });
     return {
       message: 'Product bundling successfully updated',
       result: data,

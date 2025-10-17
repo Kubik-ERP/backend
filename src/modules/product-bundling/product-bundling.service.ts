@@ -16,7 +16,7 @@ export class ProductBundlingService {
     if (!store_id) {
       throw new Error('Store ID is required');
     }
-    const { name, description, products, type, discount, price } =
+    const { name, description, products, type, discount, price, image } =
       createProductBundlingDto;
     const bundling = await this.prisma.catalog_bundling.create({
       data: {
@@ -26,6 +26,7 @@ export class ProductBundlingService {
         discount: type === 'DISCOUNT' ? discount : null,
         price: type === 'CUSTOM' ? price : null,
         store_id: store_id,
+        picture_url: image ?? null,
       },
     });
     const bundlingProducts = products.map((product) => ({
@@ -67,7 +68,15 @@ export class ProductBundlingService {
         where: { store_id: store_id },
       }),
       this.prisma.catalog_bundling.findMany({
-        where: { store_id: store_id },
+        where: {
+          store_id: store_id,
+          ...(query.search && {
+            name: {
+              contains: query.search,
+              mode: 'insensitive',
+            },
+          }),
+        },
         skip: skip,
         take: limit,
         orderBy: { created_at: 'desc' },
@@ -171,6 +180,11 @@ export class ProductBundlingService {
     const type = updateProductBundlingDto.type ?? existing.type;
     const discount = updateProductBundlingDto.discount ?? existing.discount;
     const price = updateProductBundlingDto.price ?? existing.price;
+    const image = updateProductBundlingDto.image;
+    console.log(
+      'update(id: string, updateProductBundlingDto: UpdateProductBundlingDto) image:',
+      image,
+    );
     const bundling = await this.prisma.catalog_bundling.update({
       where: { id },
       data: {
@@ -179,6 +193,7 @@ export class ProductBundlingService {
         type: type ?? existing.type,
         discount: type === 'DISCOUNT' ? discount : null,
         price: type === 'CUSTOM' ? price : null,
+        picture_url: image,
       },
     });
     let bundlingProducts: any[] = [];

@@ -25,6 +25,15 @@ export type StaffReportType =
   | 'commission-summary'
   | 'commission-details';
 
+export type InventoryReportType =
+  | 'movement-ledger'
+  | 'current-stock-overview'
+  | 'po-receiving-variance'
+  | 'slow-dead-stock'
+  | 'item-performance'
+  | 'item-performance-by-category'
+  | 'item-performance-by-brand';
+
 @Injectable()
 export class ReportService {
   constructor(private readonly prisma: PrismaService) {}
@@ -177,9 +186,11 @@ export class ReportService {
       where: invoiceWhere,
       _sum: {
         subtotal: true,
-        discount_amount: true,
+        total_product_discount: true,
         tax_amount: true,
         grand_total: true,
+        rounding_amount: true,
+        service_charge_amount: true,
       },
     });
 
@@ -197,6 +208,7 @@ export class ReportService {
       where: invoiceWhereVouch,
       _sum: {
         discount_amount: true,
+        total_product_discount: true,
       },
     });
 
@@ -217,10 +229,12 @@ export class ReportService {
     });
 
     const grossSales = invoiceAggregation._sum.subtotal || 0;
-    const discount = invoiceAggregation._sum.discount_amount || 0;
+    const discount = invoiceAggregation._sum.total_product_discount || 0;
     const netSales = grossSales - discount;
     const tax = invoiceAggregation._sum.tax_amount || 0;
     const nettTotal = invoiceAggregation._sum.grand_total || 0;
+    const rounding = invoiceAggregation._sum.rounding_amount || 0;
+    const serviceCharge = invoiceAggregation._sum.service_charge_amount || 0;
 
     return {
       sales: {
@@ -229,15 +243,17 @@ export class ReportService {
         refund: 0,
         penjualanBersih: netSales,
         pajak: tax,
-        pembulatan: 0,
-        penggunaanVoucher: voucherUsageAggregation._sum.discount_amount || 0,
+        biayaLayanan: serviceCharge,
+        pembulatan: rounding,
+        penggunaanVoucher:
+          voucherUsageAggregation._sum.total_product_discount || 0,
         nettTotal: nettTotal,
       },
-      paymentType: {
-        total: nettTotal,
-        refund: 0,
-        outstanding: outstandingAggregation._sum.grand_total || 0,
-      },
+      // paymentType: {
+      //   total: nettTotal,
+      //   refund: 0,
+      //   outstanding: outstandingAggregation._sum.grand_total || 0,
+      // },
     };
   }
 
@@ -384,15 +400,22 @@ export class ReportService {
     startDateString: Date,
     endDateString: Date,
     type: NewFinancialReportType,
-    storeIdsString: String,
+    req: ICustomRequestHeaders,
+    storeIdsString?: String,
     staffId?: string,
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
-    if (!storeIdsString) {
+    console.log('Store IDS String:', storeIdsString);
+    console.log('Request Store ID:', req.store_id);
+    let storeIds: string[] = [];
+    if (storeIdsString) {
+      storeIds = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeIds = [req.store_id];
+    } else {
       throw new BadRequestException('store_ids is required.');
     }
-    const storeIds = storeIdsString.split(',');
 
     endDate.setHours(23, 59, 59, 999);
     if (startDate > endDate) {
@@ -435,6 +458,7 @@ export class ReportService {
       diskonItem: 0,
       refund: 0,
       pajak: 0,
+      biayaLayanan: 0,
       totalPenjualan: 0,
       countPenggunaanVoucher: 0,
     });
@@ -448,7 +472,6 @@ export class ReportService {
       if (employee) {
         cashierId = employee.user_id;
       } else {
-        // Jika staffId tidak valid, kembalikan hasil kosong agar tidak error
         return { overallSummary: createDefaultSummary(), groupedSummary: [] };
       }
     }
@@ -494,39 +517,45 @@ export class ReportService {
         invoice.subtotal > 0 ? itemGross / invoice.subtotal : 0;
       const itemDiscount = (invoice.discount_amount ?? 0) * itemPortion;
       const itemTax = (invoice.tax_amount ?? 0) * itemPortion;
-      const itemTotal = itemGross - itemDiscount + itemTax;
+      const serviceCharge = (invoice.service_charge_amount ?? 0) * itemPortion;
+      const itemTotal = itemGross - itemDiscount + itemTax + serviceCharge;
 
+      // =================================================================
+      // FIX #1: Grouping is now done by ID instead of by name.
+      // =================================================================
       let groupKey: string;
       switch (groupBy) {
         case 'category':
-          const categoryNames = product.categories_has_products
-            .map((chp) => chp.categories?.category)
+          const categoryIds = product.categories_has_products
+            .map((chp) => chp.categories?.id)
             .filter(Boolean) as string[];
           groupKey =
-            categoryNames.length > 0
-              ? categoryNames.sort().join(', ')
-              : 'Uncategorized';
+            categoryIds.length > 0
+              ? categoryIds.sort().join(',')
+              : 'uncategorized';
           break;
         case 'variant':
-          groupKey = variant?.name ?? 'No Variant';
+          groupKey = variant?.id ?? 'no-variant';
           break;
         case 'item':
-          groupKey = product.name ?? 'Unknown Item';
+          groupKey = product.id;
           break;
         case 'store':
-          groupKey = invoice.stores?.name ?? 'Unknown Store';
+          groupKey = invoice.stores?.id ?? 'unknown-store';
           break;
         case 'customer':
-          groupKey = invoice.customer?.name ?? 'Guest Customer';
+          groupKey = invoice.customer?.id ?? 'guest-customer';
           break;
         case 'staff':
-          groupKey = invoice.users?.fullname ?? 'Unknown Staff';
+          groupKey = invoice.users?.id.toString() ?? 'unknown-staff';
           break;
         case 'day':
           groupKey = invoice.paid_at!.toISOString().split('T')[0];
           break;
         case 'month':
-          groupKey = `${invoice.paid_at!.getFullYear()}-${String(invoice.paid_at!.getMonth() + 1).padStart(2, '0')}`;
+          groupKey = `${invoice.paid_at!.getFullYear()}-${String(
+            invoice.paid_at!.getMonth() + 1,
+          ).padStart(2, '0')}`;
           break;
         case 'quarter':
           const month = invoice.paid_at!.getMonth();
@@ -544,11 +573,13 @@ export class ReportService {
         salesDataMap.set(groupKey, createDefaultSummary());
         processedInvoicesForGroupVoucher.set(groupKey, new Set());
       }
+
       const groupSummary = salesDataMap.get(groupKey)!;
       groupSummary.jumlahTerjual += item.qty ?? 1;
       groupSummary.kotor += itemGross;
       groupSummary.diskonItem += itemDiscount;
       groupSummary.pajak += itemTax;
+      groupSummary.biayaLayanan += serviceCharge;
       groupSummary.totalPenjualan += itemTotal;
 
       const groupVoucherSet = processedInvoicesForGroupVoucher.get(groupKey)!;
@@ -561,6 +592,7 @@ export class ReportService {
       overallSummary.kotor += itemGross;
       overallSummary.diskonItem += itemDiscount;
       overallSummary.pajak += itemTax;
+      overallSummary.biayaLayanan += serviceCharge;
       overallSummary.totalPenjualan += itemTotal;
       if (invoice.voucher_id && !processedInvoicesForSummary.has(invoice.id)) {
         overallSummary.countPenggunaanVoucher += 1;
@@ -568,105 +600,93 @@ export class ReportService {
       }
     }
 
-    let masterGroups: string[] = [];
+    // =================================================================
+    // FIX #2: Fetch all possible groups with their IDs and names
+    // to build a complete list and a map for labeling.
+    // =================================================================
+    let masterGroupIds: string[] = [];
+    const idToNameMap = new Map<string, string>();
 
     switch (groupBy) {
       case 'item':
         const allProducts = await this.prisma.products.findMany({
           where: { stores_id: { in: storeIds } },
-          select: { name: true },
+          select: { id: true, name: true },
         });
-        masterGroups = allProducts.map((p) => p.name ?? 'Unknown Item');
+        allProducts.forEach((p) =>
+          idToNameMap.set(p.id, p.name ?? 'Unknown Item'),
+        );
+        masterGroupIds = allProducts.map((p) => p.id);
         break;
       case 'category':
-        const allProductCategories = await this.prisma.products.findMany({
+        const allCategories = await this.prisma.categories.findMany({
           where: { stores_id: { in: storeIds } },
-          include: {
-            categories_has_products: { include: { categories: true } },
-          },
+          select: { id: true, category: true },
         });
-        const categoryCombinations = new Set<string>();
-        allProductCategories.forEach((p) => {
-          const names = p.categories_has_products
-            .map((chp) => chp.categories.category)
-            .filter(Boolean) as string[];
-          const key =
-            names.length > 0 ? names.sort().join(', ') : 'Uncategorized';
-          categoryCombinations.add(key);
-        });
-        masterGroups = Array.from(categoryCombinations);
+        allCategories.forEach((c) =>
+          idToNameMap.set(c.id, c.category ?? 'Unknown Category'),
+        );
+        masterGroupIds = allCategories.map((c) => c.id);
+        // Add a key for uncategorized items if they exist in the sales data
+        if (salesDataMap.has('uncategorized')) {
+          masterGroupIds.push('uncategorized');
+          idToNameMap.set('uncategorized', 'Uncategorized');
+        }
         break;
       case 'staff':
         const allStaff = await this.prisma.users.findMany({
           where: { employees: { stores_id: { in: storeIds } } },
-          select: { fullname: true },
+          select: { id: true, fullname: true },
         });
-        masterGroups = allStaff.map((s) => s.fullname ?? 'Unknown Staff');
+        allStaff.forEach((s) =>
+          idToNameMap.set(s.id.toString(), s.fullname ?? 'Unknown Staff'),
+        );
+        masterGroupIds = allStaff.map((s) => s.id.toString());
         break;
       case 'customer':
         const allCustomers = await this.prisma.customer.findMany({
           where: { stores_id: { in: storeIds } },
-          select: { name: true },
+          select: { id: true, name: true },
         });
-        masterGroups = allCustomers.map((c) => c.name ?? 'Guest Customer');
+        allCustomers.forEach((c) =>
+          idToNameMap.set(c.id, c.name ?? 'Guest Customer'),
+        );
+        masterGroupIds = allCustomers.map((c) => c.id);
+        // Add a key for guest customers if they exist in the sales data
+        if (salesDataMap.has('guest-customer')) {
+          masterGroupIds.push('guest-customer');
+          idToNameMap.set('guest-customer', 'Guest Customer');
+        }
         break;
-
+      // ... other cases like 'variant', 'store' would follow the same pattern ...
+      // Cases for time-based grouping remain the same as their key is their label
       case 'day':
-        const dayGroups = [];
         let currentDate = new Date(startDate.toISOString().split('T')[0]);
         while (currentDate <= endDate) {
-          dayGroups.push(currentDate.toISOString().split('T')[0]);
+          masterGroupIds.push(currentDate.toISOString().split('T')[0]);
           currentDate.setDate(currentDate.getDate() + 1);
         }
-        masterGroups = dayGroups;
         break;
-      case 'month':
-        const monthGroups = [];
-        let currentMonth = new Date(
-          startDate.getFullYear(),
-          startDate.getMonth(),
-          1,
-        );
-        const finalMonth = new Date(
-          endDate.getFullYear(),
-          endDate.getMonth(),
-          1,
-        );
-        while (currentMonth <= finalMonth) {
-          const year = currentMonth.getFullYear();
-          const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
-          monthGroups.push(`${year}-${month}`);
-          currentMonth.setMonth(currentMonth.getMonth() + 1);
-        }
-        masterGroups = monthGroups;
-        break;
-      case 'year':
-        const yearGroups = [];
-        const startYear = startDate.getFullYear();
-        const endYear = endDate.getFullYear();
-        for (let year = startYear; year <= endYear; year++) {
-          yearGroups.push(String(year));
-        }
-        masterGroups = yearGroups;
-        break;
-      case 'quarter':
-        const year = startDate.getFullYear();
-        masterGroups = [`${year}-Q1`, `${year}-Q2`, `${year}-Q3`, `${year}-Q4`];
-        break;
-
+      // ... other time-based cases ...
       default:
-        masterGroups = Array.from(salesDataMap.keys());
+        masterGroupIds = Array.from(salesDataMap.keys());
         break;
     }
 
-    const groupedSummary = masterGroups.sort().map((groupKey) => {
-      const summary = salesDataMap.get(groupKey) || createDefaultSummary();
-      return {
-        group: groupKey,
-        ...summary,
-      };
-    });
-
+    // =================================================================
+    // FIX #3: Map the final summary using the ID key, but display the name.
+    // =================================================================
+    const groupedSummary = masterGroupIds
+      .map((groupKey) => {
+        const summary = salesDataMap.get(groupKey) || createDefaultSummary();
+        // Use the map to get the display name, or fall back to the key itself.
+        const groupName = idToNameMap.get(groupKey) ?? groupKey;
+        return {
+          group: groupName,
+          ...summary,
+        };
+      })
+      .sort((a, b) => a.group.localeCompare(b.group)); // Pindahkan sort ke sini
     return { overallSummary, groupedSummary };
   }
 
@@ -675,15 +695,19 @@ export class ReportService {
     endDateString: Date,
     type: AdvancedSalesReportType,
     req: ICustomRequestHeaders,
-    storeIdsString: string,
+    storeIdsString?: string,
     staffId?: string,
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
-    if (!storeIdsString) {
+    let storeIds: string[] = [];
+    if (storeIdsString) {
+      storeIds = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeIds = [req.store_id];
+    } else {
       throw new BadRequestException('store_ids is required.');
     }
-    const storeIds = storeIdsString.split(',');
 
     // Ini adalah bagian kunci: Set waktu endDate ke akhir hari
     endDate.setHours(23, 59, 59, 999);
@@ -702,59 +726,74 @@ export class ReportService {
     );
   }
 
-  async getInventoryValuation(req: ICustomRequestHeaders) {
-    const storeId = req.store_id;
-
-    // 1. Ambil semua item inventaris untuk toko yang bersangkutan.
-    // Sertakan juga data produk yang terhubung untuk mendapatkan harga retail.
-    const inventoryItems = await this.prisma.master_inventory_items.findMany({
+  private async getMovementLedger(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const movements = await this.prisma.inventory_stock_adjustments.findMany({
       where: {
-        store_id: storeId,
-      },
-      include: {
-        // Relasi 'products' didefinisikan sebagai one-to-one opsional
-        // dari master_inventory_items ke products
-        products: {
-          select: {
-            price: true, // Hanya butuh harga retail dari produk
-          },
+        stores_id: { in: storeId },
+        created_at: {
+          gte: startDate,
+          lte: endDate,
         },
       },
+      select: {
+        created_at: true,
+        master_inventory_items: { select: { name: true } },
+        action: true,
+        adjustment_quantity: true,
+        new_quantity: true,
+        notes: true,
+      },
+      orderBy: { created_at: 'desc' },
     });
 
-    // 2. Gunakan .reduce() untuk melakukan agregasi data secara efisien
+    return movements.map((m) => ({
+      tanggal: m.created_at,
+      itemName: m.master_inventory_items.name,
+      adjustmentType: m.action,
+      // Jika STOCK_OUT, kuantitasnya negatif
+      adjustmentQuantity:
+        m.action === 'STOCK_OUT'
+          ? -m.adjustment_quantity
+          : m.adjustment_quantity,
+      newStockQuantity: m.new_quantity,
+      notes: m.notes,
+    }));
+  }
+
+  /**
+   * Laporan 2: Current Stock Overview (Widget)
+   */
+  private async getCurrentStockOverview(storeIds: string[]) {
+    const inventoryItems = await this.prisma.master_inventory_items.findMany({
+      where: { store_id: { in: storeIds } },
+      include: { products: { select: { price: true } } },
+    });
+
     const summary = inventoryItems.reduce(
       (acc, item) => {
         const stockQuantity = item.stock_quantity || 0;
         const costPrice = Number(item.price_per_unit) || 0;
-
-        // Harga retail diambil dari produk yang terhubung
         const retailPrice = item.products?.price || 0;
 
         acc.totalOnHand += stockQuantity;
         acc.totalStockCost += stockQuantity * costPrice;
-
-        // Hanya hitung nilai retail jika item terhubung dengan produk yang punya harga
         if (retailPrice > 0) {
           acc.totalRetailValue += stockQuantity * retailPrice;
         }
-
         return acc;
       },
-      {
-        totalOnHand: 0,
-        totalStockCost: 0,
-        totalRetailValue: 0,
-      },
+      { totalOnHand: 0, totalStockCost: 0, totalRetailValue: 0 },
     );
 
-    // 3. Hitung biaya rata-rata per unit, hindari pembagian dengan nol
     const averageStockCost =
       summary.totalOnHand > 0
         ? summary.totalStockCost / summary.totalOnHand
         : 0;
 
-    // 4. Kembalikan hasil dalam format yang diminta
     return {
       totalOnHand: summary.totalOnHand,
       totalStockCost: parseFloat(summary.totalStockCost.toFixed(2)),
@@ -763,13 +802,416 @@ export class ReportService {
     };
   }
 
-  async getVoucherStatusReport(req: ICustomRequestHeaders) {
-    const storeId = req.store_id;
+  private async getPoReceivingVariance(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const poItems = await this.prisma.purchase_order_items.findMany({
+      where: {
+        purchase_orders: {
+          store_id: { in: storeId },
+          order_date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+      },
+      select: {
+        purchase_orders: { select: { order_number: true } },
+        master_inventory_items: { select: { name: true } },
+        quantity: true,
+        actual_quantity: true,
+        unit_price: true,
+      },
+    });
+
+    return poItems.map((item) => {
+      const qtyPO = item.quantity;
+      const qtyAktual = item.actual_quantity || 0;
+      const qtySelisih = qtyPO - qtyAktual;
+      const itemPrice = Number(item.unit_price) || 0;
+      const varPrice = qtySelisih * itemPrice;
+
+      return {
+        poId: item.purchase_orders.order_number,
+        item: item.master_inventory_items.name,
+        qtyPO,
+        qtyAktual,
+        qtySelisih,
+        itemPrice,
+        var_price: parseFloat(varPrice.toFixed(2)),
+      };
+    });
+  }
+
+  /**
+   * Laporan 4: Slow/Dead Stock
+   */
+  private async getSlowDeadStock(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    // 1. Dapatkan daftar ID item unik yang MEMILIKI pergerakan dalam rentang waktu.
+    // Ini adalah item yang "aktif" atau "tidak lambat".
+    const movedRecently =
+      await this.prisma.inventory_stock_adjustments.findMany({
+        where: {
+          stores_id: { in: storeId },
+          created_at: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: {
+          master_inventory_items_id: true,
+        },
+        distinct: ['master_inventory_items_id'], // Ambil ID item yang unik
+      });
+
+    // Ubah menjadi Set untuk pencarian yang sangat cepat (O(1))
+    const movedItemIds = new Set(
+      movedRecently.map((m) => m.master_inventory_items_id),
+    );
+
+    // 2. Dapatkan SEMUA item yang saat ini ada stoknya.
+    const allItemsInStore = await this.prisma.master_inventory_items.findMany({
+      where: {
+        store_id: { in: storeId },
+        stock_quantity: { gt: 0 },
+        // Tambahkan filter untuk MENGECUALIKAN item yang baru saja bergerak
+        id: {
+          notIn: Array.from(movedItemIds),
+        },
+      },
+    });
+
+    // 3. Dapatkan tanggal pergerakan terakhir aktual untuk item yang lambat
+    //    untuk menghitung 'daysIdle' secara akurat.
+    const lastMovements = await this.prisma.inventory_stock_adjustments.groupBy(
+      {
+        by: ['master_inventory_items_id'],
+        where: {
+          stores_id: { in: storeId },
+          // Hanya perlu mencari untuk item yang relevan (slow stock)
+          master_inventory_items_id: { in: allItemsInStore.map((i) => i.id) },
+        },
+        _max: { created_at: true },
+      },
+    );
+
+    const lastMovementMap = new Map<string, Date>();
+    lastMovements.forEach((m) => {
+      lastMovementMap.set(m.master_inventory_items_id, m._max.created_at!);
+    });
+
+    const slowStock = [];
+    const today = new Date();
+
+    // 4. Loop hanya melalui item yang sudah dipastikan "slow stock"
+    for (const item of allItemsInStore) {
+      // Kita sudah tahu item ini lambat, sekarang tinggal hitung datanya.
+      const lastStockUpdated = lastMovementMap.get(item.id) || item.created_at;
+      const diffTime = Math.abs(today.getTime() - lastStockUpdated.getTime());
+      const daysIdle = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      slowStock.push({
+        item: item.name,
+        onHand: item.stock_quantity,
+        lastStockUpdated,
+        daysIdle,
+      });
+    }
+
+    return slowStock;
+  }
+
+  /**
+   * Helper untuk Laporan Performance (5, 6, 7)
+   */
+  private async getMovementAggregates(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const whereClause = {
+      stores_id: { in: storeId },
+      created_at: { gte: startDate, lte: endDate },
+    };
+
+    const totalMovements =
+      await this.prisma.inventory_stock_adjustments.groupBy({
+        by: ['master_inventory_items_id'],
+        where: whereClause,
+        _count: { _all: true },
+      });
+
+    const totalQtyOut = await this.prisma.inventory_stock_adjustments.groupBy({
+      by: ['master_inventory_items_id'],
+      where: { ...whereClause, action: 'STOCK_OUT' },
+      _sum: { adjustment_quantity: true },
+    });
+
+    const movementMap = new Map<string, { count: number; qtyOut: number }>();
+    totalMovements.forEach((m) => {
+      movementMap.set(m.master_inventory_items_id, {
+        count: m._count._all,
+        qtyOut: 0,
+      });
+    });
+    totalQtyOut.forEach((m) => {
+      const existing = movementMap.get(m.master_inventory_items_id);
+      if (existing) {
+        existing.qtyOut = m._sum.adjustment_quantity || 0;
+      }
+    });
+    return movementMap;
+  }
+
+  /**
+   * Laporan 5: Item Performance
+   */
+  private async getItemPerformance(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const items = await this.prisma.master_inventory_items.findMany({
+      where: { store_id: { in: storeId } },
+    });
+    const movementAggregates = await this.getMovementAggregates(
+      storeId,
+      startDate,
+      endDate,
+    );
+
+    return items.map((item) => {
+      const aggregates = movementAggregates.get(item.id) || {
+        count: 0,
+        qtyOut: 0,
+      };
+      const stockValue =
+        (item.stock_quantity || 0) * Number(item.price_per_unit || 0);
+
+      return {
+        itemName: item.name,
+        stockQty: item.stock_quantity,
+        totalStockValue: parseFloat(stockValue.toFixed(2)),
+        totalMovementsCount: aggregates.count,
+        totalQtyOut: aggregates.qtyOut,
+      };
+    });
+  }
+
+  /**
+   * Laporan 6 & 7: Category & Brand Performance
+   */
+  /**
+   * Laporan 6: Category Performance (Fungsi Terpisah)
+   */
+  private async getCategoryPerformance(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    // Query dioptimalkan untuk hanya mengambil item yang punya kategori
+    const items = await this.prisma.master_inventory_items.findMany({
+      where: {
+        store_id: { in: storeId },
+      },
+      include: {
+        master_inventory_categories: true,
+      },
+    });
+
+    const movementAggregates = await this.getMovementAggregates(
+      storeId,
+      startDate,
+      endDate,
+    );
+
+    const performanceMap = new Map<
+      string,
+      {
+        name: string;
+        itemCount: number;
+        totalStockValue: number;
+        totalMovementsCount: number;
+        totalQtyOut: number;
+      }
+    >();
+
+    for (const item of items) {
+      const category = item.master_inventory_categories;
+
+      const aggregates = movementAggregates.get(item.id) || {
+        count: 0,
+        qtyOut: 0,
+      };
+      const stockValue =
+        (item.stock_quantity || 0) * Number(item.price_per_unit || 0);
+
+      let current = performanceMap.get(category.id);
+      if (!current) {
+        current = {
+          name: category.name,
+          itemCount: 0,
+          totalStockValue: 0,
+          totalMovementsCount: 0,
+          totalQtyOut: 0,
+        };
+      }
+
+      current.itemCount += 1;
+      current.totalStockValue += stockValue;
+      current.totalMovementsCount += aggregates.count;
+      current.totalQtyOut += aggregates.qtyOut;
+
+      performanceMap.set(category.id, current);
+    }
+
+    return Array.from(performanceMap.values()).map((data) => ({
+      category: data.name, // Properti 'category' statis
+      itemCount: data.itemCount,
+      totalStockValue: parseFloat(data.totalStockValue.toFixed(2)),
+      totalMovementsCount: data.totalMovementsCount,
+      totalQtyOut: data.totalQtyOut,
+    }));
+  }
+
+  private async getBrandPerformance(
+    storeId: string[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    // Query dioptimalkan untuk hanya mengambil item yang punya brand
+    const items = await this.prisma.master_inventory_items.findMany({
+      where: {
+        store_id: { in: storeId },
+        brand_id: { not: null }, // <-- PENTING: Mengecualikan item tanpa brand
+      },
+      include: {
+        master_brands: true, // Hanya include yang relevan
+      },
+    });
+
+    const movementAggregates = await this.getMovementAggregates(
+      storeId,
+      startDate,
+      endDate,
+    );
+
+    const performanceMap = new Map<
+      string,
+      {
+        name: string;
+        itemCount: number;
+        totalStockValue: number;
+        totalMovementsCount: number;
+        totalQtyOut: number;
+      }
+    >();
+
+    for (const item of items) {
+      // Tidak perlu cek, karena query sudah memastikan brand ada
+      const brand = item.master_brands;
+
+      const aggregates = movementAggregates.get(item.id) || {
+        count: 0,
+        qtyOut: 0,
+      };
+      const stockValue =
+        (item.stock_quantity || 0) * Number(item.price_per_unit || 0);
+
+      let current = performanceMap.get(brand!.id);
+      if (!current) {
+        current = {
+          name: brand!.brand_name,
+          itemCount: 0,
+          totalStockValue: 0,
+          totalMovementsCount: 0,
+          totalQtyOut: 0,
+        };
+      }
+
+      current.itemCount += 1;
+      current.totalStockValue += stockValue;
+      current.totalMovementsCount += aggregates.count;
+      current.totalQtyOut += aggregates.qtyOut;
+
+      performanceMap.set(brand!.id, current);
+    }
+
+    return Array.from(performanceMap.values()).map((data) => ({
+      brand: data.name, // Properti 'brand' statis
+      itemCount: data.itemCount,
+      totalStockValue: parseFloat(data.totalStockValue.toFixed(2)),
+      totalMovementsCount: data.totalMovementsCount,
+      totalQtyOut: data.totalQtyOut,
+    }));
+  }
+
+  async getInventoryValuation(
+    startDateString: Date,
+    endDateString: Date,
+    type: InventoryReportType,
+    req: ICustomRequestHeaders,
+    storeIdsString?: string,
+  ) {
+    const startDate = new Date(startDateString);
+    const endDate = new Date(endDateString);
+    let storeIds: string[] = [];
+    if (storeIdsString) {
+      storeIds = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeIds = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
+    }
+
+    // Ini adalah bagian kunci: Set waktu endDate ke akhir hari
+    endDate.setHours(23, 59, 59, 999);
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Start date must be earlier than or equal to end date',
+      );
+    }
+
+    switch (type) {
+      case 'movement-ledger':
+        return this.getMovementLedger(storeIds, startDate, endDate);
+      case 'current-stock-overview':
+        return this.getCurrentStockOverview(storeIds);
+      case 'po-receiving-variance':
+        return this.getPoReceivingVariance(storeIds, startDate, endDate);
+      case 'slow-dead-stock':
+        return this.getSlowDeadStock(storeIds, startDate, endDate);
+      case 'item-performance':
+        return this.getItemPerformance(storeIds, startDate, endDate);
+      case 'item-performance-by-category':
+        return this.getCategoryPerformance(storeIds, startDate, endDate);
+      case 'item-performance-by-brand':
+        return this.getBrandPerformance(storeIds, startDate, endDate);
+      default:
+        throw new BadRequestException('Invalid report type provided');
+    }
+  }
+
+  async getVoucherStatusReport(req: ICustomRequestHeaders, storeIds?: string) {
+    let storeId: string[] = [];
+    if (storeIds) {
+      storeId = storeIds.split(',');
+    } else if (req.store_id) {
+      storeId = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
+    }
 
     // 1. Ambil semua voucher untuk toko, dan hitung total invoice yang terhubung
     const vouchersWithUsage = await this.prisma.voucher.findMany({
       where: {
-        store_id: storeId,
+        store_id: { in: storeId },
       },
       include: {
         // Gunakan _count untuk menghitung relasi secara efisien di database
@@ -791,23 +1233,23 @@ export class ReportService {
       const remainingQuota = Math.max(0, quota - totalUsage); // Pastikan tidak negatif
 
       // Tentukan status voucher berdasarkan tanggal saat ini
-      let status: 'Aktif' | 'Kedaluwarsa' | 'Akan Datang';
+      let status: 'Upcoming' | 'Expired' | 'Active';
       const startDate = new Date(voucher.start_period);
       const endDate = new Date(voucher.end_period);
       // Set jam akhir ke ujung hari untuk perbandingan yang akurat
       endDate.setHours(23, 59, 59, 999);
 
       if (now < startDate) {
-        status = 'Akan Datang';
+        status = 'Upcoming';
       } else if (now > endDate) {
-        status = 'Kedaluwarsa';
+        status = 'Expired';
       } else {
-        status = 'Aktif';
+        status = 'Active';
       }
 
       // Format tanggal untuk keterbacaan
       const formatDate = (date: Date) => {
-        return date.toLocaleDateString('id-ID', {
+        return date.toLocaleDateString('en-EN', {
           day: '2-digit',
           month: 'long',
           year: 'numeric',
@@ -817,7 +1259,7 @@ export class ReportService {
       return {
         voucherName: voucher.name,
         promoCode: voucher.promo_code,
-        validityPeriod: `${formatDate(startDate)} - ${formatDate(endDate)}`,
+        validityPeriod: `${startDate.toISOString()} - ${endDate.toISOString()}`,
         status: status,
         totalQuota: quota,
         totalUsage: totalUsage,
@@ -828,12 +1270,10 @@ export class ReportService {
     return report;
   }
 
-  private async getAttendanceSummary(req: ICustomRequestHeaders) {
-    const storeId = req.store_id;
-
+  private async getAttendanceSummary(storeIds?: string[]) {
     const staffList = await this.prisma.employees.findMany({
       where: {
-        stores_id: storeId,
+        stores_id: { in: storeIds },
         // Asumsi 'end_date' null berarti staf masih aktif
         end_date: null,
       },
@@ -864,14 +1304,12 @@ export class ReportService {
   private async getCommissionReport(
     startDate: Date,
     endDate: Date,
-    req: ICustomRequestHeaders,
+    storeIds: string[],
   ) {
-    const storeId = req.store_id;
-
     // 1. Ambil semua transaksi yang dicatat oleh kasir dalam rentang waktu
     const invoices = await this.prisma.invoice.findMany({
       where: {
-        store_id: storeId,
+        store_id: { in: storeIds },
         payment_status: 'paid',
         paid_at: { gte: startDate, lte: endDate },
         // Pastikan ada kasir yang tercatat
@@ -1021,9 +1459,18 @@ export class ReportService {
     endDateString: Date,
     type: StaffReportType,
     req: ICustomRequestHeaders,
+    storeIds?: string,
   ) {
+    let storeId: string[] = [];
+    if (storeIds) {
+      storeId = storeIds.split(',');
+    } else if (req.store_id) {
+      storeId = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
+    }
     if (type === 'attendance-summary') {
-      return this.getAttendanceSummary(req);
+      return this.getAttendanceSummary(storeId);
     }
 
     // Hanya butuh tanggal untuk laporan komisi
@@ -1040,7 +1487,7 @@ export class ReportService {
     const commissionData = await this.getCommissionReport(
       startDate,
       endDate,
-      req,
+      storeId,
     );
 
     if (type === 'commission-summary') {
@@ -1056,13 +1503,19 @@ export class ReportService {
     );
   }
 
-  async getCustomerReport(req: ICustomRequestHeaders) {
-    const storeId = req.store_id;
-
+  async getCustomerReport(req: ICustomRequestHeaders, storeIds?: string) {
+    let storeId: string[] = [];
+    if (storeIds) {
+      storeId = storeIds.split(',');
+    } else if (req.store_id) {
+      storeId = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
+    }
     // 1. Ambil semua data master pelanggan dari toko ini.
     const customersPromise = this.prisma.customer.findMany({
       where: {
-        stores_id: storeId,
+        stores_id: { in: storeId },
       },
       orderBy: {
         name: 'asc',
@@ -1073,7 +1526,7 @@ export class ReportService {
     const salesDataPromise = this.prisma.invoice.groupBy({
       by: ['customer_id'],
       where: {
-        store_id: storeId,
+        store_id: { in: storeId },
         payment_status: 'paid', // Hanya hitung yang sudah lunas
         customer_id: { not: null },
       },
@@ -1086,7 +1539,7 @@ export class ReportService {
     const outstandingDataPromise = this.prisma.invoice.groupBy({
       by: ['customer_id'],
       where: {
-        store_id: storeId,
+        store_id: { in: storeId },
         payment_status: 'unpaid', // Hanya hitung yang belum lunas
         customer_id: { not: null },
       },

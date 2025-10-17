@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,7 +18,6 @@ import {
   UpdateInventoryItemDto,
   UpdateStockAdjustmentDto,
 } from '../dtos';
-import { Prisma } from '@prisma/client';
 
 type OrderByKey = 'id' | 'created_at' | 'name' | 'updated_at' | 'sku';
 
@@ -1047,6 +1047,15 @@ export class InventoryItemsService {
     new_quantity: true,
     created_at: true,
     updated_at: true,
+    created_by: true,
+    users: {
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        fullname: true,
+      },
+    },
   } as const;
 
   constructor(private readonly _prisma: PrismaService) {}
@@ -1081,7 +1090,7 @@ export class InventoryItemsService {
           name: dto.name,
           brand_id: dto.brandId,
           barcode: dto.barcode,
-          sku: dto.sku,
+          sku: dto.sku ?? '',
           category_id: dto.categoryId,
           unit: dto.unit,
           notes: dto.notes,
@@ -1098,6 +1107,44 @@ export class InventoryItemsService {
           updated_at: new Date(),
         },
       });
+
+      // Create unit conversions if provided
+      if (dto.conversions && dto.conversions.length > 0) {
+        for (const conversion of dto.conversions) {
+          // Validate that conversion is an object with required fields
+          if (
+            !conversion ||
+            typeof conversion !== 'object' ||
+            !conversion.unitName ||
+            !conversion.value ||
+            isNaN(Number(conversion.value))
+          ) {
+            throw new BadRequestException(
+              `Invalid conversion data: ${JSON.stringify(conversion)}. Expected format: {"unitName":"string","unitSymbol":"string","value":number}`,
+            );
+          }
+
+          const conversionValue = Number(conversion.value);
+          if (conversionValue <= 0) {
+            throw new BadRequestException(
+              `Conversion value must be greater than 0: ${conversionValue}`,
+            );
+          }
+
+          await tx.master_inventory_item_conversions.create({
+            data: {
+              item_id: item.id,
+              unit_name: String(conversion.unitName).trim(),
+              unit_symbol: conversion.unitSymbol
+                ? String(conversion.unitSymbol).trim()
+                : null,
+              conversion_value: conversionValue,
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+          });
+        }
+      }
 
       if (isRetail) await this.upsertCatalog(tx, dto, store_id, item.id);
 
@@ -1222,6 +1269,14 @@ export class InventoryItemsService {
         notes: true,
         price_grosir: true,
         products: { select: { picture_url: true } },
+        master_inventory_item_conversions: {
+          select: {
+            id: true,
+            unit_name: true,
+            unit_symbol: true,
+            conversion_value: true,
+          },
+        },
       },
     });
     if (!item)
@@ -1251,6 +1306,12 @@ export class InventoryItemsService {
       created_at: item.created_at,
       notes: item.notes,
       price_grosir: item.price_grosir,
+      conversions: item.master_inventory_item_conversions.map((conv) => ({
+        id: conv.id,
+        unitName: conv.unit_name,
+        unitSymbol: conv.unit_symbol,
+        value: Number(conv.conversion_value),
+      })),
       imageUrl: item.products?.picture_url ?? null,
     };
 
@@ -1362,6 +1423,52 @@ export class InventoryItemsService {
         data: updateData,
       });
 
+      // Handle unit conversions update if provided
+      if (dto.conversions !== undefined) {
+        // Delete existing conversions for this item
+        await tx.master_inventory_item_conversions.deleteMany({
+          where: { item_id: id },
+        });
+
+        // Create new conversions if provided
+        if (dto.conversions && dto.conversions.length > 0) {
+          for (const conversion of dto.conversions) {
+            // Validate that conversion is an object with required fields
+            if (
+              !conversion ||
+              typeof conversion !== 'object' ||
+              !conversion.unitName ||
+              !conversion.value ||
+              isNaN(Number(conversion.value))
+            ) {
+              throw new BadRequestException(
+                `Invalid conversion data: ${JSON.stringify(conversion)}. Expected format: {"unitName":"string","unitSymbol":"string","value":number}`,
+              );
+            }
+
+            const conversionValue = Number(conversion.value);
+            if (conversionValue <= 0) {
+              throw new BadRequestException(
+                `Conversion value must be greater than 0: ${conversionValue}`,
+              );
+            }
+
+            await tx.master_inventory_item_conversions.create({
+              data: {
+                item_id: id,
+                unit_name: String(conversion.unitName).trim(),
+                unit_symbol: conversion.unitSymbol
+                  ? String(conversion.unitSymbol).trim()
+                  : null,
+                conversion_value: conversionValue,
+                created_at: new Date(),
+                updated_at: new Date(),
+              },
+            });
+          }
+        }
+      }
+
       if (isRetail) await this.upsertCatalog(tx, dto, store_id, id);
 
       return updated;
@@ -1396,6 +1503,18 @@ export class InventoryItemsService {
         },
       });
 
+    const existingCategory = await tx.categories.findFirst({
+      where: {
+        category: inventoryCategory.name,
+        stores_id: storeId,
+      },
+    });
+    if (existingCategory) {
+      throw new BadRequestException(
+        `Category product with name '${inventoryCategory.name}' already exists in this store`,
+      );
+    }
+
     const categoryCatalogCreated = await tx.categories.create({
       data: {
         category: inventoryCategory.name,
@@ -1417,6 +1536,14 @@ export class InventoryItemsService {
     storeId: string,
     inventoryItemId?: string,
   ) => {
+    const existing = await tx.products.findFirst({
+      where: { name: dto.name, stores_id: storeId },
+    });
+    if (existing && existing.master_inventory_item_id !== inventoryItemId) {
+      throw new BadRequestException(
+        `Product with name '${dto.name}' already exists in this store`,
+      );
+    }
     const result = await tx.products.upsert({
       where: {
         master_inventory_item_id: inventoryItemId,
@@ -1659,6 +1786,7 @@ export class InventoryItemsService {
         notes: dto.notes,
         previous_quantity: prevQty,
         new_quantity: newQty,
+        created_by: header.user?.id || null, // Add created_by field with user ID
       };
       // if (slId) adjData.storage_location_id = slId;
       const adj = await tx.inventory_stock_adjustments.create({
@@ -1720,6 +1848,7 @@ export class InventoryItemsService {
             adjustment_quantity: dto.adjustmentQuantity,
           }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
+          created_by: header.user?.id || null, // Track who updated the adjustment
           updated_at: new Date(),
         },
         select: {

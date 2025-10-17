@@ -52,6 +52,7 @@ import { TablesModule } from './modules/tables/tables.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
 import { ReportModule } from './modules/report/report.module';
+import { RecipesModule } from './modules/recipes/recipes.module';
 
 @Module({
   imports: [
@@ -114,6 +115,7 @@ import { ReportModule } from './modules/report/report.module';
     AttendanceModule,
     IntegrationsModule,
     ReportModule,
+    RecipesModule,
   ],
   providers: [
     {
