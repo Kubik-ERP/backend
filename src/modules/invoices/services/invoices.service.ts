@@ -512,7 +512,7 @@ export class InvoiceService {
     let kitchenQueue: KitchenQueueAdd[] = [];
     await this._prisma.$transaction(
       async (tx) => {
-        const invoiceData = {
+        const initialInvoiceData = {
           id: invoiceId,
           payment_methods_id: request.paymentMethodId,
           customer_id: request.customerId?.trim() || null,
@@ -521,9 +521,9 @@ export class InvoiceService {
             request.provider === 'cash'
               ? invoice_type.paid
               : invoice_type.unpaid,
-          discount_amount: 0, // need to confirm
+          discount_amount: 0,
           order_type: request.orderType,
-          subtotal: 0, // default value
+          subtotal: 0,
           created_at: now,
           update_at: now,
           delete_at: null,
@@ -540,7 +540,6 @@ export class InvoiceService {
           complete_order_at: null,
           payment_amount: null,
           change_amount: null,
-          // voucher applied
           voucher_id: request.voucherId ?? null,
           voucher_amount: 0,
           total_product_discount: 0,
@@ -549,8 +548,8 @@ export class InvoiceService {
           loyalty_points_benefit_id: null,
           loyalty_discount: 0,
         };
-        // create invoice with status unpaid
-        await this.create(tx, invoiceData);
+
+        await this.create(tx, initialInvoiceData);
 
         // Calculate subtotal from original prices and total product discount
         let originalSubtotal = 0;
@@ -1061,6 +1060,46 @@ export class InvoiceService {
     let kitchenQueue: KitchenQueueAdd[] = [];
 
     await this._prisma.$transaction(async (tx) => {
+      const initialInvoiceData = {
+        id: invoiceId,
+        payment_methods_id: null,
+        customer_id: request.customerId ?? null,
+        table_code: request.tableCode,
+        payment_status: invoice_type.unpaid,
+        discount_amount: 0,
+        order_type: request.orderType,
+        subtotal: 0,
+        created_at: now,
+        update_at: now,
+        delete_at: null,
+        paid_at: null,
+        tax_id: null,
+        service_charge_id: null,
+        tax_amount: null,
+        service_charge_amount: null,
+        grand_total: null,
+        cashier_id: header.user?.id || null,
+        invoice_number: invoiceNumber,
+        order_status: order_status.placed,
+        store_id: storeId,
+        complete_order_at: null,
+        payment_amount: null,
+        change_amount: null,
+        voucher_id:
+          request.voucherId && request.voucherId.trim() !== ''
+            ? request.voucherId
+            : null,
+        voucher_amount: 0,
+        total_product_discount: 0,
+        rounding_setting_id: null,
+        rounding_amount: request.rounding_amount ?? null,
+        loyalty_points_benefit_id:
+          request.redeemLoyalty?.loyalty_points_benefit_id ?? null,
+        loyalty_discount: 0,
+      };
+
+      await this.create(tx, initialInvoiceData);
+
       // Calculate subtotal from original prices and total product discount
       let originalSubtotal = 0;
       let calculatedTotalProductDiscount = 0;
@@ -1187,48 +1226,6 @@ export class InvoiceService {
             is_enabled: true,
           },
         });
-
-      const invoiceData = {
-        id: invoiceId,
-        payment_methods_id: null,
-        customer_id: request.customerId ?? null,
-        table_code: request.tableCode,
-        payment_status: invoice_type.unpaid,
-        discount_amount: 0, // need to confirm
-        order_type: request.orderType,
-        subtotal: originalSubtotal, // subtotal dari original price + variant
-        created_at: now,
-        update_at: now,
-        delete_at: null,
-        paid_at: null,
-        tax_id: null,
-        service_charge_id: null,
-        tax_amount: null,
-        service_charge_amount: null,
-        grand_total: null,
-        cashier_id: header.user?.id || null,
-        invoice_number: invoiceNumber,
-        order_status: order_status.placed,
-        store_id: storeId,
-        complete_order_at: null,
-        payment_amount: null,
-        change_amount: null,
-        // voucher applied
-        voucher_id:
-          request.voucherId && request.voucherId.trim() !== ''
-            ? request.voucherId
-            : null,
-        voucher_amount: calculation.voucherAmount ?? 0,
-        total_product_discount: calculatedTotalProductDiscount,
-        rounding_setting_id: paymentRoundingSetting?.id ?? null,
-        rounding_amount: request.rounding_amount ?? null,
-        loyalty_points_benefit_id:
-          request.redeemLoyalty?.loyalty_points_benefit_id ?? null,
-        loyalty_discount: calculation.totalRedeemDiscount ?? 0,
-      };
-
-      // create invoice with status unpaid
-      await this.create(tx, invoiceData);
 
       for (const detail of request.products) {
         if (detail.type == 'single') {
