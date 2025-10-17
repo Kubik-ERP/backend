@@ -277,32 +277,21 @@ export class InvoiceService {
     let totalEarnPoints = 0;
     let totalPointsUsed = 0;
 
-    if (invoice.customer) {
-      const [earnPoints, redeemPoints] = await Promise.all([
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: {
-            invoice_id: invoice.id,
-            customer_id: invoice.customer.id,
-            type: 'earn',
-          },
-          _sum: {
-            points: true,
-          },
-        }),
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: {
-            invoice_id: invoice.id,
-            customer_id: invoice.customer.id,
-            type: 'redeem',
-          },
-          _sum: {
-            points: true,
-          },
-        }),
-      ]);
+    if (invoice.store_id && invoice.customer) {
+      const getData = await this.prepareUpdateLoyaltyPoints(
+        invoice.store_id,
+        invoice.id
+      );
 
-      totalEarnPoints = earnPoints._sum.points ?? 0;
-      totalPointsUsed = redeemPoints._sum.points ?? 0;
+      const getPoints = await this.calculateLoyaltyPoints(
+        invoice.store_id,
+        getData.products,
+        (invoice.subtotal - ((invoice.total_product_discount ?? 0) + (invoice.loyalty_discount ?? 0))),
+        getData.redeemLoyalty
+      );
+
+      totalEarnPoints = getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+      totalPointsUsed = invoice.loyalty_points_benefit?.points_needs ?? 0;
     }
 
     // formatting returned response
@@ -1180,7 +1169,7 @@ export class InvoiceService {
       // Set the total product discount to be used outside transaction
       totalProductDiscount = calculatedTotalProductDiscount;
 
-      const calculation = await this.calculateTotal(tx, request, storeId);
+      const calculation = await this.calculateTotal(tx, request, storeId, invoiceId);
 
       // Get payment rounding setting for this store
       const paymentRoundingSetting =
@@ -1225,8 +1214,9 @@ export class InvoiceService {
         total_product_discount: calculatedTotalProductDiscount,
         rounding_setting_id: paymentRoundingSetting?.id ?? null,
         rounding_amount: request.rounding_amount ?? null,
-        loyalty_points_benefit_id: null,
-        loyalty_discount: 0,
+        loyalty_points_benefit_id:
+          request.redeemLoyalty?.loyalty_points_benefit_id ?? null,
+        loyalty_discount: calculation.totalRedeemDiscount ?? 0,
       };
 
       // create invoice with status unpaid
@@ -2486,20 +2476,37 @@ export class InvoiceService {
     }
 
     // Calculate total points
-    if (request.customerId && storeId) {
+    if ((request.customerId || invoiceId) && storeId) {
+      let redeemLoyalty = request.redeemLoyalty ?? null;
+
+      if (invoiceId) {
+        const getInvoice = await this._prisma.invoice.findFirst({
+          where: {
+            id: invoiceId
+          }
+        });
+
+        if (getInvoice && getInvoice.loyalty_points_benefit_id) {
+          redeemLoyalty = {
+            loyalty_points_benefit_id: getInvoice.loyalty_points_benefit_id
+          }
+        }
+      }
+
       const getPoints = await this.calculateLoyaltyPoints(
         storeId,
         request.products,
         grandTotal,
-        null,
+        redeemLoyalty,
       );
+
       totalPointsEarn =
         getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
 
-      if (request.redeemLoyalty) {
+      if (redeemLoyalty) {
         const benefit = await this._prisma.loyalty_points_benefit.findFirst({
           where: {
-            id: request.redeemLoyalty.loyalty_points_benefit_id,
+            id: redeemLoyalty.loyalty_points_benefit_id,
           },
         });
 
@@ -3162,6 +3169,9 @@ export class InvoiceService {
           // payment rounding
           rounding_setting_id: invoice.rounding_setting_id ?? null,
           rounding_amount: invoice.rounding_amount ?? null,
+          // loyalty points
+          loyalty_points_benefit_id: invoice.loyalty_points_benefit_id ?? null,
+          loyalty_discount: invoice.loyalty_discount ?? 0,
         },
       });
 
