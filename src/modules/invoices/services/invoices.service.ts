@@ -277,32 +277,21 @@ export class InvoiceService {
     let totalEarnPoints = 0;
     let totalPointsUsed = 0;
 
-    if (invoice.customer) {
-      const [earnPoints, redeemPoints] = await Promise.all([
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: {
-            invoice_id: invoice.id,
-            customer_id: invoice.customer.id,
-            type: 'earn',
-          },
-          _sum: {
-            points: true,
-          },
-        }),
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: {
-            invoice_id: invoice.id,
-            customer_id: invoice.customer.id,
-            type: 'redeem',
-          },
-          _sum: {
-            points: true,
-          },
-        }),
-      ]);
+    if (invoice.store_id && invoice.customer) {
+      const getData = await this.prepareUpdateLoyaltyPoints(
+        invoice.store_id,
+        invoice.id
+      );
 
-      totalEarnPoints = earnPoints._sum.points ?? 0;
-      totalPointsUsed = redeemPoints._sum.points ?? 0;
+      const getPoints = await this.calculateLoyaltyPoints(
+        invoice.store_id,
+        getData.products,
+        (invoice.subtotal - ((invoice.total_product_discount ?? 0) + (invoice.loyalty_discount ?? 0))),
+        getData.redeemLoyalty
+      );
+
+      totalEarnPoints = getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+      totalPointsUsed = invoice.loyalty_points_benefit?.points_needs ?? 0;
     }
 
     // formatting returned response
