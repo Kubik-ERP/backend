@@ -280,17 +280,20 @@ export class InvoiceService {
     if (invoice.store_id && invoice.customer) {
       const getData = await this.prepareUpdateLoyaltyPoints(
         invoice.store_id,
-        invoice.id
+        invoice.id,
       );
 
       const getPoints = await this.calculateLoyaltyPoints(
         invoice.store_id,
         getData.products,
-        (invoice.subtotal - ((invoice.total_product_discount ?? 0) + (invoice.loyalty_discount ?? 0))),
-        getData.redeemLoyalty
+        invoice.subtotal -
+          ((invoice.total_product_discount ?? 0) +
+            (invoice.loyalty_discount ?? 0)),
+        getData.redeemLoyalty,
       );
 
-      totalEarnPoints = getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+      totalEarnPoints =
+        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
       totalPointsUsed = invoice.loyalty_points_benefit?.points_needs ?? 0;
     }
 
@@ -1169,7 +1172,12 @@ export class InvoiceService {
       // Set the total product discount to be used outside transaction
       totalProductDiscount = calculatedTotalProductDiscount;
 
-      const calculation = await this.calculateTotal(tx, request, storeId, invoiceId);
+      const calculation = await this.calculateTotal(
+        tx,
+        request,
+        storeId,
+        invoiceId,
+      );
 
       // Get payment rounding setting for this store
       const paymentRoundingSetting =
@@ -2482,14 +2490,14 @@ export class InvoiceService {
       if (invoiceId) {
         const getInvoice = await this._prisma.invoice.findFirst({
           where: {
-            id: invoiceId
-          }
+            id: invoiceId,
+          },
         });
 
         if (getInvoice && getInvoice.loyalty_points_benefit_id) {
           redeemLoyalty = {
-            loyalty_points_benefit_id: getInvoice.loyalty_points_benefit_id
-          }
+            loyalty_points_benefit_id: getInvoice.loyalty_points_benefit_id,
+          };
         }
       }
 
@@ -3375,7 +3383,7 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      this.logger.error('Failed to create invoice charge');
+      this.logger.error('Failed to create invoice charge', error.stack);
       throw new BadRequestException('Failed to create invoice charge', {
         cause: new Error(),
         description: error.message,
