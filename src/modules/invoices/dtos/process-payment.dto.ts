@@ -239,13 +239,12 @@ export class ProceedPaymentDto {
   public paymentMethodId: string;
 
   @ApiProperty({
-    description: 'Payment amount for cash transactions',
+    description: 'Payment Amount',
     required: false,
-    example: 100000,
+    example: 10000,
   })
-  @IsOptional()
-  @IsNumber()
-  public paymentAmount?: number;
+  @IsNotEmpty()
+  public paymentAmount: number;
 }
 
 export class UpsertInvoiceItemDto extends ProductListDto {}
@@ -282,4 +281,8 @@ export class CalculationEstimationDto extends ProductListDto {
   })
   @IsOptional()
   public redeemLoyalty?: RedeemLoyaltyDto | null;
+
+  @IsString()
+  @IsOptional()
+  public invoiceId?: string | null;
 }
