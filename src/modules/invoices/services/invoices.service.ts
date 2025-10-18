@@ -283,12 +283,31 @@ export class InvoiceService {
         invoice.id,
       );
 
+      let grandTotalInvoice = 0;
+      if (invoice.payment_status == 'unpaid') {
+        for (const item of invoice.invoice_details) {
+          grandTotalInvoice += ((item.product_price ?? 0) * (item.qty ?? 0)) - ((item.product_discount ?? 0) * (item.qty ?? 0));
+        }
+
+        let loyaltyDiscount = 0;
+        if (invoice.loyalty_points_benefit) {
+          if (invoice.loyalty_points_benefit.is_percent) {
+            loyaltyDiscount = grandTotalInvoice * ((invoice.loyalty_points_benefit.discount_value ?? 0) / 100);
+          } else {
+            loyaltyDiscount = invoice.loyalty_points_benefit.discount_value ?? 0;
+          }
+        }
+
+        grandTotalInvoice -= loyaltyDiscount;
+        invoice.loyalty_discount = loyaltyDiscount;
+      } else {
+        grandTotalInvoice = invoice.grand_total ?? 0;
+      }
+
       const getPoints = await this.calculateLoyaltyPoints(
         invoice.store_id,
         getData.products,
-        invoice.subtotal -
-          ((invoice.total_product_discount ?? 0) +
-            (invoice.loyalty_discount ?? 0)),
+        grandTotalInvoice,
         getData.redeemLoyalty,
       );
 
@@ -1911,10 +1930,24 @@ export class InvoiceService {
     const calculationEstimationDto = new CalculationEstimationDto();
     calculationEstimationDto.products = [];
     for (const item of invoiceDetails) {
-      const dto = new ProductDto();
-      dto.productId = item.product_id ?? '';
-      dto.variantId = item.variant_id ?? '';
-      dto.quantity = item.qty ?? 0;
+      let dto = new ProductDto();
+
+      if (item.benefit_free_items_id) {
+
+      } else {
+        if (item.catalog_bundling_id) {
+          dto = new ProductDto();
+          dto.type = 'bundling';
+          dto.bundlingId = item.catalog_bundling_id ?? '';
+          dto.quantity = item.qty ?? 0;
+        } else {
+          dto = new ProductDto();
+          dto.type = 'single';
+          dto.productId = item.product_id ?? '';
+          dto.variantId = item.variant_id ?? '';
+          dto.quantity = item.qty ?? 0;
+        }
+      }
 
       calculationEstimationDto.products.push(dto);
     }
@@ -1922,6 +1955,14 @@ export class InvoiceService {
     // jika invoice memiliki applied voucher
     if (invoice.voucher_id) {
       calculationEstimationDto.voucherId = invoice.voucher_id;
+    }
+
+    if (request.paymentAmount) {
+      calculationEstimationDto.paymentAmount = request.paymentAmount;
+    }
+
+    if (request.provider) {
+      calculationEstimationDto.provider = request.provider;
     }
 
     let grandTotal = 0;
@@ -1955,6 +1996,8 @@ export class InvoiceService {
         payment_amount: calculation.paymentAmount,
         change_amount: calculation.changeAmount,
         voucher_amount: calculation.voucherAmount ?? 0,
+        total_product_discount: calculation.discountTotal,
+        loyalty_discount: calculation.totalRedeemDiscount
       });
     });
 
@@ -2208,7 +2251,7 @@ export class InvoiceService {
     tx: Prisma.TransactionClient,
     request: CalculationEstimationDto,
     storeId?: string,
-    invoiceId?: string,
+    invoiceId?: string | null,
   ): Promise<CalculationResult> {
     let total = 0;
     let discountTotal = 0;
