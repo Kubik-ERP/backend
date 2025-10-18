@@ -237,6 +237,15 @@ export class ProceedPaymentDto {
   })
   @IsUUID()
   public paymentMethodId: string;
+
+  @ApiProperty({
+    description: 'Payment amount for cash transactions',
+    required: false,
+    example: 100000,
+  })
+  @IsOptional()
+  @IsNumber()
+  public paymentAmount?: number;
 }
 
 export class UpsertInvoiceItemDto extends ProductListDto {}

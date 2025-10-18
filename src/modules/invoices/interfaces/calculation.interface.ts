@@ -11,10 +11,13 @@ export interface CalculationResult {
   paymentAmount: number;
   changeAmount: number;
   items: {
+    type?: 'single' | 'bundling';
     productId?: string | null;
     variantId?: string | null;
     bundlingId?: string | null;
+    name?: string;
     productPrice: number;
+    originalPrice?: number;
     variantPrice: number;
     discountAmount: number;
     qty: number;
