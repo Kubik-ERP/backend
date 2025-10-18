@@ -286,7 +286,9 @@ export class InvoiceService {
       let grandTotalInvoice = 0;
       if (invoice.payment_status == 'unpaid') {
         for (const item of invoice.invoice_details) {
-          grandTotalInvoice += ((item.product_price ?? 0) * (item.qty ?? 0)) - ((item.product_discount ?? 0) * (item.qty ?? 0));
+          if (!item.benefit_free_items_id) {
+            grandTotalInvoice += ((item.product_price ?? 0) * (item.qty ?? 0)) - ((item.product_discount ?? 0) * (item.qty ?? 0));
+          }
         }
 
         let loyaltyDiscount = 0;
@@ -1440,6 +1442,66 @@ export class InvoiceService {
         await this.createCustomerInvoice(tx, invoiceId, request.customerId);
       }
 
+      // Add redeem item
+      if (request.customerId && request.redeemLoyalty) {
+        const redeemItem =
+          await this._prisma.loyalty_points_benefit.findFirst({
+            where: {
+              id: request.redeemLoyalty.loyalty_points_benefit_id,
+              type: 'free_items',
+            },
+            include: {
+              benefit_free_items: {
+                include: {
+                  products: true,
+                },
+              },
+            },
+          });
+
+        if (redeemItem) {
+          for (const item of redeemItem.benefit_free_items) {
+            // Create invoice detail
+            const invoiceDetailId = uuidv4();
+            const invoiceDetailData = {
+              id: invoiceDetailId,
+              invoice_id: invoiceId,
+              product_id: item.product_id,
+              catalog_bundling_id: null,
+              product_price: 0,
+              notes: null,
+              order_type: request.orderType,
+              qty: item.quantity,
+              variant_id: null,
+              variant_price: null,
+              product_discount: null,
+              benefit_free_items_id: item.id,
+            };
+
+            // create invoice with status unpaid
+            await this.createInvoiceDetail(tx, invoiceDetailData);
+
+            // Create kithcen queue
+            const queue: KitchenQueueAdd = {
+              id: uuidv4(),
+              invoice_id: invoiceId,
+              order_type: request.orderType,
+              order_status: order_status.placed,
+              product_id: item.product_id,
+              variant_id: null,
+              store_id: storeId,
+              customer_id: request.customerId,
+              notes: '',
+              created_at: now,
+              updated_at: now,
+              table_code: request.tableCode,
+            };
+
+            kitchenQueue.push(queue);
+          }
+        }
+      }
+
       // create kitchen queue
       await this._kitchenQueue.createKitchenQueue(tx, kitchenQueue);
     });
@@ -2392,6 +2454,19 @@ export class InvoiceService {
         });
 
         total += totalBundlingOrigin * item.quantity;
+      } else if (item.type === 'redeem') {
+        items.push({
+          type: 'redeem' as const,
+          productId: item.productId,
+          variantId: null,
+          bundlingId: null,
+          productPrice: 0,
+          originalPrice: 0,
+          variantPrice: 0,
+          qty: item.quantity,
+          discountAmount: 0,
+          subtotal: 0
+        });
       } else {
         this.logger.error(`Invalid product type ${item.type}`);
         throw new NotFoundException(`Invalid product type ${item.type}`);
