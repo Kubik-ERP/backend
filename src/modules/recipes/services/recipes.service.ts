@@ -544,14 +544,43 @@ export class RecipesService {
         );
       }
 
-      // Delete recipe (ingredients will be deleted automatically due to cascade)
-      await this._prisma.menu_recipes.delete({
-        where: {
-          recipe_id: recipeId,
-        },
+      // Use transaction to delete all related data
+      await this._prisma.$transaction(async (prisma) => {
+        // Get all recipe versions for this recipe
+        const recipeVersions = await prisma.recipe_versions.findMany({
+          where: { recipe_id: recipeId },
+          select: { version_id: true },
+        });
+
+        // Delete ingredient versions for all recipe versions
+        if (recipeVersions.length > 0) {
+          const versionIds = recipeVersions.map((v) => v.version_id);
+          await prisma.ingredient_versions.deleteMany({
+            where: {
+              recipe_version_id: { in: versionIds },
+            },
+          });
+        }
+
+        // Delete recipe versions
+        await prisma.recipe_versions.deleteMany({
+          where: { recipe_id: recipeId },
+        });
+
+        // Delete ingredients
+        await prisma.ingredients.deleteMany({
+          where: { recipe_id: recipeId },
+        });
+
+        // Delete the recipe itself
+        await prisma.menu_recipes.delete({
+          where: { recipe_id: recipeId },
+        });
       });
 
-      this.logger.log(`Recipe deleted: ${recipe.recipe_name}`);
+      this.logger.log(
+        `Recipe deleted: ${recipe.recipe_name} with all related data`,
+      );
     } catch (error) {
       this.logger.error(`Error deleting recipe: ${error.message}`);
       if (error instanceof NotFoundException) {
@@ -594,6 +623,18 @@ export class RecipesService {
   }
 
   private toPlainRecipeWithIngredients(recipe: any) {
+    const toNumberSafe = (val: any) => {
+      if (!val) return 0;
+      if (typeof val === 'number') return val;
+      if (typeof val === 'object' && typeof val.toNumber === 'function') {
+        return val.toNumber();
+      }
+      // Prisma Decimal object (s, e, d)
+      if (val.s !== undefined && Array.isArray(val.d)) {
+        return Number(val.d.join('')) * Math.pow(10, val.e);
+      }
+      return Number(val) || 0;
+    };
     return {
       recipe_id: recipe.recipe_id,
       recipe_name: recipe.recipe_name,
@@ -601,54 +642,35 @@ export class RecipesService {
       base_recipe: recipe.base_recipe,
       product_id: recipe.product_id,
       target_yield: recipe.target_yield,
-      cost_portion:
-        recipe.cost_portion &&
-        typeof recipe.cost_portion === 'object' &&
-        typeof recipe.cost_portion.toNumber === 'function'
-          ? recipe.cost_portion.toNumber()
-          : recipe.cost_portion,
-      margin_per_selling_price_rp:
-        recipe.margin_per_selling_price_rp &&
-        typeof recipe.margin_per_selling_price_rp === 'object' &&
-        typeof recipe.margin_per_selling_price_rp.toNumber === 'function'
-          ? recipe.margin_per_selling_price_rp.toNumber()
-          : recipe.margin_per_selling_price_rp,
-      margin_per_selling_price_percent:
-        recipe.margin_per_selling_price_percent &&
-        typeof recipe.margin_per_selling_price_percent === 'object' &&
-        typeof recipe.margin_per_selling_price_percent.toNumber === 'function'
-          ? recipe.margin_per_selling_price_percent.toNumber()
-          : recipe.margin_per_selling_price_percent,
+      cost_portion: toNumberSafe(recipe.cost_portion),
+      margin_per_selling_price_rp: toNumberSafe(
+        recipe.margin_per_selling_price_rp,
+      ),
+      margin_per_selling_price_percent: toNumberSafe(
+        recipe.margin_per_selling_price_percent,
+      ),
       store_id: recipe.store_id,
       created_at: recipe.created_at,
       updated_at: recipe.updated_at,
       ingredients: recipe.ingredients
-        ? recipe.ingredients.map((ingredient: any) => ({
-            ingredient_id: ingredient.ingredient_id,
-            item_id: ingredient.item_id,
-            qty:
-              ingredient.qty &&
-              typeof ingredient.qty === 'object' &&
-              typeof ingredient.qty.toNumber === 'function'
-                ? ingredient.qty.toNumber()
-                : ingredient.qty,
-            uom: ingredient.uom,
-            notes: ingredient.notes,
-            cost:
-              ingredient.cost &&
-              typeof ingredient.cost === 'object' &&
-              typeof ingredient.cost.toNumber === 'function'
-                ? ingredient.cost.toNumber()
-                : ingredient.cost,
-            inventory_item: ingredient.master_inventory_items
-              ? {
-                  id: ingredient.master_inventory_items.id,
-                  item_name: ingredient.master_inventory_items.item_name,
-                  brand: ingredient.master_inventory_items.brand,
-                  uom: ingredient.master_inventory_items.uom,
-                }
-              : null,
-          }))
+        ? recipe.ingredients.map((ingredient: any) => {
+            const item = ingredient.master_inventory_items;
+            return {
+              ingredient_id: ingredient.ingredient_id,
+              item_id: ingredient.item_id,
+              qty: toNumberSafe(ingredient.qty),
+              uom: ingredient.uom,
+              notes: ingredient.notes,
+              cost: toNumberSafe(ingredient.cost),
+              inventory_item: item
+                ? {
+                    ...item,
+                    price_per_unit: toNumberSafe(item.price_per_unit),
+                    price_grosir: toNumberSafe(item.price_grosir),
+                  }
+                : null,
+            };
+          })
         : [],
     };
   }
