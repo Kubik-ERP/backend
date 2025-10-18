@@ -47,7 +47,7 @@
     "bcrypt": "latest",
     "cache-manager": "^6.4.3",
     "cache-manager-ioredis": "^2.1.0",
-    "chalk": "latest",
+    "chalk": "^4.1.2",
     "class-transformer": "latest",
     "class-validator": "latest",
     "compression": "latest",
