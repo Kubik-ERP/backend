@@ -70,10 +70,6 @@ export class CashDrawerService {
       where: {
         store_id: storeId, // Optional store ID
         status: cash_drawer_type.open,
-        created_at: {
-          gte: jakartaTime().startOf('day').toUnixInteger(), // Greater than or equal to (Lebih besar atau sama dengan)
-          lte: jakartaTime().endOf('day').toUnixInteger(), // Less than or equal to (Lebih kecil atau sama dengan)
-        },
       },
       include: {
         employees: {
