@@ -283,12 +283,33 @@ export class InvoiceService {
         invoice.id,
       );
 
+      let grandTotalInvoice = 0;
+      if (invoice.payment_status == 'unpaid') {
+        for (const item of invoice.invoice_details) {
+          if (!item.benefit_free_items_id) {
+            grandTotalInvoice += ((item.product_price ?? 0) * (item.qty ?? 0)) - ((item.product_discount ?? 0) * (item.qty ?? 0));
+          }
+        }
+
+        let loyaltyDiscount = 0;
+        if (invoice.loyalty_points_benefit) {
+          if (invoice.loyalty_points_benefit.is_percent) {
+            loyaltyDiscount = grandTotalInvoice * ((invoice.loyalty_points_benefit.discount_value ?? 0) / 100);
+          } else {
+            loyaltyDiscount = invoice.loyalty_points_benefit.discount_value ?? 0;
+          }
+        }
+
+        grandTotalInvoice -= loyaltyDiscount;
+        invoice.loyalty_discount = loyaltyDiscount;
+      } else {
+        grandTotalInvoice = invoice.grand_total ?? 0;
+      }
+
       const getPoints = await this.calculateLoyaltyPoints(
         invoice.store_id,
         getData.products,
-        invoice.subtotal -
-          ((invoice.total_product_discount ?? 0) +
-            (invoice.loyalty_discount ?? 0)),
+        grandTotalInvoice,
         getData.redeemLoyalty,
       );
 
@@ -512,7 +533,7 @@ export class InvoiceService {
     let kitchenQueue: KitchenQueueAdd[] = [];
     await this._prisma.$transaction(
       async (tx) => {
-        const invoiceData = {
+        const initialInvoiceData = {
           id: invoiceId,
           payment_methods_id: request.paymentMethodId,
           customer_id: request.customerId?.trim() || null,
@@ -521,9 +542,9 @@ export class InvoiceService {
             request.provider === 'cash'
               ? invoice_type.paid
               : invoice_type.unpaid,
-          discount_amount: 0, // need to confirm
+          discount_amount: 0,
           order_type: request.orderType,
-          subtotal: 0, // default value
+          subtotal: 0,
           created_at: now,
           update_at: now,
           delete_at: null,
@@ -540,7 +561,6 @@ export class InvoiceService {
           complete_order_at: null,
           payment_amount: null,
           change_amount: null,
-          // voucher applied
           voucher_id: request.voucherId ?? null,
           voucher_amount: 0,
           total_product_discount: 0,
@@ -549,8 +569,8 @@ export class InvoiceService {
           loyalty_points_benefit_id: null,
           loyalty_discount: 0,
         };
-        // create invoice with status unpaid
-        await this.create(tx, invoiceData);
+
+        await this.create(tx, initialInvoiceData);
 
         // Calculate subtotal from original prices and total product discount
         let originalSubtotal = 0;
@@ -1061,6 +1081,46 @@ export class InvoiceService {
     let kitchenQueue: KitchenQueueAdd[] = [];
 
     await this._prisma.$transaction(async (tx) => {
+      const initialInvoiceData = {
+        id: invoiceId,
+        payment_methods_id: null,
+        customer_id: request.customerId ?? null,
+        table_code: request.tableCode,
+        payment_status: invoice_type.unpaid,
+        discount_amount: 0,
+        order_type: request.orderType,
+        subtotal: 0,
+        created_at: now,
+        update_at: now,
+        delete_at: null,
+        paid_at: null,
+        tax_id: null,
+        service_charge_id: null,
+        tax_amount: null,
+        service_charge_amount: null,
+        grand_total: null,
+        cashier_id: header.user?.id || null,
+        invoice_number: invoiceNumber,
+        order_status: order_status.placed,
+        store_id: storeId,
+        complete_order_at: null,
+        payment_amount: null,
+        change_amount: null,
+        voucher_id:
+          request.voucherId && request.voucherId.trim() !== ''
+            ? request.voucherId
+            : null,
+        voucher_amount: 0,
+        total_product_discount: 0,
+        rounding_setting_id: null,
+        rounding_amount: request.rounding_amount ?? null,
+        loyalty_points_benefit_id:
+          request.redeemLoyalty?.loyalty_points_benefit_id ?? null,
+        loyalty_discount: 0,
+      };
+
+      await this.create(tx, initialInvoiceData);
+
       // Calculate subtotal from original prices and total product discount
       let originalSubtotal = 0;
       let calculatedTotalProductDiscount = 0;
@@ -1187,48 +1247,6 @@ export class InvoiceService {
             is_enabled: true,
           },
         });
-
-      const invoiceData = {
-        id: invoiceId,
-        payment_methods_id: null,
-        customer_id: request.customerId ?? null,
-        table_code: request.tableCode,
-        payment_status: invoice_type.unpaid,
-        discount_amount: 0, // need to confirm
-        order_type: request.orderType,
-        subtotal: originalSubtotal, // subtotal dari original price + variant
-        created_at: now,
-        update_at: now,
-        delete_at: null,
-        paid_at: null,
-        tax_id: null,
-        service_charge_id: null,
-        tax_amount: null,
-        service_charge_amount: null,
-        grand_total: null,
-        cashier_id: header.user?.id || null,
-        invoice_number: invoiceNumber,
-        order_status: order_status.placed,
-        store_id: storeId,
-        complete_order_at: null,
-        payment_amount: null,
-        change_amount: null,
-        // voucher applied
-        voucher_id:
-          request.voucherId && request.voucherId.trim() !== ''
-            ? request.voucherId
-            : null,
-        voucher_amount: calculation.voucherAmount ?? 0,
-        total_product_discount: calculatedTotalProductDiscount,
-        rounding_setting_id: paymentRoundingSetting?.id ?? null,
-        rounding_amount: request.rounding_amount ?? null,
-        loyalty_points_benefit_id:
-          request.redeemLoyalty?.loyalty_points_benefit_id ?? null,
-        loyalty_discount: calculation.totalRedeemDiscount ?? 0,
-      };
-
-      // create invoice with status unpaid
-      await this.create(tx, invoiceData);
 
       for (const detail of request.products) {
         if (detail.type == 'single') {
@@ -1422,6 +1440,66 @@ export class InvoiceService {
       // insert the customer has invoice (if exists)
       if (request.customerId) {
         await this.createCustomerInvoice(tx, invoiceId, request.customerId);
+      }
+
+      // Add redeem item
+      if (request.customerId && request.redeemLoyalty) {
+        const redeemItem =
+          await this._prisma.loyalty_points_benefit.findFirst({
+            where: {
+              id: request.redeemLoyalty.loyalty_points_benefit_id,
+              type: 'free_items',
+            },
+            include: {
+              benefit_free_items: {
+                include: {
+                  products: true,
+                },
+              },
+            },
+          });
+
+        if (redeemItem) {
+          for (const item of redeemItem.benefit_free_items) {
+            // Create invoice detail
+            const invoiceDetailId = uuidv4();
+            const invoiceDetailData = {
+              id: invoiceDetailId,
+              invoice_id: invoiceId,
+              product_id: item.product_id,
+              catalog_bundling_id: null,
+              product_price: 0,
+              notes: null,
+              order_type: request.orderType,
+              qty: item.quantity,
+              variant_id: null,
+              variant_price: null,
+              product_discount: null,
+              benefit_free_items_id: item.id,
+            };
+
+            // create invoice with status unpaid
+            await this.createInvoiceDetail(tx, invoiceDetailData);
+
+            // Create kithcen queue
+            const queue: KitchenQueueAdd = {
+              id: uuidv4(),
+              invoice_id: invoiceId,
+              order_type: request.orderType,
+              order_status: order_status.placed,
+              product_id: item.product_id,
+              variant_id: null,
+              store_id: storeId,
+              customer_id: request.customerId,
+              notes: '',
+              created_at: now,
+              updated_at: now,
+              table_code: request.tableCode,
+            };
+
+            kitchenQueue.push(queue);
+          }
+        }
       }
 
       // create kitchen queue
@@ -1914,10 +1992,24 @@ export class InvoiceService {
     const calculationEstimationDto = new CalculationEstimationDto();
     calculationEstimationDto.products = [];
     for (const item of invoiceDetails) {
-      const dto = new ProductDto();
-      dto.productId = item.product_id ?? '';
-      dto.variantId = item.variant_id ?? '';
-      dto.quantity = item.qty ?? 0;
+      let dto = new ProductDto();
+
+      if (item.benefit_free_items_id) {
+
+      } else {
+        if (item.catalog_bundling_id) {
+          dto = new ProductDto();
+          dto.type = 'bundling';
+          dto.bundlingId = item.catalog_bundling_id ?? '';
+          dto.quantity = item.qty ?? 0;
+        } else {
+          dto = new ProductDto();
+          dto.type = 'single';
+          dto.productId = item.product_id ?? '';
+          dto.variantId = item.variant_id ?? '';
+          dto.quantity = item.qty ?? 0;
+        }
+      }
 
       calculationEstimationDto.products.push(dto);
     }
@@ -1925,6 +2017,14 @@ export class InvoiceService {
     // jika invoice memiliki applied voucher
     if (invoice.voucher_id) {
       calculationEstimationDto.voucherId = invoice.voucher_id;
+    }
+
+    if (request.paymentAmount) {
+      calculationEstimationDto.paymentAmount = request.paymentAmount;
+    }
+
+    if (request.provider) {
+      calculationEstimationDto.provider = request.provider;
     }
 
     let grandTotal = 0;
@@ -1958,6 +2058,8 @@ export class InvoiceService {
         payment_amount: calculation.paymentAmount,
         change_amount: calculation.changeAmount,
         voucher_amount: calculation.voucherAmount ?? 0,
+        total_product_discount: calculation.discountTotal,
+        loyalty_discount: calculation.totalRedeemDiscount
       });
     });
 
@@ -2211,7 +2313,7 @@ export class InvoiceService {
     tx: Prisma.TransactionClient,
     request: CalculationEstimationDto,
     storeId?: string,
-    invoiceId?: string,
+    invoiceId?: string | null,
   ): Promise<CalculationResult> {
     let total = 0;
     let discountTotal = 0;
@@ -2352,6 +2454,19 @@ export class InvoiceService {
         });
 
         total += totalBundlingOrigin * item.quantity;
+      } else if (item.type === 'redeem') {
+        items.push({
+          type: 'redeem' as const,
+          productId: item.productId,
+          variantId: null,
+          bundlingId: null,
+          productPrice: 0,
+          originalPrice: 0,
+          variantPrice: 0,
+          qty: item.quantity,
+          discountAmount: 0,
+          subtotal: 0
+        });
       } else {
         this.logger.error(`Invalid product type ${item.type}`);
         throw new NotFoundException(`Invalid product type ${item.type}`);
@@ -3383,7 +3498,7 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      this.logger.error('Failed to create invoice charge');
+      this.logger.error('Failed to create invoice charge', error.stack);
       throw new BadRequestException('Failed to create invoice charge', {
         cause: new Error(),
         description: error.message,
