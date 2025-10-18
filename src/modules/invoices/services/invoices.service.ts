@@ -781,7 +781,134 @@ export class InvoiceService {
     let totalProductDiscount = 0;
 
     await this._prisma.$transaction(async (tx) => {
-      const initialInvoiceData = {
+      // Calculate subtotal from original prices and total product discount
+      let originalSubtotal = 0;
+      let calculatedTotalProductDiscount = 0;
+
+      for (const detail of request.products) {
+        if (detail.type === 'single') {
+          const product = await this._prisma.products.findUnique({
+            where: { id: detail.productId },
+            select: { price: true, discount_price: true },
+          });
+
+          if (!product) {
+            this.logger.error(`Product with ID ${detail.productId} not found`);
+            throw new NotFoundException(
+              `Product with ID ${detail.productId} not found`,
+            );
+          }
+
+          const originalPrice = product.price ?? 0;
+          const discountPrice = product.discount_price ?? 0;
+          const productDiscount = originalPrice - discountPrice;
+
+          // Get variant price if variant exists
+          let variantPrice = 0;
+          const validVariantId = await this.validateProductVariant(
+            detail.productId,
+            detail.variantId,
+          );
+
+          if (validVariantId) {
+            const variant = await this._prisma.variant.findUnique({
+              where: { id: validVariantId },
+              select: { price: true },
+            });
+
+            if (variant) {
+              variantPrice = variant.price ?? 0;
+            }
+          }
+
+          // Calculate subtotal including variant price
+          const itemSubtotal = (originalPrice + variantPrice) * detail.quantity;
+          originalSubtotal += itemSubtotal;
+          calculatedTotalProductDiscount += productDiscount * detail.quantity;
+        } else if (detail.type === 'bundling') {
+          const productBundling =
+            await this._prisma.catalog_bundling.findUnique({
+              where: { id: detail.bundlingId },
+            });
+
+          if (!productBundling) {
+            throw new NotFoundException(
+              `Product Bundling with ID ${detail.bundlingId} not found`,
+            );
+          }
+
+          const products =
+            await this._prisma.catalog_bundling_has_product.findMany({
+              where: { catalog_bundling_id: detail.bundlingId },
+            });
+
+          let originalSubtotalBundling = 0;
+          for (const item of products) {
+            const product = await this._prisma.products.findUnique({
+              where: { id: item.product_id },
+              select: { price: true, discount_price: true },
+            });
+
+            if (!product) {
+              this.logger.error(
+                `Product with ID ${detail.productId} not found`,
+              );
+              throw new NotFoundException(
+                `Product with ID ${detail.productId} not found`,
+              );
+            }
+
+            const originalPrice = product.price ?? 0;
+            originalSubtotalBundling += originalPrice * detail.quantity;
+          }
+
+          let totalDiscountBundling = 0;
+          if (productBundling.type == 'DISCOUNT') {
+            totalDiscountBundling =
+              (originalSubtotalBundling *
+                (productBundling.discount
+                  ? Number(productBundling.discount)
+                  : 0)) /
+              100;
+          } else if (productBundling.type == 'CUSTOM') {
+            if (
+              productBundling.price &&
+              originalSubtotalBundling > productBundling.price
+            ) {
+              totalDiscountBundling =
+                originalSubtotalBundling - (productBundling.price ?? 0);
+            }
+          }
+
+          originalSubtotal += originalSubtotalBundling * detail.quantity;
+          calculatedTotalProductDiscount +=
+            totalDiscountBundling * detail.quantity;
+        } else {
+          this.logger.error(`Invalid product type ${detail.type}`);
+          throw new NotFoundException(`Invalid product type ${detail.type}`);
+        }
+      }
+
+      // Set the total product discount to be used outside transaction
+      totalProductDiscount = calculatedTotalProductDiscount;
+
+      const calculation = await this.calculateTotal(
+        tx,
+        request,
+        storeId,
+        invoiceId,
+      );
+
+      // Get payment rounding setting for this store
+      const paymentRoundingSetting =
+        await tx.payment_rounding_settings.findFirst({
+          where: {
+            store_id: storeId,
+            is_enabled: true,
+          },
+        });
+
+      const invoiceData = {
         id: invoiceId,
         payment_methods_id: null,
         customer_id: request.customerId ?? null,
@@ -819,14 +946,14 @@ export class InvoiceService {
         loyalty_discount: 0,
       };
 
-      await this.create(tx, initialInvoiceData);
+      await this.create(tx, invoiceData);
 
-      const calculation = await this.calculateTotal(
-        tx,
-        request,
-        storeId,
-        invoiceId,
-      );
+      //   const calculation = await this.calculateTotal(
+      //     tx,
+      //     request,
+      //     storeId,
+      //     invoiceId,
+      //   );
 
       const preparedItems = await this.prepareInvoiceItems(
         tx,
@@ -844,13 +971,13 @@ export class InvoiceService {
 
       totalProductDiscount = preparedItems.totalProductDiscount;
 
-      const paymentRoundingSetting =
-        await tx.payment_rounding_settings.findFirst({
-          where: {
-            store_id: storeId,
-            is_enabled: true,
-          },
-        });
+      //   const paymentRoundingSetting =
+      //     await tx.payment_rounding_settings.findFirst({
+      //       where: {
+      //         store_id: storeId,
+      //         is_enabled: true,
+      //       },
+      //     });
 
       const normalizedVoucherId = request.voucherId?.trim()
         ? request.voucherId

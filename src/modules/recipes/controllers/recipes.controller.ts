@@ -24,6 +24,10 @@ import { UpdateRecipeDto } from '../dtos/update-recipe.dto';
 import { RecipeResponseDto } from '../dtos/recipe-response.dto';
 import { RecipeDetailResponseDto } from '../dtos/recipe-detail-response.dto';
 import { GetRecipesDto, RecipeListResponseDto } from '../dtos/list-recipes.dto';
+import {
+  RecipeVersionsResponseDto,
+  RecipeVersionDetailResponseDto,
+} from '../dtos/recipe-versions.dto';
 import { RecipesService } from '../services/recipes.service';
 
 @ApiTags('Recipes')
@@ -190,6 +194,76 @@ export class RecipesController {
     return {
       success: true,
       message: 'Recipe deleted successfully',
+    };
+  }
+
+  @Get(':id/versions')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get recipe versions' })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recipe versions retrieved successfully',
+    type: RecipeVersionsResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Recipe not found',
+  })
+  async getVersions(
+    @Param('id') recipeId: string,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const versions = await this.recipesService.getRecipeVersions(
+      recipeId,
+      req.store_id!,
+    );
+    return {
+      success: true,
+      message: 'Recipe versions retrieved successfully',
+      result: versions,
+    };
+  }
+
+  @Get(':id/versions/:versionId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get recipe version detail' })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recipe version detail retrieved successfully',
+    type: RecipeVersionDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Recipe or version not found',
+  })
+  async getVersionDetail(
+    @Param('id') recipeId: string,
+    @Param('versionId') versionId: string,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const versionDetail = await this.recipesService.getRecipeVersionDetail(
+      recipeId,
+      versionId,
+      req.store_id!,
+    );
+    return {
+      success: true,
+      message: 'Recipe version detail retrieved successfully',
+      result: versionDetail,
     };
   }
 }
