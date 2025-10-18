@@ -2742,7 +2742,7 @@ export class InvoiceService {
       customerId: request.customerId,
       invoiceId,
       storeId,
-      stack: new Error().stack
+      stack: new Error().stack,
     });
 
     if ((request.customerId || invoiceId) && storeId) {
