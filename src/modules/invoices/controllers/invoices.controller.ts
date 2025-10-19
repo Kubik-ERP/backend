@@ -294,19 +294,11 @@ export class InvoiceController {
   ) {
     let result;
     await this.prisma.$transaction(async (tx) => {
-      let invoiceId = undefined;
-
-      for (const item of requestData.products) {
-        if (item.invoiceId) {
-          invoiceId = item.invoiceId;
-        }
-      }
-
       result = await this.invoiceService.calculateTotal(
         tx,
         requestData,
         req.headers['x-store-id'] as string,
-        invoiceId
+        requestData.invoiceId ?? null,
       );
     });
 
