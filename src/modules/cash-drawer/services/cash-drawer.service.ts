@@ -71,14 +71,6 @@ export class CashDrawerService {
         store_id: storeId, // Optional store ID
         status: cash_drawer_type.open,
       },
-      include: {
-        employees: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
       orderBy: {
         created_at: 'desc',
       },
