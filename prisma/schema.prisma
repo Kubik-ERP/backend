@@ -141,6 +141,7 @@ model customer_loyalty_transactions {
   type        String    @db.VarChar(20)
   points      Int       @default(0)
   description String?
+  expired_at  DateTime? @default(now()) @db.Timestamp(6)
   created_at  DateTime? @default(now()) @db.Timestamp(6)
   updated_at  DateTime? @default(now()) @db.Timestamp(6)
   customer    customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyalty_transactions_customer_fk")
@@ -331,28 +332,28 @@ model invoice_details {
 }
 
 model invoice_settings {
-  id                             Int     @id(map: "invoice_settings_pk") @default(autoincrement())
-  store_id                       String  @unique(map: "invoice_settings_unique") @db.Uuid
-  uid                            Int?
-  company_logo_url               String?
-  footer_text                    String?
-  is_automatically_print_receipt Boolean @default(false)
-  is_automatically_print_kitchen Boolean @default(false)
-  is_automatically_print_table   Boolean @default(false)
-  is_show_company_logo           Boolean @default(false)
-  is_show_store_location         Boolean @default(false)
-  is_hide_cashier_name           Boolean @default(false)
-  is_hide_order_type             Boolean @default(false)
-  is_hide_queue_number           Boolean @default(false)
-  is_show_table_number           Boolean @default(false)
-  is_hide_item_prices            Boolean @default(false)
-  is_show_footer                 Boolean @default(false)
-  is_show_loyalty_points_used    Boolean @default(false)
+  id                               Int     @id(map: "invoice_settings_pk") @default(autoincrement())
+  store_id                         String  @unique(map: "invoice_settings_unique") @db.Uuid
+  uid                              Int?
+  company_logo_url                 String?
+  footer_text                      String?
+  is_automatically_print_receipt   Boolean @default(false)
+  is_automatically_print_kitchen   Boolean @default(false)
+  is_automatically_print_table     Boolean @default(false)
+  is_show_company_logo             Boolean @default(false)
+  is_show_store_location           Boolean @default(false)
+  is_hide_cashier_name             Boolean @default(false)
+  is_hide_order_type               Boolean @default(false)
+  is_hide_queue_number             Boolean @default(false)
+  is_show_table_number             Boolean @default(false)
+  is_hide_item_prices              Boolean @default(false)
+  is_show_footer                   Boolean @default(false)
+  is_show_loyalty_points_used      Boolean @default(false)
   is_show_total_points_accumulated Boolean @default(false)
-  increment_by                   Int?
-  reset_sequence                 String?
-  starting_number                Int?
-  stores                         stores  @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_invoice_settings_store")
+  increment_by                     Int?
+  reset_sequence                   String?
+  starting_number                  Int?
+  stores                           stores  @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_invoice_settings_store")
 }
 
 model invoice_bundling_items {
