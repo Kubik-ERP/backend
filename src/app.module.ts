@@ -53,6 +53,7 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
 import { ReportModule } from './modules/report/report.module';
 import { RecipesModule } from './modules/recipes/recipes.module';
+import { TransferStockModule } from './modules/transfer-stock/transfer-stock.module';
 
 @Module({
   imports: [
@@ -116,6 +117,7 @@ import { RecipesModule } from './modules/recipes/recipes.module';
     IntegrationsModule,
     ReportModule,
     RecipesModule,
+    TransferStockModule
   ],
   providers: [
     {

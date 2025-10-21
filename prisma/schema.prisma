@@ -1481,7 +1481,7 @@ model transfer_stocks {
   transaction_code  String          @unique
   store_from_id     String          @db.Uuid
   store_to_id       String          @db.Uuid
-  status            transfer_status
+  status            transfer_stock_status
   note              String?
   requested_by      Int?
   request_at        DateTime?       @db.Timestamp(6)
@@ -1526,7 +1526,7 @@ model transfer_stock_items {
   qty_received             Int?
   unit_price               Decimal?             @db.Decimal(18, 2)
   subtotal                 Decimal?             @db.Decimal(18, 2)
-  status                   transfer_item_status
+  status                   transfer_stock_item_status
   note                     String?              @db.VarChar(255)
   created_at               DateTime             @default(now()) @db.Timestamp(6)
   updated_at               DateTime             @default(now()) @updatedAt @db.Timestamp(6)
@@ -1648,7 +1648,7 @@ enum rounding_type {
   down
 }
 
-enum transfer_status {
+enum transfer_stock_status {
   requested
   approved
   shipped
@@ -1658,7 +1658,7 @@ enum transfer_status {
   canceled
 }
 
-enum transfer_item_status {
+enum transfer_stock_item_status {
   pending
   on_progress
   received
