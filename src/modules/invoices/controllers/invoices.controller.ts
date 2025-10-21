@@ -298,6 +298,7 @@ export class InvoiceController {
         tx,
         requestData,
         req.headers['x-store-id'] as string,
+        requestData.invoiceId ?? null,
       );
     });
 

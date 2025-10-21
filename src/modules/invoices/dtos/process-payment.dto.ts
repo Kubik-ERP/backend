@@ -60,6 +60,10 @@ export class ProductDto {
   @IsString()
   @IsOptional()
   public bundlingId: string;
+
+  @IsString()
+  @IsOptional()
+  public invoiceId: string;
 }
 
 export class ProductListDto {
@@ -197,6 +201,16 @@ export class ProceedCheckoutInvoiceDto extends ProductListDto {
   @IsOptional()
   @IsNumber()
   public rounding_amount?: number;
+
+  @ApiProperty({
+    description: 'Loyalty redemption details',
+    required: false,
+    example: {
+      loyalty_points_benefit_id: '1e38a39c-dbd5-4d8b-8df8-d88d792280fe',
+    },
+  })
+  @IsOptional()
+  public redeemLoyalty?: RedeemLoyaltyDto | null;
 }
 
 export class ProceedPaymentDto {
@@ -223,6 +237,14 @@ export class ProceedPaymentDto {
   })
   @IsUUID()
   public paymentMethodId: string;
+
+  @ApiProperty({
+    description: 'Payment Amount',
+    required: false,
+    example: 10000,
+  })
+  @IsNotEmpty()
+  public paymentAmount: number;
 }
 
 export class UpsertInvoiceItemDto extends ProductListDto {}
@@ -259,4 +281,8 @@ export class CalculationEstimationDto extends ProductListDto {
   })
   @IsOptional()
   public redeemLoyalty?: RedeemLoyaltyDto | null;
+
+  @IsString()
+  @IsOptional()
+  public invoiceId?: string | null;
 }

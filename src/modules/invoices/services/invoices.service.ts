@@ -284,32 +284,50 @@ export class InvoiceService {
     let totalEarnPoints = 0;
     let totalPointsUsed = 0;
 
-    if (invoice.customer) {
-      const [earnPoints, redeemPoints] = await Promise.all([
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: {
-            invoice_id: invoice.id,
-            customer_id: invoice.customer.id,
-            type: 'earn',
-          },
-          _sum: {
-            points: true,
-          },
-        }),
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: {
-            invoice_id: invoice.id,
-            customer_id: invoice.customer.id,
-            type: 'redeem',
-          },
-          _sum: {
-            points: true,
-          },
-        }),
-      ]);
+    if (invoice.store_id && invoice.customer) {
+      const getData = await this.prepareUpdateLoyaltyPoints(
+        invoice.store_id,
+        invoice.id,
+      );
 
-      totalEarnPoints = earnPoints._sum.points ?? 0;
-      totalPointsUsed = redeemPoints._sum.points ?? 0;
+      let grandTotalInvoice = 0;
+      if (invoice.payment_status == 'unpaid') {
+        for (const item of invoice.invoice_details) {
+          if (!item.benefit_free_items_id) {
+            grandTotalInvoice +=
+              (item.product_price ?? 0) * (item.qty ?? 0) -
+              (item.product_discount ?? 0) * (item.qty ?? 0);
+          }
+        }
+
+        let loyaltyDiscount = 0;
+        if (invoice.loyalty_points_benefit) {
+          if (invoice.loyalty_points_benefit.is_percent) {
+            loyaltyDiscount =
+              grandTotalInvoice *
+              ((invoice.loyalty_points_benefit.discount_value ?? 0) / 100);
+          } else {
+            loyaltyDiscount =
+              invoice.loyalty_points_benefit.discount_value ?? 0;
+          }
+        }
+
+        grandTotalInvoice -= loyaltyDiscount;
+        invoice.loyalty_discount = loyaltyDiscount;
+      } else {
+        grandTotalInvoice = invoice.grand_total ?? 0;
+      }
+
+      const getPoints = await this.calculateLoyaltyPoints(
+        invoice.store_id,
+        getData.products,
+        grandTotalInvoice,
+        getData.redeemLoyalty,
+      );
+
+      totalEarnPoints =
+        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+      totalPointsUsed = invoice.loyalty_points_benefit?.points_needs ?? 0;
     }
 
     // formatting returned response
@@ -527,7 +545,7 @@ export class InvoiceService {
     let kitchenQueue: KitchenQueueAdd[] = [];
     await this._prisma.$transaction(
       async (tx) => {
-        const invoiceData = {
+        const initialInvoiceData = {
           id: invoiceId,
           payment_methods_id: request.paymentMethodId,
           customer_id: request.customerId?.trim() || null,
@@ -536,9 +554,9 @@ export class InvoiceService {
             request.provider === 'cash'
               ? invoice_type.paid
               : invoice_type.unpaid,
-          discount_amount: 0, // need to confirm
+          discount_amount: 0,
           order_type: request.orderType,
-          subtotal: 0, // default value
+          subtotal: 0,
           created_at: now,
           update_at: now,
           delete_at: null,
@@ -555,7 +573,6 @@ export class InvoiceService {
           complete_order_at: null,
           payment_amount: null,
           change_amount: null,
-          // voucher applied
           voucher_id: request.voucherId ?? null,
           voucher_amount: 0,
           total_product_discount: 0,
@@ -564,8 +581,8 @@ export class InvoiceService {
           loyalty_points_benefit_id: null,
           loyalty_discount: 0,
         };
-        // create invoice with status unpaid
-        await this.create(tx, invoiceData);
+
+        await this.create(tx, initialInvoiceData);
 
         // Calculate subtotal from original prices and total product discount
         let originalSubtotal = 0;
@@ -1076,6 +1093,46 @@ export class InvoiceService {
     let kitchenQueue: KitchenQueueAdd[] = [];
 
     await this._prisma.$transaction(async (tx) => {
+      const initialInvoiceData = {
+        id: invoiceId,
+        payment_methods_id: null,
+        customer_id: request.customerId ?? null,
+        table_code: request.tableCode,
+        payment_status: invoice_type.unpaid,
+        discount_amount: 0,
+        order_type: request.orderType,
+        subtotal: 0,
+        created_at: now,
+        update_at: now,
+        delete_at: null,
+        paid_at: null,
+        tax_id: null,
+        service_charge_id: null,
+        tax_amount: null,
+        service_charge_amount: null,
+        grand_total: null,
+        cashier_id: header.user?.id || null,
+        invoice_number: invoiceNumber,
+        order_status: order_status.placed,
+        store_id: storeId,
+        complete_order_at: null,
+        payment_amount: null,
+        change_amount: null,
+        voucher_id:
+          request.voucherId && request.voucherId.trim() !== ''
+            ? request.voucherId
+            : null,
+        voucher_amount: 0,
+        total_product_discount: 0,
+        rounding_setting_id: null,
+        rounding_amount: request.rounding_amount ?? null,
+        loyalty_points_benefit_id:
+          request.redeemLoyalty?.loyalty_points_benefit_id ?? null,
+        loyalty_discount: 0,
+      };
+
+      await this.create(tx, initialInvoiceData);
+
       // Calculate subtotal from original prices and total product discount
       let originalSubtotal = 0;
       let calculatedTotalProductDiscount = 0;
@@ -1187,7 +1244,12 @@ export class InvoiceService {
       // Set the total product discount to be used outside transaction
       totalProductDiscount = calculatedTotalProductDiscount;
 
-      const calculation = await this.calculateTotal(tx, request, storeId);
+      const calculation = await this.calculateTotal(
+        tx,
+        request,
+        storeId,
+        invoiceId,
+      );
 
       // Get payment rounding setting for this store
       const paymentRoundingSetting =
@@ -1197,47 +1259,6 @@ export class InvoiceService {
             is_enabled: true,
           },
         });
-
-      const invoiceData = {
-        id: invoiceId,
-        payment_methods_id: null,
-        customer_id: request.customerId ?? null,
-        table_code: request.tableCode,
-        payment_status: invoice_type.unpaid,
-        discount_amount: 0, // need to confirm
-        order_type: request.orderType,
-        subtotal: originalSubtotal, // subtotal dari original price + variant
-        created_at: now,
-        update_at: now,
-        delete_at: null,
-        paid_at: null,
-        tax_id: null,
-        service_charge_id: null,
-        tax_amount: null,
-        service_charge_amount: null,
-        grand_total: null,
-        cashier_id: header.user?.id || null,
-        invoice_number: invoiceNumber,
-        order_status: order_status.placed,
-        store_id: storeId,
-        complete_order_at: null,
-        payment_amount: null,
-        change_amount: null,
-        // voucher applied
-        voucher_id:
-          request.voucherId && request.voucherId.trim() !== ''
-            ? request.voucherId
-            : null,
-        voucher_amount: calculation.voucherAmount ?? 0,
-        total_product_discount: calculatedTotalProductDiscount,
-        rounding_setting_id: paymentRoundingSetting?.id ?? null,
-        rounding_amount: request.rounding_amount ?? null,
-        loyalty_points_benefit_id: null,
-        loyalty_discount: 0,
-      };
-
-      // create invoice with status unpaid
-      await this.create(tx, invoiceData);
 
       for (const detail of request.products) {
         if (detail.type == 'single') {
@@ -1433,6 +1454,65 @@ export class InvoiceService {
         await this.createCustomerInvoice(tx, invoiceId, request.customerId);
       }
 
+      // Add redeem item
+      if (request.customerId && request.redeemLoyalty) {
+        const redeemItem = await this._prisma.loyalty_points_benefit.findFirst({
+          where: {
+            id: request.redeemLoyalty.loyalty_points_benefit_id,
+            type: 'free_items',
+          },
+          include: {
+            benefit_free_items: {
+              include: {
+                products: true,
+              },
+            },
+          },
+        });
+
+        if (redeemItem) {
+          for (const item of redeemItem.benefit_free_items) {
+            // Create invoice detail
+            const invoiceDetailId = uuidv4();
+            const invoiceDetailData = {
+              id: invoiceDetailId,
+              invoice_id: invoiceId,
+              product_id: item.product_id,
+              catalog_bundling_id: null,
+              product_price: 0,
+              notes: null,
+              order_type: request.orderType,
+              qty: item.quantity,
+              variant_id: null,
+              variant_price: null,
+              product_discount: null,
+              benefit_free_items_id: item.id,
+            };
+
+            // create invoice with status unpaid
+            await this.createInvoiceDetail(tx, invoiceDetailData);
+
+            // Create kithcen queue
+            const queue: KitchenQueueAdd = {
+              id: uuidv4(),
+              invoice_id: invoiceId,
+              order_type: request.orderType,
+              order_status: order_status.placed,
+              product_id: item.product_id,
+              variant_id: null,
+              store_id: storeId,
+              customer_id: request.customerId,
+              notes: '',
+              created_at: now,
+              updated_at: now,
+              table_code: request.tableCode,
+            };
+
+            kitchenQueue.push(queue);
+          }
+        }
+      }
+
       // create kitchen queue
       await this._kitchenQueue.createKitchenQueue(tx, kitchenQueue);
     });
@@ -1454,10 +1534,17 @@ export class InvoiceService {
     request: UpsertInvoiceItemDto,
   ) {
     const storeId = validateStoreId(header.store_id);
+
     await this._prisma.$transaction(
       async (tx) => {
-        // Retrieve the invoice record and ensure it is not already paid
-        const invoice = await this.findInvoiceId(invoiceId);
+        const invoice = await tx.invoice.findUnique({
+          where: { id: invoiceId },
+        });
+
+        if (!invoice) {
+          this.logger.error(`Invoice with ID ${invoiceId} not found`);
+          throw new NotFoundException(`Invoice with ID ${invoiceId} not found`);
+        }
 
         if (invoice.payment_status === payment_type.paid) {
           throw new BadRequestException(
@@ -1465,255 +1552,694 @@ export class InvoiceService {
           );
         }
 
-        // Get all existing kitchen queue entries associated with the invoice
-        const kitchenQueues =
-          await this._kitchenQueue.findKitchenQueueByInvoiceId(invoice.id);
-
-        // Get a list of product IDs from frontend payload
-        const feProductIds = request.products.map((p) => p.productId);
-
         const now = new Date();
 
-        // Iterate through each product in the payload
-        for (const feProduct of request.products) {
-          // note: Check for product variant
-          const validVariantId = await this.validateProductVariant(
-            feProduct.productId,
-            feProduct.variantId,
-          );
-          const productId = feProduct.productId;
+        let kitchenQueues =
+          await this._kitchenQueue.findKitchenQueueByInvoiceId(invoice.id);
 
-          // Group all queues related to the current product
-          const existingQueues = kitchenQueues.filter(
-            (q) =>
-              q.product_id === productId &&
-              (q.variant_id ?? null) === (validVariantId ?? null),
-          );
+        const existingDetails = await tx.invoice_details.findMany({
+          where: { invoice_id: invoice.id },
+        });
 
-          // Split into editable and locked queues based on order_status
-          const editableQueues = existingQueues.filter(
-            (q) => q.order_status === order_status.placed,
-          );
-          const lockedQueues = existingQueues.filter(
-            (q) => q.order_status !== order_status.placed,
-          );
+        const calcProducts = request.products.map((product) => ({
+          ...product,
+          type: product.type ?? 'single',
+        }));
 
-          // Determine if there is any change from frontend input
-          const currentQty = editableQueues.length + lockedQueues.length;
-          const isChanged =
-            feProduct.quantity !== currentQty ||
-            feProduct.notes !==
-              (editableQueues[0]?.notes ?? lockedQueues[0]?.notes ?? '');
+        const calculationRequest: CalculationEstimationDto = {
+          products: calcProducts as ProductDto[],
+          orderType: invoice.order_type ?? order_type.dine_in,
+        };
 
-          // Check if variant has changed
-          const variantChanged =
-            validVariantId !==
-            (editableQueues[0]?.variant_id ??
-              lockedQueues[0]?.variant_id ??
-              null);
+        if (invoice.voucher_id) {
+          calculationRequest.voucherId = invoice.voucher_id;
+        }
 
-          // If the product is completely new (not in queue), create it
-          if (existingQueues.length === 0) {
-            this.logger.log(`Creating new product ${productId}`);
-            await this.createInvoiceAndKitchenQueueItem(
-              tx,
-              invoice,
-              feProduct,
-              now,
-            );
-            continue;
+        if (invoice.customer_id) {
+          calculationRequest.customerId = invoice.customer_id;
+        }
+
+        if (invoice.loyalty_points_benefit_id) {
+          calculationRequest.redeemLoyalty = {
+            loyalty_points_benefit_id: invoice.loyalty_points_benefit_id,
+          };
+        }
+
+        const calculation = await this.calculateTotal(
+          tx,
+          calculationRequest,
+          invoice.store_id ?? undefined,
+          invoice.id,
+        );
+
+        const preparedItems = await this.prepareInvoiceItems(
+          tx,
+          invoice.id,
+          calcProducts as ProductDto[],
+          {
+            orderType: invoice.order_type ?? order_type.dine_in,
+            storeId,
+            tableCode: invoice.table_code ?? '',
+            customerId: invoice.customer_id ?? null,
+            now,
+            calculationItems: calculation.items,
+          },
+        );
+
+        type PreparedItem = (typeof preparedItems.invoiceDetails)[number];
+
+        const preparedMap = new Map<string, PreparedItem>();
+
+        for (const prepared of preparedItems.invoiceDetails) {
+          preparedMap.set(prepared.lookupKey, prepared);
+        }
+
+        const getDetailType = (detail: invoice_details): string => {
+          if (detail.catalog_bundling_id) {
+            return 'bundling';
           }
-
-          // If no changes detected, skip to next product
-          if (!isChanged && !variantChanged) {
-            this.logger.log(`No change for product ${productId}, skipping...`);
-            continue;
+          if (detail.benefit_free_items_id) {
+            return 'redeem';
           }
+          return 'single';
+        };
 
-          // Allow updating variantId only when all queues are still 'placed'
-          if (!isChanged && variantChanged) {
-            const allPlaced = existingQueues.every(
-              (q) => q.order_status === order_status.placed,
+        const buildDetailKey = (detail: invoice_details): string => {
+          return this.buildInvoiceItemKey(
+            getDetailType(detail),
+            detail.product_id ?? null,
+            detail.variant_id ?? null,
+            detail.catalog_bundling_id ?? null,
+          );
+        };
+
+        const bundlingConfigCache = new Map<
+          string,
+          { product_id: string; quantity: number | null }[]
+        >();
+
+        const getBundlingComponents = async (bundlingId: string) => {
+          if (!bundlingConfigCache.has(bundlingId)) {
+            const components = await tx.catalog_bundling_has_product.findMany({
+              where: { catalog_bundling_id: bundlingId },
+              select: {
+                product_id: true,
+                quantity: true,
+              },
+            });
+            bundlingConfigCache.set(bundlingId, components);
+          }
+          return bundlingConfigCache.get(bundlingId)!;
+        };
+
+        const removeQueueFromSnapshot = (queueId: string) => {
+          kitchenQueues = kitchenQueues.filter((queue) => queue.id !== queueId);
+        };
+
+        const addQueueToSnapshot = (queue: any) => {
+          kitchenQueues.push(queue);
+        };
+
+        const handleSingleRemoval = async (
+          detail: invoice_details,
+          itemType: string,
+        ) => {
+          const variantKey = this.normalizeVariantKey(detail.variant_id);
+
+          if (itemType !== 'redeem') {
+            const relatedQueues = kitchenQueues.filter(
+              (queue) =>
+                queue.product_id === detail.product_id &&
+                this.normalizeVariantKey(queue.variant_id ?? null) ===
+                  variantKey,
             );
 
-            if (!allPlaced) {
-              this.logger.warn(
-                `Cannot update variant for product ${productId} because one or more items are already in process`,
-              );
+            const hasInProgress = relatedQueues.some(
+              (queue) => queue.order_status !== order_status.placed,
+            );
+
+            if (hasInProgress) {
+              const product = await tx.products.findUnique({
+                where: { id: detail.product_id ?? undefined },
+                select: { name: true },
+              });
               throw new BadRequestException(
-                `Cannot update variant for product ${productId}, already in process.`,
+                `Product ${product?.name ?? detail.product_id} cannot be deleted, already in process.`,
               );
             }
 
-            this.logger.log(
-              `Updating variant for product ${productId} to ${validVariantId}`,
+            await tx.kitchen_queue.deleteMany({
+              where: {
+                invoice_id: invoice.id,
+                product_id: detail.product_id,
+                variant_id: detail.variant_id ?? null,
+              },
+            });
+
+            kitchenQueues = kitchenQueues.filter(
+              (queue) =>
+                queue.product_id !== detail.product_id ||
+                this.normalizeVariantKey(queue.variant_id ?? null) !==
+                  variantKey,
             );
+          }
+
+          await tx.invoice_details.delete({
+            where: {
+              id_invoice_id: {
+                id: detail.id,
+                invoice_id: invoice.id,
+              },
+            },
+          });
+        };
+
+        const handleSingleUpsert = async (
+          detail: invoice_details,
+          prepared: PreparedItem,
+        ) => {
+          const itemType = prepared.itemType ?? 'single';
+          const desiredQty = prepared.detail.qty ?? 0;
+
+          if (itemType === 'redeem') {
+            await tx.invoice_details.update({
+              where: {
+                id_invoice_id: {
+                  id: detail.id,
+                  invoice_id: invoice.id,
+                },
+              },
+              data: {
+                qty: desiredQty,
+                notes: prepared.detail.notes ?? null,
+                product_price: prepared.detail.product_price,
+                product_discount: prepared.detail.product_discount ?? 0,
+                variant_id: prepared.detail.variant_id ?? null,
+                variant_price: prepared.detail.variant_price ?? 0,
+              },
+            });
+
+            detail.qty = desiredQty;
+            detail.notes = prepared.detail.notes ?? null;
+            detail.variant_id = prepared.detail.variant_id ?? null;
+            return;
+          }
+
+          const currentVariantKey = this.normalizeVariantKey(detail.variant_id);
+          const newVariantKey = this.normalizeVariantKey(
+            prepared.detail.variant_id,
+          );
+          const previousNotes = detail.notes ?? null;
+          const previousVariantId = detail.variant_id ?? null;
+
+          const relatedQueues = kitchenQueues.filter(
+            (queue) =>
+              queue.product_id === detail.product_id &&
+              this.normalizeVariantKey(queue.variant_id ?? null) ===
+                currentVariantKey,
+          );
+
+          const editableQueues = relatedQueues.filter(
+            (queue) => queue.order_status === order_status.placed,
+          );
+          const lockedQueues = relatedQueues.filter(
+            (queue) => queue.order_status !== order_status.placed,
+          );
+
+          if (desiredQty < lockedQueues.length) {
+            throw new BadRequestException(
+              `Cannot reduce quantity of product below ${lockedQueues.length} due to existing processed items.`,
+            );
+          }
+
+          const variantChanged = currentVariantKey !== newVariantKey;
+          if (
+            variantChanged &&
+            relatedQueues.some(
+              (queue) => queue.order_status !== order_status.placed,
+            )
+          ) {
+            throw new BadRequestException(
+              `Cannot update variant for product ${detail.product_id}, already in process.`,
+            );
+          }
+
+          await tx.invoice_details.update({
+            where: {
+              id_invoice_id: {
+                id: detail.id,
+                invoice_id: invoice.id,
+              },
+            },
+            data: {
+              qty: desiredQty,
+              notes: prepared.detail.notes ?? null,
+              product_price: prepared.detail.product_price,
+              product_discount: prepared.detail.product_discount ?? 0,
+              variant_id: prepared.detail.variant_id ?? null,
+              variant_price: prepared.detail.variant_price ?? 0,
+            },
+          });
+
+          const notesChanged =
+            (prepared.detail.notes ?? null) !== previousNotes;
+
+          if (variantChanged) {
+            await tx.kitchen_queue.updateMany({
+              where: {
+                invoice_id: invoice.id,
+                product_id: detail.product_id,
+                variant_id: previousVariantId,
+                order_status: order_status.placed,
+              },
+              data: {
+                variant_id: prepared.detail.variant_id ?? null,
+                notes: prepared.detail.notes ?? null,
+              },
+            });
+
+            kitchenQueues = kitchenQueues.map((queue) => {
+              if (
+                queue.invoice_id === invoice.id &&
+                queue.product_id === detail.product_id &&
+                this.normalizeVariantKey(queue.variant_id ?? null) ===
+                  currentVariantKey &&
+                queue.order_status === order_status.placed
+              ) {
+                return {
+                  ...queue,
+                  variant_id: prepared.detail.variant_id ?? null,
+                  notes: prepared.detail.notes ?? null,
+                };
+              }
+              return queue;
+            });
+          } else if (notesChanged) {
+            await tx.kitchen_queue.updateMany({
+              where: {
+                invoice_id: invoice.id,
+                product_id: detail.product_id,
+                variant_id: prepared.detail.variant_id ?? null,
+                order_status: order_status.placed,
+              },
+              data: {
+                notes: prepared.detail.notes ?? null,
+              },
+            });
+
+            kitchenQueues = kitchenQueues.map((queue) => {
+              if (
+                queue.invoice_id === invoice.id &&
+                queue.product_id === detail.product_id &&
+                this.normalizeVariantKey(queue.variant_id ?? null) ===
+                  newVariantKey &&
+                queue.order_status === order_status.placed
+              ) {
+                return {
+                  ...queue,
+                  notes: prepared.detail.notes ?? null,
+                };
+              }
+              return queue;
+            });
+          }
+
+          const currentTotal = relatedQueues.length;
+          if (desiredQty > currentTotal) {
+            const toAdd = desiredQty - currentTotal;
+            const templateEntries =
+              prepared.queueEntries.length > 0
+                ? prepared.queueEntries
+                : [
+                    {
+                      invoice_id: invoice.id,
+                      order_type: invoice.order_type ?? order_type.dine_in,
+                      order_status: order_status.placed,
+                      product_id: detail.product_id ?? undefined,
+                      variant_id: prepared.detail.variant_id ?? null,
+                      store_id: storeId,
+                      customer_id: invoice.customer_id,
+                      notes: prepared.detail.notes ?? null,
+                      created_at: now,
+                      updated_at: now,
+                      table_code: invoice.table_code ?? '',
+                    } as KitchenQueueAdd,
+                  ];
+
+            for (let i = 0; i < toAdd; i++) {
+              const base = templateEntries[i % templateEntries.length];
+              const queueData = {
+                id: uuidv4(),
+                invoice_id: invoice.id,
+                product_id: detail.product_id,
+                variant_id: prepared.detail.variant_id ?? null,
+                catalog_bundling_id: null,
+                order_status: order_status.placed,
+                store_id: storeId,
+                order_type:
+                  base.order_type ?? invoice.order_type ?? order_type.dine_in,
+                customer_id: invoice.customer_id,
+                notes: prepared.detail.notes ?? null,
+                created_at: now,
+                updated_at: now,
+                table_code: invoice.table_code ?? '',
+              };
+
+              await tx.kitchen_queue.create({ data: queueData });
+              addQueueToSnapshot(queueData);
+            }
+          } else if (desiredQty < currentTotal) {
+            const toRemove = currentTotal - desiredQty;
+            if (editableQueues.length < toRemove) {
+              throw new BadRequestException(
+                `Cannot reduce quantity for product ${detail.product_id}, items already in process.`,
+              );
+            }
+
+            const removable = editableQueues.slice(0, toRemove);
+            for (const queue of removable) {
+              await tx.kitchen_queue.delete({
+                where: { id: queue.id },
+              });
+              removeQueueFromSnapshot(queue.id);
+            }
+          }
+
+          detail.qty = desiredQty;
+          detail.notes = prepared.detail.notes ?? null;
+          detail.variant_id = prepared.detail.variant_id ?? null;
+        };
+
+        const handleBundlingRemoval = async (detail: invoice_details) => {
+          const bundlingId = detail.catalog_bundling_id;
+          if (!bundlingId) {
+            return;
+          }
+
+          const relatedQueues = kitchenQueues.filter(
+            (queue) => queue.catalog_bundling_id === bundlingId,
+          );
+
+          const hasInProgress = relatedQueues.some(
+            (queue) => queue.order_status !== order_status.placed,
+          );
+          if (hasInProgress) {
+            throw new BadRequestException(
+              `Bundling cannot be deleted, already in process.`,
+            );
+          }
+
+          await tx.kitchen_queue.deleteMany({
+            where: { invoice_id: invoice.id, catalog_bundling_id: bundlingId },
+          });
+
+          kitchenQueues = kitchenQueues.filter(
+            (queue) => queue.catalog_bundling_id !== bundlingId,
+          );
+
+          await tx.invoice_bundling_items.deleteMany({
+            where: { invoice_detail_id: detail.id },
+          });
+
+          await tx.invoice_details.delete({
+            where: {
+              id_invoice_id: {
+                id: detail.id,
+                invoice_id: invoice.id,
+              },
+            },
+          });
+        };
+
+        const handleBundlingUpsert = async (
+          detail: invoice_details,
+          prepared: PreparedItem,
+        ) => {
+          const bundlingId = detail.catalog_bundling_id;
+          if (!bundlingId) {
+            return;
+          }
+
+          const components = await getBundlingComponents(bundlingId);
+          const componentState = new Map<
+            string,
+            {
+              quantityPerBundle: number;
+              locked: any[];
+              editable: any[];
+            }
+          >();
+
+          for (const component of components) {
+            componentState.set(component.product_id, {
+              quantityPerBundle: component.quantity ?? 1,
+              locked: [],
+              editable: [],
+            });
+          }
+
+          const relatedQueues = kitchenQueues.filter(
+            (queue) => queue.catalog_bundling_id === bundlingId,
+          );
+
+          for (const queue of relatedQueues) {
+            const entry =
+              componentState.get(queue.product_id ?? '') ??
+              (() => {
+                const fallback = {
+                  quantityPerBundle: 1,
+                  locked: [],
+                  editable: [],
+                };
+                componentState.set(queue.product_id ?? '', fallback);
+                return fallback;
+              })();
+
+            if (queue.order_status === order_status.placed) {
+              entry.editable.push(queue);
+            } else {
+              entry.locked.push(queue);
+            }
+          }
+
+          const newQuantity = prepared.detail.qty ?? 0;
+
+          for (const [productId, state] of componentState) {
+            const quantityPerBundle = state.quantityPerBundle || 1;
+            const requiredBundles = Math.ceil(
+              (state.locked.length || 0) / quantityPerBundle,
+            );
+            if (newQuantity < requiredBundles) {
+              const product = await tx.products.findUnique({
+                where: { id: productId },
+                select: { name: true },
+              });
+
+              throw new BadRequestException(
+                `Cannot reduce bundling ${bundlingId} because product ${product?.name ?? productId} is already in process.`,
+              );
+            }
+          }
+
+          await tx.invoice_details.update({
+            where: {
+              id_invoice_id: {
+                id: detail.id,
+                invoice_id: invoice.id,
+              },
+            },
+            data: {
+              qty: newQuantity,
+              notes: prepared.detail.notes ?? null,
+              product_price: prepared.detail.product_price,
+              product_discount: prepared.detail.product_discount ?? 0,
+            },
+          });
+
+          for (const [productId, state] of componentState) {
+            const quantityPerBundle = state.quantityPerBundle || 1;
+            const desiredEntries = quantityPerBundle * newQuantity;
+            const currentTotal = state.locked.length + state.editable.length;
+            const diff = desiredEntries - currentTotal;
+
+            if (diff > 0) {
+              const templateEntries = prepared.queueEntries.filter(
+                (entry) =>
+                  entry.catalog_bundling_id === bundlingId &&
+                  entry.product_id === productId,
+              );
+              const fallbackTemplate: KitchenQueueAdd[] =
+                templateEntries.length > 0
+                  ? templateEntries
+                  : [
+                      {
+                        invoice_id: invoice.id,
+                        order_type: invoice.order_type ?? order_type.dine_in,
+                        order_status: order_status.placed,
+                        product_id: productId,
+                        catalog_bundling_id: bundlingId,
+                        store_id: storeId,
+                        customer_id: invoice.customer_id,
+                        notes: prepared.detail.notes ?? null,
+                        created_at: now,
+                        updated_at: now,
+                        table_code: invoice.table_code ?? '',
+                      } as KitchenQueueAdd,
+                    ];
+
+              for (let i = 0; i < diff; i++) {
+                const base = fallbackTemplate[i % fallbackTemplate.length];
+                const queueData = {
+                  id: uuidv4(),
+                  invoice_id: invoice.id,
+                  product_id: productId,
+                  catalog_bundling_id: bundlingId,
+                  variant_id: null,
+                  order_status: order_status.placed,
+                  store_id: storeId,
+                  order_type:
+                    base.order_type ?? invoice.order_type ?? order_type.dine_in,
+                  customer_id: invoice.customer_id,
+                  notes: prepared.detail.notes ?? null,
+                  created_at: now,
+                  updated_at: now,
+                  table_code: invoice.table_code ?? '',
+                };
+
+                await tx.kitchen_queue.create({ data: queueData });
+                state.editable.push(queueData);
+                addQueueToSnapshot(queueData);
+              }
+            } else if (diff < 0) {
+              const toRemove = Math.abs(diff);
+              if (state.editable.length < toRemove) {
+                throw new BadRequestException(
+                  `Cannot reduce bundling ${bundlingId}, items already in process.`,
+                );
+              }
+
+              const removable = state.editable.slice(0, toRemove);
+              for (const queue of removable) {
+                await tx.kitchen_queue.delete({
+                  where: { id: queue.id },
+                });
+                removeQueueFromSnapshot(queue.id);
+              }
+              state.editable = state.editable.slice(toRemove);
+            }
 
             await tx.kitchen_queue.updateMany({
               where: {
                 invoice_id: invoice.id,
+                catalog_bundling_id: bundlingId,
                 product_id: productId,
                 order_status: order_status.placed,
               },
               data: {
-                variant_id: validVariantId,
+                notes: prepared.detail.notes ?? null,
               },
             });
 
-            await tx.invoice_details.updateMany({
-              where: {
-                invoice_id: invoice.id,
-                product_id: productId,
-              },
+            kitchenQueues = kitchenQueues.map((queue) => {
+              if (
+                queue.invoice_id === invoice.id &&
+                queue.catalog_bundling_id === bundlingId &&
+                queue.product_id === productId &&
+                queue.order_status === order_status.placed
+              ) {
+                return {
+                  ...queue,
+                  notes: prepared.detail.notes ?? null,
+                };
+              }
+              return queue;
+            });
+          }
+
+          await tx.invoice_bundling_items.deleteMany({
+            where: { invoice_detail_id: detail.id },
+          });
+
+          for (const bundlingItem of prepared.bundlingItems) {
+            await tx.invoice_bundling_items.create({
               data: {
-                variant_id: validVariantId,
+                id: uuidv4(),
+                invoice_id: invoice.id,
+                invoice_detail_id: detail.id,
+                product_id: bundlingItem.product_id,
+                qty: bundlingItem.qty,
+                created_at: now,
+                updated_at: now,
               },
             });
+          }
 
+          detail.qty = newQuantity;
+          detail.notes = prepared.detail.notes ?? null;
+        };
+
+        const createNewItem = async (prepared: PreparedItem) => {
+          await this.createInvoiceDetail(tx, prepared.detail);
+
+          if (prepared.bundlingItems.length > 0) {
+            for (const bundlingItem of prepared.bundlingItems) {
+              await tx.invoice_bundling_items.create({
+                data: bundlingItem,
+              });
+            }
+          }
+
+          if (prepared.queueEntries.length > 0) {
+            await this._kitchenQueue.createKitchenQueue(
+              tx,
+              prepared.queueEntries,
+            );
+            for (const queue of prepared.queueEntries) {
+              addQueueToSnapshot(queue);
+            }
+          }
+        };
+
+        for (const detail of existingDetails) {
+          const detailType = getDetailType(detail);
+          const key = buildDetailKey(detail);
+
+          const prepared = preparedMap.get(key);
+
+          if (!prepared) {
+            if (detailType === 'bundling') {
+              await handleBundlingRemoval(detail);
+            } else {
+              await handleSingleRemoval(detail, detailType);
+            }
             continue;
           }
 
-          // Update invoice_details entry with new quantity and notes
-          await tx.invoice_details.updateMany({
-            where: {
-              invoice_id: invoice.id,
-              product_id: productId,
-            },
-            data: {
-              qty: feProduct.quantity,
-              notes: feProduct.notes,
-            },
-          });
-
-          const desiredQty = feProduct.quantity;
-          const lockedQty = lockedQueues.length;
-          const editableQty = editableQueues.length;
-
-          // Prevent reduction below locked/in-progress quantity
-          if (desiredQty < lockedQty) {
-            this.logger.error(
-              `Cannot reduce quantity of product ${productId} below ${lockedQty} due to existing processed items`,
-            );
-            throw new BadRequestException(
-              `Cannot reduce quantity of product ${productId} below items already in progress (${lockedQty})`,
-            );
+          if (detailType === 'bundling') {
+            await handleBundlingUpsert(detail, prepared);
+          } else {
+            await handleSingleUpsert(detail, prepared);
           }
 
-          const allowedEdit = desiredQty - lockedQty;
-
-          // If more queue entries needed, create additional 'placed' rows
-
-          if (allowedEdit > editableQueues.length) {
-            const toAdd = allowedEdit - editableQueues.length;
-            this.logger.log(`Adding ${toAdd} queue(s) for ${productId}`);
-            for (let i = 0; i < toAdd; i++) {
-              await tx.kitchen_queue.create({
-                data: {
-                  id: uuidv4(),
-                  invoice_id: invoice.id,
-                  product_id: productId,
-                  variant_id: validVariantId || null,
-                  order_status: order_status.placed,
-                  notes: feProduct.notes ?? null,
-                  created_at: new Date(),
-                  store_id: invoice.store_id!,
-                  order_type: invoice.order_type!,
-                },
-              });
-            }
-          }
-          // If fewer queue entries needed, delete some 'placed' ones
-          else if (allowedEdit < editableQueues.length) {
-            const toDelete = editableQueues.slice(
-              0,
-              editableQueues.length - allowedEdit,
-            );
-            this.logger.log(
-              `Removing ${toDelete.length} queue(s) for ${productId}`,
-            );
-            for (const item of toDelete) {
-              await tx.kitchen_queue.delete({
-                where: { id: item.id },
-              });
-            }
-          }
+          preparedMap.delete(key);
         }
 
-        // List productId + variantId pairs from DB
-        const dbProductPairs = kitchenQueues.map((q) => ({
-          productId: q.product_id,
-          variantId: q.variant_id ?? null,
-        }));
-
-        // Create a list of pairs from the frontend
-        const feProductPairs = request.products.map((p) => ({
-          productId: p.productId,
-          variantId: p.variantId?.trim() === '' ? null : p.variantId,
-        }));
-
-        const toDeletePairs = dbProductPairs.filter(
-          (dbItem) =>
-            !feProductPairs.some(
-              (feItem) =>
-                feItem.productId === dbItem.productId &&
-                (feItem.variantId ?? null) === (dbItem.variantId ?? null),
-            ),
-        );
-
-        // Handle deletion of products that were removed from frontend payload
-        const toDeleteProductIds = kitchenQueues
-          .map((q) => q.product_id)
-          .filter((pid) => !feProductIds.includes(pid ?? ''));
-
-        const uniqueToDelete = [...new Set(toDeleteProductIds)];
-
-        for (const pair of toDeletePairs) {
-          const { productId, variantId } = pair;
-
-          const productQueues = kitchenQueues.filter(
-            (q) =>
-              q.product_id === productId &&
-              (q.variant_id ?? null) === (variantId ?? null),
-          );
-
-          // Do not allow deletion if any queue has been processed
-          const hasInProgress = productQueues.some(
-            (q) => q.order_status !== order_status.placed,
-          );
-
-          if (hasInProgress && productId) {
-            // Get product name for better error message
-            const product = await tx.products.findUnique({
-              where: { id: productId },
-              select: { name: true },
-            });
-            const productName = product?.name || productId;
-
-            this.logger.warn(
-              `Skipping deletion for product ${productName} due to existing in_progress queue`,
-            );
-            throw new BadRequestException(
-              `Product ${productName} cannot be deleted, already in process.`,
-            );
-          }
-
-          this.logger.log(`Deleting product ${productId}...`);
-          await tx.kitchen_queue.deleteMany({
-            where: {
-              invoice_id: invoice.id,
-              product_id: productId,
-              variant_id: variantId,
-            },
-          });
-
-          await tx.invoice_details.deleteMany({
-            where: {
-              invoice_id: invoice.id,
-              product_id: productId,
-              variant_id: variantId,
-            },
-          });
+        for (const prepared of preparedMap.values()) {
+          await createNewItem(prepared);
         }
+
+        await this.update(tx, invoice.id, {
+          subtotal: preparedItems.originalSubtotal,
+          tax_id: calculation.taxId,
+          service_charge_id: calculation.serviceChargeId,
+          tax_amount: calculation.tax,
+          service_charge_amount: calculation.serviceCharge,
+          grand_total: calculation.grandTotal,
+          voucher_amount: calculation.voucherAmount,
+          total_product_discount: preparedItems.totalProductDiscount,
+          loyalty_discount:
+            calculation.totalRedeemDiscount ?? invoice.loyalty_discount ?? 0,
+        });
       },
       {
         timeout: 300_000,
@@ -1725,6 +2251,364 @@ export class InvoiceService {
 
     // All operations successful
     return { message: 'Invoice products processed successfully' };
+  }
+
+  /**
+   * Helper method to create invoice_detail and kitchen_queue items for a product
+   * @param tx - Prisma transaction client for ensuring data consistency
+   * @param invoice - The invoice record to associate the items with
+   * @param product - Product information including quantity, notes, and variant details
+   * @param now - Consistent timestamp to ensure all related records have the same creation time
+   */
+  private normalizeVariantKey(variantId?: string | null): string {
+    return variantId && variantId.trim() !== '' ? variantId : 'NO_VARIANT';
+  }
+
+  private buildInvoiceItemKey(
+    type: string,
+    productId?: string | null,
+    variantId?: string | null,
+    bundlingId?: string | null,
+  ): string {
+    const normalizedType = (type ?? 'single').toLowerCase();
+    if (normalizedType === 'bundling') {
+      return `bundling:${bundlingId ?? ''}`;
+    }
+
+    return `${normalizedType}:${productId ?? ''}:${this.normalizeVariantKey(
+      variantId,
+    )}`;
+  }
+
+  private async prepareInvoiceItems(
+    tx: Prisma.TransactionClient,
+    invoiceId: string,
+    products: ProductDto[],
+    context: {
+      orderType: order_type;
+      storeId: string;
+      tableCode?: string;
+      customerId?: string | null;
+      now: Date;
+      calculationItems: CalculationResult['items'];
+    },
+  ): Promise<{
+    invoiceDetails: {
+      detail: invoice_details;
+      bundlingItems: {
+        id: string;
+        invoice_id: string;
+        invoice_detail_id: string;
+        product_id: string;
+        qty: number;
+        created_at: Date;
+        updated_at: Date;
+      }[];
+      queueEntries: KitchenQueueAdd[];
+      itemType: string;
+      lookupKey: string;
+    }[];
+    kitchenQueue: KitchenQueueAdd[];
+    originalSubtotal: number;
+    totalProductDiscount: number;
+  }> {
+    const { orderType, storeId, tableCode, customerId, now, calculationItems } =
+      context;
+
+    const calculationMap = new Map<
+      string,
+      CalculationResult['items'][number] & {
+        type?: string;
+        originalPrice?: number;
+      }
+    >();
+
+    for (const item of calculationItems) {
+      const itemType = (
+        item?.type ??
+        (item.bundlingId && item.bundlingId !== null ? 'bundling' : 'single')
+      ).toLowerCase();
+
+      const key = this.buildInvoiceItemKey(
+        itemType,
+        item.productId ?? null,
+        item.variantId ?? null,
+        item.bundlingId ?? null,
+      );
+
+      calculationMap.set(key, item);
+    }
+
+    type BundlingCacheValue = {
+      bundlingId: string;
+      products: {
+        product_id: string;
+        catalog_bundling_id: string | null;
+        quantity: number | null;
+      }[];
+    };
+    const bundlingCache = new Map<string, BundlingCacheValue>();
+
+    const invoiceDetails: {
+      detail: invoice_details;
+      bundlingItems: {
+        id: string;
+        invoice_id: string;
+        invoice_detail_id: string;
+        product_id: string;
+        qty: number;
+        created_at: Date;
+        updated_at: Date;
+        catalog_bundling_id?: string | null;
+      }[];
+      queueEntries: KitchenQueueAdd[];
+      itemType: string;
+      lookupKey: string;
+    }[] = [];
+    const kitchenQueue: KitchenQueueAdd[] = [];
+
+    let originalSubtotal = 0;
+    let totalProductDiscount = 0;
+
+    for (const product of products) {
+      const type = (product.type ?? 'single').toLowerCase();
+
+      if (type === 'bundling') {
+        if (!product.bundlingId) {
+          this.logger.error(`Bundling ID is required for bundling item`);
+          throw new BadRequestException(
+            'Bundling ID is required for bundling item',
+          );
+        }
+
+        const calcKey = this.buildInvoiceItemKey(
+          'bundling',
+          null,
+          null,
+          product.bundlingId ?? null,
+        );
+        const calcItem = calculationMap.get(calcKey) ?? null;
+
+        if (!calcItem) {
+          this.logger.error(
+            `Failed to match calculation result for bundling ${product.bundlingId}`,
+          );
+          throw new BadRequestException(
+            `Failed to match calculation result for bundling ${product.bundlingId}`,
+          );
+        }
+
+        originalSubtotal += calcItem.subtotal ?? 0;
+        totalProductDiscount += calcItem.discountAmount ?? 0;
+
+        if (!bundlingCache.has(product.bundlingId)) {
+          const bundling = await tx.catalog_bundling.findUnique({
+            where: { id: product.bundlingId },
+          });
+
+          if (!bundling) {
+            this.logger.error(
+              `Product Bundling with ID ${product.bundlingId} not found`,
+            );
+            throw new NotFoundException(
+              `Product Bundling with ID ${product.bundlingId} not found`,
+            );
+          }
+
+          const bundlingProducts =
+            await tx.catalog_bundling_has_product.findMany({
+              where: { catalog_bundling_id: product.bundlingId },
+              select: {
+                product_id: true,
+                catalog_bundling_id: true,
+                quantity: true,
+              },
+            });
+
+          bundlingCache.set(product.bundlingId, {
+            bundlingId: product.bundlingId,
+            products: bundlingProducts,
+          });
+        }
+
+        const cacheValue = bundlingCache.get(product.bundlingId);
+        if (!cacheValue) {
+          throw new BadRequestException(
+            `Failed to prepare bundling ${product.bundlingId}`,
+          );
+        }
+
+        const perUnitDiscount =
+          product.quantity > 0
+            ? (calcItem.discountAmount ?? 0) / product.quantity
+            : 0;
+
+        const invoiceDetailId = uuidv4();
+        const itemType = 'bundling';
+        const bundlingLookupKey = this.buildInvoiceItemKey(
+          itemType,
+          null,
+          null,
+          product.bundlingId ?? null,
+        );
+        const invoiceDetailData = {
+          id: invoiceDetailId,
+          invoice_id: invoiceId,
+          product_id: null,
+          catalog_bundling_id: product.bundlingId,
+          product_price: calcItem.productPrice ?? 0,
+          notes: product.notes ?? null,
+          qty: product.quantity,
+          variant_id: null,
+          variant_price: null,
+          product_discount: perUnitDiscount,
+          benefit_free_items_id: null,
+        } as invoice_details;
+
+        const bundlingItems = cacheValue.products.map((bp) => ({
+          id: uuidv4(),
+          invoice_id: invoiceId,
+          invoice_detail_id: invoiceDetailId,
+          product_id: bp.product_id,
+          qty: product.quantity ?? 1,
+          created_at: now,
+          updated_at: now,
+        }));
+
+        const detailQueueEntries: KitchenQueueAdd[] = [];
+        for (const bp of cacheValue.products) {
+          const queueCount = (bp.quantity ?? 1) * (product.quantity ?? 0);
+          for (let i = 0; i < queueCount; i++) {
+            const queueItem: KitchenQueueAdd = {
+              id: uuidv4(),
+              invoice_id: invoiceId,
+              order_type: orderType,
+              order_status: order_status.placed,
+              product_id: bp.product_id,
+              catalog_bundling_id: product.bundlingId,
+              store_id: storeId,
+              customer_id: customerId ?? null,
+              notes: product.notes ?? null,
+              created_at: now,
+              updated_at: now,
+              table_code: tableCode ?? '',
+            };
+            detailQueueEntries.push(queueItem);
+            kitchenQueue.push(queueItem);
+          }
+        }
+
+        invoiceDetails.push({
+          detail: invoiceDetailData,
+          bundlingItems,
+          queueEntries: detailQueueEntries,
+          itemType,
+          lookupKey: bundlingLookupKey,
+        });
+        continue;
+      }
+
+      if (!product.productId) {
+        this.logger.error(`Product ID is required for single item`);
+        throw new BadRequestException('Product ID is required for single item');
+      }
+
+      const normalizedType = (product.type ?? 'single').toLowerCase();
+      const calcLookupKey = this.buildInvoiceItemKey(
+        normalizedType,
+        product.productId ?? null,
+        product.variantId ?? null,
+        null,
+      );
+      const calcItem = calculationMap.get(calcLookupKey);
+
+      if (!calcItem) {
+        this.logger.error(
+          `Failed to match calculation result for product ${product.productId}`,
+        );
+        throw new BadRequestException(
+          `Failed to match calculation result for product ${product.productId}`,
+        );
+      }
+
+      const validVariantId = await this.validateProductVariant(
+        product.productId,
+        product.variantId,
+      );
+
+      originalSubtotal += calcItem.subtotal ?? 0;
+      totalProductDiscount += calcItem.discountAmount ?? 0;
+
+      const perUnitDiscount =
+        product.quantity > 0
+          ? (calcItem.discountAmount ?? 0) / product.quantity
+          : 0;
+
+      const originalPrice =
+        (calcItem as any).originalPrice !== undefined &&
+        (calcItem as any).originalPrice !== null
+          ? (calcItem as any).originalPrice
+          : (calcItem.productPrice ?? 0);
+
+      const invoiceDetailId = uuidv4();
+      const detailLookupKey = this.buildInvoiceItemKey(
+        normalizedType,
+        product.productId,
+        validVariantId ?? null,
+        null,
+      );
+      const shouldCreateQueue = normalizedType !== 'redeem';
+      const invoiceDetailData = {
+        id: invoiceDetailId,
+        invoice_id: invoiceId,
+        product_id: product.productId,
+        catalog_bundling_id: null,
+        product_price: originalPrice ?? 0,
+        notes: product.notes ?? null,
+        qty: product.quantity,
+        variant_id: validVariantId ?? null,
+        variant_price: calcItem.variantPrice ?? 0,
+        product_discount: perUnitDiscount,
+        benefit_free_items_id: null,
+      } as invoice_details;
+
+      const detailQueueEntries: KitchenQueueAdd[] = [];
+      invoiceDetails.push({
+        detail: invoiceDetailData,
+        bundlingItems: [],
+        queueEntries: detailQueueEntries,
+        itemType: normalizedType,
+        lookupKey: detailLookupKey,
+      });
+
+      if (shouldCreateQueue) {
+        for (let i = 0; i < product.quantity; i++) {
+          const queueItem: KitchenQueueAdd = {
+            id: uuidv4(),
+            invoice_id: invoiceId,
+            order_type: orderType,
+            order_status: order_status.placed,
+            product_id: product.productId,
+            variant_id: validVariantId ?? null,
+            store_id: storeId,
+            customer_id: customerId ?? null,
+            notes: product.notes ?? '',
+            created_at: now,
+            updated_at: now,
+            table_code: tableCode ?? '',
+          };
+          detailQueueEntries.push(queueItem);
+          kitchenQueue.push(queueItem);
+        }
+      }
+    }
+
+    return {
+      invoiceDetails,
+      kitchenQueue,
+      originalSubtotal,
+      totalProductDiscount,
+    };
   }
 
   /**
@@ -1919,28 +2803,52 @@ export class InvoiceService {
       throw new BadRequestException(`Invoice detail not found`);
     }
 
-    // re-map the struct
-    const calculationEstimationDto = new CalculationEstimationDto();
-    calculationEstimationDto.products = [];
-    for (const item of invoiceDetails) {
+    let grandTotal = 0;
+    let paymentAmount = 0;
+    let changeAmount = 0;
+    let totalProductDiscount = 0;
+    let totalRedeemDiscount = 0;
+
+    const calculationProducts: ProductDto[] = invoiceDetails.map((item) => {
       const dto = new ProductDto();
-      dto.productId = item.product_id ?? '';
-      dto.variantId = item.variant_id ?? '';
       dto.quantity = item.qty ?? 0;
+      dto.notes = item.notes ?? '';
+      dto.variantId = item.variant_id ?? '';
 
-      calculationEstimationDto.products.push(dto);
-    }
+      if (item.catalog_bundling_id) {
+        dto.type = 'bundling';
+        dto.bundlingId = item.catalog_bundling_id;
+        dto.productId = '';
+      } else {
+        dto.type = item.benefit_free_items_id ? 'redeem' : 'single';
+        dto.productId = item.product_id ?? '';
+      }
 
-    // jika invoice memiliki applied voucher
+      return dto;
+    });
+
+    const calculationEstimationDto = new CalculationEstimationDto();
+    calculationEstimationDto.orderType =
+      invoice.order_type ?? order_type.dine_in;
+    calculationEstimationDto.products = calculationProducts;
+    calculationEstimationDto.paymentAmount = request.paymentAmount;
+    calculationEstimationDto.provider = request.provider;
+
     if (invoice.voucher_id) {
       calculationEstimationDto.voucherId = invoice.voucher_id;
     }
 
-    let grandTotal = 0;
-    let paymentAmount = 0;
-    let changeAmount = 0;
+    if (invoice.customer_id) {
+      calculationEstimationDto.customerId = invoice.customer_id;
+    }
+
+    if (invoice.loyalty_points_benefit_id) {
+      calculationEstimationDto.redeemLoyalty = {
+        loyalty_points_benefit_id: invoice.loyalty_points_benefit_id,
+      };
+    }
+
     await this._prisma.$transaction(async (tx) => {
-      // calculate estimation
       const calculation = await this.calculateTotal(
         tx,
         calculationEstimationDto,
@@ -1951,12 +2859,13 @@ export class InvoiceService {
       grandTotal = calculation.grandTotal;
       paymentAmount = calculation.paymentAmount;
       changeAmount = calculation.changeAmount;
+      totalProductDiscount = calculation.discountTotal;
+      totalRedeemDiscount = calculation.totalRedeemDiscount ?? 0;
 
-      // update invoice
       await this.update(tx, invoice.id, {
         payment_status:
           method.name === 'Cash' ? invoice_type.paid : invoice_type.unpaid,
-        subtotal: calculation.subTotal, // harga sebelum potongan voucher
+        subtotal: calculation.subTotal,
         tax_id: calculation.taxId,
         paid_at: method.name === 'Cash' ? new Date() : undefined,
         service_charge_id: calculation.serviceChargeId,
@@ -1967,79 +2876,79 @@ export class InvoiceService {
         payment_amount: calculation.paymentAmount,
         change_amount: calculation.changeAmount,
         voucher_amount: calculation.voucherAmount ?? 0,
+        total_product_discount: calculation.discountTotal,
+        loyalty_discount: calculation.totalRedeemDiscount ?? 0,
+        rounding_setting_id:
+          calculation.paymentRoundingSetting?.id ?? undefined,
+        rounding_amount: calculation.roundingAdjustment ?? undefined,
       });
     });
 
-    const integration = await this._prisma.integrations.findFirst({
-      where: { stores_id: storeId },
-    });
-    if (method.name === 'Qris') {
-      // const response = await this.initiatePaymentBasedOnMethod(
-      //   request.paymentMethodId,
-      //   paymentProvider,
-      //   invoice.id,
-      //   grandTotal,
-      // );
+    if (request.provider !== 'cash') {
+      const integration = await this._prisma.integrations.findFirst({
+        where: { stores_id: storeId },
+      });
+
+      const response = await this.initiatePaymentBasedOnMethod(
+        request.paymentMethodId,
+        paymentProvider,
+        invoice.id,
+        grandTotal,
+      );
+
       return {
-        paymentMethodId: request.paymentMethodId,
+        ...response,
         invoiceId: invoice.id,
-        grandTotal: grandTotal,
         qrImage: integration?.image || null,
       };
     }
 
-    // get opened cash drawer
+    // Cash payment flow
     const cashDrawer = await this._cashDrawer.getCashDrawerStatus(storeId);
-    if (cashDrawer?.status === cash_drawer_type.close) {
+    if (!cashDrawer || cashDrawer.status === cash_drawer_type.close) {
       this.logger.error(`Cash Drawer with store id ${storeId} is closed`);
       throw new NotFoundException(
         `Cash Drawer with store id ${storeId} is closed`,
       );
     }
 
-    // Skip if cashDrawerId is undefined or null
-    if (cashDrawer) {
-      // add cash drawer transaction
-      await this._cashDrawer.addCashDrawerTransaction(
-        cashDrawer?.id,
-        paymentAmount,
-        changeAmount,
-        2,
-        '', // notes still empty
-        header.user?.id,
-      );
-    }
+    await this._cashDrawer.addCashDrawerTransaction(
+      cashDrawer.id,
+      paymentAmount,
+      changeAmount,
+      2,
+      '',
+      header.user?.id,
+    );
 
-    // Create stock adjustments for completed payment
     await this.createStockAdjustmentsForInvoice(invoice.id, storeId);
 
-    // Update loyalty points
-    if (method.name === 'Cash') {
-      const getData = await this.prepareUpdateLoyaltyPoints(
+    const loyaltyPayload = await this.prepareUpdateLoyaltyPoints(
+      storeId,
+      invoice.id,
+    );
+    if (loyaltyPayload.canUpdateLoyalty) {
+      const points = await this.calculateLoyaltyPoints(
         storeId,
-        invoice.id,
+        loyaltyPayload.products,
+        grandTotal,
+        loyaltyPayload.redeemLoyalty,
       );
-      if (getData.canUpdateLoyalty) {
-        const getPoints = await this.calculateLoyaltyPoints(
-          storeId,
-          getData.products,
-          grandTotal,
-          getData.redeemLoyalty,
-        );
 
-        await this.updateCustomerPoint(
-          invoice.id,
-          invoice.customer_id ?? null,
-          getData.redeemLoyalty,
-          getPoints,
-        );
-      }
+      await this.updateCustomerPoint(
+        invoice.id,
+        invoice.customer_id ?? null,
+        loyaltyPayload.redeemLoyalty,
+        points,
+      );
     }
 
     return {
       paymentMethodId: request.paymentMethodId,
       invoiceId: invoice.id,
-      grandTotal: grandTotal,
+      grandTotal,
+      totalProductDiscount,
+      totalRedeemDiscount,
     };
   }
 
@@ -2220,7 +3129,7 @@ export class InvoiceService {
     tx: Prisma.TransactionClient,
     request: CalculationEstimationDto,
     storeId?: string,
-    invoiceId?: string,
+    invoiceId?: string | null,
   ): Promise<CalculationResult> {
     let total = 0;
     let discountTotal = 0;
@@ -2361,6 +3270,19 @@ export class InvoiceService {
         });
 
         total += totalBundlingOrigin * item.quantity;
+      } else if (item.type === 'redeem') {
+        items.push({
+          type: 'redeem' as const,
+          productId: item.productId,
+          variantId: null,
+          bundlingId: null,
+          productPrice: 0,
+          originalPrice: 0,
+          variantPrice: 0,
+          qty: item.quantity,
+          discountAmount: 0,
+          subtotal: 0,
+        });
       } else {
         this.logger.error(`Invalid product type ${item.type}`);
         throw new NotFoundException(`Invalid product type ${item.type}`);
@@ -2493,20 +3415,37 @@ export class InvoiceService {
     }
 
     // Calculate total points
-    if (request.customerId && storeId) {
+    if ((request.customerId || invoiceId) && storeId) {
+      let redeemLoyalty = request.redeemLoyalty ?? null;
+
+      if (invoiceId) {
+        const getInvoice = await this._prisma.invoice.findFirst({
+          where: {
+            id: invoiceId,
+          },
+        });
+
+        if (getInvoice && getInvoice.loyalty_points_benefit_id) {
+          redeemLoyalty = {
+            loyalty_points_benefit_id: getInvoice.loyalty_points_benefit_id,
+          };
+        }
+      }
+
       const getPoints = await this.calculateLoyaltyPoints(
         storeId,
         request.products,
         grandTotal,
-        null,
+        redeemLoyalty,
       );
+
       totalPointsEarn =
         getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
 
-      if (request.redeemLoyalty) {
+      if (redeemLoyalty) {
         const benefit = await this._prisma.loyalty_points_benefit.findFirst({
           where: {
-            id: request.redeemLoyalty.loyalty_points_benefit_id,
+            id: redeemLoyalty.loyalty_points_benefit_id,
           },
         });
 
@@ -3169,6 +4108,9 @@ export class InvoiceService {
           // payment rounding
           rounding_setting_id: invoice.rounding_setting_id ?? null,
           rounding_amount: invoice.rounding_amount ?? null,
+          // loyalty points
+          loyalty_points_benefit_id: invoice.loyalty_points_benefit_id ?? null,
+          loyalty_discount: invoice.loyalty_discount ?? 0,
         },
       });
 
@@ -3372,7 +4314,7 @@ export class InvoiceService {
         },
       });
     } catch (error) {
-      this.logger.error('Failed to create invoice charge');
+      this.logger.error('Failed to create invoice charge', error.stack);
       throw new BadRequestException('Failed to create invoice charge', {
         cause: new Error(),
         description: error.message,
