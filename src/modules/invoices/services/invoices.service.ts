@@ -132,6 +132,7 @@ export class InvoiceService {
         include: {
           customer: true,
           users: true,
+          stores: true,
           invoice_details: {
             include: {
               products: {
@@ -142,6 +143,12 @@ export class InvoiceService {
                 },
               },
               variant: true,
+              catalog_bundling: true,
+              invoice_bundling_items: {
+                include: {
+                  products: true,
+                },
+              },
             },
           },
           payment_methods: true,
