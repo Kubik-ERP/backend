@@ -90,7 +90,7 @@ export class TransferStockController {
         schema: { type: 'string' },
     })
     @ApiBearerAuth()
-    @Post('item-list')
+    @Post('transfer/item-list')
     async findAllItemList(@Req() req: ICustomRequestHeaders, @Body() dto: ItemListDto, @Query('search') search?: string) {
         try {
             const items = await this.transferStockService.findAllItem(req, dto, search);
