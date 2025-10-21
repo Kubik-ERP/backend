@@ -117,7 +117,7 @@ import { TransferStockModule } from './modules/transfer-stock/transfer-stock.mod
     IntegrationsModule,
     ReportModule,
     RecipesModule,
-    TransferStockModule
+    TransferStockModule,
   ],
   providers: [
     {

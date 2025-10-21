@@ -9,5 +9,4 @@ import { TransferStockService } from './services/transfer-stock.service';
   controllers: [TransferStockController],
   providers: [TransferStockService, Reflector],
 })
-
 export class TransferStockModule {}
