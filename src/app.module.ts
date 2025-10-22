@@ -132,8 +132,6 @@ import { StoresController } from './modules/stores/controllers/stores.controller
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(HeaderMiddleware).forRoutes('*');
-    consumer
-      .apply(ServerKeyMiddleware)
-      .forRoutes(SubscriptionController, StoresController);
+    consumer.apply(ServerKeyMiddleware).forRoutes(SubscriptionController);
   }
 }
