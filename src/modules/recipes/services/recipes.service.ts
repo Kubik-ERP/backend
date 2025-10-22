@@ -636,7 +636,6 @@ export class RecipesService {
       }
       return Number(val) || 0;
     };
-    console.log(`recipe in toPlain ${JSON.stringify(recipe)}`);
     return {
       recipe_id: recipe.recipe_id,
       recipe_name: recipe.recipe_name,
