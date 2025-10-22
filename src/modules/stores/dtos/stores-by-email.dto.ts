@@ -48,7 +48,7 @@ export class StoresByEmailDto {
   orderDirection: 'asc' | 'desc' = 'asc';
 
   @ApiProperty({
-    description: 'Email of the store',
+    description: 'Email of the user',
     required: true,
     example: 'store@example.com',
   })
