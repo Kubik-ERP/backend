@@ -53,6 +53,7 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
 import { ReportModule } from './modules/report/report.module';
 import { RecipesModule } from './modules/recipes/recipes.module';
+import { WasteLogModule } from './modules/waste-log/waste-log.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { StoresController } from './modules/stores/controllers/stores.controller';
 
@@ -118,6 +119,7 @@ import { StoresController } from './modules/stores/controllers/stores.controller
     IntegrationsModule,
     ReportModule,
     RecipesModule,
+    WasteLogModule,
     SchedulerModule,
   ],
   providers: [
