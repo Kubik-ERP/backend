@@ -54,6 +54,7 @@ import { WorkingHoursModule } from './modules/working-hours/working-hours.module
 import { ReportModule } from './modules/report/report.module';
 import { RecipesModule } from './modules/recipes/recipes.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { StoresController } from './modules/stores/controllers/stores.controller';
 
 @Module({
   imports: [
@@ -117,7 +118,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     IntegrationsModule,
     ReportModule,
     RecipesModule,
-    SchedulerModule
+    SchedulerModule,
   ],
   providers: [
     {
@@ -131,6 +132,8 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(HeaderMiddleware).forRoutes('*');
-    consumer.apply(ServerKeyMiddleware).forRoutes(SubscriptionController);
+    consumer
+      .apply(ServerKeyMiddleware)
+      .forRoutes(SubscriptionController, StoresController);
   }
 }
