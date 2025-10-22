@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -23,6 +24,7 @@ import {
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
+import { StorageService } from 'src/modules/storage-service/services/storage-service.service';
 import {
   CreateWasteLogDto,
   GetWasteLogsDto,
@@ -36,7 +38,10 @@ import { WasteLogService } from '../services/waste-log.service';
 @ApiTags('Waste Log')
 @Controller('waste-log')
 export class WasteLogController {
-  constructor(private readonly wasteLogService: WasteLogService) {}
+  constructor(
+    private readonly wasteLogService: WasteLogService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('manage_item')
@@ -96,7 +101,36 @@ export class WasteLogController {
     @Req() req: ICustomRequestHeaders,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<{ message: string; result: WasteLogResponseDto }> {
-    const wasteLog = await this.wasteLogService.create(dto, files, req);
+    // Process files similar to inventory items
+    const processedPayload = await Promise.all(
+      dto.payload.map(async (item, index) => {
+        let relativePath = '';
+
+        // Find corresponding image file for this payload item
+        const imageFile = files.find(
+          (file) => file.fieldname === `payload[${index}].image`,
+        );
+
+        if (imageFile) {
+          // Upload image using storage service (same as inventory items)
+          const uploadResult = await this.storageService.uploadImage(
+            imageFile.buffer,
+            imageFile.originalname,
+          );
+          relativePath = uploadResult.filename;
+        }
+
+        return {
+          ...item,
+          photo_url: relativePath || '',
+        };
+      }),
+    );
+
+    const wasteLog = await this.wasteLogService.create(
+      { ...dto, payload: processedPayload },
+      req,
+    );
     return {
       message: 'Waste log created successfully',
       result: toCamelCase(wasteLog) as WasteLogResponseDto,
@@ -206,10 +240,83 @@ export class WasteLogController {
     @Req() req: ICustomRequestHeaders,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<{ message: string; result: WasteLogResponseDto }> {
-    const wasteLog = await this.wasteLogService.update(id, dto, files, req);
+    // Process files similar to inventory items
+    const processedPayload = await Promise.all(
+      dto.payload.map(async (item, index) => {
+        let relativePath = '';
+
+        // Find corresponding image file for this payload item
+        const imageFile = files.find(
+          (file) => file.fieldname === `payload[${index}].image`,
+        );
+
+        if (imageFile) {
+          // Upload image using storage service (same as inventory items)
+          const uploadResult = await this.storageService.uploadImage(
+            imageFile.buffer,
+            imageFile.originalname,
+          );
+          relativePath = uploadResult.filename;
+        }
+
+        return {
+          ...item,
+          photo_url: relativePath || '',
+        };
+      }),
+    );
+
+    const wasteLog = await this.wasteLogService.update(
+      id,
+      { ...dto, payload: processedPayload },
+      req,
+    );
     return {
       message: 'Waste log updated successfully',
       result: toCamelCase(wasteLog) as WasteLogResponseDto,
+    };
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_item')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete waste log by ID' })
+  public async remove(
+    @Param('id') id: string,
+    @Req() req: ICustomRequestHeaders,
+  ): Promise<{ message: string }> {
+    await this.wasteLogService.remove(id, req);
+    return {
+      message: 'Waste log deleted successfully',
+    };
+  }
+
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_item')
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @Delete(':wasteLogId/items/:itemId')
+  @ApiOperation({ summary: 'Delete waste log item by ID' })
+  public async removeItem(
+    @Param('wasteLogId') wasteLogId: string,
+    @Param('itemId') itemId: string,
+    @Req() req: ICustomRequestHeaders,
+  ): Promise<{ message: string }> {
+    await this.wasteLogService.removeItem(wasteLogId, itemId, req);
+    return {
+      message: 'Waste log item deleted successfully',
     };
   }
 }

@@ -21,14 +21,10 @@ import { StorageService } from 'src/modules/storage-service/services/storage-ser
 export class WasteLogService {
   private readonly logger = new Logger(WasteLogService.name);
 
-  constructor(
-    private readonly _prisma: PrismaService,
-    private readonly storageService: StorageService,
-  ) {}
+  constructor(private readonly _prisma: PrismaService) {}
 
   public async create(
     dto: CreateWasteLogDto,
-    files: Express.Multer.File[],
     header: ICustomRequestHeaders,
   ): Promise<WasteLogResponseDto> {
     const store_id = header.store_id;
@@ -48,24 +44,10 @@ export class WasteLogService {
           },
         });
 
-        // Upload images and create waste log items
+        // Create waste log items with pre-processed photo URLs
         const wasteLogItems = [];
         for (let i = 0; i < dto.payload.length; i++) {
           const item = dto.payload[i];
-          let photoUrl = '';
-
-          // Find corresponding image file
-          const imageFile = files.find(
-            (file) => file.fieldname === `payload[${i}].image`,
-          );
-
-          if (imageFile) {
-            const uploadResult = await this.storageService.uploadImage(
-              imageFile.buffer,
-              imageFile.originalname,
-            );
-            photoUrl = uploadResult.filename;
-          }
 
           const wasteLogItem = await tx.waste_log_item.create({
             data: {
@@ -76,7 +58,7 @@ export class WasteLogService {
               quantity: item.quantity,
               uom: item.uom || null,
               notes: item.notes || null,
-              photo_url: photoUrl || null,
+              photo_url: (item as any).photo_url || null,
               created_at: new Date(),
               updated_at: new Date(),
             },
@@ -155,7 +137,6 @@ export class WasteLogService {
   public async update(
     id: string,
     dto: UpdateWasteLogDto,
-    files: Express.Multer.File[],
     header: ICustomRequestHeaders,
   ): Promise<WasteLogResponseDto> {
     const store_id = header.store_id;
@@ -189,23 +170,9 @@ export class WasteLogService {
           where: { waste_log_id: id },
         });
 
-        // Create new items
+        // Create new items with pre-processed photo URLs
         for (let i = 0; i < dto.payload.length; i++) {
           const item = dto.payload[i];
-          let photoUrl = '';
-
-          // Find corresponding image file
-          const imageFile = files.find(
-            (file) => file.fieldname === `payload[${i}].image`,
-          );
-
-          if (imageFile) {
-            const uploadResult = await this.storageService.uploadImage(
-              imageFile.buffer,
-              imageFile.originalname,
-            );
-            photoUrl = uploadResult.filename;
-          }
 
           await tx.waste_log_item.create({
             data: {
@@ -216,7 +183,7 @@ export class WasteLogService {
               quantity: item.quantity,
               uom: item.uom || null,
               notes: item.notes || null,
-              photo_url: photoUrl || null,
+              photo_url: (item as any).photo_url || null,
               created_at: new Date(),
               updated_at: new Date(),
             },
@@ -322,5 +289,84 @@ export class WasteLogService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  public async remove(
+    id: string,
+    header: ICustomRequestHeaders,
+  ): Promise<void> {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+
+    // Check if waste log exists
+    const existingWasteLog = await this._prisma.waste_log.findFirst({
+      where: {
+        waste_log_id: id,
+        store_id,
+      },
+    });
+
+    if (!existingWasteLog) {
+      throw new NotFoundException('Waste log not found');
+    }
+
+    try {
+      await this._prisma.$transaction(async (tx) => {
+        // Delete waste log items first (due to foreign key constraint)
+        await tx.waste_log_item.deleteMany({
+          where: { waste_log_id: id },
+        });
+
+        // Delete waste log
+        await tx.waste_log.delete({
+          where: { waste_log_id: id },
+        });
+      });
+    } catch (error) {
+      this.logger.error('Error deleting waste log:', error);
+      throw new BadRequestException('Failed to delete waste log');
+    }
+  }
+
+  public async removeItem(
+    wasteLogId: string,
+    itemId: string,
+    header: ICustomRequestHeaders,
+  ): Promise<void> {
+    const store_id = header.store_id;
+    if (!store_id) throw new BadRequestException('store_id is required');
+
+    // Check if waste log exists and belongs to the store
+    const existingWasteLog = await this._prisma.waste_log.findFirst({
+      where: {
+        waste_log_id: wasteLogId,
+        store_id,
+      },
+    });
+
+    if (!existingWasteLog) {
+      throw new NotFoundException('Waste log not found');
+    }
+
+    // Check if waste log item exists
+    const existingItem = await this._prisma.waste_log_item.findFirst({
+      where: {
+        waste_log_item_id: itemId,
+        waste_log_id: wasteLogId,
+      },
+    });
+
+    if (!existingItem) {
+      throw new NotFoundException('Waste log item not found');
+    }
+
+    try {
+      await this._prisma.waste_log_item.delete({
+        where: { waste_log_item_id: itemId },
+      });
+    } catch (error) {
+      this.logger.error('Error deleting waste log item:', error);
+      throw new BadRequestException('Failed to delete waste log item');
+    }
   }
 }
