@@ -49,6 +49,7 @@ import { toCamelCase } from '../../../common/helpers/object-transformer.helper';
 import { UpdateProductDto } from '../../products/dto/update-product.dto';
 import { StoresListDto } from '../dtos/stores-list.dto';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
+import { StoresByEmailDto } from '../dtos/stores-by-email.dto';
 
 @Controller('store')
 @ApiTags('Stores')
@@ -280,6 +281,30 @@ export class StoresController {
   ) {
     try {
       const result = await this._storeService.getAllStores(dto, req);
+      return {
+        statusCode: 200,
+        message: 'Stores fetched successfully',
+        result: toCamelCase(result),
+      };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        message: error.message,
+        result: null,
+      };
+    }
+  }
+
+  // Ini akan dipanggil oleh compro
+  @ApiOperation({ summary: 'Get store by email' })
+  @ApiHeader({
+    name: 'x-server-key',
+    description: 'Custom API Key',
+  })
+  @Get('/compro')
+  public async getStoreByEmail(@Query() dto: StoresByEmailDto) {
+    try {
+      const result = await this._storeService.getStoresByEmail(dto);
       return {
         statusCode: 200,
         message: 'Stores fetched successfully',
