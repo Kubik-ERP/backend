@@ -3986,16 +3986,16 @@ export class InvoiceService {
         spendBasedExpired.setDate(
           now.getDate() + (loyaltySetting.spend_based_points_expiry_days ?? 0),
         );
-        spendBasedExpired.setHours(23, 59, 0, 0);
 
-        await this._prisma.customer_loyalty_transactions.create({
+        await this._prisma.trn_customer_points.create({
           data: {
             customer_id: customerId,
             invoice_id: invoiceId,
-            type: 'earn',
-            points: points.earnPointsBySpend,
-            description: `Earned from spend-based = ${points.earnPointsBySpend}`,
-            expired_at: spendBasedExpired,
+            type: 'point_addition',
+            value: points.earnPointsBySpend,
+            notes: `Earned from spend-based = ${points.earnPointsBySpend}`,
+            expiry_date: spendBasedExpired,
+            status: 'active'
           },
         });
       }
@@ -4006,16 +4006,16 @@ export class InvoiceService {
           now.getDate() +
             (loyaltySetting.product_based_points_expiry_days ?? 0),
         );
-        productBasedExpired.setHours(23, 59, 0, 0);
 
-        await this._prisma.customer_loyalty_transactions.create({
+        await this._prisma.trn_customer_points.create({
           data: {
             customer_id: customerId,
             invoice_id: invoiceId,
-            type: 'earn',
-            points: points.earnPointsByProduct,
-            description: `Earned from product-based = ${points.earnPointsByProduct}`,
-            expired_at: productBasedExpired,
+            type: 'point_addition',
+            value: points.earnPointsByProduct,
+            notes: `Earned from product-based = ${points.earnPointsByProduct}`,
+            expiry_date: productBasedExpired,
+            status: 'active'
           },
         });
       }
@@ -4028,13 +4028,13 @@ export class InvoiceService {
         });
 
         if (benefit) {
-          await this._prisma.customer_loyalty_transactions.create({
+          await this._prisma.trn_customer_points.create({
             data: {
               customer_id: customerId,
               invoice_id: invoiceId,
-              type: 'redeem',
-              points: benefit.points_needs ?? 0,
-              description: 'Redeem ' + benefit.benefit_name,
+              type: 'point_deduction',
+              value: benefit.points_needs ?? 0,
+              notes: 'Redeem ' + benefit.benefit_name,
             },
           });
         }
@@ -4045,35 +4045,27 @@ export class InvoiceService {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const [earn, adjustment, redeem] = await Promise.all([
-        this._prisma.customer_loyalty_transactions.aggregate({
+      const [earn, redeem] = await Promise.all([
+        this._prisma.trn_customer_points.aggregate({
           where: {
             customer_id: customerId,
-            type: 'earn',
-            expired_at: { gte: today },
+            type: 'point_addition',
+            expiry_date: { gte: today }
           },
-          _sum: { points: true },
+          _sum: { value: true },
         }),
-        this._prisma.customer_loyalty_transactions.aggregate({
+        this._prisma.trn_customer_points.aggregate({
           where: {
             customer_id: customerId,
-            type: 'adjustment',
+            type: 'point_deduction',
           },
-          _sum: { points: true },
-        }),
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: {
-            customer_id: customerId,
-            type: 'redeem',
-          },
-          _sum: { points: true },
+          _sum: { value: true },
         }),
       ]);
 
       const totalActivePoints =
-        (earn._sum.points ?? 0) +
-        (adjustment._sum.points ?? 0) -
-        (redeem._sum.points ?? 0);
+        (earn._sum.value ?? 0) -
+        (redeem._sum.value ?? 0);
 
       await this._prisma.customer.update({
         where: { id: customerId },

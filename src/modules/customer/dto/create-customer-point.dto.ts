@@ -27,4 +27,9 @@ export class CreateCustomerPointDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({ example: 'active' })
+  @IsUUID()
+  @IsOptional()
+  status?: string;
 }

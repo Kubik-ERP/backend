@@ -17,10 +17,10 @@ export class LoyaltyScheduler {
         today.setHours(0, 0, 0, 0);
 
         // Ambil semua transaksi earn yang sudah expired
-        const expiredPoints = await this.prisma.customer_loyalty_transactions.findMany({
+        const expiredPoints = await this.prisma.trn_customer_points.findMany({
             where: {
-                type: 'earn',
-                expired_at: { lt: today }, // sudah lewat masa berlaku
+                type: 'point_addition',
+                expiry_date: { lt: today }, // sudah lewat masa berlaku
             },
         });
 
@@ -43,32 +43,25 @@ export class LoyaltyScheduler {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const [earn, adjustment, redeem] = await Promise.all([
-            this.prisma.customer_loyalty_transactions.aggregate({
+        const [earn, redeem] = await Promise.all([
+            this.prisma.trn_customer_points.aggregate({
                 where: {
                     customer_id: customerId,
-                    type: 'earn',
-                    expired_at: { gte: today }, // hanya yang masih aktif
+                    type: 'point_addition',
+                    expiry_date: { gte: today }
                 },
-                _sum: { points: true },
+                _sum: { value: true },
             }),
-            this.prisma.customer_loyalty_transactions.aggregate({
+            this.prisma.trn_customer_points.aggregate({
                 where: {
                     customer_id: customerId,
-                    type: 'adjustment',
+                    type: 'point_deduction',
                 },
-                _sum: { points: true },
-            }),
-            this.prisma.customer_loyalty_transactions.aggregate({
-                where: {
-                    customer_id: customerId,
-                    type: 'redeem',
-                },
-                _sum: { points: true },
+                _sum: { value: true },
             }),
         ]);
 
-        const totalActivePoints = (earn._sum.points ?? 0) + (adjustment._sum.points ?? 0) - (redeem._sum.points ?? 0);
+        const totalActivePoints = (earn._sum.value ?? 0) - (redeem._sum.value ?? 0);
 
         await this.prisma.customer.update({
             where: { id: customerId },
