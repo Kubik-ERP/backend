@@ -218,7 +218,7 @@ export class CashDrawerService {
           amount_out: amountOut,
           final_amount: updatedBalance,
           notes: notes || '',
-          created_by: userId,
+          created_by: userId == 0 ? null : userId,
           created_at: jakartaTime().toUnixInteger(),
           store_id: cashDrawer.store_id,
         },
