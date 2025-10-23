@@ -39,6 +39,8 @@ import { RolesListDto } from 'src/modules/roles/dto/roles-list.dto';
 import { RolesService } from 'src/modules/roles/roles.service';
 import { VouchersActiveDto } from 'src/modules/vouchers/dto/vouchers-active';
 import { VouchersService } from 'src/modules/vouchers/vouchers.service';
+import { QueryLoyaltyPointsDto } from 'src/modules/customer/dto/query-loyalty-points.dto';
+import { CustomerService } from 'src/modules/customer/customer.service';
 
 @ApiTags('Self Order')
 @Controller('self-order')
@@ -56,6 +58,7 @@ export class SelfOrderController {
     private readonly loyaltyBenefitService: LoyaltyBenefitService,
     private readonly rolesService: RolesService,
     private readonly vouchersService: VouchersService,
+    private readonly customersService: CustomerService,
   ) {}
 
   // Sign up: if exists (by code+number+store) return existing, else create via customersService.create
@@ -522,5 +525,17 @@ export class SelfOrderController {
         result: null,
       };
     }
+  }
+
+  @Get('customers/loyalty-points/:id')
+  async loyaltyPoints(
+    @Param('id') id: string,
+    @Query() query: QueryLoyaltyPointsDto,
+  ) {
+    const customer = await this.customersService.loyaltyPoints(id, query);
+    return {
+      message: 'Success',
+      result: toCamelCase(customer),
+    };
   }
 }

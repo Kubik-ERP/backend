@@ -15,6 +15,7 @@ import { LoyaltySettingsService } from '../loyalty-settings/loyalty-settings.ser
 import { LoyaltyBenefitService } from '../loyalty-settings/loyalty-benefit.service';
 import { RolesService } from '../roles/roles.service';
 import { VouchersService } from '../vouchers/vouchers.service';
+import { CustomerService } from '../customer/customer.service';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { VouchersService } from '../vouchers/vouchers.service';
     LoyaltyBenefitService,
     RolesService,
     VouchersService,
+    CustomerService,
   ],
 })
 export class SelfOrderModule {}
