@@ -141,6 +141,7 @@ model customer_loyalty_transactions {
   type        String    @db.VarChar(20)
   points      Int       @default(0)
   description String?
+  expired_at  DateTime? @default(now()) @db.Timestamp(6)
   created_at  DateTime? @default(now()) @db.Timestamp(6)
   updated_at  DateTime? @default(now()) @db.Timestamp(6)
   customer    customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyalty_transactions_customer_fk")
@@ -331,28 +332,28 @@ model invoice_details {
 }
 
 model invoice_settings {
-  id                             Int     @id(map: "invoice_settings_pk") @default(autoincrement())
-  store_id                       String  @unique(map: "invoice_settings_unique") @db.Uuid
-  uid                            Int?
-  company_logo_url               String?
-  footer_text                    String?
-  is_automatically_print_receipt Boolean @default(false)
-  is_automatically_print_kitchen Boolean @default(false)
-  is_automatically_print_table   Boolean @default(false)
-  is_show_company_logo           Boolean @default(false)
-  is_show_store_location         Boolean @default(false)
-  is_hide_cashier_name           Boolean @default(false)
-  is_hide_order_type             Boolean @default(false)
-  is_hide_queue_number           Boolean @default(false)
-  is_show_table_number           Boolean @default(false)
-  is_hide_item_prices            Boolean @default(false)
-  is_show_footer                 Boolean @default(false)
-  is_show_loyalty_points_used    Boolean @default(false)
+  id                               Int     @id(map: "invoice_settings_pk") @default(autoincrement())
+  store_id                         String  @unique(map: "invoice_settings_unique") @db.Uuid
+  uid                              Int?
+  company_logo_url                 String?
+  footer_text                      String?
+  is_automatically_print_receipt   Boolean @default(false)
+  is_automatically_print_kitchen   Boolean @default(false)
+  is_automatically_print_table     Boolean @default(false)
+  is_show_company_logo             Boolean @default(false)
+  is_show_store_location           Boolean @default(false)
+  is_hide_cashier_name             Boolean @default(false)
+  is_hide_order_type               Boolean @default(false)
+  is_hide_queue_number             Boolean @default(false)
+  is_show_table_number             Boolean @default(false)
+  is_hide_item_prices              Boolean @default(false)
+  is_show_footer                   Boolean @default(false)
+  is_show_loyalty_points_used      Boolean @default(false)
   is_show_total_points_accumulated Boolean @default(false)
-  increment_by                   Int?
-  reset_sequence                 String?
-  starting_number                Int?
-  stores                         stores  @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_invoice_settings_store")
+  increment_by                     Int?
+  reset_sequence                   String?
+  starting_number                  Int?
+  stores                           stores  @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_invoice_settings_store")
 }
 
 model invoice_bundling_items {
@@ -654,6 +655,7 @@ model stores {
   tables                      tables[]
   user_has_stores             user_has_stores[]
   voucher                     voucher[]
+  waste_log                   waste_log[]
 }
 
 model tables {
@@ -1005,6 +1007,7 @@ model master_inventory_items {
   products                          products?
   purchase_order_items              purchase_order_items[]
   stock_opname_items                stock_opname_items[]
+  waste_log_item                    waste_log_item[]
 
   @@index([brand_id], map: "idx_mii_brand_id")
   @@index([category_id], map: "idx_mii_category_id")
@@ -1463,6 +1466,31 @@ model recipe_versions {
   created_by                       String?               @db.Uuid
   ingredient_versions              ingredient_versions[]
   menu_recipes                     menu_recipes?         @relation(fields: [recipe_id], references: [recipe_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model waste_log {
+  waste_log_id   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id       String?          @db.Uuid
+  store_id       String           @db.Uuid
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
+  stores         stores           @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_waste_log_store")
+  waste_log_item waste_log_item[]
+}
+
+model waste_log_item {
+  waste_log_item_id      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  waste_log_id           String                 @db.Uuid
+  inventory_item_id      String                 @db.Uuid
+  category               String?                @db.VarChar(100)
+  quantity               Decimal?               @db.Decimal(12, 3)
+  uom                    String?                @db.VarChar(50)
+  notes                  String?
+  photo_url              String?
+  created_at             DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime               @default(now()) @db.Timestamptz(6)
+  master_inventory_items master_inventory_items @relation(fields: [inventory_item_id], references: [id], onUpdate: NoAction, map: "fk_waste_log_item_inventory")
+  waste_log              waste_log              @relation(fields: [waste_log_id], references: [waste_log_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_waste_log_item_log")
 }
 
 enum cash_drawer_type {
