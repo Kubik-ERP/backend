@@ -290,6 +290,7 @@ export class RecipesService {
           store_id: storeId,
         },
         include: {
+          products: true,
           ingredients: {
             include: {
               master_inventory_items: true,
@@ -652,6 +653,7 @@ export class RecipesService {
       store_id: recipe.store_id,
       created_at: recipe.created_at,
       updated_at: recipe.updated_at,
+      products: recipe.products,
       ingredients: recipe.ingredients
         ? recipe.ingredients.map((ingredient: any) => {
             const item = ingredient.master_inventory_items;
