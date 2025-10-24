@@ -324,6 +324,8 @@ export class InvoiceService {
         grandTotalInvoice,
         getData.redeemLoyalty,
       );
+      console.log(getData);
+      console.log(getPoints);
 
       totalEarnPoints =
         getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
@@ -3851,16 +3853,20 @@ export class InvoiceService {
           ?.filter((d) => !d.benefit_free_items_id)
           ?.map((d) => {
             let type: string | null = null;
+            let quantity: number = 0;
 
             if (d.product_id) {
               type = 'single';
+              quantity = d.qty ?? 0;
             } else if (d.catalog_bundling_id) {
               type = 'bundling';
+              quantity = d.qty ?? 0;
             }
 
             return {
               ...d.products,
               type,
+              quantity
             };
           }) ?? [];
     }
