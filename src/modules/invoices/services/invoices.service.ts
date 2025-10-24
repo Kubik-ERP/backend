@@ -3986,6 +3986,7 @@ export class InvoiceService {
         spendBasedExpired.setDate(
           now.getDate() + (loyaltySetting.spend_based_points_expiry_days ?? 0),
         );
+        spendBasedExpired.setHours(23, 59, 59, 999);
 
         await this._prisma.trn_customer_points.create({
           data: {
@@ -3995,7 +3996,9 @@ export class InvoiceService {
             value: points.earnPointsBySpend,
             notes: `Earned from spend-based = ${points.earnPointsBySpend}`,
             expiry_date: spendBasedExpired,
-            status: 'active'
+            status: 'active',
+            created_at: new Date(),
+            updated_at: new Date()
           },
         });
       }
@@ -4006,6 +4009,7 @@ export class InvoiceService {
           now.getDate() +
             (loyaltySetting.product_based_points_expiry_days ?? 0),
         );
+        productBasedExpired.setHours(23, 59, 59, 999);
 
         await this._prisma.trn_customer_points.create({
           data: {
@@ -4015,7 +4019,9 @@ export class InvoiceService {
             value: points.earnPointsByProduct,
             notes: `Earned from product-based = ${points.earnPointsByProduct}`,
             expiry_date: productBasedExpired,
-            status: 'active'
+            status: 'active',
+            created_at: new Date(),
+            updated_at: new Date()
           },
         });
       }
@@ -4045,27 +4051,20 @@ export class InvoiceService {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const [earn, redeem] = await Promise.all([
-        this._prisma.trn_customer_points.aggregate({
+      const earn = await this._prisma.trn_customer_points.aggregate({
           where: {
-            customer_id: customerId,
-            type: 'point_addition',
-            expiry_date: { gte: today }
+              customer_id: customerId,
+              type: 'point_addition',
+              status: 'active',
+              OR: [
+                  { expiry_date: { gte: today } },
+                  { expiry_date: null }
+              ],
           },
           _sum: { value: true },
-        }),
-        this._prisma.trn_customer_points.aggregate({
-          where: {
-            customer_id: customerId,
-            type: 'point_deduction',
-          },
-          _sum: { value: true },
-        }),
-      ]);
+      });
 
-      const totalActivePoints =
-        (earn._sum.value ?? 0) -
-        (redeem._sum.value ?? 0);
+      const totalActivePoints = earn._sum.value ?? 0;
 
       await this._prisma.customer.update({
         where: { id: customerId },
