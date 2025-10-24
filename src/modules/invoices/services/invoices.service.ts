@@ -324,8 +324,6 @@ export class InvoiceService {
         grandTotalInvoice,
         getData.redeemLoyalty,
       );
-      console.log(getData);
-      console.log(getPoints);
 
       totalEarnPoints =
         getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
@@ -3922,15 +3920,22 @@ export class InvoiceService {
 
         if (canEarnPoints) {
           for (const product of products) {
+            const getProductId = product.productId ? product.productId : (product.id ?? null);
+            if (!getProductId) {
+              return {
+                earnPointsBySpend,
+                earnPointsByProduct,
+              }
+            }
+
             if (product.type == 'single') {
               const loyaltyItem =
                 await this._prisma.loyalty_product_item.findFirst({
                   where: {
                     loyalty_point_setting_id: loyaltySettings.id,
-                    product_id: product.productId,
+                    product_id: getProductId
                   },
                 });
-
               if (loyaltyItem) {
                 const qty = product.quantity ?? 0;
                 const minimumPurchase = loyaltyItem.minimum_transaction ?? 0;
