@@ -99,7 +99,14 @@ export class ReportService {
   ) {
     let cashierId: number | undefined = undefined;
     if (staffId && staffId !== 'all') {
-      cashierId = +staffId;
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+
+      if (employee) {
+        cashierId = employee.user_id;
+      }
     }
     const invoiceWhere: Prisma.invoiceWhereInput = {
       store_id: { in: storeIds },
@@ -157,7 +164,14 @@ export class ReportService {
   ) {
     let cashierId: number | undefined = undefined;
     if (staffId && staffId !== 'all') {
-      cashierId = +staffId;
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+
+      if (employee) {
+        cashierId = employee.user_id;
+      }
     }
     const invoiceWhere: Prisma.invoiceWhereInput = {
       store_id: { in: storeIds },
@@ -251,7 +265,14 @@ export class ReportService {
   ) {
     let cashierId: number | undefined = undefined;
     if (staffId && staffId !== 'all') {
-      cashierId = +staffId;
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+
+      if (employee) {
+        cashierId = employee.user_id;
+      }
     }
     const invoiceWhere: Prisma.invoiceWhereInput = {
       store_id: { in: storeIds },
@@ -322,7 +343,14 @@ export class ReportService {
   ) {
     let cashierId: number | undefined = undefined;
     if (staffId && staffId !== 'all') {
-      cashierId = +staffId;
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+
+      if (employee) {
+        cashierId = employee.user_id;
+      }
     }
     const invoiceWhere: Prisma.invoiceWhereInput = {
       store_id: { in: storeIds },
@@ -378,6 +406,8 @@ export class ReportService {
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
+    console.log('Store IDS String:', storeIdsString);
+    console.log('Request Store ID:', req.store_id);
     let storeIds: string[] = [];
     if (storeIdsString) {
       storeIds = storeIdsString.split(',');
@@ -434,13 +464,13 @@ export class ReportService {
     });
 
     if (staffId && staffId !== 'all') {
-      const employee = await this.prisma.users.findFirst({
-        where: { id: +staffId },
-        select: { id: true },
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
       });
 
       if (employee) {
-        cashierId = employee.id;
+        cashierId = employee.user_id;
       } else {
         return { overallSummary: createDefaultSummary(), groupedSummary: [] };
       }
@@ -608,18 +638,6 @@ export class ReportService {
           where: { employees: { stores_id: { in: storeIds } } },
           select: { id: true, fullname: true },
         });
-        //add owner also
-        const owner = await this.prisma.users.findFirst({
-          where: {
-            user_has_stores: {
-              some: { store_id: { in: storeIds } },
-            },
-          },
-          select: { id: true, fullname: true },
-        });
-        if (owner) {
-          allStaff.push(owner);
-        }
         allStaff.forEach((s) =>
           idToNameMap.set(s.id.toString(), s.fullname ?? 'Unknown Staff'),
         );
