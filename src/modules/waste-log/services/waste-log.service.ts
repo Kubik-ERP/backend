@@ -23,12 +23,39 @@ export class WasteLogService {
 
   constructor(private readonly _prisma: PrismaService) {}
 
+  /**
+   * Validate if batch cooking recipe exists in the store
+   * @param batchId - The batch cooking recipe ID to validate
+   * @param storeId - The store ID to check against
+   * @throws NotFoundException if batch cooking recipe not found
+   */
+  private async validateBatchCookingRecipe(
+    batchId: string,
+    storeId: string,
+  ): Promise<void> {
+    const batchExists = await this._prisma.batch_cooking_recipe.findFirst({
+      where: {
+        id: batchId,
+        store_id: storeId,
+      },
+    });
+
+    if (!batchExists) {
+      throw new NotFoundException('Batch cooking recipe not found');
+    }
+  }
+
   public async create(
     dto: CreateWasteLogDto,
     header: ICustomRequestHeaders,
   ): Promise<WasteLogResponseDto> {
     const store_id = header.store_id;
     if (!store_id) throw new BadRequestException('store_id is required');
+
+    // Check if batchId exists in batch_cooking_recipe table
+    if (dto.batchId) {
+      await this.validateBatchCookingRecipe(dto.batchId, store_id);
+    }
 
     try {
       // Start transaction
@@ -152,6 +179,11 @@ export class WasteLogService {
 
     if (!existingWasteLog) {
       throw new NotFoundException('Waste log not found');
+    }
+
+    // Check if batchId exists in batch_cooking_recipe table (only if batchId is provided)
+    if (dto.batchId) {
+      await this.validateBatchCookingRecipe(dto.batchId, store_id);
     }
 
     try {

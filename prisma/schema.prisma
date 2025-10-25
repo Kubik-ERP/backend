@@ -57,6 +57,7 @@ model batch_cooking_recipe {
   stores                          stores                            @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "batch_cooking_recipe_stores_fk")
   menu_recipes                    menu_recipes                      @relation(fields: [recipe_id], references: [recipe_id], onDelete: NoAction, onUpdate: NoAction, map: "menu_recipe_fk")
   batch_cooking_recipe_ingredient batch_cooking_recipe_ingredient[]
+  waste_log                       waste_log[]
 }
 
 model batch_cooking_recipe_ingredient {
@@ -1308,8 +1309,8 @@ model trn_customer_points {
   type        point_type?
   expiry_date DateTime?   @default(now()) @db.Timestamptz(6)
   notes       String?     @db.VarChar(45)
-  status      String?     @db.VarChar(45)
   created_at  DateTime?   @default(now()) @db.Timestamptz(6)
+  status      String?     @db.VarChar(45)
   updated_at  DateTime?   @default(now()) @db.Timestamptz(6)
   customer    customer    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_customer_id_fk")
   invoice     invoice?    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_invoice_id_fk")
@@ -1459,13 +1460,14 @@ model voucher_has_products {
 }
 
 model waste_log {
-  waste_log_id   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  batch_id       String?          @db.Uuid
-  store_id       String           @db.Uuid
-  created_at     DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
-  stores         stores           @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_waste_log_store")
-  waste_log_item waste_log_item[]
+  waste_log_id         String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id             String?               @db.Uuid
+  store_id             String                @db.Uuid
+  created_at           DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime              @default(now()) @db.Timestamptz(6)
+  batch_cooking_recipe batch_cooking_recipe? @relation(fields: [batch_id], references: [id], map: "fk_waste_log_batch")
+  stores               stores                @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_waste_log_store")
+  waste_log_item       waste_log_item[]
 }
 
 model waste_log_item {
