@@ -278,7 +278,7 @@ export class CustomerService {
         trn_customer_points: {
           include: {
             invoice: true,
-          },
+          }
         },
       },
     });
@@ -333,7 +333,7 @@ export class CustomerService {
       created_at: { invoice: { created_at: sortDirection } },
     };
     const prismaOrderBy = orderByMap[orderBy as string] ?? {
-      id: 'desc',
+      created_at: 'desc',
     };
     const [totalItems, points] = await this.prisma.$transaction([
       this.prisma.trn_customer_points.count({ where: whereCondition }),
@@ -410,6 +410,8 @@ export class CustomerService {
           },
         },
       });
+
+      dto.status = 'active';
     }
 
     if (type === 'point_deduction') {

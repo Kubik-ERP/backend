@@ -4,8 +4,7 @@ import { LoyaltyScheduler } from './loyalty/loyalty.scheduler';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Module({
-    imports: [ScheduleModule.forRoot()],
-    providers: [LoyaltyScheduler, PrismaService]
+  imports: [ScheduleModule.forRoot()],
+  providers: [LoyaltyScheduler, PrismaService],
 })
-
 export class SchedulerModule {}
