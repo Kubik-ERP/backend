@@ -30,15 +30,6 @@ import { StoresService } from '../../stores/services/stores.service';
 import { SelfOrderSignUpDto } from '../dtos/self-order-signup.dto';
 import { ValidateStoreTableDto } from '../dtos/validate-store-table.dto';
 import { SelfOrderService } from '../services/self-order.service';
-import { QueryProductBundling } from 'src/modules/product-bundling/dto/query-product-bundling.dto';
-import { ProductBundlingService } from 'src/modules/product-bundling/product-bundling.service';
-import { LoyaltySettingsService } from 'src/modules/loyalty-settings/loyalty-settings.service';
-import { LoyaltyProductItemQueryDto } from 'src/modules/loyalty-settings/dto/loyalty-product-items-query.dto';
-import { LoyaltyBenefitService } from 'src/modules/loyalty-settings/loyalty-benefit.service';
-import { RolesListDto } from 'src/modules/roles/dto/roles-list.dto';
-import { RolesService } from 'src/modules/roles/roles.service';
-import { VouchersActiveDto } from 'src/modules/vouchers/dto/vouchers-active';
-import { VouchersService } from 'src/modules/vouchers/vouchers.service';
 
 @ApiTags('Self Order')
 @Controller('self-order')
@@ -51,11 +42,6 @@ export class SelfOrderController {
     private readonly prisma: PrismaService,
     private readonly productsService: ProductsService,
     private readonly storeService: StoresService,
-    private readonly productBundlingService: ProductBundlingService,
-    private readonly loyaltySettingsService: LoyaltySettingsService,
-    private readonly loyaltyBenefitService: LoyaltyBenefitService,
-    private readonly rolesService: RolesService,
-    private readonly vouchersService: VouchersService,
   ) {}
 
   // Sign up: if exists (by code+number+store) return existing, else create via customersService.create
@@ -117,24 +103,12 @@ export class SelfOrderController {
   @ApiOperation({
     summary: 'Simulate the total estimation',
   })
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
   public async calculateEstimation(
-    @Req() req: ICustomRequestHeaders,
     @Body() requestData: CalculationEstimationDto,
   ) {
     let result;
     await this.prisma.$transaction(async (tx) => {
-      result = await this.invoiceService.calculateTotal(
-        tx,
-        requestData,
-        req.headers['x-store-id'] as string,
-        requestData.invoiceId ?? null,
-      );
+      result = await this.invoiceService.calculateTotal(tx, requestData);
     });
 
     return {
@@ -417,110 +391,6 @@ export class SelfOrderController {
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
-    }
-  }
-
-  @ApiOperation({ summary: 'Get Product Bundling' })
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @Get('product-bundling')
-  async findAllProductBundling(
-    @Query() query: QueryProductBundling,
-    @Req() req: ICustomRequestHeaders,
-  ) {
-    const data = await this.productBundlingService.findAll(query, req);
-    return {
-      message: 'Product bundling successfully retrieved',
-      result: data,
-    };
-  }
-
-  @ApiOperation({ summary: 'Get All Loyalty Settings' })
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @Get('loyalty-settings')
-  async findAllLoyaltySettings(@Req() req: ICustomRequestHeaders) {
-    const data = await this.loyaltySettingsService.findAll(req);
-    return {
-      message: 'Loyalty settings retrieved successfully',
-      result: toCamelCase(data),
-    };
-  }
-
-  @ApiOperation({ summary: 'Get All Loyalty Benefits' })
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @Get('loyalty-benefit')
-  async findAllLoyaltyBenefit(
-    @Req() req: ICustomRequestHeaders,
-    @Query() query: LoyaltyProductItemQueryDto,
-  ) {
-    const data = await this.loyaltyBenefitService.findAll(req, query);
-    return {
-      message: 'Loyalty benefits retrieved successfully',
-      result: toCamelCase(data),
-    };
-  }
-
-  @ApiOperation({ summary: 'Get all roles' })
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @Get('roles')
-  async findAllRoles(
-    @Req() req: ICustomRequestHeaders,
-    @Query() dto: RolesListDto,
-  ) {
-    try {
-      const roles = await this.rolesService.findAll(dto, req);
-      return {
-        statusCode: HttpStatus.OK,
-        message: 'Roles fetched successfully',
-        result: toCamelCase(roles),
-      };
-    } catch (error) {
-      return {
-        statusCode: error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-        message: error.message,
-        result: null,
-      };
-    }
-  }
-
-  @ApiOperation({ summary: 'Get active vouchers' })
-  @Get('vouchers/active')
-  async findActive(
-    @Query() query: VouchersActiveDto,
-    @Req() req: ICustomRequestHeaders,
-  ) {
-    try {
-      const vouchers = await this.vouchersService.findActive(query, req);
-      return {
-        statusCode: 200,
-        message: 'Vouchers fetched successfully',
-        result: toCamelCase(vouchers),
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: error.message,
-        result: null,
-      };
     }
   }
 }

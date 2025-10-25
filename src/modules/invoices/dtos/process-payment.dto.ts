@@ -74,16 +74,6 @@ export class ProductListDto {
   public products: ProductDto[];
 }
 
-export class RedeemLoyaltyDto {
-  @ApiProperty({
-    description: 'The ID of the loyalty points benefit used for redemption',
-    example: '1e38a39c-dbd5-4d8b-8df8-d88d792280fe',
-  })
-  @IsUUID()
-  @IsOptional()
-  public loyalty_points_benefit_id?: string;
-}
-
 export class ProceedInstantPaymentDto extends ProductListDto {
   @ApiProperty({
     description: 'Provider of Payment Gateway',
@@ -159,6 +149,16 @@ export class ProceedInstantPaymentDto extends ProductListDto {
   })
   @IsOptional()
   public redeemLoyalty?: RedeemLoyaltyDto | null;
+}
+
+export class RedeemLoyaltyDto {
+  @ApiProperty({
+    description: 'The ID of the loyalty points benefit used for redemption',
+    example: '1e38a39c-dbd5-4d8b-8df8-d88d792280fe',
+  })
+  @IsUUID()
+  @IsOptional()
+  public loyalty_points_benefit_id?: string;
 }
 
 export class ProceedCheckoutInvoiceDto extends ProductListDto {

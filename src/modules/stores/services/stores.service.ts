@@ -16,7 +16,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
 import { StoresListDto } from '../dtos/stores-list.dto';
-import { StoresByEmailDto } from '../dtos/stores-by-email.dto';
 
 @Injectable()
 export class StoresService {
@@ -332,54 +331,6 @@ export class StoresService {
             some: { user_id: ownerId },
           },
         },
-      }),
-    ]);
-
-    return {
-      items: items,
-      meta: {
-        page: dto.page,
-        pageSize: dto.pageSize,
-        total,
-        totalPages: getTotalPages(total, dto.pageSize),
-      },
-    };
-  }
-
-  public async getStoresByEmail(dto: StoresByEmailDto) {
-    const whereClause: Prisma.storesWhereInput = {
-      user_has_stores: {
-        some: { users: { email: dto.email } },
-      },
-    };
-
-    if (dto.search?.length) {
-      whereClause.name = {
-        contains: dto.search,
-        mode: 'insensitive',
-      };
-    }
-
-    console.log({ whereClause });
-
-    // --- Fetch data
-    const [items, total] = await Promise.all([
-      this.prisma.stores.findMany({
-        where: whereClause,
-        skip: getOffset(dto.page, dto.pageSize),
-        take: dto.pageSize,
-        orderBy: {
-          [dto.orderBy]: dto.orderDirection,
-        },
-        select: {
-          id: true,
-          name: true,
-          address: true,
-          phone_number: true,
-        },
-      }),
-      this.prisma.stores.count({
-        where: whereClause,
       }),
     ]);
 

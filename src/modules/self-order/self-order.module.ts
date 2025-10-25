@@ -10,11 +10,6 @@ import { SelfOrderService } from './services/self-order.service';
 import { ProductsModule } from '../products/products.module';
 import { KitchenModule } from '../kitchen/kitchen.module';
 import { StoresModule } from '../stores/stores.module';
-import { ProductBundlingService } from '../product-bundling/product-bundling.service';
-import { LoyaltySettingsService } from '../loyalty-settings/loyalty-settings.service';
-import { LoyaltyBenefitService } from '../loyalty-settings/loyalty-benefit.service';
-import { RolesService } from '../roles/roles.service';
-import { VouchersService } from '../vouchers/vouchers.service';
 
 @Module({
   imports: [
@@ -29,13 +24,6 @@ import { VouchersService } from '../vouchers/vouchers.service';
     StoresModule,
   ],
   controllers: [SelfOrderController],
-  providers: [
-    SelfOrderService,
-    ProductBundlingService,
-    LoyaltySettingsService,
-    LoyaltyBenefitService,
-    RolesService,
-    VouchersService,
-  ],
+  providers: [SelfOrderService],
 })
 export class SelfOrderModule {}
