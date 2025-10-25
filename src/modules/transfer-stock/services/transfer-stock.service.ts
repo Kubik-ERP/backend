@@ -220,7 +220,7 @@ export class TransferStockService {
   async create(
     header: ICustomRequestHeaders,
     dto: CreateTransferStockDto,
-    type: string,
+    type: string | 'request' | 'transfer',
   ) {
     const store_id = requireStoreId(header);
     const getOwnerId = await this.prisma.user_has_stores.findFirst({
@@ -285,7 +285,7 @@ export class TransferStockService {
         approved_by: type == 'transfer' ? header.user.id : null,
         approved_at: type == 'transfer' ? new Date() : null,
         created_at: new Date(),
-        updated_at: new Date(),
+        updated_at: new Date()
       },
     });
 
@@ -305,12 +305,16 @@ export class TransferStockService {
           qty_received: 0,
           unit_price: Number(getItem?.price_per_unit),
           subtotal: Number(getItem?.price_per_unit) * item.qty,
-          status: 'pending',
+          status: type == 'transfer' ? 'on_progress' : 'pending',
           note: null,
           created_at: new Date(),
           updated_at: new Date(),
         },
       });
+
+      if (type == 'transfer') {
+
+      }
     }
 
     return result;
