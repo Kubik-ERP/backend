@@ -10,6 +10,7 @@ import {
   UseGuards,
   Req,
   Query,
+  Put,
 } from '@nestjs/common';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
@@ -19,6 +20,8 @@ import { TransferStockService } from '../services/transfer-stock.service';
 import { TransferStockListDto } from '../dtos/transfer-stock-list.dto';
 import { CreateTransferStockDto } from '../dtos/create-transfer-stock.dto';
 import { ItemListDto } from '../dtos/item-list.dto';
+import { UpdateTransferStockDto } from '../dtos/update-transfer-stock.dto';
+import { UUID } from 'crypto';
 
 @Controller('transfer-stock')
 export class TransferStockController {
@@ -180,5 +183,81 @@ export class TransferStockController {
       message: 'Transfer stock created successfully',
       result: toCamelCase(newTransferStock),
     };
+  }
+
+  @ApiOperation({ summary: 'Update transfer sotck' })
+  @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Put('transfer')
+  async updateTransferStock(
+    @Req() req: ICustomRequestHeaders,
+    @Body() dto: UpdateTransferStockDto,
+  ) {
+    const transferStock = await this.transferStockService.update(
+      req,
+      dto,
+      'transfer',
+    );
+
+    return {
+      statusCode: 200,
+      message: 'Transfer stock updated successfully',
+      result: toCamelCase(transferStock),
+    };
+  }
+
+  @ApiOperation({ summary: 'Delete transfer sotck' })
+  @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Delete('transfer/delete/:id')
+  async deleteTransferStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID) {
+    const result = await this.transferStockService.delete(req, id);
+    return result;
+  }
+
+  @ApiOperation({ summary: 'Cancel transfer sotck' })
+  @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Put('transfer/cancel/:id')
+  async cancelTransferStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: {note: string}) {
+    const result = await this.transferStockService.cancel(req, id, body.note);
+    return result;
+  }
+
+  @ApiOperation({ summary: 'Reject transfer sotck' })
+  @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Put('transfer/reject/:id')
+  async rejectTransferStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: {note: string}) {
+    const result = await this.transferStockService.reject(req, id, body.note);
+    return result;
   }
 }

@@ -1526,9 +1526,10 @@ model working_hours {
 
 model transfer_stocks {
   id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  transaction_code  String                @unique
   store_from_id     String                @db.Uuid
   store_to_id       String                @db.Uuid
+  store_created_by  String?               @db.Uuid
+  transaction_code  String                @unique
   status            transfer_stock_status
   note              String?
   requested_by      Int?
@@ -1537,8 +1538,10 @@ model transfer_stocks {
   approved_at       DateTime?             @db.Timestamp(6)
   canceled_by       Int?
   canceled_at       DateTime?             @db.Timestamp(6)
+  canceled_note     String?
   rejected_by       Int?
   rejected_at       DateTime?             @db.Timestamp(6)
+  rejected_note     String?
   shipped_by        Int?
   shipped_at        DateTime?             @db.Timestamp(6)
   received_by       Int?
