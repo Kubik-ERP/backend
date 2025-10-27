@@ -21,6 +21,28 @@ import { v4 as uuidv4 } from 'uuid';
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Validate if menu recipe exists in the store
+   * @param recipeId - The recipe ID to validate
+   * @param storeId - The store ID to check against
+   * @throws NotFoundException if recipe not found
+   */
+  private async validateMenuRecipe(
+    recipeId: string,
+    storeId: string,
+  ): Promise<void> {
+    const recipeExists = await this.prisma.menu_recipes.findFirst({
+      where: {
+        recipe_id: recipeId,
+        store_id: storeId,
+      },
+    });
+
+    if (!recipeExists) {
+      throw new NotFoundException('Menu recipe not found');
+    }
+  }
+
   async create(
     createProductDto: CreateProductDto,
     header: ICustomRequestHeaders,
@@ -30,6 +52,11 @@ export class ProductsService {
 
       if (!store_id) {
         throw new BadRequestException('store_id is required');
+      }
+
+      // Validate recipe_id if provided
+      if (createProductDto.recipe_id) {
+        await this.validateMenuRecipe(createProductDto.recipe_id, store_id);
       }
 
       const existingProduct = await this.prisma.products.findFirst({
@@ -61,6 +88,8 @@ export class ProductsService {
               picture_url: createProductDto.image ?? null,
               is_percent: createProductDto.is_percent ?? false,
               stores_id: store_id,
+              stock_quantity: createProductDto.stock_quantity ?? 0,
+              recipe_id: createProductDto.recipe_id ?? null,
             } as products,
           });
 
@@ -272,6 +301,14 @@ export class ProductsService {
         throw new NotFoundException('Product not found');
       }
 
+      // Validate recipe_id if provided
+      if (updateProductDto.recipe_id) {
+        await this.validateMenuRecipe(
+          updateProductDto.recipe_id,
+          existingProduct.stores_id,
+        );
+      }
+
       if (updateProductDto.name) {
         const duplicateProduct = await this.prisma.products.findFirst({
           where: {
@@ -345,6 +382,12 @@ export class ProductsService {
               ? {}
               : { picture_url: updateProductDto.image }),
             is_percent: updateProductDto.is_percent ?? false,
+            ...(updateProductDto.stock_quantity !== undefined && {
+              stock_quantity: updateProductDto.stock_quantity,
+            }),
+            ...(updateProductDto.recipe_id !== undefined && {
+              recipe_id: updateProductDto.recipe_id,
+            }),
           },
           include: {
             categories_has_products: true,
