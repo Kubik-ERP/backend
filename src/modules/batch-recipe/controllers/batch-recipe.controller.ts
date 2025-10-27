@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { CancelBatchRecipeDto } from '../dtos/cancel-batch-recipe.dto';
 import { CompleteBatchRecipeDto } from '../dtos/complete-batch-recipe.dto';
@@ -10,9 +10,11 @@ import {
   StartBatchDocs,
 } from './batch-recipe.docs';
 import { BatchRecipeService } from '../services/batch-recipe.service';
+import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 
 @ApiTags('Batch Recipes')
 @Controller('batch-recipe')
+@UseGuards(AuthPermissionGuard)
 export class BatchRecipeController {
   constructor(private readonly batchRecipeService: BatchRecipeService) {}
 
