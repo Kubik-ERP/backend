@@ -102,4 +102,15 @@ export class CreateProductDto {
     example: true,
   })
   isDiscount?: boolean = false;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  @ApiPropertyOptional({
+    name: 'stock_quantity',
+    type: Number,
+    example: 100,
+    description: 'Jumlah stok produk',
+  })
+  stock_quantity?: number;
 }
