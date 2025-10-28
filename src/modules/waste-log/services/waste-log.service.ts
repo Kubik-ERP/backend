@@ -53,28 +53,6 @@ export class WasteLogService {
     }
   }
 
-  /**
-   * Validate if batch cooking recipe exists in the store
-   * @param batchId - The batch cooking recipe ID to validate
-   * @param storeId - The store ID to check against
-   * @throws NotFoundException if batch cooking recipe not found
-   */
-  private async validateBatchCookingRecipe(
-    batchId: string,
-    storeId: string,
-  ): Promise<void> {
-    const batchExists = await this._prisma.batch_cooking_recipe.findFirst({
-      where: {
-        id: batchId,
-        store_id: storeId,
-      },
-    });
-
-    if (!batchExists) {
-      throw new NotFoundException('Batch cooking recipe not found');
-    }
-  }
-
   public async create(
     dto: CreateWasteLogDto,
     header: ICustomRequestHeaders,
