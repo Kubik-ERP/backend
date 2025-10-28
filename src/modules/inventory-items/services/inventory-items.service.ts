@@ -1201,6 +1201,8 @@ export class InventoryItemsService {
           expiry_date: true,
           master_suppliers: { select: { id: true, supplier_name: true } },
           master_storage_locations: { select: { id: true, name: true } },
+          margin: true,
+          markup: true,
           created_at: true,
           purchase_order_items: {
             take: 1,
@@ -1233,6 +1235,8 @@ export class InventoryItemsService {
       brand_id: it.master_brands?.id ?? null,
       supplier_id: it.master_suppliers?.id ?? null,
       storage_location_id: it.master_storage_locations?.id ?? null,
+      margin: it.margin,
+      markup: it.markup,
       created_at: it.created_at,
     }));
 
@@ -1269,6 +1273,8 @@ export class InventoryItemsService {
         notes: true,
         price_grosir: true,
         products: { select: { picture_url: true } },
+        margin: true,
+        markup: true,
         master_inventory_item_conversions: {
           select: {
             id: true,
@@ -1306,6 +1312,8 @@ export class InventoryItemsService {
       created_at: item.created_at,
       notes: item.notes,
       price_grosir: item.price_grosir,
+      margin: item.margin,
+      markup: item.markup,
       conversions: item.master_inventory_item_conversions.map((conv) => ({
         id: conv.id,
         unitName: conv.unit_name,
@@ -1962,10 +1970,27 @@ export class InventoryItemsService {
       typeof priceGrosir.toNumber === 'function'
         ? priceGrosir.toNumber()
         : priceGrosir;
+    const margin = item.margin;
+    const marginNumber =
+      margin &&
+      typeof margin === 'object' &&
+      typeof margin.toNumber === 'function'
+        ? margin.toNumber()
+        : margin;
+
+    const markup = item.markup;
+    const markupNumber =
+      markup &&
+      typeof markup === 'object' &&
+      typeof markup.toNumber === 'function'
+        ? markup.toNumber()
+        : markup;
     return {
       ...item,
       price_per_unit: priceNumber,
       price_grosir: priceGrosirNumber,
+      margin: marginNumber,
+      markup: markupNumber,
     };
   }
 
