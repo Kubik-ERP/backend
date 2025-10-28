@@ -21,28 +21,6 @@ import { v4 as uuidv4 } from 'uuid';
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
-  /**
-   * Validate if menu recipe exists in the store
-   * @param recipeId - The recipe ID to validate
-   * @param storeId - The store ID to check against
-   * @throws NotFoundException if recipe not found
-   */
-  private async validateMenuRecipe(
-    recipeId: string,
-    storeId: string,
-  ): Promise<void> {
-    const recipeExists = await this.prisma.menu_recipes.findFirst({
-      where: {
-        recipe_id: recipeId,
-        store_id: storeId,
-      },
-    });
-
-    if (!recipeExists) {
-      throw new NotFoundException('Menu recipe not found');
-    }
-  }
-
   async create(
     createProductDto: CreateProductDto,
     header: ICustomRequestHeaders,
@@ -52,11 +30,6 @@ export class ProductsService {
 
       if (!store_id) {
         throw new BadRequestException('store_id is required');
-      }
-
-      // Validate recipe_id if provided
-      if (createProductDto.recipe_id) {
-        await this.validateMenuRecipe(createProductDto.recipe_id, store_id);
       }
 
       const existingProduct = await this.prisma.products.findFirst({
@@ -89,7 +62,6 @@ export class ProductsService {
               is_percent: createProductDto.is_percent ?? false,
               stores_id: store_id,
               stock_quantity: createProductDto.stock_quantity ?? 0,
-              recipe_id: createProductDto.recipe_id ?? null,
             } as products,
           });
 
@@ -174,7 +146,10 @@ export class ProductsService {
     },
     header: ICustomRequestHeaders,
   ) {
-    const skip = (page - 1) * limit;
+    // Ensure page and limit are valid numbers
+    const validPage = Math.max(1, Number(page) || 1);
+    const validLimit = Math.max(1, Math.min(100, Number(limit) || 10)); // Cap limit at 100
+    const skip = (validPage - 1) * validLimit;
     const store_id = header.store_id;
 
     if (!store_id) {
@@ -204,7 +179,7 @@ export class ProductsService {
       this.prisma.products.findMany({
         where: whereCondition,
         skip,
-        take: limit,
+        take: validLimit,
         include: {
           categories_has_products: {
             include: {
@@ -214,6 +189,18 @@ export class ProductsService {
           variant_has_products: {
             include: {
               variant: true,
+            },
+          },
+          menu_recipes: {
+            select: {
+              recipe_id: true,
+              recipe_name: true,
+            },
+          },
+          master_inventory_items: {
+            select: {
+              id: true,
+              name: true,
             },
           },
         },
@@ -237,8 +224,8 @@ export class ProductsService {
     return {
       products: productsWithDiscount,
       total,
-      page,
-      lastPage: Math.ceil(total / limit),
+      page: validPage,
+      lastPage: Math.ceil(total / validLimit),
     };
   }
 
@@ -260,6 +247,18 @@ export class ProductsService {
                 variant: true,
               },
             },
+            menu_recipes: {
+              select: {
+                recipe_id: true,
+                recipe_name: true,
+              },
+            },
+            master_inventory_items: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         });
       } else {
@@ -276,6 +275,18 @@ export class ProductsService {
                 variant: true,
               },
             },
+            menu_recipes: {
+              select: {
+                recipe_id: true,
+                recipe_name: true,
+              },
+            },
+            master_inventory_items: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         });
       }
@@ -284,6 +295,30 @@ export class ProductsService {
     return this.prisma.products.findMany({
       where: {
         name: { in: idOrNames, mode: 'insensitive' },
+      },
+      include: {
+        categories_has_products: {
+          include: {
+            categories: true,
+          },
+        },
+        variant_has_products: {
+          include: {
+            variant: true,
+          },
+        },
+        menu_recipes: {
+          select: {
+            recipe_id: true,
+            recipe_name: true,
+          },
+        },
+        master_inventory_items: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
   }
@@ -299,14 +334,6 @@ export class ProductsService {
 
       if (!existingProduct) {
         throw new NotFoundException('Product not found');
-      }
-
-      // Validate recipe_id if provided
-      if (updateProductDto.recipe_id) {
-        await this.validateMenuRecipe(
-          updateProductDto.recipe_id,
-          existingProduct.stores_id,
-        );
       }
 
       if (updateProductDto.name) {
@@ -384,9 +411,6 @@ export class ProductsService {
             is_percent: updateProductDto.is_percent ?? false,
             ...(updateProductDto.stock_quantity !== undefined && {
               stock_quantity: updateProductDto.stock_quantity,
-            }),
-            ...(updateProductDto.recipe_id !== undefined && {
-              recipe_id: updateProductDto.recipe_id,
             }),
           },
           include: {

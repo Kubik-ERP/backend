@@ -113,14 +113,4 @@ export class CreateProductDto {
     description: 'Jumlah stok produk',
   })
   stock_quantity?: number;
-
-  @IsOptional()
-  @IsString()
-  @ApiPropertyOptional({
-    name: 'recipe_id',
-    type: String,
-    example: '123e4567-e89b-12d3-a456-426614174000',
-    description: 'ID recipe dari table menu_recipes',
-  })
-  recipe_id?: string;
 }

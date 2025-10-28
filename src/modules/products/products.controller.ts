@@ -109,8 +109,8 @@ export class ProductsController {
     try {
       const result = await this.productsService.findAll(
         {
-          page: Number(query.page),
-          limit: Number(query.limit),
+          page: Number(query.page) || 1,
+          limit: Number(query.limit) || 10,
           search: query.search,
           category_id: query.category_id ?? [],
         },
