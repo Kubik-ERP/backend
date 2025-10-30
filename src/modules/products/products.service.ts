@@ -151,6 +151,18 @@ export class ProductsService {
         },
       );
 
+      // Update menu_recipes with product_id if recipeId is provided
+      if (createProductDto.recipeId) {
+        await this.prisma.menu_recipes.updateMany({
+          where: {
+            recipe_id: createProductDto.recipeId,
+          },
+          data: {
+            product_id: productWithCategories!.id,
+          },
+        });
+      }
+
       return productWithCategories!;
     } catch (error) {
       throw new HttpException(
@@ -527,6 +539,18 @@ export class ProductsService {
           },
         });
       });
+
+      // Update menu_recipes with product_id if recipeId is provided
+      if (updateProductDto.recipeId) {
+        await this.prisma.menu_recipes.updateMany({
+          where: {
+            recipe_id: updateProductDto.recipeId,
+          },
+          data: {
+            product_id: updatedProduct.id,
+          },
+        });
+      }
 
       return updatedProduct;
     } catch (error) {
