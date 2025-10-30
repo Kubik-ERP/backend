@@ -99,11 +99,11 @@ export class PurchaseOrdersService {
   async findOne(id: string, header: ICustomRequestHeaders) {
     const store_id = requireStoreId(header);
 
-    const purchaseOrder = await this._prisma.purchase_orders.findUnique({
+    const purchaseOrderRaw = await this._prisma.purchase_orders.findUnique({
       where: { id, store_id },
       include: {
         purchase_order_items: true,
-        receiver: {
+        users: {
           select: {
             id: true,
             fullname: true,
@@ -112,11 +112,19 @@ export class PurchaseOrdersService {
       },
     });
 
-    if (!purchaseOrder) {
+    // ✅ Cek dulu apakah datanya ada
+    if (!purchaseOrderRaw) {
       throw new NotFoundException('Purchase order not found');
     }
 
-    return purchaseOrder;
+    // ✅ Rename users -> receiver
+    const { users: receiver, ...purchaseOrder } = purchaseOrderRaw;
+
+    // ✅ Return hasil dengan alias receiver
+    return {
+      ...purchaseOrder,
+      receiver,
+    };
   }
 
   async create(dto: CreatePurchaseOrdersDto, header: ICustomRequestHeaders) {

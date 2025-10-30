@@ -14,11 +14,39 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { ImportProductsPreviewResponseDto } from './dto/import-preview.dto';
 import { ExecuteImportProductsResponseDto } from './dto/execute-import.dto';
 import { DeleteBatchProductsResponseDto } from './dto/delete-batch.dto';
+import {
+  CreateProductPortionStockAdjustmentDto,
+  ProductPortionActionDto,
+} from './dto/create-product-portion-stock-adjustment.dto';
+import { UpdateProductPortionStockAdjustmentDto } from './dto/update-product-portion-stock-adjustment.dto';
+import { GetProductPortionStockAdjustmentsDto } from './dto/get-product-portion-stock-adjustments.dto';
 import * as ExcelJS from 'exceljs';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class ProductsService {
+  private readonly productPortionStockAdjustmentSafeSelect = {
+    id: true,
+    product_id: true,
+    stores_id: true,
+    action: true,
+    adjustment_quantity: true,
+    notes: true,
+    previous_quantity: true,
+    new_quantity: true,
+    created_at: true,
+    updated_at: true,
+    created_by: true,
+    users: {
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        fullname: true,
+      },
+    },
+  } as const;
+
   constructor(private prisma: PrismaService) {}
 
   async create(
@@ -61,6 +89,7 @@ export class ProductsService {
               picture_url: createProductDto.image ?? null,
               is_percent: createProductDto.is_percent ?? false,
               stores_id: store_id,
+              stock_quantity: createProductDto.stock_quantity ?? 0,
             } as products,
           });
 
@@ -145,7 +174,10 @@ export class ProductsService {
     },
     header: ICustomRequestHeaders,
   ) {
-    const skip = (page - 1) * limit;
+    // Ensure page and limit are valid numbers
+    const validPage = Math.max(1, Number(page) || 1);
+    const validLimit = Math.max(1, Math.min(100, Number(limit) || 10)); // Cap limit at 100
+    const skip = (validPage - 1) * validLimit;
     const store_id = header.store_id;
 
     if (!store_id) {
@@ -175,7 +207,7 @@ export class ProductsService {
       this.prisma.products.findMany({
         where: whereCondition,
         skip,
-        take: limit,
+        take: validLimit,
         include: {
           categories_has_products: {
             include: {
@@ -185,6 +217,18 @@ export class ProductsService {
           variant_has_products: {
             include: {
               variant: true,
+            },
+          },
+          menu_recipes: {
+            select: {
+              recipe_id: true,
+              recipe_name: true,
+            },
+          },
+          master_inventory_items: {
+            select: {
+              id: true,
+              name: true,
             },
           },
         },
@@ -208,8 +252,8 @@ export class ProductsService {
     return {
       products: productsWithDiscount,
       total,
-      page,
-      lastPage: Math.ceil(total / limit),
+      page: validPage,
+      lastPage: Math.ceil(total / validLimit),
     };
   }
 
@@ -231,6 +275,45 @@ export class ProductsService {
                 variant: true,
               },
             },
+            menu_recipes: {
+              select: {
+                recipe_id: true,
+                recipe_name: true,
+              },
+            },
+            master_inventory_items: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            product_portion_stock: {
+              select: {
+                id: true,
+                stores_id: true,
+                action: true,
+                adjustment_quantity: true,
+                notes: true,
+                previous_quantity: true,
+                new_quantity: true,
+                created_at: true,
+                updated_at: true,
+                users: {
+                  select: {
+                    id: true,
+                    username: true,
+                    email: true,
+                    fullname: true,
+                  },
+                },
+                stores: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
           },
         });
       } else {
@@ -247,6 +330,45 @@ export class ProductsService {
                 variant: true,
               },
             },
+            menu_recipes: {
+              select: {
+                recipe_id: true,
+                recipe_name: true,
+              },
+            },
+            master_inventory_items: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            product_portion_stock: {
+              select: {
+                id: true,
+                stores_id: true,
+                action: true,
+                adjustment_quantity: true,
+                notes: true,
+                previous_quantity: true,
+                new_quantity: true,
+                created_at: true,
+                updated_at: true,
+                users: {
+                  select: {
+                    id: true,
+                    username: true,
+                    email: true,
+                    fullname: true,
+                  },
+                },
+                stores: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
           },
         });
       }
@@ -255,6 +377,57 @@ export class ProductsService {
     return this.prisma.products.findMany({
       where: {
         name: { in: idOrNames, mode: 'insensitive' },
+      },
+      include: {
+        categories_has_products: {
+          include: {
+            categories: true,
+          },
+        },
+        variant_has_products: {
+          include: {
+            variant: true,
+          },
+        },
+        menu_recipes: {
+          select: {
+            recipe_id: true,
+            recipe_name: true,
+          },
+        },
+        master_inventory_items: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        product_portion_stock: {
+          select: {
+            id: true,
+            stores_id: true,
+            action: true,
+            adjustment_quantity: true,
+            notes: true,
+            previous_quantity: true,
+            new_quantity: true,
+            created_at: true,
+            updated_at: true,
+            users: {
+              select: {
+                id: true,
+                username: true,
+                email: true,
+                fullname: true,
+              },
+            },
+            stores: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -345,6 +518,9 @@ export class ProductsService {
               ? {}
               : { picture_url: updateProductDto.image }),
             is_percent: updateProductDto.is_percent ?? false,
+            ...(updateProductDto.stock_quantity !== undefined && {
+              stock_quantity: updateProductDto.stock_quantity,
+            }),
           },
           include: {
             categories_has_products: true,
@@ -1069,5 +1245,290 @@ export class ProductsService {
     }
 
     return String(cell.value).trim();
+  }
+
+  /**
+   * List product portion stock adjustments
+   */
+  public async listProductPortionStockAdjustments(
+    productId: string | null,
+    query: GetProductPortionStockAdjustmentsDto,
+    header: ICustomRequestHeaders,
+  ) {
+    // Use store ID from body if provided, otherwise use header
+    const store_id = query.store_id || header.store_id;
+    if (!store_id) {
+      throw new BadRequestException(
+        'Store ID must be provided either in X-STORE-ID header or request body',
+      );
+    }
+
+    // Use product ID from body if provided, otherwise use URL parameter
+    const finalProductId = query.product_id || productId;
+    if (!finalProductId) {
+      throw new BadRequestException(
+        'Product ID must be provided either in URL parameter or request body',
+      );
+    }
+
+    // Ensure product belongs to store
+    const product = await this.prisma.products.findFirst({
+      where: {
+        id: finalProductId,
+        stores_id: store_id,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException(
+        `Product with ID ${finalProductId} not found in this store`,
+      );
+    }
+
+    const { page = 1, pageSize = 10, action } = query;
+    const skip = (page - 1) * pageSize;
+
+    // Build filter
+    const where: any = {
+      product_id: finalProductId,
+      stores_id: store_id,
+      ...(action ? { action } : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.product_portion_stock.findMany({
+        where,
+        select: this.productPortionStockAdjustmentSafeSelect,
+        orderBy: { created_at: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.product_portion_stock.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / pageSize);
+    return { items: rows, meta: { page, pageSize, total, totalPages } };
+  }
+
+  /**
+   * Add product portion stock adjustment, can increase or decrease stock
+   */
+  public async addProductPortionStockAdjustment(
+    productId: string | null,
+    dto: CreateProductPortionStockAdjustmentDto,
+    header: ICustomRequestHeaders,
+  ) {
+    // Use store ID from body if provided, otherwise use header
+    const store_id = dto.store_id || header.store_id;
+    if (!store_id) {
+      throw new BadRequestException(
+        'Store ID must be provided either in X-STORE-ID header or request body',
+      );
+    }
+
+    // Use product ID from body if provided, otherwise use URL parameter
+    const finalProductId = dto.product_id || productId;
+    if (!finalProductId) {
+      throw new BadRequestException(
+        'Product ID must be provided either in URL parameter or request body',
+      );
+    }
+
+    const product = await this.prisma.products.findFirst({
+      where: {
+        id: finalProductId,
+        stores_id: store_id,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException(
+        `Product with ID ${finalProductId} not found in this store`,
+      );
+    }
+
+    const prevQty = product.stock_quantity;
+    const delta =
+      dto.action === ProductPortionActionDto.INCREASE
+        ? dto.adjustmentQuantity
+        : -dto.adjustmentQuantity;
+    const newQty = prevQty + delta;
+
+    if (newQty < 0) {
+      throw new BadRequestException(
+        'Resulting stock quantity cannot be negative',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updatedProduct = await tx.products.update({
+        where: { id: finalProductId },
+        data: { stock_quantity: newQty },
+      });
+
+      const adjData = {
+        product_id: finalProductId,
+        stores_id: store_id,
+        action: dto.action as any,
+        adjustment_quantity: dto.adjustmentQuantity,
+        notes: dto.notes,
+        previous_quantity: prevQty,
+        new_quantity: newQty,
+        created_by: header.user?.id || null,
+      };
+
+      const adj = await tx.product_portion_stock.create({
+        data: adjData as any,
+        select: {
+          id: true,
+          product_id: true,
+          stores_id: true,
+          action: true,
+          adjustment_quantity: true,
+          notes: true,
+          previous_quantity: true,
+          new_quantity: true,
+          created_at: true,
+          updated_at: true,
+          created_by: true,
+        },
+      });
+
+      return { updatedProduct, adj };
+    });
+
+    return {
+      product: {
+        id: result.updatedProduct.id,
+        name: result.updatedProduct.name,
+        stock_quantity: result.updatedProduct.stock_quantity,
+      },
+      adjustment: result.adj,
+    };
+  }
+
+  /**
+   * Update product portion stock adjustment
+   */
+  public async updateProductPortionStockAdjustment(
+    productId: string | null,
+    adjustmentId: string,
+    dto: UpdateProductPortionStockAdjustmentDto,
+    header: ICustomRequestHeaders,
+  ) {
+    // Use store ID from body if provided, otherwise use header
+    const store_id = dto.store_id || header.store_id;
+    if (!store_id) {
+      throw new BadRequestException(
+        'Store ID must be provided either in X-STORE-ID header or request body',
+      );
+    }
+
+    // Use product ID from body if provided, otherwise use URL parameter
+    const finalProductId = dto.product_id || productId;
+    if (!finalProductId) {
+      throw new BadRequestException(
+        'Product ID must be provided either in URL parameter or request body',
+      );
+    }
+
+    // Verify product exists in store
+    const product = await this.prisma.products.findFirst({
+      where: {
+        id: finalProductId,
+        stores_id: store_id,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException(
+        `Product with ID ${finalProductId} not found in this store`,
+      );
+    }
+
+    const existing = await this.prisma.product_portion_stock.findFirst({
+      where: {
+        id: adjustmentId,
+        product_id: finalProductId,
+        stores_id: store_id,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(
+        `Stock adjustment with ID ${adjustmentId} not found`,
+      );
+    }
+
+    // Calculate stock changes
+    const oldDelta =
+      existing.action === 'INCREASE'
+        ? existing.adjustment_quantity
+        : -existing.adjustment_quantity;
+
+    let newDelta: number;
+    if (dto.action) {
+      const adjustmentQty =
+        dto.adjustmentQuantity || existing.adjustment_quantity;
+      newDelta =
+        dto.action === ProductPortionActionDto.INCREASE
+          ? adjustmentQty
+          : -adjustmentQty;
+    } else {
+      newDelta = oldDelta;
+    }
+
+    const stockChange = newDelta - oldDelta;
+    const newStockQty = product.stock_quantity + stockChange;
+
+    if (newStockQty < 0) {
+      throw new BadRequestException(
+        'Resulting stock quantity cannot be negative',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updatedProduct = await tx.products.update({
+        where: { id: finalProductId },
+        data: { stock_quantity: newStockQty },
+      });
+
+      const updatedAdjustment = await tx.product_portion_stock.update({
+        where: { id: adjustmentId },
+        data: {
+          ...(dto.action && { action: dto.action as any }),
+          ...(dto.adjustmentQuantity && {
+            adjustment_quantity: dto.adjustmentQuantity,
+          }),
+          ...(dto.notes !== undefined && { notes: dto.notes }),
+          new_quantity: newStockQty,
+          updated_at: new Date(),
+        },
+        select: {
+          id: true,
+          product_id: true,
+          stores_id: true,
+          action: true,
+          adjustment_quantity: true,
+          notes: true,
+          previous_quantity: true,
+          new_quantity: true,
+          created_at: true,
+          updated_at: true,
+          created_by: true,
+        },
+      });
+
+      return { updatedProduct, updatedAdjustment };
+    });
+
+    return {
+      product: {
+        id: result.updatedProduct.id,
+        name: result.updatedProduct.name,
+        stock_quantity: result.updatedProduct.stock_quantity,
+      },
+      adjustment: result.updatedAdjustment,
+    };
   }
 }

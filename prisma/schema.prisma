@@ -110,44 +110,27 @@ model charges {
 }
 
 model customer {
-  id                            String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                          String?                         @db.VarChar(45)
-  code                          String?                         @db.VarChar(45)
-  number                        String?                         @db.VarChar
-  dob                           DateTime?                       @db.Date
-  email                         String?                         @db.VarChar(45)
-  username                      String?                         @db.VarChar(45)
-  address                       String?                         @db.VarChar(255)
-  gender                        String?                         @db.VarChar(45)
-  tag                           String?                         @db.VarChar(45)
-  point                         Int?
-  stores_id                     String?                         @db.Uuid
-  created_at                    DateTime?                       @default(now()) @db.Timestamp(6)
-  updated_at                    DateTime?                       @default(now()) @db.Timestamp(6)
-  deleted_at                    DateTime?                       @db.Timestamp(6)
-  stores                        stores?                         @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_customers_fk")
-  customer_loyalty_transactions customer_loyalty_transactions[]
-  customers_has_invoices        customers_has_invoices[]
-  customers_has_tag             customers_has_tag[]
-  invoice                       invoice[]
-  kitchen_queue                 kitchen_queue[]
-  trn_customer_points           trn_customer_points[]
-}
-
-model customer_loyalty_transactions {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  customer_id String    @db.Uuid
-  invoice_id  String?   @db.Uuid
-  type        String    @db.VarChar(20)
-  points      Int       @default(0)
-  description String?
-  created_at  DateTime? @default(now()) @db.Timestamp(6)
-  updated_at  DateTime? @default(now()) @db.Timestamp(6)
-  customer    customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyalty_transactions_customer_fk")
-  invoice     invoice?  @relation(fields: [invoice_id], references: [id], onUpdate: NoAction, map: "loyalty_transactions_invoice_fk")
-
-  @@index([customer_id], map: "idx_loyalty_transactions_customer")
-  @@index([invoice_id], map: "idx_loyalty_transactions_invoice")
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String?                  @db.VarChar(45)
+  code                   String?                  @db.VarChar(45)
+  number                 String?                  @db.VarChar
+  dob                    DateTime?                @db.Date
+  email                  String?                  @db.VarChar(45)
+  username               String?                  @db.VarChar(45)
+  address                String?                  @db.VarChar(255)
+  gender                 String?                  @db.VarChar(45)
+  tag                    String?                  @db.VarChar(45)
+  point                  Int?
+  stores_id              String?                  @db.Uuid
+  created_at             DateTime?                @default(now()) @db.Timestamp(6)
+  updated_at             DateTime?                @default(now()) @db.Timestamp(6)
+  deleted_at             DateTime?                @db.Timestamp(6)
+  stores                 stores?                  @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_customers_fk")
+  customers_has_invoices customers_has_invoices[]
+  customers_has_tag      customers_has_tag[]
+  invoice                invoice[]
+  kitchen_queue          kitchen_queue[]
+  trn_customer_points    trn_customer_points[]
 }
 
 model customers_has_invoices {
@@ -242,48 +225,47 @@ model floor {
 }
 
 model invoice {
-  id                                         String                          @id @db.Uuid
-  payment_methods_id                         String?                         @db.Uuid
-  customer_id                                String?                         @db.Uuid
+  id                                         String                     @id @db.Uuid
+  payment_methods_id                         String?                    @db.Uuid
+  customer_id                                String?                    @db.Uuid
   discount_amount                            Float?
-  table_code                                 String?                         @db.VarChar(45)
+  table_code                                 String?                    @db.VarChar(45)
   payment_status                             invoice_type?
-  created_at                                 DateTime?                       @db.Timestamp(6)
-  update_at                                  DateTime?                       @db.Timestamp(6)
-  delete_at                                  DateTime?                       @db.Timestamp(6)
+  created_at                                 DateTime?                  @db.Timestamp(6)
+  update_at                                  DateTime?                  @db.Timestamp(6)
+  delete_at                                  DateTime?                  @db.Timestamp(6)
   subtotal                                   Float
   order_type                                 order_type?
-  paid_at                                    DateTime?                       @db.Timestamp(6)
-  tax_id                                     String?                         @db.Uuid
-  service_charge_id                          String?                         @db.Uuid
+  paid_at                                    DateTime?                  @db.Timestamp(6)
+  tax_id                                     String?                    @db.Uuid
+  service_charge_id                          String?                    @db.Uuid
   tax_amount                                 Float?
   service_charge_amount                      Float?
   grand_total                                Float?
   cashier_id                                 Int?
-  invoice_number                             String?                         @db.VarChar(100)
-  store_id                                   String?                         @db.Uuid
-  complete_order_at                          DateTime?                       @db.Timestamp(6)
+  invoice_number                             String?                    @db.VarChar(100)
+  store_id                                   String?                    @db.Uuid
+  complete_order_at                          DateTime?                  @db.Timestamp(6)
   order_status                               order_status?
   payment_amount                             Float?
   change_amount                              Float?
-  voucher_amount                             Float                           @default(0)
-  voucher_id                                 String?                         @db.Uuid
+  voucher_amount                             Float                      @default(0)
+  voucher_id                                 String?                    @db.Uuid
   total_product_discount                     Float?
-  rounding_setting_id                        String?                         @db.Uuid
+  rounding_setting_id                        String?                    @db.Uuid
   rounding_amount                            Float?
-  loyalty_discount                           Float?                          @default(0)
-  loyalty_points_benefit_id                  String?                         @db.Uuid
-  customer_loyalty_transactions              customer_loyalty_transactions[]
+  loyalty_discount                           Float?                     @default(0)
+  loyalty_points_benefit_id                  String?                    @db.Uuid
   customers_has_invoices                     customers_has_invoices[]
-  customer                                   customer?                       @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
-  payment_methods                            payment_methods?                @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
-  payment_rounding_settings                  payment_rounding_settings?      @relation(fields: [rounding_setting_id], references: [id], map: "fk_invoice_rounding")
-  charges_invoice_tax_idTocharges            charges?                        @relation("invoice_tax_idTocharges", fields: [tax_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk")
-  charges_invoice_service_charge_idTocharges charges?                        @relation("invoice_service_charge_idTocharges", fields: [service_charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk_1")
-  loyalty_points_benefit                     loyalty_points_benefit?         @relation(fields: [loyalty_points_benefit_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  stores                                     stores?                         @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_stores_fk")
-  users                                      users?                          @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
-  voucher                                    voucher?                        @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_voucher_fk")
+  customer                                   customer?                  @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
+  payment_methods                            payment_methods?           @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
+  payment_rounding_settings                  payment_rounding_settings? @relation(fields: [rounding_setting_id], references: [id], map: "fk_invoice_rounding")
+  charges_invoice_tax_idTocharges            charges?                   @relation("invoice_tax_idTocharges", fields: [tax_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk")
+  charges_invoice_service_charge_idTocharges charges?                   @relation("invoice_service_charge_idTocharges", fields: [service_charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk_1")
+  loyalty_points_benefit                     loyalty_points_benefit?    @relation(fields: [loyalty_points_benefit_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  stores                                     stores?                    @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_stores_fk")
+  users                                      users?                     @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
+  voucher                                    voucher?                   @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_voucher_fk")
   invoice_charges                            invoice_charges[]
   invoice_details                            invoice_details[]
   kitchen_queue                              kitchen_queue[]
@@ -331,28 +313,28 @@ model invoice_details {
 }
 
 model invoice_settings {
-  id                             Int     @id(map: "invoice_settings_pk") @default(autoincrement())
-  store_id                       String  @unique(map: "invoice_settings_unique") @db.Uuid
-  uid                            Int?
-  company_logo_url               String?
-  footer_text                    String?
-  is_automatically_print_receipt Boolean @default(false)
-  is_automatically_print_kitchen Boolean @default(false)
-  is_automatically_print_table   Boolean @default(false)
-  is_show_company_logo           Boolean @default(false)
-  is_show_store_location         Boolean @default(false)
-  is_hide_cashier_name           Boolean @default(false)
-  is_hide_order_type             Boolean @default(false)
-  is_hide_queue_number           Boolean @default(false)
-  is_show_table_number           Boolean @default(false)
-  is_hide_item_prices            Boolean @default(false)
-  is_show_footer                 Boolean @default(false)
-  is_show_loyalty_points_used    Boolean @default(false)
+  id                               Int     @id(map: "invoice_settings_pk") @default(autoincrement())
+  store_id                         String  @unique(map: "invoice_settings_unique") @db.Uuid
+  uid                              Int?
+  company_logo_url                 String?
+  footer_text                      String?
+  is_automatically_print_receipt   Boolean @default(false)
+  is_automatically_print_kitchen   Boolean @default(false)
+  is_automatically_print_table     Boolean @default(false)
+  is_show_company_logo             Boolean @default(false)
+  is_show_store_location           Boolean @default(false)
+  is_hide_cashier_name             Boolean @default(false)
+  is_hide_order_type               Boolean @default(false)
+  is_hide_queue_number             Boolean @default(false)
+  is_show_table_number             Boolean @default(false)
+  is_hide_item_prices              Boolean @default(false)
+  is_show_footer                   Boolean @default(false)
+  increment_by                     Int?
+  reset_sequence                   String?
+  starting_number                  Int?
+  is_show_loyalty_points_used      Boolean @default(false)
   is_show_total_points_accumulated Boolean @default(false)
-  increment_by                   Int?
-  reset_sequence                 String?
-  starting_number                Int?
-  stores                         stores  @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_invoice_settings_store")
+  stores                           stores  @relation(fields: [store_id], references: [id], onDelete: Cascade, map: "fk_invoice_settings_store")
 }
 
 model invoice_bundling_items {
@@ -506,6 +488,7 @@ model products {
   stores_id                    String                         @db.Uuid
   master_inventory_item_id     String?                        @unique(map: "products_master_inventory_item_id_unique") @db.Uuid
   barcode                      String?                        @db.VarChar(50)
+  stock_quantity               Int                            @default(0)
   benefit_free_items           benefit_free_items[]
   catalog_bundling_has_product catalog_bundling_has_product[]
   categories_has_products      categories_has_products[]
@@ -515,6 +498,7 @@ model products {
   loyalty_product_item         loyalty_product_item[]
   menu_recipes                 menu_recipes[]
   product_commissions          product_commissions[]
+  product_portion_stock        product_portion_stock[]
   master_inventory_items       master_inventory_items?        @relation(fields: [master_inventory_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "products_master_inventory_items_fk")
   stores                       stores                         @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_products_fk")
   recipe                       recipe[]
@@ -619,6 +603,7 @@ model stores {
   business_type               String                        @db.VarChar(50)
   created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
   updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  batch_cooking_recipe        batch_cooking_recipe[]
   business_owner_has_stores   business_owner_has_stores[]
   cash_drawer_transactions    cash_drawer_transactions[]
   cash_drawers                cash_drawers[]
@@ -645,6 +630,7 @@ model stores {
   operational_hours           operational_hours[]
   payment_methods             payment_methods[]
   payment_rounding_settings   payment_rounding_settings[]
+  product_portion_stock       product_portion_stock[]
   products                    products[]
   purchase_orders             purchase_orders[]
   stock_opnames               stock_opnames[]
@@ -654,6 +640,7 @@ model stores {
   tables                      tables[]
   user_has_stores             user_has_stores[]
   voucher                     voucher[]
+  waste_log                   waste_log[]
 }
 
 model tables {
@@ -677,8 +664,11 @@ model trn_customer_points {
   customer_id String      @db.Uuid
   invoice_id  String?     @db.Uuid
   type        point_type?
-  expiry_date DateTime?   @db.Date
+  expiry_date DateTime?   @default(now()) @db.Timestamptz(6)
   notes       String?     @db.VarChar(45)
+  created_at  DateTime?   @default(now()) @db.Timestamptz(6)
+  status      String?     @db.VarChar(45)
+  updated_at  DateTime?   @default(now()) @db.Timestamptz(6)
   customer    customer    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_customer_id_fk")
   invoice     invoice?    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_invoice_id_fk")
 }
@@ -721,6 +711,7 @@ model users {
   employees                   employees?
   inventory_stock_adjustments inventory_stock_adjustments[]
   invoice                     invoice[]
+  product_portion_stock       product_portion_stock[]
   purchase_orders             purchase_orders[]
   stock_opnames               stock_opnames[]
   user_has_stores             user_has_stores[]
@@ -1007,6 +998,7 @@ model master_inventory_items {
   products                          products?
   purchase_order_items              purchase_order_items[]
   stock_opname_items                stock_opname_items[]
+  waste_log_item                    waste_log_item[]
 
   @@index([brand_id], map: "idx_mii_brand_id")
   @@index([category_id], map: "idx_mii_category_id")
@@ -1398,35 +1390,37 @@ model master_inventory_item_conversions {
 }
 
 model ingredients {
-  ingredient_id          String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  recipe_id              String?                 @db.Uuid
-  item_id                String?                 @db.Uuid
-  qty                    Decimal                 @db.Decimal(10, 2)
-  uom                    String                  @db.VarChar(50)
-  notes                  String?
-  cost                   Decimal?                @db.Decimal(12, 2)
-  created_at             DateTime?               @default(now()) @db.Timestamp(6)
-  updated_at             DateTime?               @default(now()) @db.Timestamp(6)
-  master_inventory_items master_inventory_items? @relation(fields: [item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  menu_recipes           menu_recipes?           @relation(fields: [recipe_id], references: [recipe_id], onDelete: Cascade, onUpdate: NoAction)
+  ingredient_id                   String                            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipe_id                       String?                           @db.Uuid
+  item_id                         String?                           @db.Uuid
+  qty                             Decimal                           @db.Decimal(10, 2)
+  uom                             String                            @db.VarChar(50)
+  notes                           String?
+  cost                            Decimal?                          @db.Decimal(12, 2)
+  created_at                      DateTime?                         @default(now()) @db.Timestamp(6)
+  updated_at                      DateTime?                         @default(now()) @db.Timestamp(6)
+  batch_cooking_recipe_ingredient batch_cooking_recipe_ingredient[]
+  master_inventory_items          master_inventory_items?           @relation(fields: [item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  menu_recipes                    menu_recipes?                     @relation(fields: [recipe_id], references: [recipe_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model menu_recipes {
-  recipe_id                        String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  recipe_name                      String            @db.VarChar(255)
-  output_unit                      String?           @db.VarChar(50)
-  base_recipe                      Boolean?          @default(false)
-  product_id                       String?           @db.Uuid
+  recipe_id                        String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipe_name                      String                 @db.VarChar(255)
+  output_unit                      String?                @db.VarChar(50)
+  base_recipe                      Boolean?               @default(false)
+  product_id                       String?                @db.Uuid
   target_yield                     Int?
-  created_at                       DateTime?         @default(now()) @db.Timestamp(6)
-  updated_at                       DateTime?         @default(now()) @db.Timestamp(6)
-  store_id                         String?           @db.Uuid
-  cost_portion                     Decimal?          @default(0) @db.Decimal(12, 2)
-  margin_per_selling_price_rp      Decimal?          @default(0) @db.Decimal(12, 2)
-  margin_per_selling_price_percent Decimal?          @default(0) @db.Decimal(5, 2)
+  created_at                       DateTime?              @default(now()) @db.Timestamp(6)
+  updated_at                       DateTime?              @default(now()) @db.Timestamp(6)
+  store_id                         String?                @db.Uuid
+  cost_portion                     Decimal?               @default(0) @db.Decimal(12, 2)
+  margin_per_selling_price_rp      Decimal?               @default(0) @db.Decimal(12, 2)
+  margin_per_selling_price_percent Decimal?               @default(0) @db.Decimal(5, 2)
+  batch_cooking_recipe             batch_cooking_recipe[]
   ingredients                      ingredients[]
-  products                         products?         @relation(fields: [product_id], references: [id], onUpdate: NoAction)
-  stores                           stores?           @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products                         products?              @relation(fields: [product_id], references: [id], onUpdate: NoAction)
+  stores                           stores?                @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   recipe_versions                  recipe_versions[]
 
   @@index([created_at], map: "idx_menu_recipes_created_at")
@@ -1465,6 +1459,86 @@ model recipe_versions {
   created_by                       String?               @db.Uuid
   ingredient_versions              ingredient_versions[]
   menu_recipes                     menu_recipes?         @relation(fields: [recipe_id], references: [recipe_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model batch_cooking_recipe {
+  id                              String                            @id(map: "batch_cooking_recipe_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipe_id                       String                            @db.Uuid
+  date                            DateTime                          @db.Date
+  batch_target_yield              Int
+  batch_waste                     Float                             @db.Real
+  notes                           String?
+  created_at                      DateTime?                         @db.Timestamp(6)
+  created_by                      Int
+  updated_at                      DateTime?                         @db.Timestamp(6)
+  updated_by                      Int?
+  status                          Int?
+  cost_batch                      Float?
+  cost_portion                    Float?
+  margin_selling_price            Float?
+  cooking_at                      DateTime?                         @db.Timestamp(6)
+  store_id                        String                            @db.Uuid
+  stores                          stores                            @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "batch_cooking_recipe_stores_fk")
+  menu_recipes                    menu_recipes                      @relation(fields: [recipe_id], references: [recipe_id], onDelete: NoAction, onUpdate: NoAction, map: "menu_recipe_fk")
+  batch_cooking_recipe_ingredient batch_cooking_recipe_ingredient[]
+  waste_log                       waste_log[]
+}
+
+model batch_cooking_recipe_ingredient {
+  id                   String               @id(map: "batch_cooking_recipe_ingredient_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id             String               @db.Uuid
+  ingredient_id        String               @db.Uuid
+  qty                  Float?
+  base_price           Float?
+  cost                 Float?
+  created_at           DateTime?            @db.Timestamp(6)
+  updated_at           String?              @db.VarChar
+  recipe_id            String?              @db.Uuid
+  ingredients          ingredients          @relation(fields: [ingredient_id], references: [ingredient_id], onDelete: NoAction, onUpdate: NoAction, map: "batch_cooking_recipe_ingredient_ingredients_fk")
+  batch_cooking_recipe batch_cooking_recipe @relation(fields: [batch_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "batch_fk")
+}
+
+model product_portion_stock {
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id          String                 @db.Uuid
+  stores_id           String                 @db.Uuid
+  action              product_portion_action
+  adjustment_quantity Int
+  notes               String?
+  previous_quantity   Int
+  new_quantity        Int
+  created_at          DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime               @default(now()) @db.Timestamptz(6)
+  created_by          Int?
+  users               users?                 @relation(fields: [created_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products            products               @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  stores              stores                 @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model waste_log {
+  waste_log_id         String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id             String?               @db.Uuid
+  store_id             String                @db.Uuid
+  created_at           DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime              @default(now()) @db.Timestamptz(6)
+  batch_cooking_recipe batch_cooking_recipe? @relation(fields: [batch_id], references: [id], map: "fk_waste_log_batch")
+  stores               stores                @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_waste_log_store")
+  waste_log_item       waste_log_item[]
+}
+
+model waste_log_item {
+  waste_log_item_id      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  waste_log_id           String                 @db.Uuid
+  inventory_item_id      String                 @db.Uuid
+  category               String?                @db.VarChar(100)
+  quantity               Decimal?               @db.Decimal(12, 3)
+  uom                    String?                @db.VarChar(50)
+  notes                  String?
+  photo_url              String?
+  created_at             DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime               @default(now()) @db.Timestamptz(6)
+  master_inventory_items master_inventory_items @relation(fields: [inventory_item_id], references: [id], onUpdate: NoAction, map: "fk_waste_log_item_inventory")
+  waste_log              waste_log              @relation(fields: [waste_log_id], references: [waste_log_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_waste_log_item_log")
 }
 
 enum cash_drawer_type {
@@ -1578,4 +1652,9 @@ enum device_code_status {
 enum rounding_type {
   up
   down
+}
+
+enum product_portion_action {
+  INCREASE
+  DECREASE
 }
