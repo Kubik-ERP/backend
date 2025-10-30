@@ -1712,6 +1712,7 @@ enum transfer_stock_status {
 enum transfer_stock_item_status {
   pending
   on_progress
+  shipped
   received
   received_with_issue
   rejected

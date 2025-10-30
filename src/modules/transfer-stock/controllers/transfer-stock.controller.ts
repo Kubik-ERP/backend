@@ -22,6 +22,7 @@ import { CreateTransferStockDto } from '../dtos/create-transfer-stock.dto';
 import { ItemListDto } from '../dtos/item-list.dto';
 import { UpdateTransferStockDto } from '../dtos/update-transfer-stock.dto';
 import { UUID } from 'crypto';
+import { ShipTransferStockDto } from '../dtos/ship-transfer-stock.dto';
 
 @Controller('transfer-stock')
 export class TransferStockController {
@@ -259,5 +260,25 @@ export class TransferStockController {
   async rejectTransferStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: {note: string}) {
     const result = await this.transferStockService.reject(req, id, body.note);
     return result;
+  }
+
+  @ApiOperation({ summary: 'Reject transfer sotck' })
+  @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Put('transfer/ship/:id')
+  async shipTransferStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: ShipTransferStockDto) {
+    const result = await this.transferStockService.ship(req, id, body);
+    return {
+      statusCode: 200,
+      message: 'Transfer stock shipped successfully',
+      result: toCamelCase(result)
+    };
   }
 }

@@ -20,6 +20,7 @@ import { CreateTransferStockDto } from '../dtos/create-transfer-stock.dto';
 import { ItemListDto } from '../dtos/item-list.dto';
 import { UpdateTransferStockDto } from '../dtos/update-transfer-stock.dto';
 import { UUID } from 'crypto';
+import { ShipTransferStockDto } from '../dtos/ship-transfer-stock.dto';
 
 @Injectable()
 export class TransferStockService {
@@ -234,6 +235,23 @@ export class TransferStockService {
 
     const sequence = String(countToday + 1).padStart(4, '0');
     return `TS-${datePart}-${sequence}`;
+  }
+
+  async getStoreFrom(store_id: string) {
+    const getOwnerId = await this.prisma.user_has_stores.findFirst({
+      where: { store_id },
+      select: { user_id: true },
+    });
+
+    if (!getOwnerId) throw new BadRequestException(`Store with ID ${store_id} not found`);
+
+    const storeFrom = await this.prisma.user_has_stores.findFirst({
+      where: { user_id: getOwnerId.user_id },
+    });
+
+    if (!storeFrom) throw new BadRequestException('Store From not found');
+
+    return storeFrom;
   }
 
   async create(
@@ -622,20 +640,42 @@ export class TransferStockService {
     return result;
   }
 
-  async getStoreFrom(store_id: string) {
-    const getOwnerId = await this.prisma.user_has_stores.findFirst({
-      where: { store_id },
-      select: { user_id: true },
+  async ship(req: ICustomRequestHeaders, transferStockId: UUID, data: ShipTransferStockDto) {
+    const store_id = requireStoreId(req);
+    const transferStock = await this.prisma.transfer_stocks.findFirst({
+      where: { id: transferStockId },
+      include: { transfer_stock_items: true },
     });
 
-    if (!getOwnerId) throw new BadRequestException(`Store with ID ${store_id} not found`);
+    if (!transferStock) {
+      throw new BadRequestException('Transfer Stock not found');
+    }
 
-    const storeFrom = await this.prisma.user_has_stores.findFirst({
-      where: { user_id: getOwnerId.user_id },
+    if (transferStock.status !== 'approved') {
+      throw new BadRequestException('Cannot change the status to shipped because the current status is already ' + transferStock.status);
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      for (const item of transferStock.transfer_stock_items) {
+        await tx.transfer_stock_items.updateMany({
+          where: { transfer_stock_id: transferStock.id, master_inventory_item_id: item.master_inventory_item_id },
+          data: {status: 'shipped'}
+        });
+      }
+
+      await tx.transfer_stocks.update({
+        where: { id: transferStockId },
+        data: {
+          shipped_by: req.user.id,
+          shipped_at: new Date,
+          logistic_provider: data.logistic_provider,
+          tracking_number: data.tracking_number,
+          delivery_note: data.delivery_note,
+          status: 'shipped'
+        }
+      });
     });
 
-    if (!storeFrom) throw new BadRequestException('Store From not found');
-
-    return storeFrom;
+    return result;
   }
 }
