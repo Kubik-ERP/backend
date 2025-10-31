@@ -32,4 +32,9 @@ export class CreateCustomerPointDto {
   @IsUUID()
   @IsOptional()
   status?: string;
+
+  @ApiPropertyOptional({ example: 'adjustment' })
+  @IsUUID()
+  @IsOptional()
+  earn_type?: 'product_based' | 'spend_based' | 'adjustment';
 }
