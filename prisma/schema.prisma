@@ -993,6 +993,8 @@ model master_inventory_items {
   updated_at                        DateTime                            @default(now()) @db.Timestamptz(6)
   store_id                          String?                             @db.Uuid
   price_grosir                      Decimal?                            @db.Decimal(18, 2)
+  markup                            Decimal?                            @default(dbgenerated("((price_per_unit - price_grosir) / NULLIF(price_grosir, (0)::numeric))")) @db.Decimal(18, 2)
+  margin                            Decimal?                            @default(dbgenerated("((price_per_unit - price_grosir) / NULLIF(price_per_unit, (0)::numeric))")) @db.Decimal(18, 2)
   ingredient_versions               ingredient_versions[]
   ingredients                       ingredients[]
   inventory_stock_adjustments       inventory_stock_adjustments[]
