@@ -910,6 +910,7 @@ model products {
   recipe                       recipe[]
   variant_has_products         variant_has_products[]
   voucher_has_products         voucher_has_products[]
+  trn_customer_points          trn_customer_points[]
 }
 
 model purchase_order_items {
@@ -1307,18 +1308,21 @@ model temp_import_suppliers {
 }
 
 model trn_customer_points {
-  id          String      @id(map: "trn_customer_points_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  value       Int
-  customer_id String      @db.Uuid
-  invoice_id  String?     @db.Uuid
+  id          String           @id(map: "trn_customer_points_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id String           @db.Uuid
+  invoice_id  String?          @db.Uuid
   type        point_type?
-  expiry_date DateTime?   @default(now()) @db.Timestamptz(6)
-  notes       String?     @db.VarChar(45)
-  created_at  DateTime?   @default(now()) @db.Timestamptz(6)
-  status      String?     @db.VarChar(45)
-  updated_at  DateTime?   @default(now()) @db.Timestamptz(6)
-  customer    customer    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_customer_id_fk")
-  invoice     invoice?    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_invoice_id_fk")
+  earn_type   earn_point_type?
+  product_id  String?          @db.Uuid
+  value       Int
+  status      String?          @db.VarChar(45)
+  notes       String?          @db.VarChar(45)
+  expiry_date DateTime?        @default(now()) @db.Timestamptz(6)
+  created_at  DateTime?        @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime?        @default(now()) @db.Timestamptz(6)
+  customer    customer         @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_customer_id_fk")
+  invoice     invoice?         @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_invoice_id_fk")
+  products    products?        @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_product_id_fk")
 }
 
 model unit {
@@ -1656,4 +1660,10 @@ enum voucher_status {
 enum product_portion_action {
   INCREASE
   DECREASE
+}
+
+enum earn_point_type {
+  adjustment
+  spend_based
+  product_based
 }

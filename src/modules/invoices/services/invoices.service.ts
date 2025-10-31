@@ -3852,19 +3852,23 @@ export class InvoiceService {
           ?.map((d) => {
             let type: string | null = null;
             let quantity: number = 0;
+            let name: string = '';
 
             if (d.product_id) {
               type = 'single';
               quantity = d.qty ?? 0;
+              name = d.products?.name ?? '';
             } else if (d.catalog_bundling_id) {
               type = 'bundling';
               quantity = d.qty ?? 0;
+              name = d.products?.name ?? '';
             }
 
             return {
               ...d.products,
               type,
-              quantity
+              quantity,
+              name
             };
           }) ?? [];
     }
@@ -3884,6 +3888,7 @@ export class InvoiceService {
   ) {
     let earnPointsBySpend = 0;
     let earnPointsByProduct = 0;
+    let data: any = [];
 
     const loyaltySettings = await this._prisma.loyalty_point_settings.findFirst(
       {
@@ -3925,8 +3930,15 @@ export class InvoiceService {
               return {
                 earnPointsBySpend,
                 earnPointsByProduct,
+                data
               }
             }
+
+            const getProduct = await this._prisma.products.findFirst({
+              where: {
+                id: getProductId
+              }
+            });
 
             if (product.type == 'single') {
               const loyaltyItem =
@@ -3940,15 +3952,24 @@ export class InvoiceService {
                 const qty = product.quantity ?? 0;
                 const minimumPurchase = loyaltyItem.minimum_transaction ?? 0;
 
+                let totalPoints = 0;
                 if (qty >= minimumPurchase) {
                   if (loyaltySettings.product_based_points_apply_multiple) {
                     const multiplierProduct = Math.floor(qty / minimumPurchase);
-                    earnPointsByProduct +=
+                    totalPoints +=
                       multiplierProduct * (loyaltyItem.points ?? 0);
                   } else {
-                    earnPointsByProduct += loyaltyItem.points ?? 0;
+                    totalPoints += loyaltyItem.points ?? 0;
                   }
                 }
+
+                earnPointsByProduct += totalPoints;
+
+                data.push({
+                  product_id: getProductId,
+                  product_name: getProduct?.name ?? '',
+                  total_points: totalPoints
+                });
               }
             }
           }
@@ -3959,6 +3980,7 @@ export class InvoiceService {
     return {
       earnPointsBySpend,
       earnPointsByProduct,
+      data
     };
   }
 
@@ -4004,6 +4026,7 @@ export class InvoiceService {
             customer_id: customerId,
             invoice_id: invoiceId,
             type: 'point_addition',
+            earn_type: 'spend_based',
             value: points.earnPointsBySpend,
             notes: `Earned from spend-based = ${points.earnPointsBySpend}`,
             expiry_date: spendBasedExpired,
@@ -4022,19 +4045,25 @@ export class InvoiceService {
         );
         productBasedExpired.setHours(23, 59, 59, 999);
 
-        await this._prisma.trn_customer_points.create({
-          data: {
-            customer_id: customerId,
-            invoice_id: invoiceId,
-            type: 'point_addition',
-            value: points.earnPointsByProduct,
-            notes: `Earned from product-based = ${points.earnPointsByProduct}`,
-            expiry_date: productBasedExpired,
-            status: 'active',
-            created_at: new Date(),
-            updated_at: new Date()
-          },
-        });
+        for (const item of points.data) {
+          if (item.total_points > 0) {
+            await this._prisma.trn_customer_points.create({
+              data: {
+                customer_id: customerId,
+                invoice_id: invoiceId,
+                product_id: item.product_id,
+                type: 'point_addition',
+                earn_type: 'product_based',
+                value: item.total_points,
+                notes: `Earned from product ${item.product_name}`,
+                expiry_date: productBasedExpired,
+                status: 'active',
+                created_at: new Date(),
+                updated_at: new Date()
+              },
+            });
+          }
+        }
       }
 
       if (redeemLoyalty) {
