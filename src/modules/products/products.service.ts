@@ -89,7 +89,7 @@ export class ProductsService {
               picture_url: createProductDto.image ?? null,
               is_percent: createProductDto.is_percent ?? false,
               stores_id: store_id,
-              stock_quantity: createProductDto.stock_quantity ?? 0,
+              stock_quantity: 0, // Default stock quantity to 0
             } as products,
           });
 
@@ -530,9 +530,6 @@ export class ProductsService {
               ? {}
               : { picture_url: updateProductDto.image }),
             is_percent: updateProductDto.is_percent ?? false,
-            ...(updateProductDto.stock_quantity !== undefined && {
-              stock_quantity: updateProductDto.stock_quantity,
-            }),
           },
           include: {
             categories_has_products: true,
@@ -540,16 +537,29 @@ export class ProductsService {
         });
       });
 
-      // Update menu_recipes with product_id if recipeId is provided
-      if (updateProductDto.recipeId) {
+      // Handle recipe linking logic
+      if ('recipeId' in updateProductDto) {
+        // First, clear any existing recipe links for this product
         await this.prisma.menu_recipes.updateMany({
           where: {
-            recipe_id: updateProductDto.recipeId,
-          },
-          data: {
             product_id: updatedProduct.id,
           },
+          data: {
+            product_id: null,
+          },
         });
+
+        // If recipeId is provided and not null/empty, link to the new recipe
+        if (updateProductDto.recipeId) {
+          await this.prisma.menu_recipes.updateMany({
+            where: {
+              recipe_id: updateProductDto.recipeId,
+            },
+            data: {
+              product_id: updatedProduct.id,
+            },
+          });
+        }
       }
 
       return updatedProduct;
