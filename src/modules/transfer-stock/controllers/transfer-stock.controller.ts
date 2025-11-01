@@ -23,44 +23,11 @@ import { ItemListDto } from '../dtos/item-list.dto';
 import { UpdateTransferStockDto } from '../dtos/update-transfer-stock.dto';
 import { UUID } from 'crypto';
 import { ShipTransferStockDto } from '../dtos/ship-transfer-stock.dto';
+import { ChangeStatusDto } from '../dtos/change-status-dto';
 
 @Controller('transfer-stock')
 export class TransferStockController {
   constructor(private readonly transferStockService: TransferStockService) {}
-
-  @ApiOperation({ summary: 'Get all request stock' })
-  @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @ApiBearerAuth()
-  @Get('request')
-  async findAllRequestStock(
-    @Req() req: ICustomRequestHeaders,
-    @Query() dto: TransferStockListDto,
-  ) {
-    try {
-      const requestStocks = await this.transferStockService.findAllRequestStock(
-        dto,
-        req,
-      );
-      return {
-        statusCode: HttpStatus.OK,
-        message: 'Request Stock fetched successfully',
-        result: toCamelCase(requestStocks),
-      };
-    } catch (error) {
-      return {
-        statusCode: error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-        message: error.message,
-        result: null,
-      };
-    }
-  }
 
   @ApiOperation({ summary: 'Get all transfer stock' })
   @UseGuards(AuthPermissionGuard)
@@ -130,34 +97,6 @@ export class TransferStockController {
     }
   }
 
-  @ApiOperation({ summary: 'Create request sotck' })
-  @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @ApiBearerAuth()
-  @Post('request')
-  async createRequestStock(
-    @Req() req: ICustomRequestHeaders,
-    @Body() dto: CreateTransferStockDto,
-  ) {
-    const newRequestStock = await this.transferStockService.create(
-      req,
-      dto,
-      'request',
-    );
-
-    return {
-      statusCode: HttpStatus.CREATED,
-      message: 'Request Stock created successfully',
-      result: toCamelCase(newRequestStock),
-    };
-  }
-
   @ApiOperation({ summary: 'Create transfer sotck' })
   @UseGuards(AuthPermissionGuard)
   // @RequirePermissions('manage_transfer_stock')
@@ -175,8 +114,7 @@ export class TransferStockController {
   ) {
     const newTransferStock = await this.transferStockService.create(
       req,
-      dto,
-      'transfer',
+      dto
     );
 
     return {
@@ -203,8 +141,7 @@ export class TransferStockController {
   ) {
     const transferStock = await this.transferStockService.update(
       req,
-      dto,
-      'transfer',
+      dto
     );
 
     return {
@@ -212,6 +149,22 @@ export class TransferStockController {
       message: 'Transfer stock updated successfully',
       result: toCamelCase(transferStock),
     };
+  }
+
+  @ApiOperation({ summary: 'Update status transfer sotck' })
+  @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Post('transfer/change-status/:id')
+  async changeStatus(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: ChangeStatusDto) {
+    const result = await this.transferStockService.changeStatus(req, id, body);
+    return result;
   }
 
   @ApiOperation({ summary: 'Delete transfer sotck' })
@@ -230,7 +183,7 @@ export class TransferStockController {
     return result;
   }
 
-  @ApiOperation({ summary: 'Cancel transfer sotck' })
+  @ApiOperation({ summary: 'Get all transfer stock' })
   @UseGuards(AuthPermissionGuard)
   // @RequirePermissions('manage_transfer_stock')
   @ApiHeader({
@@ -240,45 +193,25 @@ export class TransferStockController {
     schema: { type: 'string' },
   })
   @ApiBearerAuth()
-  @Put('transfer/cancel/:id')
-  async cancelTransferStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: {note: string}) {
-    const result = await this.transferStockService.cancel(req, id, body.note);
-    return result;
-  }
-
-  @ApiOperation({ summary: 'Reject transfer sotck' })
-  @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @ApiBearerAuth()
-  @Put('transfer/reject/:id')
-  async rejectTransferStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: {note: string}) {
-    const result = await this.transferStockService.reject(req, id, body.note);
-    return result;
-  }
-
-  @ApiOperation({ summary: 'Reject transfer sotck' })
-  @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @ApiBearerAuth()
-  @Put('transfer/ship/:id')
-  async shipTransferStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: ShipTransferStockDto) {
-    const result = await this.transferStockService.ship(req, id, body);
-    return {
-      statusCode: 200,
-      message: 'Transfer stock shipped successfully',
-      result: toCamelCase(result)
-    };
+  @Get('receiver')
+  async findAllReceiverStock(
+    @Req() req: ICustomRequestHeaders,
+    @Query() dto: TransferStockListDto,
+  ) {
+    try {
+      const receiverStocks =
+        await this.transferStockService.findAllReceiverStock(dto, req);
+      return {
+        statusCode: HttpStatus.OK,
+        message: 'Receiver Stock fetched successfully',
+        result: toCamelCase(receiverStocks),
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        message: error.message,
+        result: null,
+      };
+    }
   }
 }

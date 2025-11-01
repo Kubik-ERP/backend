@@ -21,6 +21,7 @@ import { ItemListDto } from '../dtos/item-list.dto';
 import { UpdateTransferStockDto } from '../dtos/update-transfer-stock.dto';
 import { UUID } from 'crypto';
 import { ShipTransferStockDto } from '../dtos/ship-transfer-stock.dto';
+import { ChangeStatusDto } from '../dtos/change-status-dto';
 
 @Injectable()
 export class TransferStockService {
@@ -52,7 +53,7 @@ export class TransferStockService {
         take: dto.pageSize,
         orderBy: orderBy,
         include: {
-          requested_user: {
+          drafted_user: {
             select: { id: true, fullname: true, email: true },
           },
           approved_user: {
@@ -110,7 +111,7 @@ export class TransferStockService {
         take: dto.pageSize,
         orderBy: orderBy,
         include: {
-          requested_user: {
+          drafted_user: {
             select: { id: true, fullname: true, email: true },
           },
           approved_user: {
@@ -256,8 +257,7 @@ export class TransferStockService {
 
   async create(
     header: ICustomRequestHeaders,
-    dto: CreateTransferStockDto,
-    type: 'request' | 'transfer',
+    dto: CreateTransferStockDto
   ) {
     const store_id = requireStoreId(header);
     const storeFrom = await this.getStoreFrom(store_id);
@@ -288,15 +288,13 @@ export class TransferStockService {
       const transfer = await tx.transfer_stocks.create({
         data: {
           store_from_id: storeFrom.store_id,
-          store_to_id: type === 'transfer' ? dto.store_to_id : store_id,
+          store_to_id: dto.store_to_id,
           store_created_by: store_id,
           transaction_code: code,
           note: dto.note,
-          status: type === 'transfer' ? 'approved' : 'requested',
-          requested_by: header.user.id,
-          request_at: new Date(),
-          approved_by: type === 'transfer' ? header.user.id : null,
-          approved_at: type === 'transfer' ? new Date() : null,
+          status: 'drafted',
+          drafted_by: header.user.id,
+          drafted_at: new Date(),
           created_at: new Date(),
           updated_at: new Date(),
         },
@@ -311,27 +309,16 @@ export class TransferStockService {
           data: {
             transfer_stock_id: transfer.id,
             master_inventory_item_id: item.itemId,
-            qty_requested: item.qty,
+            qty_reserved: item.qty,
             qty_received: 0,
             unit_price: unitPrice,
             subtotal,
-            status: type === 'transfer' ? 'on_progress' : 'pending',
+            status: 'pending',
             note: null,
             created_at: new Date(),
             updated_at: new Date(),
           },
         });
-
-        if (transfer.status === 'approved' && type === 'transfer') {
-          const newQty = Math.max((inventory?.stock_quantity ?? 0) - item.qty, 0);
-          await tx.master_inventory_items.update({
-            where: {
-              id: item.itemId,
-              store_id: storeFrom.store_id,
-            },
-            data: { stock_quantity: newQty },
-          });
-        }
       }
 
       return transfer;
@@ -342,8 +329,7 @@ export class TransferStockService {
 
   async update(
     header: ICustomRequestHeaders,
-    dto: UpdateTransferStockDto,
-    type: 'request' | 'transfer',
+    dto: UpdateTransferStockDto
   ) {
     const store_id = requireStoreId(header);
     const storeFrom = await this.getStoreFrom(store_id);
@@ -357,12 +343,12 @@ export class TransferStockService {
 
     const isAuthorized =
       transferStock.store_created_by === store_id && (
-        (transferStock.store_from_id === store_id && transferStock.status === 'approved') ||
-        (transferStock.store_to_id === store_id && transferStock.status === 'requested')
+        (transferStock.store_from_id === store_id && transferStock.status === 'drafted') ||
+        (transferStock.store_to_id === store_id && transferStock.status === 'approved')
       )
 
     if (!isAuthorized) {
-      throw new BadRequestException('You are not authorized to cancel this data.');
+      throw new BadRequestException('You are not authorized to update this data.');
     }
 
     const allItemIds = dto.items.map((i) => i.itemId);
@@ -392,21 +378,6 @@ export class TransferStockService {
         data: { updated_at: new Date() },
       });
 
-      for (const product of transferStock.transfer_stock_items) {
-        const getProduct = await tx.master_inventory_items.findFirst({
-          where: { id: product.master_inventory_item_id },
-        });
-
-        if (getProduct) {
-          await tx.master_inventory_items.update({
-            where: { id: getProduct.id },
-            data: {
-              stock_quantity: (getProduct.stock_quantity ?? 0) + (product.qty_requested ?? 0),
-            },
-          });
-        }
-      }
-
       await tx.transfer_stock_items.deleteMany({
         where: { transfer_stock_id: transferStock.id },
       });
@@ -420,44 +391,228 @@ export class TransferStockService {
           data: {
             transfer_stock_id: updatedTransfer.id,
             master_inventory_item_id: item.itemId,
-            qty_requested: item.qty,
+            qty_reserved: item.qty,
             qty_received: 0,
             unit_price: unitPrice,
             subtotal,
-            status: type === 'transfer' ? 'on_progress' : 'pending',
+            status: 'pending',
             note: null,
             created_at: new Date(),
             updated_at: new Date(),
           },
         });
-
-        if (updatedTransfer.status === 'approved' && type === 'transfer') {
-          const latest = await tx.master_inventory_items.findUnique({
-            where: {
-              id: item.itemId,
-              store_id: storeFrom.store_id,
-            },
-            select: { stock_quantity: true },
-          });
-
-          const currentStock = latest?.stock_quantity ?? 0;
-
-          await tx.master_inventory_items.update({
-            where: {
-              id: item.itemId,
-              store_id: storeFrom.store_id,
-            },
-            data: {
-              stock_quantity: currentStock - item.qty,
-            },
-          });
-        }
       }
 
       return updatedTransfer;
     });
 
     return result;
+  }
+
+  async changeStatus(req: ICustomRequestHeaders, transferStockId: UUID, body: ChangeStatusDto) {
+    const store_id = requireStoreId(req);
+    const transferStock = await this.prisma.transfer_stocks.findFirst({
+      where: { id: transferStockId },
+      include: { transfer_stock_items: true },
+    });
+
+    if (!transferStock) throw new BadRequestException('Transfer stock not found.');
+
+    const status = body.status?.toLowerCase();
+    let isAuthorized = false;
+
+    if (status === 'approve') {
+      isAuthorized =
+        transferStock.store_created_by === store_id &&
+        transferStock.status === 'drafted';
+    } else if (status === 'cancel') {
+      isAuthorized =
+        transferStock.store_created_by === store_id &&
+        (transferStock.status === 'drafted' || transferStock.status === 'approved');
+    } else if (status === 'ship') {
+      isAuthorized =
+        transferStock.store_created_by === store_id &&
+        transferStock.status === 'approved';
+    } else {
+      throw new BadRequestException('Invalid status value. Allowed values: approve, cancel, ship.');
+    }
+
+    if (!isAuthorized) {
+      throw new BadRequestException(
+        `You are not authorized to update this transfer stock to status "${status}".`
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (status === 'approve') {
+        return await this.approve(req.user.id, transferStockId, tx);
+      }
+
+      if (status === 'cancel') {
+        return await this.cancel(req.user.id, transferStockId, body, tx);
+      }
+
+      if (status === 'ship') {
+        return await this.ship(req.user.id, transferStockId, body, tx);
+      }
+
+      return {
+        statusCode: 200,
+        message: 'Transfer stock status updated successfully.',
+      };
+    });
+
+    return result;
+  }
+
+  async approve(userId: number, transferStockId: UUID, tx: Prisma.TransactionClient) {
+    const transferStock = await tx.transfer_stocks.findFirst({
+      where: { id: transferStockId },
+      include: {
+        transfer_stock_items: {
+          include: { master_inventory_items: true },
+        },
+      },
+    });
+
+    if (!transferStock) {
+      throw new BadRequestException('Transfer stock not found.');
+    }
+
+    for (const item of transferStock.transfer_stock_items) {
+      const found = item.master_inventory_items;
+
+      if (!found) {
+        throw new BadRequestException('Master inventory item not found.');
+      }
+
+      if (found.stock_quantity < item.qty_reserved) {
+        throw new BadRequestException(
+          `Insufficient stock for item ${found.name}, remaining stock = ${found.stock_quantity}`,
+        );
+      }
+    }
+    
+    await tx.transfer_stocks.update({
+      where: { id: transferStockId },
+      data: {
+        approved_by: userId,
+        approved_at: new Date(),
+        status: 'approved',
+      },
+    });
+
+    await tx.transfer_stock_items.updateMany({
+      where: { transfer_stock_id: transferStockId },
+      data: { status: 'on_progress' },
+    });
+
+    return {
+      statusCode: 200,
+      message: 'Transfer stock approved successfully.',
+    };
+  }
+
+  async cancel(userId: number, transferStockId: UUID, data: ChangeStatusDto, tx: Prisma.TransactionClient) {
+    const transferStock = await tx.transfer_stocks.findFirst({
+      where: { id: transferStockId },
+      include: {
+        transfer_stock_items: {
+          include: { master_inventory_items: true },
+        },
+      },
+    });
+
+    if (!transferStock) {
+      throw new BadRequestException('Transfer stock not found.');
+    }
+
+    for (const item of transferStock.transfer_stock_items) {
+      const masterItem = item.master_inventory_items;
+
+      if (!masterItem) {
+        throw new BadRequestException('Master inventory item not found.');
+      }
+
+      await tx.transfer_stock_items.updateMany({
+        where: {
+          transfer_stock_id: transferStock.id,
+          master_inventory_item_id: item.master_inventory_item_id,
+        },
+        data: { status: 'canceled' },
+      });
+    }
+
+    await tx.transfer_stocks.update({
+      where: { id: transferStockId },
+      data: {
+        canceled_by: userId,
+        canceled_at: new Date(),
+        canceled_note: data.note,
+        status: 'canceled',
+      },
+    });
+
+    return {
+      statusCode: 200,
+      message: 'Transfer stock canceled successfully.',
+    };
+  }
+
+  async ship(userId: number, transferStockId: UUID, data: ChangeStatusDto, tx: Prisma.TransactionClient) {
+    const transferStock = await tx.transfer_stocks.findFirst({
+      where: { id: transferStockId },
+      include: {
+        transfer_stock_items: {
+          include: { master_inventory_items: true },
+        },
+      },
+    });
+
+    if (!transferStock) {
+      throw new BadRequestException('Transfer stock not found.');
+    }
+
+    for (const item of transferStock.transfer_stock_items) {
+      const masterItem = item.master_inventory_items;
+
+      if (!masterItem) {
+        throw new BadRequestException('Master inventory item not found.');
+      }
+
+      if (masterItem.stock_quantity < item.qty_reserved) {
+        throw new BadRequestException(
+          `Insufficient stock for item ${masterItem.name}, remaining stock = ${masterItem.stock_quantity}`,
+        );
+      }
+
+      await tx.master_inventory_items.update({
+        where: { id: masterItem.id },
+        data: { stock_quantity: masterItem.stock_quantity - item.qty_reserved }
+      });
+    }
+    
+    await tx.transfer_stocks.update({
+      where: { id: transferStockId },
+      data: {
+        shipped_by: userId,
+        shipped_at: new Date(),
+        logistic_provider: data.logistic_provider,
+        tracking_number: data.tracking_number,
+        delivery_note: data.delivery_note,
+        status: 'shipped'
+      },
+    });
+
+    await tx.transfer_stock_items.updateMany({
+      where: { transfer_stock_id: transferStockId },
+      data: { status: 'shipped' },
+    });
+
+    return {
+      statusCode: 200,
+      message: 'Transfer stock shipped successfully.',
+    };
   }
 
   async delete(req: ICustomRequestHeaders, transferStockId: UUID) {
@@ -473,30 +628,15 @@ export class TransferStockService {
 
     const isAuthorized =
       transferStock.store_created_by === store_id && (
-        (transferStock.store_from_id === store_id && transferStock.status === 'approved') ||
-        (transferStock.store_to_id === store_id && transferStock.status === 'requested')
+        (transferStock.store_from_id === store_id && transferStock.status === 'drafted') ||
+        (transferStock.store_to_id === store_id && transferStock.status === 'approved')
       )
 
     if (!isAuthorized) {
-      throw new BadRequestException('You are not authorized to cancel this data.');
+      throw new BadRequestException('You are not authorized to delete this data.');
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      for (const item of transferStock.transfer_stock_items) {
-        const product = await tx.master_inventory_items.findFirst({
-          where: { id: item.master_inventory_item_id },
-        });
-
-        if (product) {
-          await tx.master_inventory_items.update({
-            where: { id: product.id },
-            data: {
-              stock_quantity: (product.stock_quantity ?? 0) + (item.qty_requested ?? 0),
-            },
-          });
-        }
-      }
-
       await tx.transfer_stock_items.deleteMany({
         where: { transfer_stock_id: transferStock.id },
       });
@@ -514,168 +654,64 @@ export class TransferStockService {
     return result;
   }
 
-  async cancel(req: ICustomRequestHeaders, transferStockId: UUID, note: string) {
-    const store_id = requireStoreId(req);
-    const transferStock = await this.prisma.transfer_stocks.findFirst({
-      where: { id: transferStockId },
-      include: { transfer_stock_items: true },
-    });
+  async findAllReceiverStock(
+    dto: TransferStockListDto,
+    header: ICustomRequestHeaders,
+  ) {
+    const store_id = requireStoreId(header);
+    const orderByField = camelToSnake(dto.orderBy);
+    const orderDirection = dto.orderDirection;
 
-    if (!transferStock) {
-      throw new BadRequestException('Transfer Stock not found');
-    }
+    const filters: Prisma.transfer_stocksWhereInput = {
+      store_to_id: store_id,
+      status: {
+        in: ['shipped', 'received', 'received_with_issue'],
+      },
+    };
+    const orderBy: Prisma.transfer_stocksOrderByWithRelationInput[] = [
+      {
+        [orderByField]: orderDirection,
+      },
+    ];
 
-    if (transferStock.status !== 'requested' && transferStock.status !== 'approved') {
-      throw new BadRequestException('Cannot change the status to canceled because the current status is already ' + transferStock.status);
-    }
+    const [items, total] = await Promise.all([
+      this.prisma.transfer_stocks.findMany({
+        where: filters,
+        skip: getOffset(dto.page, dto.pageSize),
+        take: dto.pageSize,
+        orderBy: orderBy,
+        include: {
+          drafted_user: {
+            select: { id: true, fullname: true, email: true },
+          },
+          approved_user: {
+            select: { id: true, fullname: true, email: true },
+          },
+          shipped_user: {
+            select: { id: true, fullname: true, email: true },
+          },
+          received_user: {
+            select: { id: true, fullname: true, email: true },
+          },
+          canceled_user: {
+            select: { id: true, fullname: true, email: true },
+          },
+          rejected_user: {
+            select: { id: true, fullname: true, email: true },
+          },
+        },
+      }),
+      this.prisma.transfer_stocks.count({ where: filters }),
+    ]);
 
-    const isAuthorized =
-      transferStock.store_created_by === store_id && (
-        (transferStock.store_from_id === store_id && transferStock.status === 'approved') ||
-        (transferStock.store_to_id === store_id && transferStock.status === 'requested')
-      )
-
-    if (!isAuthorized) {
-      throw new BadRequestException('You are not authorized to cancel this data.');
-    }
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      for (const item of transferStock.transfer_stock_items) {
-        const product = await tx.master_inventory_items.findFirst({
-          where: { id: item.master_inventory_item_id },
-        });
-
-        if (product) {
-          await tx.master_inventory_items.update({
-            where: { id: product.id },
-            data: {
-              stock_quantity: (product.stock_quantity ?? 0) + (item.qty_requested ?? 0),
-            },
-          });
-
-          await tx.transfer_stock_items.updateMany({
-            where: { transfer_stock_id: transferStock.id, master_inventory_item_id: product.id },
-            data: {status: 'canceled'}
-          });
-        }
-      }
-
-      await tx.transfer_stocks.update({
-        where: { id: transferStockId },
-        data: {
-          canceled_by: req.user.id,
-          canceled_at: new Date(),
-          canceled_note: note,
-          status: 'canceled'
-        }
-      });
-
-      return {
-        statusCode: 200,
-        message: 'Transfer stock canceled successfully and stock restored.'
-      };
-    });
-
-    return result;
-  }
-
-  async reject(req: ICustomRequestHeaders, transferStockId: UUID, note: string) {
-    const store_id = requireStoreId(req);
-    const transferStock = await this.prisma.transfer_stocks.findFirst({
-      where: { id: transferStockId },
-      include: { transfer_stock_items: true },
-    });
-
-    if (!transferStock) {
-      throw new BadRequestException('Transfer Stock not found');
-    }
-
-    if (transferStock.status !== 'requested' && transferStock.status !== 'approved') {
-      throw new BadRequestException('Cannot change the status to rejected because the current status is already ' + transferStock.status);
-    }
-
-    const isAuthorized = transferStock.store_created_by === store_id && (transferStock.store_to_id === store_id && transferStock.status === 'requested');
-    if (!isAuthorized) {
-      throw new BadRequestException('You are not authorized to reject this data.');
-    }
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      for (const item of transferStock.transfer_stock_items) {
-        const product = await tx.master_inventory_items.findFirst({
-          where: { id: item.master_inventory_item_id },
-        });
-
-        if (product) {
-          await tx.master_inventory_items.update({
-            where: { id: product.id },
-            data: {
-              stock_quantity: (product.stock_quantity ?? 0) + (item.qty_requested ?? 0),
-            },
-          });
-
-          await tx.transfer_stock_items.updateMany({
-            where: { transfer_stock_id: transferStock.id, master_inventory_item_id: product.id },
-            data: {status: 'rejected'}
-          });
-        }
-      }
-
-      await tx.transfer_stocks.update({
-        where: { id: transferStockId },
-        data: {
-          rejected_by: req.user.id,
-          rejected_at: new Date,
-          rejected_note: note,
-          status: 'rejected', 
-          note: note
-        }
-      });
-
-      return {
-        statusCode: 200,
-        message: 'Transfer stock rejected successfully and stock restored.'
-      };
-    });
-
-    return result;
-  }
-
-  async ship(req: ICustomRequestHeaders, transferStockId: UUID, data: ShipTransferStockDto) {
-    const store_id = requireStoreId(req);
-    const transferStock = await this.prisma.transfer_stocks.findFirst({
-      where: { id: transferStockId },
-      include: { transfer_stock_items: true },
-    });
-
-    if (!transferStock) {
-      throw new BadRequestException('Transfer Stock not found');
-    }
-
-    if (transferStock.status !== 'approved') {
-      throw new BadRequestException('Cannot change the status to shipped because the current status is already ' + transferStock.status);
-    }
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      for (const item of transferStock.transfer_stock_items) {
-        await tx.transfer_stock_items.updateMany({
-          where: { transfer_stock_id: transferStock.id, master_inventory_item_id: item.master_inventory_item_id },
-          data: {status: 'shipped'}
-        });
-      }
-
-      await tx.transfer_stocks.update({
-        where: { id: transferStockId },
-        data: {
-          shipped_by: req.user.id,
-          shipped_at: new Date,
-          logistic_provider: data.logistic_provider,
-          tracking_number: data.tracking_number,
-          delivery_note: data.delivery_note,
-          status: 'shipped'
-        }
-      });
-    });
-
-    return result;
+    return {
+      items: items.map(toCamelCase),
+      meta: {
+        page: dto.page,
+        pageSize: dto.pageSize,
+        total,
+        totalPages: getTotalPages(total, dto.pageSize),
+      },
+    };
   }
 }
