@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Body,
-  Patch,
   Param,
   Delete,
   HttpStatus,
@@ -22,7 +21,6 @@ import { CreateTransferStockDto } from '../dtos/create-transfer-stock.dto';
 import { ItemListDto } from '../dtos/item-list.dto';
 import { UpdateTransferStockDto } from '../dtos/update-transfer-stock.dto';
 import { UUID } from 'crypto';
-import { ShipTransferStockDto } from '../dtos/ship-transfer-stock.dto';
 import { ChangeStatusDto } from '../dtos/change-status-dto';
 
 @Controller('transfer-stock')
@@ -121,6 +119,30 @@ export class TransferStockController {
       statusCode: HttpStatus.CREATED,
       message: 'Transfer stock created successfully',
       result: toCamelCase(newTransferStock),
+    };
+  }
+
+  @ApiOperation({ summary: 'Update transfer sotck' })
+  @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('detail/:id')
+  async getTransferStock(
+    @Req() req: ICustomRequestHeaders,
+    @Param('id') id: UUID
+  ) {
+    const transferStock = await this.transferStockService.get(id);
+
+    return {
+      statusCode: 200,
+      message: 'Get transfer stock successfully',
+      result: toCamelCase(transferStock),
     };
   }
 

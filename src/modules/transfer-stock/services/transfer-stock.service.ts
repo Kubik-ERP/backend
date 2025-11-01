@@ -87,64 +87,6 @@ export class TransferStockService {
     };
   }
 
-  async findAllRequestStock(
-    dto: TransferStockListDto,
-    header: ICustomRequestHeaders,
-  ) {
-    const store_id = requireStoreId(header);
-    const orderByField = camelToSnake(dto.orderBy);
-    const orderDirection = dto.orderDirection;
-
-    const filters: Prisma.transfer_stocksWhereInput = {
-      store_to_id: 'b4905df4-ac1f-4257-a463-18c9c7482f9b',
-    };
-    const orderBy: Prisma.transfer_stocksOrderByWithRelationInput[] = [
-      {
-        [orderByField]: orderDirection,
-      },
-    ];
-
-    const [items, total] = await Promise.all([
-      this.prisma.transfer_stocks.findMany({
-        where: filters,
-        skip: getOffset(dto.page, dto.pageSize),
-        take: dto.pageSize,
-        orderBy: orderBy,
-        include: {
-          drafted_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-          approved_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-          shipped_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-          received_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-          canceled_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-          rejected_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-        },
-      }),
-      this.prisma.transfer_stocks.count({ where: filters }),
-    ]);
-
-    return {
-      items: items.map(toCamelCase),
-      meta: {
-        page: dto.page,
-        pageSize: dto.pageSize,
-        total,
-        totalPages: getTotalPages(total, dto.pageSize),
-      },
-    };
-  }
-
   async findAllItem(
     header: ICustomRequestHeaders,
     dto: ItemListDto,
@@ -323,6 +265,38 @@ export class TransferStockService {
 
       return transfer;
     });
+
+    return result;
+  }
+
+  async get(id: UUID) {
+    const result = await this.prisma.transfer_stocks.findFirst({
+      where: {id: id},
+      include: {
+        drafted_user: {
+          select: { id: true, fullname: true, email: true },
+        },
+        approved_user: {
+          select: { id: true, fullname: true, email: true },
+        },
+        shipped_user: {
+          select: { id: true, fullname: true, email: true },
+        },
+        received_user: {
+          select: { id: true, fullname: true, email: true },
+        },
+        canceled_user: {
+          select: { id: true, fullname: true, email: true },
+        },
+        rejected_user: {
+          select: { id: true, fullname: true, email: true },
+        },
+      }
+    });
+
+     if (!result) {
+      throw new NotFoundException('Transfer Stock not found');
+    }
 
     return result;
   }
