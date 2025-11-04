@@ -15,6 +15,33 @@ import { BatchRecipeStatus } from '../interfaces/batch-recipe.interface';
 export class BatchRecipeService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async findAll(header: ICustomRequestHeaders) {
+    const storeId = requireStoreId(header);
+    const user = requireUser(header);
+    const ownerId = Number(user.ownerId);
+
+    if (!Number.isInteger(ownerId)) {
+      throw new BadRequestException('Owner tidak ditemukan');
+    }
+
+    await this.ensureStoreOwnedByOwner(storeId, ownerId);
+
+    return this.prisma.batch_cooking_recipe.findMany({
+      where: { store_id: storeId },
+      include: {
+        menu_recipes: {
+          select: {
+            recipe_id: true,
+            recipe_name: true,
+            target_yield: true,
+            output_unit: true,
+          },
+        },
+      },
+      orderBy: { date: 'desc' },
+    });
+  }
+
   async create(dto: CreateBatchRecipeDto, header: ICustomRequestHeaders) {
     const storeId = requireStoreId(header);
     const user = requireUser(header);
@@ -331,6 +358,22 @@ export class BatchRecipeService {
     if (!item) {
       throw new BadRequestException(
         `Inventory item dengan ID ${inventoryItemId} tidak ditemukan pada store ini`,
+      );
+    }
+  }
+
+  private async ensureStoreOwnedByOwner(storeId: string, ownerId: number) {
+    const ownership = await this.prisma.user_has_stores.findFirst({
+      where: {
+        store_id: storeId,
+        user_id: ownerId,
+      },
+      select: { id: true },
+    });
+
+    if (!ownership) {
+      throw new BadRequestException(
+        'Store tidak ditemukan atau bukan milik owner ini',
       );
     }
   }

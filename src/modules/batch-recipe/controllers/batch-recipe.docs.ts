@@ -40,6 +40,16 @@ export function StartBatchDocs() {
   );
 }
 
+export function GetBatchDocs() {
+  return applyDecorators(
+    HttpCode(HttpStatus.OK),
+    ApiOperation({ summary: 'Get batch cooking plans by store' }),
+    ApiBearerAuth(),
+    ApiHeader(STORE_HEADER),
+    ApiResponse({ status: 200, description: 'Batch recipes retrieved' }),
+  );
+}
+
 export function CancelBatchDocs() {
   return applyDecorators(
     HttpCode(HttpStatus.OK),
