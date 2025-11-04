@@ -26,7 +26,7 @@ export class BatchRecipeService {
 
     await this.ensureStoreOwnedByOwner(storeId, ownerId);
 
-    return this.prisma.batch_cooking_recipe.findMany({
+    const batches = await this.prisma.batch_cooking_recipe.findMany({
       where: { store_id: storeId },
       include: {
         menu_recipes: {
@@ -39,6 +39,54 @@ export class BatchRecipeService {
         },
       },
       orderBy: { date: 'desc' },
+    });
+
+    return batches.map((batch) => this.withStatusString(batch));
+  }
+
+  async findById(batchId: string, header: ICustomRequestHeaders) {
+    const storeId = requireStoreId(header);
+    const user = requireUser(header);
+    const ownerId = Number(user.ownerId);
+
+    if (!Number.isInteger(ownerId)) {
+      throw new BadRequestException('Owner tidak ditemukan');
+    }
+
+    await this.ensureStoreOwnedByOwner(storeId, ownerId);
+
+    return this.getBatchDetail(batchId, storeId);
+  }
+
+  async delete(batchId: string, header: ICustomRequestHeaders) {
+    const storeId = requireStoreId(header);
+    const user = requireUser(header);
+    const ownerId = Number(user.ownerId);
+
+    if (!Number.isInteger(ownerId)) {
+      throw new BadRequestException('Owner tidak ditemukan');
+    }
+
+    await this.ensureStoreOwnedByOwner(storeId, ownerId);
+
+    const batch = await this.getBatchOrThrow(batchId, storeId);
+    if (
+      batch.status === BatchRecipeStatus.COOKING ||
+      batch.status === BatchRecipeStatus.COMPLETED
+    ) {
+      throw new BadRequestException(
+        'Batch yang sedang dimasak atau selesai tidak dapat dihapus',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.batch_cooking_recipe_ingredient.deleteMany({
+        where: { batch_id: batch.id },
+      });
+
+      await tx.batch_cooking_recipe.delete({
+        where: { id: batch.id },
+      });
     });
   }
 
@@ -324,7 +372,7 @@ export class BatchRecipeService {
       throw new NotFoundException('Batch recipe tidak ditemukan');
     }
 
-    return batch;
+    return this.withStatusString(batch);
   }
 
   private async getBatchOrThrow(batchId: string, storeId: string) {
@@ -376,5 +424,22 @@ export class BatchRecipeService {
         'Store tidak ditemukan atau bukan milik owner ini',
       );
     }
+  }
+
+  private withStatusString<T extends { status: number | null }>(
+    batch: T,
+  ): Omit<T, 'status'> & { status: string | null } {
+    return {
+      ...batch,
+      status: this.toStatusString(batch.status),
+    };
+  }
+
+  private toStatusString(status: number | null): string | null {
+    if (status === null || status === undefined) {
+      return null;
+    }
+
+    return BatchRecipeStatus[status as BatchRecipeStatus] ?? null;
   }
 }

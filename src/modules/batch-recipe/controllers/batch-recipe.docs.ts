@@ -50,6 +50,17 @@ export function GetBatchDocs() {
   );
 }
 
+export function GetBatchDetailDocs() {
+  return applyDecorators(
+    HttpCode(HttpStatus.OK),
+    ApiOperation({ summary: 'Get batch cooking detail' }),
+    ApiBearerAuth(),
+    ApiHeader(STORE_HEADER),
+    ApiParam(BATCH_ID_PARAM),
+    ApiResponse({ status: 200, description: 'Batch recipe detail retrieved' }),
+  );
+}
+
 export function CancelBatchDocs() {
   return applyDecorators(
     HttpCode(HttpStatus.OK),
@@ -69,5 +80,16 @@ export function CompleteBatchDocs() {
     ApiHeader(STORE_HEADER),
     ApiParam(BATCH_ID_PARAM),
     ApiResponse({ status: 200, description: 'Batch cooking completed' }),
+  );
+}
+
+export function DeleteBatchDocs() {
+  return applyDecorators(
+    HttpCode(HttpStatus.OK),
+    ApiOperation({ summary: 'Delete batch cooking plan' }),
+    ApiBearerAuth(),
+    ApiHeader(STORE_HEADER),
+    ApiParam(BATCH_ID_PARAM),
+    ApiResponse({ status: 200, description: 'Batch recipe deleted' }),
   );
 }
