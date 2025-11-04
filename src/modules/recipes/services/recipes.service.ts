@@ -724,6 +724,18 @@ export class RecipesService {
   }
 
   private toPlainRecipeVersionWithIngredients(version: any) {
+    const toNumberSafe = (val: any) => {
+      if (!val) return 0;
+      if (typeof val === 'number') return val;
+      if (typeof val === 'object' && typeof val.toNumber === 'function') {
+        return val.toNumber();
+      }
+      // Prisma Decimal object (s, e, d)
+      if (val.s !== undefined && Array.isArray(val.d)) {
+        return Number(val.d.join('')) * Math.pow(10, val.e);
+      }
+      return Number(val) || 0;
+    };
     return {
       version_id: version.version_id,
       recipe_id: version.recipe_id,
@@ -755,32 +767,35 @@ export class RecipesService {
       updated_at: version.updated_at,
       created_by: version.created_by,
       ingredients: version.ingredient_versions
-        ? version.ingredient_versions.map((ingredient: any) => ({
-            ingredient_version_id: ingredient.ingredient_version_id,
-            item_id: ingredient.item_id,
-            qty:
-              ingredient.qty &&
-              typeof ingredient.qty === 'object' &&
-              typeof ingredient.qty.toNumber === 'function'
-                ? ingredient.qty.toNumber()
-                : ingredient.qty,
-            uom: ingredient.uom,
-            notes: ingredient.notes,
-            cost:
-              ingredient.cost &&
-              typeof ingredient.cost === 'object' &&
-              typeof ingredient.cost.toNumber === 'function'
-                ? ingredient.cost.toNumber()
-                : ingredient.cost,
-            inventory_item: ingredient.master_inventory_items
-              ? {
-                  id: ingredient.master_inventory_items.id,
-                  item_name: ingredient.master_inventory_items.item_name,
-                  brand: ingredient.master_inventory_items.brand,
-                  uom: ingredient.master_inventory_items.uom,
-                }
-              : null,
-          }))
+        ? version.ingredient_versions.map((ingredient: any) => {
+            const item = ingredient.master_inventory_items;
+            return {
+              ingredient_version_id: ingredient.ingredient_version_id,
+              item_id: ingredient.item_id,
+              qty:
+                ingredient.qty &&
+                typeof ingredient.qty === 'object' &&
+                typeof ingredient.qty.toNumber === 'function'
+                  ? ingredient.qty.toNumber()
+                  : ingredient.qty,
+              uom: ingredient.uom,
+              notes: ingredient.notes,
+              cost:
+                ingredient.cost &&
+                typeof ingredient.cost === 'object' &&
+                typeof ingredient.cost.toNumber === 'function'
+                  ? ingredient.cost.toNumber()
+                  : ingredient.cost,
+              inventory_item: item
+                ? {
+                    ...item,
+                    price_per_unit: toNumberSafe(item.price_per_unit),
+                    price_grosir: toNumberSafe(item.price_grosir),
+                    margin: toNumberSafe(item.margin),
+                  }
+                : null,
+            };
+          })
         : [],
     };
   }
