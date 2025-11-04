@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -15,6 +16,8 @@ import {
   CancelBatchDocs,
   CompleteBatchDocs,
   CreateBatchDocs,
+  DeleteBatchDocs,
+  GetBatchDetailDocs,
   GetBatchDocs,
   StartBatchDocs,
 } from './batch-recipe.docs';
@@ -34,6 +37,20 @@ export class BatchRecipeController {
     return {
       success: true,
       message: 'Daftar batch recipe berhasil diambil',
+      result,
+    };
+  }
+
+  @Get(':id')
+  @GetBatchDetailDocs()
+  async findById(
+    @Param('id') batchId: string,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.batchRecipeService.findById(batchId, req);
+    return {
+      success: true,
+      message: 'Detail batch recipe berhasil diambil',
       result,
     };
   }
@@ -101,6 +118,20 @@ export class BatchRecipeController {
       success: true,
       message: 'Batch recipe selesai dimasak',
       result,
+    };
+  }
+
+  @Delete(':id')
+  @DeleteBatchDocs()
+  async delete(
+    @Param('id') batchId: string,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    await this.batchRecipeService.delete(batchId, req);
+    return {
+      success: true,
+      message: 'Batch recipe berhasil dihapus',
+      result: null,
     };
   }
 }
