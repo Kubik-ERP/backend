@@ -1,4 +1,12 @@
-import { Body, Controller, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { CancelBatchRecipeDto } from '../dtos/cancel-batch-recipe.dto';
 import { CompleteBatchRecipeDto } from '../dtos/complete-batch-recipe.dto';
@@ -7,6 +15,7 @@ import {
   CancelBatchDocs,
   CompleteBatchDocs,
   CreateBatchDocs,
+  GetBatchDocs,
   StartBatchDocs,
 } from './batch-recipe.docs';
 import { BatchRecipeService } from '../services/batch-recipe.service';
@@ -17,6 +26,17 @@ import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 @UseGuards(AuthPermissionGuard)
 export class BatchRecipeController {
   constructor(private readonly batchRecipeService: BatchRecipeService) {}
+
+  @Get()
+  @GetBatchDocs()
+  async findAll(@Req() req: ICustomRequestHeaders) {
+    const result = await this.batchRecipeService.findAll(req);
+    return {
+      success: true,
+      message: 'Daftar batch recipe berhasil diambil',
+      result,
+    };
+  }
 
   @Post()
   @CreateBatchDocs()
