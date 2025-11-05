@@ -1536,12 +1536,13 @@ export class ReportService {
     const totalCustomers = await this.prisma.customer.count({
       where: { stores_id: { in: storeIds } },
     });
-    const now = new Date();
+
+    // PERUBAHAN: Menggunakan status: 'expired' (asumsi)
     const pointsExpiredAgg = await this.prisma.trn_customer_points.aggregate({
       where: {
         customer: { stores_id: { in: storeIds } },
         type: 'point_addition',
-        expiry_date: { lt: now },
+        status: 'expired',
       },
       _sum: { value: true },
     });
@@ -1569,11 +1570,15 @@ export class ReportService {
       where: {
         customer: { stores_id: { in: storeIds } },
         type: 'point_addition',
+        earn_type: 'spend_based',
         invoice_id: { not: null },
       },
       include: {
         invoice: true,
         customer: true,
+      },
+      orderBy: {
+        created_at: 'desc',
       },
     });
 
@@ -1614,20 +1619,56 @@ export class ReportService {
       },
     });
 
-    // ASUMSI BERAT:
-    // Schema tidak menghubungkan `trn_customer_points` ke `loyalty_product_item`.
-    // Laporan ini hanya dapat menampilkan *definisi* produk,
-    // bukan agregasi transaksinya.
-    const table = productRules.map((rule) => ({
-      productName: rule.products.name,
-      productPrice: rule.products.price,
-      pointsToIDR:
-        (rule.products.price ?? 0) > 0
-          ? (rule.points || 0) / (rule.products.price ?? 0)
-          : 0,
-      sumOfPointsGivenToCust: 'N/A (Schema limitation)',
-      totalCust: 'N/A (Schema limitation)',
-    }));
+    const pointAggregates = await this.prisma.trn_customer_points.groupBy({
+      by: ['product_id'],
+      where: {
+        customer: { stores_id: { in: storeIds } },
+        type: 'point_addition',
+        earn_type: 'product_based',
+        product_id: { not: null },
+      },
+      _sum: {
+        value: true,
+      },
+    });
+    const pointsGivenMap = new Map(
+      pointAggregates.map((agg) => [agg.product_id, agg._sum.value || 0]),
+    );
+
+    const distinctCustomers = await this.prisma.trn_customer_points.findMany({
+      where: {
+        customer: { stores_id: { in: storeIds } },
+        type: 'point_addition',
+        earn_type: 'product_based',
+        product_id: { not: null },
+      },
+      distinct: ['product_id', 'customer_id'],
+      select: { product_id: true, customer_id: true },
+    });
+
+    const customerCountMap = new Map<string, number>();
+    for (const tx of distinctCustomers) {
+      if (tx.product_id) {
+        customerCountMap.set(
+          tx.product_id,
+          (customerCountMap.get(tx.product_id) || 0) + 1,
+        );
+      }
+    }
+
+    const table = productRules.map((rule) => {
+      const price = rule.products.price || 0;
+      const points = rule.points || 0;
+      const productId = rule.products.id;
+
+      return {
+        productName: rule.products.name,
+        productPrice: price,
+        pointsToIDR: price > 0 ? points / price : 0,
+        sumOfPointsGivenToCust: pointsGivenMap.get(productId) || 0,
+        totalCust: customerCountMap.get(productId) || 0,
+      };
+    });
 
     return {
       dashboard: {
@@ -1646,12 +1687,18 @@ export class ReportService {
     const deductions = await this.prisma.trn_customer_points.findMany({
       where: {
         customer: { stores_id: { in: storeIds } },
+        invoice_id: { not: null },
         type: 'point_deduction',
-        // created_at: { gte: startDate, lte: endDate },
+      },
+      include: {
+        invoice: {
+          include: {
+            loyalty_points_benefit: true,
+          },
+        },
       },
     });
 
-    // Ambil definisi benefit untuk mencocokkan
     const benefits = await this.prisma.loyalty_points_benefit.findMany({
       where: {
         loyalty_point_settings: { storesId: { in: storeIds } },
@@ -1662,12 +1709,10 @@ export class ReportService {
     });
     const benefitMap = new Map(benefits.map((b) => [b.benefit_name, b]));
 
-    // Agregasi data
-    // Terapkan interface yang baru dibuat di sini
     const dashboard: IBenefitDashboard = {
       sumOfAllPoints: sumOfAllPoints,
       countCustomers: new Set(deductions.map((d) => d.customer_id)).size,
-      sumPointsUsedByType: {}, // <-- Sekarang TS tahu ini adalah Record<string, number>
+      sumPointsUsedByType: {},
       sumOfDiscountAmount: 0,
       sumOfCountTotalFreeItems: 0,
     };
@@ -1684,8 +1729,8 @@ export class ReportService {
     >();
 
     for (const tx of deductions) {
-      // ASUMSI: tx.notes berisi nama benefit_name
-      const benefitName = tx.notes || 'Unknown Benefit';
+      const benefitName =
+        tx.invoice?.loyalty_points_benefit?.benefit_name || 'Unknown Benefit';
       const benefitRule = benefitMap.get(benefitName);
 
       const type = benefitRule?.type || 'unknown';
@@ -1693,24 +1738,23 @@ export class ReportService {
       let amount = 0;
 
       if (benefitRule?.type === 'discount') {
-        // Asumsi nilai diskon ada di rule, bukan di tx
-        amount = benefitRule.discount_value || 0;
+        amount = tx.invoice?.loyalty_discount || 0;
         dashboard.sumOfDiscountAmount += amount;
       } else if (benefitRule?.type === 'free_items') {
-        // Asumsi 1 transaksi = 1 item (atau ambil dari rule)
-        amount = benefitRule.benefit_free_items[0]?.quantity || 1;
+        benefitRule.benefit_free_items.forEach((item) => {
+          amount += item.quantity || 0;
+        });
         dashboard.sumOfCountTotalFreeItems += amount;
       }
 
-      // Update dashboard - INI SEKARANG AMAN DARI ERROR
       dashboard.sumPointsUsedByType[type] =
         (dashboard.sumPointsUsedByType[type] || 0) + pointsUsed;
 
       // Update tabel
       if (!tableMap.has(benefitName)) {
         tableMap.set(benefitName, {
-          type: type,
           benefitName: benefitName,
+          type: type,
           countUsed: 0,
           totalPointUsed: 0,
           amount: 0,
@@ -1729,18 +1773,14 @@ export class ReportService {
   }
 
   private async getExpiryWarningReport(storeIds: string[]) {
-    // expiry warning = h-7
-
-    // Untuk laporan ini, startDate = hari ini, endDate = tanggal horizon
-    const expiringSoonTxs = await this.prisma.trn_customer_points.findMany({
+    const now = new Date();
+    const nowMs = now.getTime();
+    const allActivePoints = await this.prisma.trn_customer_points.findMany({
       where: {
         customer: { stores_id: { in: storeIds } },
         type: 'point_addition',
-        expiry_date: {
-          lt: new Date(),
-        },
-        // Kita juga harus mengecek apakah poin ini masih "ada"
-        // Ini adalah limitasi skema, kita tidak bisa tahu
+        status: 'active', // Asumsi Anda punya status 'active'
+        expiry_date: { gte: now }, // Hanya poin yang belum kedaluwarsa
       },
       include: {
         customer: true,
@@ -1751,6 +1791,25 @@ export class ReportService {
       },
     });
 
+    const expiringSoonTxs = allActivePoints.filter((tx) => {
+      if (!tx.created_at || !tx.expiry_date) {
+        return false;
+      }
+
+      const createdMs = tx.created_at.getTime();
+      const expiryMs = tx.expiry_date.getTime();
+
+      const totalLifespanMs = expiryMs - createdMs;
+
+      if (totalLifespanMs <= 0) {
+        return false;
+      }
+
+      const halfwayMarkMs = createdMs + totalLifespanMs / 2;
+
+      return nowMs >= halfwayMarkMs;
+    });
+
     const dashboard: IExpiryDashboard = {
       sumOfAllPoints: 0,
       countCustomers: new Set(expiringSoonTxs.map((tx) => tx.customer_id)).size,
@@ -1759,9 +1818,7 @@ export class ReportService {
 
     const table = expiringSoonTxs.map((tx) => {
       const points = tx.value;
-      // ASUMSI: 'type' adalah `notes`
-      const type = tx.type ?? 'Unknown';
-
+      const type = tx.earn_type || 'N/A';
       dashboard.sumOfAllPoints += points;
       dashboard.sumByEachTypes[type] =
         (dashboard.sumByEachTypes[type] || 0) + points;
@@ -1769,7 +1826,7 @@ export class ReportService {
       return {
         custName: tx.customer.name,
         invoice: tx.invoice?.invoice_number || 'N/A',
-        type: tx.type,
+        type: type,
         points: points,
         expiryDate: tx.expiry_date,
       };
