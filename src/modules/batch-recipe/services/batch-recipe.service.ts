@@ -10,12 +10,16 @@ import { CancelBatchRecipeDto } from '../dtos/cancel-batch-recipe.dto';
 import { CompleteBatchRecipeDto } from '../dtos/complete-batch-recipe.dto';
 import { CreateBatchRecipeDto } from '../dtos/create-batch-recipe.dto';
 import { BatchRecipeStatus } from '../interfaces/batch-recipe.interface';
+import { FindBatchRecipesQueryDto } from '../dtos/find-batch-recipes-query.dto';
 
 @Injectable()
 export class BatchRecipeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(header: ICustomRequestHeaders) {
+  async findAll(
+    query: FindBatchRecipesQueryDto,
+    header: ICustomRequestHeaders,
+  ) {
     const storeId = requireStoreId(header);
     const user = requireUser(header);
     const ownerId = Number(user.ownerId);
@@ -25,23 +29,41 @@ export class BatchRecipeService {
     }
 
     await this.ensureStoreOwnedByOwner(storeId, ownerId);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
 
-    const batches = await this.prisma.batch_cooking_recipe.findMany({
-      where: { store_id: storeId },
-      include: {
-        menu_recipes: {
-          select: {
-            recipe_id: true,
-            recipe_name: true,
-            target_yield: true,
-            output_unit: true,
+    const [total, batches] = await this.prisma.$transaction([
+      this.prisma.batch_cooking_recipe.count({
+        where: { store_id: storeId },
+      }),
+      this.prisma.batch_cooking_recipe.findMany({
+        where: { store_id: storeId },
+        include: {
+          menu_recipes: {
+            select: {
+              recipe_id: true,
+              recipe_name: true,
+              target_yield: true,
+              output_unit: true,
+            },
           },
         },
-      },
-      orderBy: { date: 'desc' },
-    });
+        orderBy: { date: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
 
-    return batches.map((batch) => this.withStatusString(batch));
+    return {
+      data: batches.map((batch) => this.withStatusString(batch)),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: limit ? Math.ceil(total / limit) : 0,
+      },
+    };
   }
 
   async findById(batchId: string, header: ICustomRequestHeaders) {

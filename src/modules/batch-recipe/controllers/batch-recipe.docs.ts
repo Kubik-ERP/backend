@@ -4,6 +4,7 @@ import {
   ApiHeader,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
 } from '@nestjs/swagger';
 
@@ -46,6 +47,18 @@ export function GetBatchDocs() {
     ApiOperation({ summary: 'Get batch cooking plans by store' }),
     ApiBearerAuth(),
     ApiHeader(STORE_HEADER),
+    ApiQuery({
+      name: 'page',
+      required: false,
+      type: Number,
+      description: 'Halaman data (default 1)',
+    }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      type: Number,
+      description: 'Jumlah data per halaman (default 10, maks 100)',
+    }),
     ApiResponse({ status: 200, description: 'Batch recipes retrieved' }),
   );
 }

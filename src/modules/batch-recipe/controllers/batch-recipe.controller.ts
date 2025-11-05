@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -12,6 +13,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { CancelBatchRecipeDto } from '../dtos/cancel-batch-recipe.dto';
 import { CompleteBatchRecipeDto } from '../dtos/complete-batch-recipe.dto';
 import { CreateBatchRecipeDto } from '../dtos/create-batch-recipe.dto';
+import { FindBatchRecipesQueryDto } from '../dtos/find-batch-recipes-query.dto';
 import {
   CancelBatchDocs,
   CompleteBatchDocs,
@@ -32,8 +34,11 @@ export class BatchRecipeController {
 
   @Get()
   @GetBatchDocs()
-  async findAll(@Req() req: ICustomRequestHeaders) {
-    const result = await this.batchRecipeService.findAll(req);
+  async findAll(
+    @Req() req: ICustomRequestHeaders,
+    @Query() query: FindBatchRecipesQueryDto,
+  ) {
+    const result = await this.batchRecipeService.findAll(query, req);
     return {
       success: true,
       message: 'Daftar batch recipe berhasil diambil',
