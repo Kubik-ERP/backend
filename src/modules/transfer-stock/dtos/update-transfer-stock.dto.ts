@@ -24,10 +24,6 @@ export class TransferStockItemDto {
 }
 
 export class UpdateTransferStockDto {
-  @ApiProperty({ example: 'transfer-stock-id', description: 'Transfer Stock ID' })
-  @IsUUID()
-  transfer_stock_id: string;
-
   @ApiProperty({ example: 'store-to-uuid', description: 'ID store penerima' })
   @IsUUID()
   @IsOptional()

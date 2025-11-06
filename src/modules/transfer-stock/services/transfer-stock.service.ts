@@ -17,11 +17,9 @@ import {
 import { requireStoreId } from 'src/common/helpers/common.helpers';
 import { TransferStockListDto } from '../dtos/transfer-stock-list.dto';
 import { CreateTransferStockDto } from '../dtos/create-transfer-stock.dto';
-import { ItemListDto } from '../dtos/item-list.dto';
 import { UpdateTransferStockDto } from '../dtos/update-transfer-stock.dto';
 import { UUID } from 'crypto';
-import { ShipTransferStockDto } from '../dtos/ship-transfer-stock.dto';
-import { ChangeStatusDto } from '../dtos/change-status-dto';
+import { ChangeStatusDto } from '../dtos/change-status.dto';
 
 @Injectable()
 export class TransferStockService {
@@ -37,9 +35,29 @@ export class TransferStockService {
     const orderByField = camelToSnake(dto.orderBy);
     const orderDirection = dto.orderDirection;
 
-    const filters: Prisma.transfer_stocksWhereInput = {
-      store_from_id: store_id
-    };
+    let filters: Prisma.transfer_stocksWhereInput;
+
+    if (dto.type === 'sender') {
+      filters = { store_created_by: store_id };
+    } else if (dto.type === 'receiver') {
+      filters = {
+        store_to_id: store_id,
+        NOT: {
+          status: { in: ['drafted', 'approved', 'canceled'] },
+        },
+      };
+    } else {
+      filters = {
+        OR: [
+          { store_created_by: store_id },
+          {
+            store_to_id: store_id,
+            NOT: { status: { in: ['drafted', 'approved', 'canceled'] } },
+          },
+        ],
+      };
+    }
+
     const orderBy: Prisma.transfer_stocksOrderByWithRelationInput[] = [
       {
         [orderByField]: orderDirection,
@@ -67,89 +85,10 @@ export class TransferStockService {
           },
           canceled_user: {
             select: { id: true, fullname: true, email: true },
-          },
-          rejected_user: {
-            select: { id: true, fullname: true, email: true },
-          },
+          }
         },
       }),
       this.prisma.transfer_stocks.count({ where: filters }),
-    ]);
-
-    return {
-      items: items.map(toCamelCase),
-      meta: {
-        page: dto.page,
-        pageSize: dto.pageSize,
-        total,
-        totalPages: getTotalPages(total, dto.pageSize),
-      },
-    };
-  }
-
-  async findAllItem(
-    header: ICustomRequestHeaders,
-    dto: ItemListDto,
-    search?: string,
-  ) {
-    const store_from_id = requireStoreId(header);
-    const { store_to_id } = dto;
-
-    if (!store_to_id) {
-      throw new BadRequestException('Destination store not found');
-    }
-
-    const sourceItems = await this.prisma.master_inventory_items.findMany({
-      where: {
-        store_id: store_from_id,
-        AND: [{ sku: { not: null } }, { sku: { not: '' } }],
-      },
-      select: { sku: true },
-    });
-
-    const sourceSkus = sourceItems
-      .map((item) => item.sku)
-      .filter((sku): sku is string => !!sku);
-    if (sourceSkus.length === 0) {
-      return {
-        items: [],
-        meta: {
-          page: dto.page,
-          pageSize: dto.pageSize,
-          total: 0,
-          totalPages: 0,
-        },
-      };
-    }
-
-    const orderByField = dto.orderBy ? camelToSnake(dto.orderBy) : 'created_at';
-    const orderDirection: Prisma.SortOrder = dto.orderDirection ?? 'desc';
-    const filters: Prisma.master_inventory_itemsWhereInput = {
-      store_id: store_from_id,
-      sku: { in: sourceSkus },
-    };
-
-    if (search) {
-      filters.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const [items, total] = await Promise.all([
-      this.prisma.master_inventory_items.findMany({
-        where: filters,
-        skip: getOffset(dto.page, dto.pageSize),
-        take: dto.pageSize,
-        orderBy: [{ [orderByField]: orderDirection }],
-        select: {
-          id: true,
-          name: true,
-          sku: true,
-          stock_quantity: true,
-        },
-      }),
-      this.prisma.master_inventory_items.count({ where: filters }),
     ]);
 
     return {
@@ -246,11 +185,18 @@ export class TransferStockService {
         const inventory = itemMap.get(item.itemId);
         const unitPrice = Number(inventory?.price_per_unit ?? 0);
         const subtotal = unitPrice * item.qty;
+        const hasProduct = await this.prisma.master_inventory_items.findFirst({
+          where: {
+            store_id: dto.store_to_id,
+            sku: inventory?.sku,
+          },
+        });
 
         await tx.transfer_stock_items.create({
           data: {
             transfer_stock_id: transfer.id,
             master_inventory_item_id: item.itemId,
+            has_destination_product: hasProduct ? true : false,
             qty_reserved: item.qty,
             qty_received: 0,
             unit_price: unitPrice,
@@ -287,10 +233,7 @@ export class TransferStockService {
         },
         canceled_user: {
           select: { id: true, fullname: true, email: true },
-        },
-        rejected_user: {
-          select: { id: true, fullname: true, email: true },
-        },
+        }
       }
     });
 
@@ -302,6 +245,7 @@ export class TransferStockService {
   }
 
   async update(
+    transferStockId: UUID,
     header: ICustomRequestHeaders,
     dto: UpdateTransferStockDto
   ) {
@@ -309,7 +253,7 @@ export class TransferStockService {
     const storeFrom = await this.getStoreFrom(store_id);
 
     const transferStock = await this.prisma.transfer_stocks.findFirst({
-      where: { id: dto.transfer_stock_id },
+      where: { id: transferStockId },
       include: { transfer_stock_items: true },
     });
 
@@ -348,7 +292,7 @@ export class TransferStockService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const updatedTransfer = await tx.transfer_stocks.update({
-        where: { id: dto.transfer_stock_id },
+        where: { id: transferStockId },
         data: { updated_at: new Date() },
       });
 
@@ -360,11 +304,18 @@ export class TransferStockService {
         const inventory = itemMap.get(item.itemId);
         const unitPrice = Number(inventory?.price_per_unit ?? 0);
         const subtotal = unitPrice * item.qty;
+        const hasProduct = await this.prisma.master_inventory_items.findFirst({
+          where: {
+            store_id: dto.store_to_id,
+            sku: inventory?.sku,
+          },
+        });
 
         await tx.transfer_stock_items.create({
           data: {
             transfer_stock_id: updatedTransfer.id,
             master_inventory_item_id: item.itemId,
+            has_destination_product: hasProduct ? true : false,
             qty_reserved: item.qty,
             qty_received: 0,
             unit_price: unitPrice,
@@ -626,66 +577,5 @@ export class TransferStockService {
     });
 
     return result;
-  }
-
-  async findAllReceiverStock(
-    dto: TransferStockListDto,
-    header: ICustomRequestHeaders,
-  ) {
-    const store_id = requireStoreId(header);
-    const orderByField = camelToSnake(dto.orderBy);
-    const orderDirection = dto.orderDirection;
-
-    const filters: Prisma.transfer_stocksWhereInput = {
-      store_to_id: store_id,
-      status: {
-        in: ['shipped', 'received', 'received_with_issue'],
-      },
-    };
-    const orderBy: Prisma.transfer_stocksOrderByWithRelationInput[] = [
-      {
-        [orderByField]: orderDirection,
-      },
-    ];
-
-    const [items, total] = await Promise.all([
-      this.prisma.transfer_stocks.findMany({
-        where: filters,
-        skip: getOffset(dto.page, dto.pageSize),
-        take: dto.pageSize,
-        orderBy: orderBy,
-        include: {
-          drafted_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-          approved_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-          shipped_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-          received_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-          canceled_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-          rejected_user: {
-            select: { id: true, fullname: true, email: true },
-          },
-        },
-      }),
-      this.prisma.transfer_stocks.count({ where: filters }),
-    ]);
-
-    return {
-      items: items.map(toCamelCase),
-      meta: {
-        page: dto.page,
-        pageSize: dto.pageSize,
-        total,
-        totalPages: getTotalPages(total, dto.pageSize),
-      },
-    };
   }
 }
