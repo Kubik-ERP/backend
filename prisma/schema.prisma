@@ -1387,7 +1387,6 @@ model users {
   drafted_transfers           transfer_stocks[]             @relation("drafted_transfer")
   approved_transfers          transfer_stocks[]             @relation("approved_transfer")
   canceled_transfers          transfer_stocks[]             @relation("canceled_transfer")
-  rejected_transfers          transfer_stocks[]             @relation("rejected_transfer")
   shipped_transfers           transfer_stocks[]             @relation("shipped_transfer")
   received_transfers          transfer_stocks[]             @relation("received_transfer")
 }
@@ -1568,9 +1567,6 @@ model transfer_stocks {
   canceled_by       Int?
   canceled_at       DateTime?             @db.Timestamp(6)
   canceled_note     String?
-  rejected_by       Int?
-  rejected_at       DateTime?             @db.Timestamp(6)
-  rejected_note     String?
   shipped_by        Int?
   shipped_at        DateTime?             @db.Timestamp(6)
   received_by       Int?
@@ -1587,7 +1583,6 @@ model transfer_stocks {
   drafted_user  users? @relation("drafted_transfer", fields: [drafted_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
   approved_user users? @relation("approved_transfer", fields: [approved_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
   canceled_user users? @relation("canceled_transfer", fields: [canceled_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
-  rejected_user users? @relation("rejected_transfer", fields: [rejected_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
   shipped_user  users? @relation("shipped_transfer", fields: [shipped_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
   received_user users? @relation("received_transfer", fields: [received_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
 
@@ -1602,6 +1597,7 @@ model transfer_stock_items {
   id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   transfer_stock_id        String                     @db.Uuid
   master_inventory_item_id String                     @db.Uuid
+  has_destination_product Boolean @default(false)
   qty_reserved             Int
   qty_received             Int?
   unit_price               Decimal?                   @db.Decimal(18, 2)
