@@ -119,35 +119,16 @@ export class TransferStockService {
     return `TS-${datePart}-${sequence}`;
   }
 
-  async getStoreFrom(store_id: string) {
-    const getOwnerId = await this.prisma.user_has_stores.findFirst({
-      where: { store_id },
-      select: { user_id: true },
-    });
-
-    if (!getOwnerId) throw new BadRequestException(`Store with ID ${store_id} not found`);
-
-    const storeFrom = await this.prisma.user_has_stores.findFirst({
-      where: { user_id: getOwnerId.user_id },
-    });
-
-    if (!storeFrom) throw new BadRequestException('Store From not found');
-
-    return storeFrom;
-  }
-
   async create(
     header: ICustomRequestHeaders,
     dto: CreateTransferStockDto
   ) {
     const store_id = requireStoreId(header);
-    const storeFrom = await this.getStoreFrom(store_id);
-
     const allItemIds = dto.items.map((i) => i.itemId);
     const inventoryItems = await this.prisma.master_inventory_items.findMany({
       where: {
         id: { in: allItemIds },
-        store_id: storeFrom.store_id,
+        store_id: store_id
       },
     });
     const itemMap = new Map(inventoryItems.map((i) => [i.id, i]));
@@ -168,7 +149,7 @@ export class TransferStockService {
       const code = await this.generateTransactionCode();
       const transfer = await tx.transfer_stocks.create({
         data: {
-          store_from_id: storeFrom.store_id,
+          store_from_id: store_id,
           store_to_id: dto.store_to_id,
           store_created_by: store_id,
           transaction_code: code,
@@ -250,8 +231,6 @@ export class TransferStockService {
     dto: UpdateTransferStockDto
   ) {
     const store_id = requireStoreId(header);
-    const storeFrom = await this.getStoreFrom(store_id);
-
     const transferStock = await this.prisma.transfer_stocks.findFirst({
       where: { id: transferStockId },
       include: { transfer_stock_items: true },
@@ -273,7 +252,7 @@ export class TransferStockService {
     const inventoryItems = await this.prisma.master_inventory_items.findMany({
       where: {
         id: { in: allItemIds },
-        store_id: storeFrom.store_id,
+        store_id: store_id
       },
     });
     const itemMap = new Map(inventoryItems.map((i) => [i.id, i]));
