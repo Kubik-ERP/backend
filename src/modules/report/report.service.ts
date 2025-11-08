@@ -58,6 +58,36 @@ export interface IExpiryDashboard {
 @Injectable()
 export class ReportService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private roundToTwo(num: number): number {
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+  }
+
+  private formatSummaryObject(summary: {
+    jumlahTerjual: number;
+    kotor: number;
+    diskonItem: number;
+    refund: number;
+    pajak: number;
+    biayaLayanan: number;
+    totalPenjualan: number;
+    countPenggunaanVoucher: number;
+  }) {
+    return {
+      // Integer (tidak perlu dibulatkan)
+      jumlahTerjual: summary.jumlahTerjual,
+      countPenggunaanVoucher: summary.countPenggunaanVoucher,
+
+      // Mata Uang (dibulatkan 2 desimal)
+      kotor: this.roundToTwo(summary.kotor),
+      diskonItem: this.roundToTwo(summary.diskonItem),
+      refund: this.roundToTwo(summary.refund),
+      pajak: this.roundToTwo(summary.pajak),
+      biayaLayanan: this.roundToTwo(summary.biayaLayanan),
+      totalPenjualan: this.roundToTwo(summary.totalPenjualan),
+    };
+  }
+
   private async getPaymentMethodData(
     begDate: Date,
     endDate: Date,
@@ -463,7 +493,10 @@ export class ReportService {
       if (employee) {
         cashierId = employee.id;
       } else {
-        return { overallSummary: createDefaultSummary(), groupedSummary: [] };
+        return {
+          overallSummary: this.formatSummaryObject(createDefaultSummary()),
+          groupedSummary: [],
+        };
       }
     }
 
@@ -682,15 +715,18 @@ export class ReportService {
     const groupedSummary = masterGroupIds
       .map((groupKey) => {
         const summary = salesDataMap.get(groupKey) || createDefaultSummary();
-        // Use the map to get the display name, or fall back to the key itself.
         const groupName = idToNameMap.get(groupKey) ?? groupKey;
+
         return {
           group: groupName,
-          ...summary,
+          // Terapkan format ke summary per grup
+          ...this.formatSummaryObject(summary),
         };
       })
-      .sort((a, b) => a.group.localeCompare(b.group)); // Pindahkan sort ke sini
-    return { overallSummary, groupedSummary };
+      .sort((a, b) => a.group.localeCompare(b.group));
+    const formattedOverallSummary = this.formatSummaryObject(overallSummary);
+
+    return { overallSummary: formattedOverallSummary, groupedSummary };
   }
 
   async getAdvancedSalesReport(
@@ -922,7 +958,7 @@ export class ReportService {
       slowStock.push({
         item: item.name,
         onHand: item.stock_quantity,
-        lastStockUpdated,
+        lastStockUpdated: lastStockUpdated.toDateString(),
         daysIdle,
       });
     }
@@ -1262,7 +1298,7 @@ export class ReportService {
       return {
         voucherName: voucher.name,
         promoCode: voucher.promo_code,
-        validityPeriod: `${startDate.toISOString()} - ${endDate.toISOString()}`,
+        validityPeriod: `${formatDate(startDate)} - ${formatDate(endDate)}`,
         status: status,
         totalQuota: quota,
         totalUsage: totalUsage,
@@ -1475,8 +1511,6 @@ export class ReportService {
     if (type === 'attendance-summary') {
       return this.getAttendanceSummary(storeId);
     }
-
-    // Hanya butuh tanggal untuk laporan komisi
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
     endDate.setHours(23, 59, 59, 999);
@@ -1487,18 +1521,14 @@ export class ReportService {
       );
     }
 
+    // Panggil fungsi private
     const commissionData = await this.getCommissionReport(
       startDate,
       endDate,
       storeId,
     );
-
-    if (type === 'commission-summary') {
-      return commissionData.summary;
-    }
-
-    if (type === 'commission-details') {
-      return commissionData.details;
+    if (type === 'commission-summary' || type === 'commission-details') {
+      return commissionData;
     }
 
     throw new BadRequestException(
@@ -1506,11 +1536,19 @@ export class ReportService {
     );
   }
 
-  async getLoyaltyReport(type: LoyaltyReportType, storeIdsString: string) {
-    if (!storeIdsString) {
+  async getLoyaltyReport(
+    type: LoyaltyReportType,
+    req: ICustomRequestHeaders,
+    storeIdsString?: string,
+  ) {
+    let storeIds: string[] = [];
+    if (storeIdsString) {
+      storeIds = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeIds = [req.store_id];
+    } else {
       throw new BadRequestException('store_ids is required.');
     }
-    const storeIds = storeIdsString.split(',');
 
     switch (type) {
       case 'spend-based':
@@ -1840,10 +1878,11 @@ export class ReportService {
 
     // ASUMSI: Tipe poin disimpan di `notes`
     const pointsByType = await this.prisma.trn_customer_points.groupBy({
-      by: ['notes'],
+      by: ['earn_type'],
       where: {
         customer: { stores_id: { in: storeIds } },
         type: 'point_addition',
+        earn_type: { not: null },
       },
       _sum: {
         value: true,
@@ -1855,23 +1894,22 @@ export class ReportService {
       where: {
         customer: { stores_id: { in: storeIds } },
         type: 'point_addition',
-        // created_at: { gte: startDate, lte: endDate },
-        notes: { not: null },
+        earn_type: { not: null },
       },
-      distinct: ['customer_id', 'notes'],
+      distinct: ['customer_id', 'earn_type'],
       select: {
-        notes: true,
+        earn_type: true,
       },
     });
 
     const customerCounts = new Map<string, number>();
     for (const tx of distinctTxs) {
-      const type = tx.notes!;
+      const type = tx.earn_type!;
       customerCounts.set(type, (customerCounts.get(type) || 0) + 1);
     }
 
     const table = pointsByType.map((row) => {
-      const type = row.notes || 'Unknown';
+      const type = row.earn_type || 'Unknown';
       return {
         type: type,
         sumTotalPoints: row._sum?.value || 0,
@@ -1883,5 +1921,88 @@ export class ReportService {
       dashboard: baseMetrics,
       table: table,
     };
+  }
+
+  async getCustomerReport(req: ICustomRequestHeaders, storeIdsString?: string) {
+    let storeId: string[] = [];
+    if (storeIdsString) {
+      storeId = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeId = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
+    }
+
+    // 1. Ambil semua data master pelanggan dari toko ini.
+    const customersPromise = this.prisma.customer.findMany({
+      where: {
+        stores_id: { in: storeId },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    // 2. Agregasi total penjualan (invoice yang sudah 'paid') per pelanggan.
+    const salesDataPromise = this.prisma.invoice.groupBy({
+      by: ['customer_id'],
+      where: {
+        store_id: { in: storeId },
+        payment_status: 'paid', // Hanya hitung yang sudah lunas
+        customer_id: { not: null },
+      },
+      _sum: {
+        grand_total: true,
+      },
+    });
+
+    // 3. Agregasi total tagihan terutang (invoice yang 'unpaid') per pelanggan.
+    const outstandingDataPromise = this.prisma.invoice.groupBy({
+      by: ['customer_id'],
+      where: {
+        store_id: { in: storeId },
+        payment_status: 'unpaid', // Hanya hitung yang belum lunas
+        customer_id: { not: null },
+      },
+      _sum: {
+        grand_total: true,
+      },
+    });
+
+    // Jalankan semua kueri secara bersamaan untuk efisiensi
+    const [customers, salesData, outstandingData] = await Promise.all([
+      customersPromise,
+      salesDataPromise,
+      outstandingDataPromise,
+    ]);
+
+    // 4. Ubah hasil agregasi menjadi Map untuk pencarian cepat (lookup)
+    const salesMap = new Map(
+      salesData.map((item) => [item.customer_id, item._sum?.grand_total || 0]),
+    );
+    const outstandingMap = new Map(
+      outstandingData.map((item) => [
+        item.customer_id,
+        item._sum?.grand_total || 0,
+      ]),
+    );
+
+    // 5. Gabungkan semua data menjadi satu laporan yang utuh
+    const report = customers.map((customer) => {
+      // Ambil data dari map, jika tidak ada berarti nilainya 0
+      const totalSales = salesMap.get(customer.id) || 0;
+      const outstanding = outstandingMap.get(customer.id) || 0;
+
+      return {
+        nama: customer.name,
+        gender: customer.gender,
+        totalSales: parseFloat(totalSales.toFixed(2)),
+        dateAdded: customer.created_at,
+        outstanding: parseFloat(outstanding.toFixed(2)),
+        loyaltyPoints: customer.point || 0,
+      };
+    });
+
+    return report;
   }
 }

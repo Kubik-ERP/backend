@@ -182,21 +182,50 @@ export class ReportController {
     schema: { type: 'string' },
   })
   @ApiBearerAuth()
+  @Get('loyalty-report')
+  @ApiOperation({
+    summary:
+      'Get loyalty report data for the main dashboard within a date range.',
+  })
+  async getLoyaltyReport(
+    @Query('type') type: LoyaltyReportType,
+    @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIdsString?: string,
+  ) {
+    const data = await this.reportService.getLoyaltyReport(
+      type,
+      req,
+      storeIdsString,
+    );
+    return {
+      message: 'Loyalty report data retrieved successfully',
+      result: data,
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
   @Get('customer-report')
   @ApiOperation({
     summary:
       'Get customer report data for the main dashboard within a date range.',
   })
-  async getLoyaltyReport(
-    @Query('type') type: LoyaltyReportType,
-    @Query('store_ids') storeIdsString: string,
+  async getCustomerReport(
+    @Req() req: ICustomRequestHeaders,
+    @Query('store_ids') storeIdsString?: string,
   ) {
-    const data = await this.reportService.getLoyaltyReport(
-      type,
+    const data = await this.reportService.getCustomerReport(
+      req,
       storeIdsString,
     );
     return {
-      message: 'Loyalty report data retrieved successfully',
+      message: 'Customer report data retrieved successfully',
       result: data,
     };
   }
