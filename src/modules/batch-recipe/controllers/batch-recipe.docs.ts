@@ -30,6 +30,17 @@ export function CreateBatchDocs() {
     ApiResponse({ status: 201, description: 'Batch recipe created' }),
   );
 }
+
+export function UpdateBatchDocs() {
+  return applyDecorators(
+    HttpCode(HttpStatus.OK),
+    ApiOperation({ summary: 'Update batch cooking plan' }),
+    ApiBearerAuth(),
+    ApiHeader(STORE_HEADER),
+    ApiParam(BATCH_ID_PARAM),
+    ApiResponse({ status: 200, description: 'Batch recipe updated' }),
+  );
+}
 export function StartBatchDocs() {
   return applyDecorators(
     HttpCode(HttpStatus.OK),
