@@ -9,6 +9,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CancelBatchRecipeDto } from '../dtos/cancel-batch-recipe.dto';
 import { CompleteBatchRecipeDto } from '../dtos/complete-batch-recipe.dto';
 import { CreateBatchRecipeDto } from '../dtos/create-batch-recipe.dto';
+import { UpdateBatchRecipeDto } from '../dtos/update-batch-recipe.dto';
 import { BatchRecipeStatus } from '../interfaces/batch-recipe.interface';
 import { FindBatchRecipesQueryDto } from '../dtos/find-batch-recipes-query.dto';
 
@@ -46,6 +47,15 @@ export class BatchRecipeService {
               recipe_name: true,
               target_yield: true,
               output_unit: true,
+              base_recipe: true,
+              cost_portion: true,
+              margin_per_selling_price_rp: true,
+              margin_per_selling_price_percent: true,
+              products: {
+                select: {
+                  price: true,
+                },
+              },
             },
           },
         },
@@ -56,7 +66,7 @@ export class BatchRecipeService {
     ]);
 
     return {
-      data: batches.map((batch) => this.withStatusString(batch)),
+      data: batches.map((batch) => this.formatBatch(batch)),
       meta: {
         total,
         page,
@@ -207,6 +217,131 @@ export class BatchRecipeService {
     });
 
     return this.getBatchDetail(createdBatch.id, storeId);
+  }
+
+  async update(
+    batchId: string,
+    dto: UpdateBatchRecipeDto,
+    header: ICustomRequestHeaders,
+  ) {
+    const storeId = requireStoreId(header);
+    const user = requireUser(header);
+    const ownerId = Number(user.ownerId);
+
+    if (!Number.isInteger(ownerId)) {
+      throw new BadRequestException('Owner tidak ditemukan');
+    }
+
+    await this.ensureStoreOwnedByOwner(storeId, ownerId);
+
+    const batch = await this.getBatchOrThrow(batchId, storeId);
+    if (
+      batch.status === BatchRecipeStatus.COOKING ||
+      batch.status === BatchRecipeStatus.COMPLETED ||
+      batch.status === BatchRecipeStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        'Batch dengan status ini tidak dapat diubah',
+      );
+    }
+
+    const recipeId = dto.recipeId ?? batch.recipe_id;
+    const recipe = await this.prisma.menu_recipes.findFirst({
+      where: {
+        recipe_id: recipeId,
+        store_id: storeId,
+      },
+      include: {
+        ingredients: {
+          include: {
+            master_inventory_items: {
+              select: {
+                price_per_unit: true,
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!recipe) {
+      throw new NotFoundException(
+        'Recipe tidak ditemukan atau bukan milik store ini',
+      );
+    }
+
+    if (!recipe.ingredients.length) {
+      throw new BadRequestException('Recipe belum memiliki ingredient');
+    }
+
+    const targetYield =
+      dto.batchTargetYield ?? batch.batch_target_yield ?? recipe.target_yield;
+
+    if (!targetYield || targetYield <= 0) {
+      throw new BadRequestException('batchTargetYield tidak valid');
+    }
+
+    const ratio = this.getYieldRatio(targetYield, recipe.target_yield);
+    const now = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.batch_cooking_recipe.update({
+        where: { id: batch.id },
+        data: {
+          recipe_id: recipe.recipe_id,
+          date: dto.date ? new Date(dto.date) : batch.date,
+          batch_target_yield: targetYield,
+          batch_waste: dto.batchWaste ?? batch.batch_waste ?? 0,
+          notes: dto.notes ?? batch.notes,
+          updated_at: now,
+          updated_by: user.id,
+        },
+      });
+
+      await tx.batch_cooking_recipe_ingredient.deleteMany({
+        where: { batch_id: batch.id },
+      });
+
+      const ingredientPayload = recipe.ingredients.map((ingredient) => {
+        const baseQty = ingredient.qty?.toNumber?.() ?? Number(ingredient.qty);
+
+        let baseCost: number | null = null;
+        if (ingredient.cost) {
+          baseCost = ingredient.cost.toNumber();
+        } else if (ingredient.master_inventory_items?.price_per_unit) {
+          baseCost =
+            ingredient.master_inventory_items.price_per_unit.toNumber();
+        }
+
+        const scaledQty = baseQty * ratio;
+        const scaledCost =
+          typeof baseCost === 'number'
+            ? Number((baseCost * ratio).toFixed(4))
+            : null;
+
+        return {
+          batch_id: batch.id,
+          ingredient_id: ingredient.ingredient_id,
+          recipe_id: ingredient.recipe_id ?? recipe.recipe_id,
+          qty: Number(scaledQty.toFixed(4)),
+          base_price:
+            typeof baseCost === 'number' ? Number(baseCost.toFixed(4)) : null,
+          cost: scaledCost,
+          created_at: now,
+          updated_at: now.toISOString(),
+        };
+      });
+
+      if (ingredientPayload.length) {
+        await tx.batch_cooking_recipe_ingredient.createMany({
+          data: ingredientPayload,
+        });
+      }
+    });
+
+    return this.getBatchDetail(batchId, storeId);
   }
 
   async startCooking(batchId: string, header: ICustomRequestHeaders) {
@@ -370,6 +505,15 @@ export class BatchRecipeService {
             recipe_name: true,
             target_yield: true,
             output_unit: true,
+            base_recipe: true,
+            cost_portion: true,
+            margin_per_selling_price_rp: true,
+            margin_per_selling_price_percent: true,
+            products: {
+              select: {
+                price: true,
+              },
+            },
           },
         },
         batch_cooking_recipe_ingredient: {
@@ -394,7 +538,7 @@ export class BatchRecipeService {
       throw new NotFoundException('Batch recipe tidak ditemukan');
     }
 
-    return this.withStatusString(batch);
+    return this.formatBatch(batch);
   }
 
   private async getBatchOrThrow(batchId: string, storeId: string) {
@@ -448,13 +592,59 @@ export class BatchRecipeService {
     }
   }
 
-  private withStatusString<T extends { status: number | null }>(
-    batch: T,
-  ): Omit<T, 'status'> & { status: string | null } {
-    return {
-      ...batch,
+  private formatBatch(batch: any) {
+    const { menu_recipes, ...rest } = batch;
+    const formatted: Record<string, any> = {
+      ...rest,
       status: this.toStatusString(batch.status),
     };
+
+    if (menu_recipes === undefined) {
+      return formatted;
+    }
+
+    return {
+      ...formatted,
+      menu_recipes: this.transformMenuRecipe(menu_recipes),
+    };
+  }
+
+  private transformMenuRecipe(menuRecipe: any) {
+    if (menuRecipe) {
+      const {
+        base_recipe,
+        cost_portion,
+        margin_per_selling_price_rp,
+        margin_per_selling_price_percent,
+        products,
+        ...rest
+      } = menuRecipe;
+
+      return {
+        ...rest,
+        isBaseRecipe: Boolean(base_recipe),
+        costPerPortion: this.decimalToNumber(cost_portion),
+        marginRp: this.decimalToNumber(margin_per_selling_price_rp),
+        marginPercent: this.decimalToNumber(margin_per_selling_price_percent),
+        productPrice: products?.price ?? null,
+      };
+    }
+
+    return menuRecipe;
+  }
+
+  private decimalToNumber(
+    value: Prisma.Decimal | number | null | undefined,
+  ): number | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    return value.toNumber();
   }
 
   private toStatusString(status: number | null): string | null {

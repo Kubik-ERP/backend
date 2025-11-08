@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -14,6 +15,7 @@ import { CancelBatchRecipeDto } from '../dtos/cancel-batch-recipe.dto';
 import { CompleteBatchRecipeDto } from '../dtos/complete-batch-recipe.dto';
 import { CreateBatchRecipeDto } from '../dtos/create-batch-recipe.dto';
 import { FindBatchRecipesQueryDto } from '../dtos/find-batch-recipes-query.dto';
+import { UpdateBatchRecipeDto } from '../dtos/update-batch-recipe.dto';
 import {
   CancelBatchDocs,
   CompleteBatchDocs,
@@ -22,6 +24,7 @@ import {
   GetBatchDetailDocs,
   GetBatchDocs,
   StartBatchDocs,
+  UpdateBatchDocs,
 } from './batch-recipe.docs';
 import { BatchRecipeService } from '../services/batch-recipe.service';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
@@ -137,6 +140,21 @@ export class BatchRecipeController {
       success: true,
       message: 'Batch recipe berhasil dihapus',
       result: null,
+    };
+  }
+
+  @Put(':id')
+  @UpdateBatchDocs()
+  async update(
+    @Param('id') batchId: string,
+    @Body() dto: UpdateBatchRecipeDto,
+    @Req() req: ICustomRequestHeaders,
+  ) {
+    const result = await this.batchRecipeService.update(batchId, dto, req);
+    return {
+      success: true,
+      message: 'Batch recipe berhasil diperbarui',
+      result,
     };
   }
 }
