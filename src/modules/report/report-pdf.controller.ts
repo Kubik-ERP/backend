@@ -34,7 +34,7 @@ export class PDFReportController {
     @Res() res: Response,
     @Req() req: ICustomRequestHeaders,
     @Query('store_ids') storeIdsString?: string,
-    @Query('staff_id') staffId?: string,
+    @Query('staff_ids') staffIds?: string,
   ) {
     const pdfBuffer = await this.reportService.generateFinancialReportPdf(
       startDateString,
@@ -42,7 +42,7 @@ export class PDFReportController {
       type,
       req,
       storeIdsString,
-      staffId,
+      staffIds,
     );
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
@@ -71,7 +71,7 @@ export class PDFReportController {
     @Res() res: Response,
     @Req() req: ICustomRequestHeaders,
     @Query('store_ids') storeIdsString?: string,
-    @Query('staff_id') staffId?: string,
+    @Query('staff_ids') staffIds?: string,
   ) {
     const pdfBuffer = await this.reportService.generateAdvancedSalesReportPdf(
       startDateString,
@@ -79,7 +79,7 @@ export class PDFReportController {
       type,
       req,
       storeIdsString,
-      staffId,
+      staffIds,
     );
 
     res.setHeader('Content-Type', 'application/pdf');

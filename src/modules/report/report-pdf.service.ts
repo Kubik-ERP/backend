@@ -90,10 +90,11 @@ export class PDFReportService {
       where: { id: { in: storeIds } },
     });
     let staff = 'All Staff Member';
-    if (staffId) {
-      const staff = await this.prisma.users.findFirst({
+    if (staffId && staffId !== 'all') {
+      const staffData = await this.prisma.users.findFirst({
         where: { id: +staffId },
       });
+      staff = staffData?.fullname || 'Unknown Staff';
     }
     const storeDetails = {
       name: store.map((s) => s.name).join(', '),
@@ -104,7 +105,7 @@ export class PDFReportService {
       storeName: storeIds.length > 1 ? 'All Stores' : `${storeDetails.name}`,
       storeAddress:
         storeIds.length > 1 ? `All Stores` : `${storeDetails.address}`,
-      staffMember: staffId === 'all' || !staffId ? 'All Staff' : `${staff}`,
+      staffMember: staff,
       period:
         startDate && endDate
           ? `${startDate.toString().substring(0, 10)} - ${endDate.toString().substring(0, 10)}`
