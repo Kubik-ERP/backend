@@ -27,6 +27,7 @@ import { GetTransferStockResponseDto } from '../dtos/get-transfer-stock-response
 import { UpdateTransferStockResponseDto } from '../dtos/update-transfer-stock-response.dto';
 import { DeleteTransferStockResponseDto } from '../dtos/delete-transfer-stock-response.dto';
 import { ChangeStatusResponseDto } from '../dtos/change-status-response.dto';
+import { ChangeStatusReceiveDto } from '../dtos/change-status-received.dto';
 
 @Controller('transfer-stock')
 export class TransferStockController {
@@ -231,6 +232,90 @@ export class TransferStockController {
   @Post('change-status/:id')
   async changeStatus(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: ChangeStatusDto) {
     const result = await this.transferStockService.changeStatus(req, id, body);
+    return result;
+  }
+
+  @ApiOperation({ summary: 'Receive transfer sotck' })
+  @ApiBody({
+    description: 'Body berbeda sesuai status',
+    examples: {
+      Received: {
+        summary: 'Status received',
+        description: 'Gunakan ketika menerima transfer stock',
+        value: {
+          status: 'received',
+          items: [
+            {
+              itemId: 'a0df2ccd-f6df-402e-8818-c85f08d750c0',
+              qty_shipped: 25,
+              qty_received: 25,
+              notes: '',
+            },
+            {
+              itemId: 'f4fb8b18-b3bb-4349-8bd5-ab52cb067d31',
+              qty_shipped: 15,
+              qty_received: 15,
+              notes: '',
+            },
+          ],
+        },
+      },
+      ReceivedWithIssue: {
+        summary: 'Status received_with_issue',
+        description: 'Gunakan ketika menerima transfer stock dengan masalah',
+        value: {
+          status: 'received_with_issue',
+          items: [
+            {
+              itemId: 'a0df2ccd-f6df-402e-8818-c85f08d750c0',
+              qty_shipped: 25,
+              qty_received: 20,
+              notes: 'Beberapa barang rusak',
+            },
+            {
+              itemId: 'f4fb8b18-b3bb-4349-8bd5-ab52cb067d31',
+              qty_shipped: 15,
+              qty_received: 10,
+              notes: 'Kardus penyok',
+            },
+          ],
+        },
+      },
+    },
+    type: ChangeStatusReceiveDto,
+  })
+  @ApiOkResponse({
+    description: 'Response ketika transfer stock berhasil diterima',
+    type: ChangeStatusResponseDto,
+    examples: {
+      Received: {
+        summary: 'Response untuk status received',
+        value: {
+          statusCode: 200,
+          message: 'Transfer stock received successfully.',
+        },
+      },
+      ReceivedWithIssue: {
+        summary: 'Response untuk status received_with_issue',
+        value: {
+          statusCode: 200,
+          message: 'Transfer stock received with issue successfully.',
+        },
+      },
+    },
+  })
+  @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Post('receive/:id')
+  async receiveStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: ChangeStatusReceiveDto) {
+    const result = await this.transferStockService.receiveStock(req, id, body);
     return result;
   }
 
