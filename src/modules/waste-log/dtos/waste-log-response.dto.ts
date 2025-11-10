@@ -57,7 +57,7 @@ export class WasteLogResponseDto {
 
 export class WasteLogListResponseDto {
   @ApiProperty({ type: [WasteLogResponseDto] })
-  data: WasteLogResponseDto[];
+  items: WasteLogResponseDto[];
 
   @ApiProperty()
   meta: {

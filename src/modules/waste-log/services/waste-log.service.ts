@@ -287,6 +287,7 @@ export class WasteLogService {
       this._prisma.waste_log.findMany({
         where,
         include: {
+          batch_cooking_recipe: true,
           waste_log_item: {
             include: {
               master_inventory_items: {
@@ -309,11 +310,12 @@ export class WasteLogService {
       this._prisma.waste_log.count({ where }),
     ]);
 
-    const data = wasteLogs.map((wasteLog) => ({
+    const items = wasteLogs.map((wasteLog) => ({
       wasteLogId: wasteLog.waste_log_id,
       batchId: wasteLog.batch_id || undefined,
       storeId: wasteLog.store_id,
       storeName: wasteLog.stores?.name || undefined,
+      batchCookingRecipe: wasteLog.batch_cooking_recipe || undefined,
       wasteLogItems: wasteLog.waste_log_item.map((item) => ({
         wasteLogItemId: item.waste_log_item_id,
         inventoryItemId: item.inventory_item_id,
@@ -331,7 +333,7 @@ export class WasteLogService {
     }));
 
     return {
-      data,
+      items,
       meta: {
         page,
         limit,
