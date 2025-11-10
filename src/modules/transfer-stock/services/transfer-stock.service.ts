@@ -20,6 +20,7 @@ import { CreateTransferStockDto } from '../dtos/create-transfer-stock.dto';
 import { UpdateTransferStockDto } from '../dtos/update-transfer-stock.dto';
 import { UUID } from 'crypto';
 import { ChangeStatusDto } from '../dtos/change-status.dto';
+import { ChangeStatusReceiveDto } from '../dtos/change-status-received.dto';
 
 @Injectable()
 export class TransferStockService {
@@ -516,6 +517,149 @@ export class TransferStockService {
     return {
       statusCode: 200,
       message: 'Transfer stock shipped successfully.',
+    };
+  }
+
+  async receiveStock(req: ICustomRequestHeaders, transferStockId: UUID, body: ChangeStatusReceiveDto) {
+    const store_id = requireStoreId(req);
+    const transferStock = await this.prisma.transfer_stocks.findFirst({
+      where: { id: transferStockId },
+      include: { transfer_stock_items: true },
+    });
+
+    if (!transferStock) throw new BadRequestException('Transfer stock not found.');
+
+    const status = body.status?.toLowerCase();
+    let isAuthorized = false;
+
+    if (status === 'received' || status === 'received_with_issue') {
+      isAuthorized =
+        transferStock.store_to_id === store_id &&
+        transferStock.status === 'shipped';
+    } else {
+      throw new BadRequestException('Invalid status value. Allowed values: approve, cancel, ship.');
+    }
+
+    if (!isAuthorized) {
+      throw new BadRequestException(
+        `You are not authorized to update this transfer stock to status "${status}".`
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      return await this.received(req.user.id, transferStockId, body, tx);
+    });
+
+    return result;
+  }
+
+  async received(userId: number, transferStockId: UUID, data: ChangeStatusReceiveDto, tx: Prisma.TransactionClient) {
+    const transferStock = await tx.transfer_stocks.findFirst({
+      where: { id: transferStockId },
+      include: {
+        transfer_stock_items: {
+          include: { master_inventory_items: true },
+        },
+      },
+    });
+
+    if (!transferStock) {
+      throw new BadRequestException('Transfer stock not found.');
+    }
+
+    const validItemIds = transferStock.transfer_stock_items.map((item) => item.master_inventory_item_id);
+    const invalidItemIds = data.items.filter(
+      (x) => !validItemIds.includes(x.itemId),
+    );
+
+    if (invalidItemIds.length > 0) {
+      throw new BadRequestException(
+        `Invalid itemId(s) detected: ${invalidItemIds
+          .map((x) => x.itemId)
+          .join(', ')}`,
+      );
+    }
+
+     for (const receivedItem of data.items) {
+      const stockItem = transferStock.transfer_stock_items.find(
+        (x) => x.master_inventory_item_id === receivedItem.itemId,
+      );
+      const masterItem = stockItem?.master_inventory_items;
+
+      if (!stockItem || !masterItem) {
+        throw new BadRequestException(
+          `Item with ID ${receivedItem.itemId} not found or invalid.`,
+        );
+      }
+
+      const destinationItem = await tx.master_inventory_items.findFirst({
+        where: {
+          store_id: transferStock.store_to_id,
+          sku: masterItem.sku,
+        },
+      });
+
+      if (!destinationItem) {
+        throw new BadRequestException(
+          `Destination item not found for SKU ${masterItem.sku}`,
+        );
+      }
+
+      await tx.master_inventory_items.update({
+        where: { id: destinationItem.id },
+        data: {
+          stock_quantity:
+            destinationItem.stock_quantity + receivedItem.qty_received,
+        },
+      });
+
+      await tx.transfer_stock_items.update({
+        where: { id: stockItem.id },
+        data: {
+          status: data.status === 'received' ? 'received' : 'received_with_issue',
+          note: receivedItem.notes ?? null
+        },
+      });
+    }
+
+    await tx.transfer_stocks.update({
+      where: { id: transferStockId },
+      data: {
+        received_by: userId,
+        received_at: new Date(),
+        status:  data.status === 'received' ? 'received' : 'received_with_issue',
+      },
+    });
+
+    if (data.status === 'received_with_issue') {
+      for (const receivedItem of data.items) {
+        const stockItem = transferStock.transfer_stock_items.find(
+          (x) => x.master_inventory_item_id === receivedItem.itemId,
+        );
+        if (!stockItem) continue;
+
+        const difference = receivedItem.qty_shipped - receivedItem.qty_received;
+        if (difference > 0) {
+          const unitPrice = Number(stockItem.master_inventory_items?.price_per_unit ?? 0);
+          const lossAmount = difference * unitPrice;
+
+          await tx.transfer_stock_losses.create({
+            data: {
+              store_id: transferStock.store_created_by || transferStock.store_from_id,
+              transfer_stock_id: transferStock.id,
+              transfer_stock_item_id: stockItem.id,
+              qty_lost: difference,
+              unit_price: unitPrice,
+              loss_amount: lossAmount
+            }
+          });
+        }
+      }
+    }
+
+    return {
+      statusCode: 200,
+      message: data.status === 'received' ? 'Transfer stock received successfully.' : 'Transfer stock received with issues successfully.'
     };
   }
 
