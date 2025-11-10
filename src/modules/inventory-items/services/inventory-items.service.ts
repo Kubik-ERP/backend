@@ -1205,6 +1205,7 @@ export class InventoryItemsService {
           margin: true,
           markup: true,
           created_at: true,
+          master_inventory_item_conversions: true,
           purchase_order_items: {
             take: 1,
             orderBy: { purchase_orders: { order_date: 'asc' } },
@@ -1240,6 +1241,7 @@ export class InventoryItemsService {
       margin: it.margin,
       markup: it.markup,
       created_at: it.created_at,
+      master_inventory_item_conversions: it.master_inventory_item_conversions,
     }));
 
     const totalPages = Math.ceil(total / pageSize);
@@ -1987,12 +1989,34 @@ export class InventoryItemsService {
       typeof markup.toNumber === 'function'
         ? markup.toNumber()
         : markup;
+
+    // Handle master_inventory_item_conversions formatting
+    let processedConversions = item.master_inventory_item_conversions;
+    if (processedConversions && Array.isArray(processedConversions)) {
+      processedConversions = processedConversions.map((conv: any) => {
+        // Convert conversion_value to number if it's a Decimal object
+        const conversionValue = conv.conversion_value;
+        const numericValue =
+          conversionValue &&
+          typeof conversionValue === 'object' &&
+          typeof conversionValue.toNumber === 'function'
+            ? conversionValue.toNumber()
+            : Number(conversionValue);
+
+        return {
+          ...conv,
+          conversion_value: numericValue,
+        };
+      });
+    }
+
     return {
       ...item,
       price_per_unit: priceNumber,
       price_grosir: priceGrosirNumber,
       margin: marginNumber,
       markup: markupNumber,
+      master_inventory_item_conversions: processedConversions,
     };
   }
 
