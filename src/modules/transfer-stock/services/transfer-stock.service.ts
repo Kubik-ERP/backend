@@ -72,6 +72,8 @@ export class TransferStockService {
         take: dto.pageSize,
         orderBy: orderBy,
         include: {
+          store_from: true,
+          store_to: true,
           drafted_user: {
             select: { id: true, fullname: true, email: true },
           },
@@ -86,6 +88,11 @@ export class TransferStockService {
           },
           canceled_user: {
             select: { id: true, fullname: true, email: true },
+          },
+          transfer_stock_items: {
+            include: {
+              master_inventory_items: true
+            },
           }
         },
       }),
@@ -201,6 +208,8 @@ export class TransferStockService {
     const result = await this.prisma.transfer_stocks.findFirst({
       where: {id: id},
       include: {
+        store_from: true,
+        store_to: true,
         drafted_user: {
           select: { id: true, fullname: true, email: true },
         },
@@ -215,6 +224,11 @@ export class TransferStockService {
         },
         canceled_user: {
           select: { id: true, fullname: true, email: true },
+        },
+        transfer_stock_items: {
+          include: {
+            master_inventory_items: true
+          },
         }
       }
     });
