@@ -63,6 +63,12 @@ export class ReportService {
     return Math.round((num + Number.EPSILON) * 100) / 100;
   }
 
+  private formatDate(date: Date, gmt: number): string {
+    const utc = date.getTime() + date.getTimezoneOffset() * 60000;
+    const localDate = new Date(utc + 3600000 * gmt);
+    return localDate.toISOString().split('T')[0];
+  }
+
   private formatSummaryObject(summary: {
     jumlahTerjual: number;
     kotor: number;
@@ -769,6 +775,7 @@ export class ReportService {
     storeId: string[],
     startDate: Date,
     endDate: Date,
+    gmt: number,
   ) {
     const movements = await this.prisma.inventory_stock_adjustments.findMany({
       where: {
@@ -790,7 +797,7 @@ export class ReportService {
     });
 
     return movements.map((m) => ({
-      tanggal: m.created_at,
+      tanggal: this.formatDate(m.created_at!, gmt),
       itemName: m.master_inventory_items.name,
       adjustmentType: m.action,
       // Jika STOCK_OUT, kuantitasnya negatif
@@ -891,6 +898,7 @@ export class ReportService {
     storeId: string[],
     startDate: Date,
     endDate: Date,
+    gmt: number,
   ) {
     // 1. Dapatkan daftar ID item unik yang MEMILIKI pergerakan dalam rentang waktu.
     // Ini adalah item yang "aktif" atau "tidak lambat".
@@ -958,7 +966,7 @@ export class ReportService {
       slowStock.push({
         item: item.name,
         onHand: item.stock_quantity,
-        lastStockUpdated: lastStockUpdated.toDateString(),
+        lastStockUpdated: this.formatDate(lastStockUpdated, gmt),
         daysIdle,
       });
     }
@@ -1196,6 +1204,7 @@ export class ReportService {
     endDateString: Date,
     type: InventoryReportType,
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
   ) {
     const startDate = new Date(startDateString);
@@ -1219,13 +1228,13 @@ export class ReportService {
 
     switch (type) {
       case 'movement-ledger':
-        return this.getMovementLedger(storeIds, startDate, endDate);
+        return this.getMovementLedger(storeIds, startDate, endDate, gmt);
       case 'current-stock-overview':
         return this.getCurrentStockOverview(storeIds);
       case 'po-receiving-variance':
         return this.getPoReceivingVariance(storeIds, startDate, endDate);
       case 'slow-dead-stock':
-        return this.getSlowDeadStock(storeIds, startDate, endDate);
+        return this.getSlowDeadStock(storeIds, startDate, endDate, gmt);
       case 'item-performance':
         return this.getItemPerformance(storeIds, startDate, endDate);
       case 'item-performance-by-category':
@@ -1237,7 +1246,11 @@ export class ReportService {
     }
   }
 
-  async getVoucherStatusReport(req: ICustomRequestHeaders, storeIds?: string) {
+  async getVoucherStatusReport(
+    req: ICustomRequestHeaders,
+    gmt: number,
+    storeIds?: string,
+  ) {
     let storeId: string[] = [];
     if (storeIds) {
       storeId = storeIds.split(',');
@@ -1286,19 +1299,10 @@ export class ReportService {
         status = 'Active';
       }
 
-      // Format tanggal untuk keterbacaan
-      const formatDate = (date: Date) => {
-        return date.toLocaleDateString('en-EN', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
-        });
-      };
-
       return {
         voucherName: voucher.name,
         promoCode: voucher.promo_code,
-        validityPeriod: `${formatDate(startDate)} - ${formatDate(endDate)}`,
+        validityPeriod: `${this.formatDate(startDate, gmt)} - ${this.formatDate(endDate, gmt)}`,
         status: status,
         totalQuota: quota,
         totalUsage: totalUsage,
@@ -1539,6 +1543,7 @@ export class ReportService {
   async getLoyaltyReport(
     type: LoyaltyReportType,
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
   ) {
     let storeIds: string[] = [];
@@ -1558,7 +1563,7 @@ export class ReportService {
       case 'benefit-utilization':
         return this.getBenefitUtilizationReport(storeIds);
       case 'expiry-warning':
-        return this.getExpiryWarningReport(storeIds);
+        return this.getExpiryWarningReport(storeIds, gmt);
       case 'type-accumulation':
         return this.getTypeAccumulationReport(storeIds);
       default:
@@ -1635,7 +1640,13 @@ export class ReportService {
         ...baseMetrics,
         totalInvoices: totalInvoices,
       },
-      table: table,
+      table: table.map((row) => ({
+        ...row,
+        grandTotal: parseFloat((row.grandTotal || 0).toFixed(2)),
+        purchaseDate: row.purchaseDate?.toISOString().substring(0, 10) || '',
+        pointExpiryDate:
+          row.pointExpiryDate?.toISOString().substring(0, 10) || '',
+      })),
     };
   }
 
@@ -1810,7 +1821,7 @@ export class ReportService {
     };
   }
 
-  private async getExpiryWarningReport(storeIds: string[]) {
+  private async getExpiryWarningReport(storeIds: string[], gmt: number) {
     const now = new Date();
     const nowMs = now.getTime();
     const allActivePoints = await this.prisma.trn_customer_points.findMany({
@@ -1866,7 +1877,7 @@ export class ReportService {
         invoice: tx.invoice?.invoice_number || 'N/A',
         type: type,
         points: points,
-        expiryDate: tx.expiry_date,
+        expiryDate: this.formatDate(tx.expiry_date ?? new Date(), gmt),
       };
     });
 
@@ -1923,7 +1934,11 @@ export class ReportService {
     };
   }
 
-  async getCustomerReport(req: ICustomRequestHeaders, storeIdsString?: string) {
+  async getCustomerReport(
+    req: ICustomRequestHeaders,
+    gmt: number,
+    storeIdsString?: string,
+  ) {
     let storeId: string[] = [];
     if (storeIdsString) {
       storeId = storeIdsString.split(',');
@@ -1997,7 +2012,7 @@ export class ReportService {
         nama: customer.name,
         gender: customer.gender,
         totalSales: parseFloat(totalSales.toFixed(2)),
-        dateAdded: customer.created_at,
+        dateAdded: this.formatDate(customer.created_at ?? new Date(), gmt),
         outstanding: parseFloat(outstanding.toFixed(2)),
         loyaltyPoints: customer.point || 0,
       };

@@ -5,6 +5,7 @@ import * as handlebars from 'handlebars';
 import * as path from 'path';
 import * as puppeteer from 'puppeteer';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { APP_LOGO_BASE64 } from './constant/base64.constants';
 import {
   AdvancedSalesReportType,
   IBenefitDashboard,
@@ -119,6 +120,7 @@ export class PDFReportService {
         hour: '2-digit',
         minute: '2-digit',
       }),
+      appLogoBase64: APP_LOGO_BASE64,
     };
   }
 
@@ -408,6 +410,7 @@ export class PDFReportService {
     endDateString: Date,
     type: InventoryReportType,
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
   ) {
     const data = await this.reportService.getInventoryValuation(
@@ -415,6 +418,7 @@ export class PDFReportService {
       endDateString,
       type,
       req,
+      gmt,
       storeIdsString,
     );
 
@@ -571,12 +575,14 @@ export class PDFReportService {
 
   async generateVoucherReportPdf(
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
   ) {
     // 1. Ambil Data JSON dari fungsi yang sudah ada
     // 'data' adalah array: [{ voucherName, promoCode, ... }, ...]
     const data = await this.reportService.getVoucherStatusReport(
       req,
+      gmt,
       storeIdsString,
     );
 
@@ -712,6 +718,7 @@ export class PDFReportService {
   async generateLoyaltyReportPdf(
     type: LoyaltyReportType,
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
   ) {
     // 1. Panggil FUNGSI PUBLIK untuk mendapatkan data JSON
@@ -719,6 +726,7 @@ export class PDFReportService {
     const data = await this.reportService.getLoyaltyReport(
       type,
       req,
+      gmt,
       storeIdsString,
     );
 
@@ -831,12 +839,14 @@ export class PDFReportService {
 
   async generateCustomerReportPdf(
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
   ) {
     // 1. Ambil Data JSON dari fungsi yang sudah ada
     // 'data' adalah array: [{ nama, gender, totalSales, ... }, ...]
     const data = await this.reportService.getCustomerReport(
       req,
+      gmt,
       storeIdsString,
     );
 
@@ -888,5 +898,18 @@ export class PDFReportService {
 
     // 6. Hasilkan PDF
     return this.generatePdfFromTemplate('table-report', templateData);
+  }
+
+  generateTestReport(storeIdsString?: string) {
+    const data = {
+      title: 'Test Report',
+      date: new Date().toLocaleDateString(),
+      items: [
+        { name: 'Item 1', quantity: 10, price: 1000 },
+        { name: 'Item 2', quantity: 5, price: 500 },
+        { name: 'Item 3', quantity: 2, price: 200 },
+      ],
+    };
+    return this.generatePdfFromTemplate('sales-report', data);
   }
 }

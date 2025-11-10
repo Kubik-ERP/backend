@@ -19,14 +19,14 @@ export class PDFReportController {
   @ApiOperation({
     summary: 'Export financial report to PDF.',
   })
-  @ApiBearerAuth()
-  @UseGuards(AuthenticationJWTGuard)
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
+  // @ApiBearerAuth()
+  // @UseGuards(AuthenticationJWTGuard)
+  // @ApiHeader({
+  //   name: 'X-STORE-ID',
+  //   description: 'Store ID associated with this request',
+  //   required: true,
+  //   schema: { type: 'string' },
+  // })
   async exportFinancialReport(
     @Query('startDate') startDateString: Date,
     @Query('endDate') endDateString: Date,
@@ -107,6 +107,7 @@ export class PDFReportController {
     @Query('type') type: InventoryReportType,
     @Res() res: Response,
     @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
     @Query('store_ids') storeIdsString?: string,
   ) {
     const pdfBuffer = await this.reportService.generateInventoryReportPdf(
@@ -114,6 +115,7 @@ export class PDFReportController {
       endDateString,
       type,
       req,
+      gmt,
       storeIdsString,
     );
 
@@ -139,10 +141,12 @@ export class PDFReportController {
   async exportVoucherReport(
     @Res() res: Response,
     @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
     @Query('store_ids') storeIdsString?: string,
   ) {
     const pdfBuffer = await this.reportService.generateVoucherReportPdf(
       req,
+      gmt,
       storeIdsString,
     );
 
@@ -204,11 +208,13 @@ export class PDFReportController {
     @Query('type') type: LoyaltyReportType,
     @Res() res: Response,
     @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
     @Query('store_ids') storeIdsString?: string,
   ) {
     const pdfBuffer = await this.reportService.generateLoyaltyReportPdf(
       type,
       req,
+      gmt,
       storeIdsString,
     );
 
@@ -234,12 +240,34 @@ export class PDFReportController {
   async exportCustomerReport(
     @Res() res: Response,
     @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
     @Query('store_ids') storeIdsString?: string,
   ) {
     const pdfBuffer = await this.reportService.generateCustomerReportPdf(
       req,
+      gmt,
       storeIdsString,
     );
+
+    // Set header untuk 'langsung download'
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename=customer-report.pdf',
+    );
+    res.send(pdfBuffer);
+  }
+
+  @Get('test-report')
+  @ApiOperation({
+    summary: 'Export customer report to PDF.',
+  })
+  async exportTesting(
+    @Res() res: Response,
+    @Query('store_ids') storeIdsString?: string,
+  ) {
+    const pdfBuffer =
+      await this.reportService.generateTestReport(storeIdsString);
 
     // Set header untuk 'langsung download'
     res.setHeader('Content-Type', 'application/pdf');
