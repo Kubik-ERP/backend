@@ -11,6 +11,18 @@ import {
   StaffReportType,
 } from './report.service';
 
+export const getDateString = (gmt: number) => {
+  const now = new Date();
+  now.setHours(now.getHours() + gmt);
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day}-${hours}-${minutes}-${seconds}`;
+};
+
 @Controller('generate/pdf')
 export class PDFReportController {
   constructor(private readonly reportService: PDFReportService) {}
@@ -33,6 +45,7 @@ export class PDFReportController {
     @Query('type') type: NewFinancialReportType,
     @Res() res: Response,
     @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
     @Query('store_ids') storeIdsString?: string,
     @Query('staff_ids') staffIds?: string,
   ) {
@@ -47,7 +60,7 @@ export class PDFReportController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename=financial-report.pdf',
+      `attachment; filename=[Backoffice]-financial-report-${type}-${getDateString(gmt)}.pdf`,
     );
     res.send(pdfBuffer);
   }
@@ -70,6 +83,7 @@ export class PDFReportController {
     @Query('type') type: AdvancedSalesReportType,
     @Res() res: Response,
     @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
     @Query('store_ids') storeIdsString?: string,
     @Query('staff_ids') staffIds?: string,
   ) {
@@ -78,6 +92,7 @@ export class PDFReportController {
       endDateString,
       type,
       req,
+      gmt,
       storeIdsString,
       staffIds,
     );
@@ -85,7 +100,7 @@ export class PDFReportController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename=sales-report.pdf',
+      `attachment; filename=[Backoffice]-advanced-sales-report-${type}-${getDateString(gmt)}.pdf`,
     );
 
     res.send(pdfBuffer);
@@ -123,7 +138,7 @@ export class PDFReportController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename=inventory-report.pdf',
+      `attachment; filename=[Backoffice]-inventory-report-${type}-${getDateString(gmt)}.pdf`,
     );
     res.send(pdfBuffer);
   }
@@ -154,7 +169,7 @@ export class PDFReportController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename=voucher-report.pdf',
+      `attachment; filename=[Backoffice]-voucher-report-${getDateString(gmt)}.pdf`,
     );
     res.send(pdfBuffer);
   }
@@ -222,7 +237,7 @@ export class PDFReportController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename=loyalty-report.pdf',
+      `attachment; filename=[Backoffice]-loyalty-report-${getDateString(gmt)}.pdf`,
     );
     res.send(pdfBuffer);
   }
@@ -253,7 +268,7 @@ export class PDFReportController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename=customer-report.pdf',
+      `attachment; filename=[Backoffice]-customer-report-${getDateString(gmt)}.pdf`,
     );
     res.send(pdfBuffer);
   }

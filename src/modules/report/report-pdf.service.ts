@@ -263,6 +263,7 @@ export class PDFReportService {
     endDateString: Date,
     type: AdvancedSalesReportType,
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
     staffId?: string,
   ) {
@@ -271,6 +272,7 @@ export class PDFReportService {
       endDateString,
       type,
       req,
+      gmt,
       storeIdsString,
       staffId,
     );
@@ -315,6 +317,7 @@ export class PDFReportService {
     endDateString: Date,
     type: AdvancedSalesReportType,
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
     staffId?: string,
   ) {
@@ -323,6 +326,7 @@ export class PDFReportService {
       endDateString,
       type,
       req,
+      gmt,
       storeIdsString,
       staffId,
     );

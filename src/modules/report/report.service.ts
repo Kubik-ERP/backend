@@ -63,10 +63,80 @@ export class ReportService {
     return Math.round((num + Number.EPSILON) * 100) / 100;
   }
 
-  private formatDate(date: Date, gmt: number): string {
+  private formatDate(
+    date: Date,
+    gmt: number,
+    format: string = 'yyyy-mm-dd', // Default ke format asli Anda
+  ): string {
+    // 1. Terapkan offset GMT (logika asli Anda)
+    // Ini memastikan tanggalnya benar-benar di zona waktu yang Anda inginkan
     const utc = date.getTime() + date.getTimezoneOffset() * 60000;
     const localDate = new Date(utc + 3600000 * gmt);
-    return localDate.toISOString().split('T')[0];
+
+    // 2. Terapkan logika format kustom (diambil dari contoh Anda)
+    try {
+      if (isNaN(localDate.getTime())) {
+        throw new Error('Invalid date after GMT adjustment');
+      }
+
+      const hours = localDate.getHours();
+      const is12HourFormat = format.includes('am/pm');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const hours12 = hours % 12 || 12; // Konversi 0 menjadi 12
+
+      const shortMonthNames = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      const fullMonthNames = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
+
+      // Peta format (dari contoh Anda, mm=bulan, MM=menit)
+      const map: Record<string, string | number> = {
+        yyyy: localDate.getFullYear(),
+        MMMM: fullMonthNames[localDate.getMonth()],
+        MMM: shortMonthNames[localDate.getMonth()],
+        mm: String(localDate.getMonth() + 1).padStart(2, '0'), // Bulan
+        dd: String(localDate.getDate()).padStart(2, '0'), // Hari
+        hh: is12HourFormat
+          ? String(hours12).padStart(2, '0')
+          : String(hours).padStart(2, '0'), // Jam
+        MM: String(localDate.getMinutes()).padStart(2, '0'), // Menit
+        ss: String(localDate.getSeconds()).padStart(2, '0'), // Detik
+        'am/pm': ampm,
+      };
+
+      // Ganti pola format (Regex dari contoh Anda)
+      return format.replace(/yyyy|MMMM|MMM|mm|dd|hh|MM|ss|am\/pm/g, (matched) =>
+        map[matched].toString(),
+      );
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      // Fallback jika terjadi error
+      return localDate.toISOString();
+    }
   }
 
   private formatSummaryObject(summary: {
@@ -475,6 +545,7 @@ export class ReportService {
     endDate: Date,
     storeIds: string[],
     groupBy: AdvancedSalesReportType,
+    gmt: number,
     staffId?: string,
   ) {
     let cashierId: number | undefined = undefined;
@@ -580,12 +651,12 @@ export class ReportService {
           groupKey = invoice.users?.id.toString() ?? 'unknown-staff';
           break;
         case 'day':
-          groupKey = invoice.paid_at!.toISOString().split('T')[0];
+          const customFormat = 'dd/MMM/yyyy';
+          groupKey = this.formatDate(invoice.paid_at!, gmt, customFormat);
           break;
         case 'month':
-          groupKey = `${invoice.paid_at!.getFullYear()}-${String(
-            invoice.paid_at!.getMonth() + 1,
-          ).padStart(2, '0')}`;
+          const customFormatMonth = 'yyyy-MM';
+          groupKey = this.formatDate(invoice.paid_at!, gmt, customFormatMonth);
           break;
         case 'quarter':
           const month = invoice.paid_at!.getMonth();
@@ -700,16 +771,39 @@ export class ReportService {
           idToNameMap.set('guest-customer', 'Guest Customer');
         }
         break;
-      // ... other cases like 'variant', 'store' would follow the same pattern ...
       // Cases for time-based grouping remain the same as their key is their label
       case 'day':
         let currentDate = new Date(startDate.toISOString().split('T')[0]);
+        const customFormat = 'dd/MMM/yyyy'; // Definisikan format yang sama
+
         while (currentDate <= endDate) {
-          masterGroupIds.push(currentDate.toISOString().split('T')[0]);
+          masterGroupIds.push(this.formatDate(currentDate, gmt, customFormat));
           currentDate.setDate(currentDate.getDate() + 1);
         }
         break;
-      // ... other time-based cases ...
+      case 'month':
+        const monthGroups = [];
+        const customFormatMonth = 'yyyy-mm'; // Definisikan format
+        let currentMonth = new Date(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          1,
+        );
+        const finalMonth = new Date(
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          1,
+        );
+
+        while (currentMonth <= finalMonth) {
+          // ✅ PERBAIKAN: Gunakan formatDate di sini
+          monthGroups.push(
+            this.formatDate(currentMonth, gmt, customFormatMonth),
+          );
+          currentMonth.setMonth(currentMonth.getMonth() + 1);
+        }
+        masterGroupIds = monthGroups;
+        break;
       default:
         masterGroupIds = Array.from(salesDataMap.keys());
         break;
@@ -740,6 +834,7 @@ export class ReportService {
     endDateString: Date,
     type: AdvancedSalesReportType,
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
     staffId?: string,
   ) {
@@ -767,6 +862,7 @@ export class ReportService {
       endDate,
       storeIds,
       type,
+      gmt,
       staffId,
     );
   }
@@ -797,7 +893,7 @@ export class ReportService {
     });
 
     return movements.map((m) => ({
-      tanggal: this.formatDate(m.created_at!, gmt),
+      tanggal: this.formatDate(m.created_at!, gmt, 'yyyy-mm-dd hh:MM:ss'),
       itemName: m.master_inventory_items.name,
       adjustmentType: m.action,
       // Jika STOCK_OUT, kuantitasnya negatif
@@ -966,7 +1062,11 @@ export class ReportService {
       slowStock.push({
         item: item.name,
         onHand: item.stock_quantity,
-        lastStockUpdated: this.formatDate(lastStockUpdated, gmt),
+        lastStockUpdated: this.formatDate(
+          lastStockUpdated,
+          gmt,
+          'yyyy-mm-dd hh:MM:ss',
+        ),
         daysIdle,
       });
     }
@@ -1302,7 +1402,7 @@ export class ReportService {
       return {
         voucherName: voucher.name,
         promoCode: voucher.promo_code,
-        validityPeriod: `${this.formatDate(startDate, gmt)} - ${this.formatDate(endDate, gmt)}`,
+        validityPeriod: `${this.formatDate(startDate, gmt, 'dd/MMM/yyyy')} - ${this.formatDate(endDate, gmt, 'dd/MMM/yyyy')}`,
         status: status,
         totalQuota: quota,
         totalUsage: totalUsage,
@@ -1877,7 +1977,11 @@ export class ReportService {
         invoice: tx.invoice?.invoice_number || 'N/A',
         type: type,
         points: points,
-        expiryDate: this.formatDate(tx.expiry_date ?? new Date(), gmt),
+        expiryDate: this.formatDate(
+          tx.expiry_date ?? new Date(),
+          gmt,
+          'yyyy-mm-dd hh:MM:ss',
+        ),
       };
     });
 
@@ -2012,7 +2116,11 @@ export class ReportService {
         nama: customer.name,
         gender: customer.gender,
         totalSales: parseFloat(totalSales.toFixed(2)),
-        dateAdded: this.formatDate(customer.created_at ?? new Date(), gmt),
+        dateAdded: this.formatDate(
+          customer.created_at ?? new Date(),
+          gmt,
+          'yyyy-mm-dd hh:MM:ss',
+        ),
         outstanding: parseFloat(outstanding.toFixed(2)),
         loyaltyPoints: customer.point || 0,
       };

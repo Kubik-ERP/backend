@@ -67,6 +67,7 @@ export class ReportController {
     @Query('endDate') endDate: Date,
     @Query('type') type: AdvancedSalesReportType,
     @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
     @Query('store_ids') storeIdsString?: string,
     @Query('staff_ids') staffId?: string,
   ) {
@@ -75,6 +76,7 @@ export class ReportController {
       endDate,
       type,
       req,
+      gmt,
       storeIdsString,
       staffId,
     );
