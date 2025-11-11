@@ -21,6 +21,7 @@ import { UpdateTransferStockDto } from '../dtos/update-transfer-stock.dto';
 import { UUID } from 'crypto';
 import { ChangeStatusDto } from '../dtos/change-status.dto';
 import { ChangeStatusReceiveDto } from '../dtos/change-status-received.dto';
+import { TransferStockLossDto } from '../dtos/transfer-stock-loss.dto';
 
 @Injectable()
 export class TransferStockService {
@@ -714,5 +715,98 @@ export class TransferStockService {
     });
 
     return result;
+  }
+
+  async findAllTransferStockLoss(
+    dto: TransferStockLossDto,
+    header: ICustomRequestHeaders,
+  ) {
+    const storeId = requireStoreId(header);
+    const orderByField = camelToSnake(dto.orderBy || 'created_at');
+    const orderDirection = dto.orderDirection || 'desc';
+
+    const filters: Prisma.transfer_stock_lossesWhereInput = {
+      store_id: storeId,
+    };
+
+    const orderBy: Prisma.transfer_stock_lossesOrderByWithRelationInput[] = [
+      {
+        [orderByField]: orderDirection,
+      },
+    ];
+
+    const [items, total] = await Promise.all([
+      this.prisma.transfer_stock_losses.findMany({
+        where: filters,
+        skip: getOffset(dto.page, dto.pageSize),
+        take: dto.pageSize,
+        orderBy,
+        include: {
+          transfer_stock: true,
+          transfer_stock_item: true,
+        },
+      }),
+      this.prisma.transfer_stock_losses.count({ where: filters }),
+    ]);
+
+    const parsedItems = items.map((loss) => ({
+      ...toCamelCase(loss),
+      unitPrice: loss.unit_price ? loss.unit_price.toNumber() : 0,
+      lossAmount: loss.loss_amount ? loss.loss_amount.toNumber() : 0,
+      transferStockItem: loss.transfer_stock_item
+        ? {
+            ...toCamelCase(loss.transfer_stock_item),
+            unitPrice: loss.transfer_stock_item.unit_price
+              ? loss.transfer_stock_item.unit_price.toNumber()
+              : 0,
+            subtotal: loss.transfer_stock_item.subtotal
+              ? loss.transfer_stock_item.subtotal.toNumber()
+              : 0,
+          }
+        : null,
+    }));
+
+    return {
+      items: parsedItems,
+      meta: {
+        page: dto.page,
+        pageSize: dto.pageSize,
+        total,
+        totalPages: getTotalPages(total, dto.pageSize),
+      },
+    };
+  }
+
+  async getLoss(id: UUID) {
+    const result = await this.prisma.transfer_stock_losses.findFirst({
+      where: { id },
+      include: {
+        transfer_stock: true,
+        transfer_stock_item: true,
+      },
+    });
+
+    if (!result) {
+      throw new NotFoundException('Transfer Stock Loss not found');
+    }
+
+    const parsed = {
+      ...toCamelCase(result),
+      unitPrice: result.unit_price ? result.unit_price.toNumber() : 0,
+      lossAmount: result.loss_amount ? result.loss_amount.toNumber() : 0,
+      transferStockItem: result.transfer_stock_item
+        ? {
+            ...toCamelCase(result.transfer_stock_item),
+            unitPrice: result.transfer_stock_item.unit_price
+              ? result.transfer_stock_item.unit_price.toNumber()
+              : 0,
+            subtotal: result.transfer_stock_item.subtotal
+              ? result.transfer_stock_item.subtotal.toNumber()
+              : 0,
+          }
+        : null,
+    };
+
+    return parsed;
   }
 }
