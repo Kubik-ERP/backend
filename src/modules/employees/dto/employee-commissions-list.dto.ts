@@ -1,8 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { commission_source } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsOptional, Matches, IsInt, Min } from 'class-validator';
+import {
+  IsOptional,
+  Matches,
+  IsInt,
+  Min,
+  IsString,
+  IsIn,
+} from 'class-validator';
 
-export class EmployeeCommissionLogsListDto {
+export class EmployeeCommissionsListDto {
   // --- pagination
 
   @ApiProperty({
@@ -46,4 +54,14 @@ export class EmployeeCommissionLogsListDto {
     message: 'endDate must be empty or in DD-MM-YYYY format',
   })
   endDate?: string = '';
+
+  @ApiProperty({
+    description: 'Source type of the commission',
+    required: false,
+    example: 'product',
+  })
+  @IsOptional()
+  @IsIn(['product', 'voucher'])
+  @IsString()
+  sourceType?: commission_source;
 }

@@ -53,7 +53,6 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
 import { ReportModule } from './modules/report/report.module';
 import { RecipesModule } from './modules/recipes/recipes.module';
-import { EmployeeCommissionLogsModule } from './modules/employee-commission-logs/employee-commission-logs.module';
 
 @Module({
   imports: [
@@ -117,7 +116,6 @@ import { EmployeeCommissionLogsModule } from './modules/employee-commission-logs
     IntegrationsModule,
     ReportModule,
     RecipesModule,
-    EmployeeCommissionLogsModule,
   ],
   providers: [
     {

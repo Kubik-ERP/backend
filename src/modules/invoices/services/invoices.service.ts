@@ -735,11 +735,6 @@ export class InvoiceService {
           loyalty_discount: calculation.totalRedeemDiscount,
         });
 
-        // jika statusnya paid maka akan create employee commission logs
-        if (invoiceUpdated.payment_status === invoice_type.paid) {
-          await this.createEmployeeCommissionLogs(tx, invoiceUpdated);
-        }
-
         // insert the customer has invoice (if exists)
         if (request.customerId) {
           await this.createCustomerInvoice(tx, invoiceId, request.customerId);
@@ -1023,6 +1018,11 @@ export class InvoiceService {
               header.user?.id,
             );
           }
+        }
+
+        // jika statusnya paid maka akan create employee commission logs
+        if (invoiceUpdated.payment_status === invoice_type.paid) {
+          await this.createEmployeeCommissionLogs(tx, invoiceUpdated);
         }
       },
       { timeout: 500_000 },
@@ -4057,9 +4057,18 @@ export class InvoiceService {
     status: invoice_type,
   ): Promise<invoice> {
     try {
-      return await this._prisma.invoice.update({
-        where: { id },
-        data: { payment_status: status, paid_at: new Date() },
+      return await this._prisma.$transaction(async (tx) => {
+        const result = await this._prisma.invoice.update({
+          where: { id },
+          data: { payment_status: status, paid_at: new Date() },
+        });
+
+        // jika statusnya paid maka akan create employee commission logs
+        if (status === invoice_type.paid) {
+          await this.createEmployeeCommissionLogs(tx, result);
+        }
+
+        return result;
       });
     } catch (error) {
       this.logger.error('Failed to update invoice status');
@@ -4553,6 +4562,11 @@ export class InvoiceService {
         },
       });
 
+      // Kalau gak punya data employee, maka skip
+      if (!employee) {
+        return;
+      }
+
       const dataToCreate: Prisma.employee_commission_logsCreateManyInput[] = [];
 
       // Process voucher commission
@@ -4575,6 +4589,7 @@ export class InvoiceService {
           }
 
           dataToCreate.push({
+            voucher_id: invoice.voucher_id,
             invoice_id: invoice.id,
             employee_id: employee.id,
             voucher_commission_id: voucherCommission.id,
@@ -4629,10 +4644,12 @@ export class InvoiceService {
         }
       }
 
-      await tx.employee_commission_logs.createMany({
+      const result = await tx.employee_commission_logs.createManyAndReturn({
         data: dataToCreate,
         skipDuplicates: true,
       });
+
+      console.log({ result, dataToCreate });
 
       this.logger.log(`Created commission logs for invoice ${invoice.id}`);
     } catch (error) {
