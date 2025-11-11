@@ -12,7 +12,7 @@ import {
   Put,
 } from '@nestjs/common';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
-import { ApiBearerAuth, ApiBody, ApiHeader, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiHeader, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { TransferStockService } from '../services/transfer-stock.service';
@@ -28,8 +28,12 @@ import { UpdateTransferStockResponseDto } from '../dtos/update-transfer-stock-re
 import { DeleteTransferStockResponseDto } from '../dtos/delete-transfer-stock-response.dto';
 import { ChangeStatusResponseDto } from '../dtos/change-status-response.dto';
 import { ChangeStatusReceiveDto } from '../dtos/change-status-received.dto';
+import { TransferStockLossDto } from '../dtos/transfer-stock-loss.dto';
+import { TransferStockLossResponseDto } from '../dtos/transfer-stock-loss-response.dto';
+import { GetTransferStockLossResponseDto } from '../dtos/get-transfer-stock-loss-response.dto';
 
-@Controller('transfer-stock')
+@ApiTags('Transfer Stock')
+@Controller()
 export class TransferStockController {
   constructor(private readonly transferStockService: TransferStockService) {}
 
@@ -39,7 +43,7 @@ export class TransferStockController {
     type: TransferStockListResponseDto
   })
   @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
+  @RequirePermissions('manage_transfer_stock')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -47,7 +51,7 @@ export class TransferStockController {
     schema: { type: 'string' },
   })
   @ApiBearerAuth()
-  @Get()
+  @Get('transfer-stock')
   async findAllTransferStock(
     @Req() req: ICustomRequestHeaders,
     @Query() dto: TransferStockListDto,
@@ -75,7 +79,7 @@ export class TransferStockController {
     type: CreateTransferStockResponseDto
   })
   @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
+  @RequirePermissions('manage_transfer_stock')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -83,7 +87,7 @@ export class TransferStockController {
     schema: { type: 'string' },
   })
   @ApiBearerAuth()
-  @Post()
+  @Post('transfer-stock')
   async createTransferStock(
     @Req() req: ICustomRequestHeaders,
     @Body() dto: CreateTransferStockDto,
@@ -106,7 +110,7 @@ export class TransferStockController {
     type: GetTransferStockResponseDto
   })
   @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
+  @RequirePermissions('manage_transfer_stock')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -114,7 +118,7 @@ export class TransferStockController {
     schema: { type: 'string' },
   })
   @ApiBearerAuth()
-  @Get(':id')
+  @Get('transfer-stock/:id')
   async getTransferStock(
     @Req() req: ICustomRequestHeaders,
     @Param('id') id: UUID
@@ -134,7 +138,7 @@ export class TransferStockController {
     type: UpdateTransferStockResponseDto
   })
   @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
+  @RequirePermissions('manage_transfer_stock')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -142,7 +146,7 @@ export class TransferStockController {
     schema: { type: 'string' },
   })
   @ApiBearerAuth()
-  @Put(':id')
+  @Put('transfer-stock/:id')
   async updateTransferStock(
     @Req() req: ICustomRequestHeaders,
     @Body() dto: UpdateTransferStockDto,
@@ -221,7 +225,7 @@ export class TransferStockController {
     },
   })
   @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
+  @RequirePermissions('manage_transfer_stock')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -229,7 +233,7 @@ export class TransferStockController {
     schema: { type: 'string' },
   })
   @ApiBearerAuth()
-  @Post('change-status/:id')
+  @Post('transfer-stock/change-status/:id')
   async changeStatus(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: ChangeStatusDto) {
     const result = await this.transferStockService.changeStatus(req, id, body);
     return result;
@@ -305,7 +309,7 @@ export class TransferStockController {
     },
   })
   @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
+  @RequirePermissions('manage_transfer_stock')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -313,7 +317,7 @@ export class TransferStockController {
     schema: { type: 'string' },
   })
   @ApiBearerAuth()
-  @Post('receive/:id')
+  @Post('transfer-stock/receive/:id')
   async receiveStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: ChangeStatusReceiveDto) {
     const result = await this.transferStockService.receiveStock(req, id, body);
     return result;
@@ -325,7 +329,7 @@ export class TransferStockController {
     type: DeleteTransferStockResponseDto
   })
   @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_transfer_stock')
+  @RequirePermissions('manage_transfer_stock')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
@@ -333,9 +337,73 @@ export class TransferStockController {
     schema: { type: 'string' },
   })
   @ApiBearerAuth()
-  @Delete(':id')
+  @Delete('transfer-stock/:id')
   async deleteTransferStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID) {
     const result = await this.transferStockService.delete(req, id);
     return result;
+  }
+
+  @ApiOperation({ summary: 'Get all transfer stock loss' })
+  @ApiOkResponse({
+    description: 'Transfer stock loss response',
+    type: TransferStockLossResponseDto
+  })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('transfer-stock-losses')
+  async findAllTransferStockLoss(
+    @Req() req: ICustomRequestHeaders,
+    @Query() dto: TransferStockLossDto
+  ) {
+    try {
+      const transferStockLoss =
+        await this.transferStockService.findAllTransferStockLoss(dto, req);
+      return {
+        statusCode: HttpStatus.OK,
+        message: 'Transfer Stock Loss fetched successfully',
+        result: toCamelCase(transferStockLoss),
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        message: error.message,
+        result: null,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Get transfer stock loss' })
+  @ApiOkResponse({
+    description: 'Get transfer stock loss response',
+    type: GetTransferStockLossResponseDto
+  })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('transfer-stock-losses/:id')
+  async getTransferStockLoss(
+    @Req() req: ICustomRequestHeaders,
+    @Param('id') id: UUID
+  ) {
+    const transferStockLoss = await this.transferStockService.getLoss(id);
+
+    return {
+      statusCode: 200,
+      message: 'Get transfer stock loss successfully',
+      result: toCamelCase(transferStockLoss),
+    };
   }
 }
