@@ -190,6 +190,7 @@ model employees {
   deleted_at                      DateTime?                    @db.Timestamp(6)
   cash_drawers                    cash_drawers[]
   device_codes                    device_codes?
+  employee_commission_logs        employee_commission_logs[]
   employee_login_sessions         employee_login_sessions?
   roles                           roles                        @relation(fields: [permission], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_roles_fk")
   users                           users                        @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employees_users_fk")
@@ -275,6 +276,7 @@ model invoice {
   loyalty_points_benefit_id                  String?                         @db.Uuid
   customer_loyalty_transactions              customer_loyalty_transactions[]
   customers_has_invoices                     customers_has_invoices[]
+  employee_commission_logs                   employee_commission_logs[]
   customer                                   customer?                       @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
   payment_methods                            payment_methods?                @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
   payment_rounding_settings                  payment_rounding_settings?      @relation(fields: [rounding_setting_id], references: [id], map: "fk_invoice_rounding")
@@ -317,6 +319,7 @@ model invoice_details {
   product_discount       Float?
   catalog_bundling_id    String?                  @db.Uuid
   benefit_free_items_id  String?                  @db.Uuid
+  employee_commission_logs employee_commission_logs?
   invoice_bundling_items invoice_bundling_items[] @relation("InvoiceDetailToBundlingItems")
   invoice                invoice                  @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
   benefit_free_items     benefit_free_items?      @relation(fields: [benefit_free_items_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -484,13 +487,14 @@ model platforms_has_employees {
 }
 
 model product_commissions {
-  employees_id String    @db.Uuid
-  products_id  String    @db.Uuid
-  is_percent   Boolean?
-  amount       Float?
-  id           String    @id(map: "product_commissions_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employees    employees @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_employees_has_items_employees1")
-  products     products  @relation(fields: [products_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_employees_has_items_items1")
+  employees_id             String                     @db.Uuid
+  products_id              String                     @db.Uuid
+  is_percent               Boolean?
+  amount                   Float?
+  id                       String                     @id(map: "product_commissions_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_commission_logs employee_commission_logs[]
+  employees                employees                  @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_employees_has_items_employees1")
+  products                 products                   @relation(fields: [products_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_employees_has_items_items1")
 
   @@index([employees_id], map: "fk_employees_has_items_employees1_idx")
   @@index([products_id], map: "fk_employees_has_items_items1_idx")
@@ -783,6 +787,7 @@ model voucher {
   updated_at            DateTime?              @db.Timestamp(6)
   store_id              String                 @db.Uuid
   is_apply_all_products Boolean                @default(false)
+  employee_commission_logs employee_commission_logs[]
   invoice               invoice[]
   stores                stores                 @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "voucher_stores_fk")
   voucher_commissions   voucher_commissions[]
@@ -792,13 +797,14 @@ model voucher {
 }
 
 model voucher_commissions {
-  voucher_id   String    @db.Uuid
-  employees_id String    @db.Uuid
-  amount       Float?
-  is_percent   Boolean?
-  id           String    @id(map: "voucher_commissions_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employees    employees @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_voucher_has_employees_employees1")
-  voucher      voucher   @relation(fields: [voucher_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_voucher_has_employees_voucher1")
+  voucher_id               String                     @db.Uuid
+  employees_id             String                     @db.Uuid
+  amount                   Float?
+  is_percent               Boolean?
+  id                       String                     @id(map: "voucher_commissions_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_commission_logs employee_commission_logs[]
+  employees                employees                  @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_voucher_has_employees_employees1")
+  voucher                  voucher                    @relation(fields: [voucher_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_voucher_has_employees_voucher1")
 
   @@index([employees_id], map: "fk_voucher_has_employees_employees1_idx")
   @@index([voucher_id], map: "fk_voucher_has_employees_voucher1_idx")
@@ -1467,6 +1473,31 @@ model recipe_versions {
   menu_recipes                     menu_recipes?         @relation(fields: [recipe_id], references: [recipe_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
+model employee_commission_logs {
+  id                          String               @id(map: "product_commission_logs_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at                  DateTime             @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at                  DateTime?            @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  employee_id                 String               @db.Uuid
+  invoice_id                  String               @db.Uuid
+  invoice_detail_id           String?              @db.Uuid
+  source_type                 commission_source
+  is_commission_value_boolean Boolean?
+  commission_value            Float                @default(0)
+  commission_amount           Float                @default(0)
+  product_commission_id       String?              @db.Uuid
+  voucher_commission_id       String?              @db.Uuid
+  voucher_id                  String?              @db.Uuid
+  employees                   employees            @relation(fields: [employee_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_employees_fk")
+  invoice_details             invoice_details?     @relation(fields: [invoice_detail_id, invoice_id], references: [id, invoice_id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_invoice_details_fk")
+  invoice                     invoice              @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_invoice_fk")
+  product_commissions         product_commissions? @relation(fields: [product_commission_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_product_commissions_fk")
+  voucher_commissions         voucher_commissions? @relation(fields: [voucher_commission_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_voucher_commissions_fk")
+  voucher                     voucher?             @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_voucher_fk")
+
+  @@unique([invoice_detail_id, invoice_id], map: "product_commission_unique")
+  @@unique([voucher_id, invoice_id], map: "voucher_commission_unique")
+}
+
 enum cash_drawer_type {
   open
   close
@@ -1578,4 +1609,9 @@ enum device_code_status {
 enum rounding_type {
   up
   down
+}
+
+enum commission_source {
+  product
+  voucher
 }
