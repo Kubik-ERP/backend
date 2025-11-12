@@ -637,8 +637,7 @@ export class BatchRecipeService {
       if (ingredient.cost) {
         baseCost = ingredient.cost.toNumber();
       } else if (ingredient.master_inventory_items?.price_per_unit) {
-        baseCost =
-          ingredient.master_inventory_items.price_per_unit.toNumber();
+        baseCost = ingredient.master_inventory_items.price_per_unit.toNumber();
       }
 
       const scaledQty = Number((baseQty * ratio).toFixed(4));
