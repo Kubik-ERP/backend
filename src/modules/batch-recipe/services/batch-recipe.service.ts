@@ -143,6 +143,11 @@ export class BatchRecipeService {
             },
           },
         },
+        products: {
+          select: {
+            price: true,
+          },
+        },
       },
     });
 
@@ -157,8 +162,23 @@ export class BatchRecipeService {
     }
 
     const ratio = this.getYieldRatio(dto.batchTargetYield, recipe.target_yield);
-
     const now = new Date();
+    const { entries: ingredientEntries, costBatch } =
+      this.buildIngredientEntries(
+        recipe.ingredients,
+        ratio,
+        now,
+        recipe.recipe_id,
+      );
+    const costPortion = this.calculateCostPerPortion(
+      costBatch,
+      dto.batchTargetYield,
+    );
+    const marginSellingPrice = this.calculateMarginSellingPrice(
+      this.decimalToNumber(recipe.products?.price),
+      costPortion,
+    );
+
     const createdBatch = await this.prisma.$transaction(async (tx) => {
       const batch = await tx.batch_cooking_recipe.create({
         data: {
@@ -172,45 +192,18 @@ export class BatchRecipeService {
           updated_at: now,
           updated_by: user.id,
           status: BatchRecipeStatus.PLANNED,
-          cost_batch: null,
-          cost_portion: null,
-          margin_selling_price: null,
+          cost_batch: costBatch,
+          cost_portion: costPortion,
+          margin_selling_price: marginSellingPrice,
           store_id: storeId,
         },
       });
 
-      const ingredientPayload = recipe.ingredients.map((ingredient) => {
-        const baseQty = ingredient.qty?.toNumber?.() ?? Number(ingredient.qty);
-
-        let baseCost: number | null = null;
-        if (ingredient.cost) {
-          baseCost = ingredient.cost.toNumber();
-        } else if (ingredient.master_inventory_items?.price_per_unit) {
-          baseCost =
-            ingredient.master_inventory_items.price_per_unit.toNumber();
-        }
-
-        const scaledQty = baseQty * ratio;
-        const scaledCost =
-          typeof baseCost === 'number'
-            ? Number((baseCost * ratio).toFixed(4))
-            : null;
-
-        return {
-          batch_id: batch.id,
-          ingredient_id: ingredient.ingredient_id,
-          recipe_id: ingredient.recipe_id ?? recipe.recipe_id,
-          qty: Number(scaledQty.toFixed(4)),
-          base_price:
-            typeof baseCost === 'number' ? Number(baseCost.toFixed(4)) : null,
-          cost: scaledCost,
-          created_at: now,
-          updated_at: now.toISOString(),
-        };
-      });
-
       await tx.batch_cooking_recipe_ingredient.createMany({
-        data: ingredientPayload,
+        data: ingredientEntries.map((entry) => ({
+          ...entry,
+          batch_id: batch.id,
+        })),
       });
 
       return batch;
@@ -263,6 +256,11 @@ export class BatchRecipeService {
             },
           },
         },
+        products: {
+          select: {
+            price: true,
+          },
+        },
       },
     });
 
@@ -286,6 +284,19 @@ export class BatchRecipeService {
     const ratio = this.getYieldRatio(targetYield, recipe.target_yield);
     const now = new Date();
 
+    const { entries: ingredientEntries, costBatch } =
+      this.buildIngredientEntries(
+        recipe.ingredients,
+        ratio,
+        now,
+        recipe.recipe_id,
+      );
+    const costPortion = this.calculateCostPerPortion(costBatch, targetYield);
+    const marginSellingPrice = this.calculateMarginSellingPrice(
+      this.decimalToNumber(recipe.products?.price),
+      costPortion,
+    );
+
     await this.prisma.$transaction(async (tx) => {
       await tx.batch_cooking_recipe.update({
         where: { id: batch.id },
@@ -297,6 +308,9 @@ export class BatchRecipeService {
           notes: dto.notes ?? batch.notes,
           updated_at: now,
           updated_by: user.id,
+          cost_batch: costBatch,
+          cost_portion: costPortion,
+          margin_selling_price: marginSellingPrice,
         },
       });
 
@@ -304,39 +318,12 @@ export class BatchRecipeService {
         where: { batch_id: batch.id },
       });
 
-      const ingredientPayload = recipe.ingredients.map((ingredient) => {
-        const baseQty = ingredient.qty?.toNumber?.() ?? Number(ingredient.qty);
-
-        let baseCost: number | null = null;
-        if (ingredient.cost) {
-          baseCost = ingredient.cost.toNumber();
-        } else if (ingredient.master_inventory_items?.price_per_unit) {
-          baseCost =
-            ingredient.master_inventory_items.price_per_unit.toNumber();
-        }
-
-        const scaledQty = baseQty * ratio;
-        const scaledCost =
-          typeof baseCost === 'number'
-            ? Number((baseCost * ratio).toFixed(4))
-            : null;
-
-        return {
-          batch_id: batch.id,
-          ingredient_id: ingredient.ingredient_id,
-          recipe_id: ingredient.recipe_id ?? recipe.recipe_id,
-          qty: Number(scaledQty.toFixed(4)),
-          base_price:
-            typeof baseCost === 'number' ? Number(baseCost.toFixed(4)) : null,
-          cost: scaledCost,
-          created_at: now,
-          updated_at: now.toISOString(),
-        };
-      });
-
-      if (ingredientPayload.length) {
+      if (ingredientEntries.length) {
         await tx.batch_cooking_recipe_ingredient.createMany({
-          data: ingredientPayload,
+          data: ingredientEntries.map((entry) => ({
+            ...entry,
+            batch_id: batch.id,
+          })),
         });
       }
     });
@@ -626,11 +613,92 @@ export class BatchRecipeService {
         costPerPortion: this.decimalToNumber(cost_portion),
         marginRp: this.decimalToNumber(margin_per_selling_price_rp),
         marginPercent: this.decimalToNumber(margin_per_selling_price_percent),
-        productPrice: products?.price ?? null,
+        productPrice: this.decimalToNumber(products?.price),
       };
     }
 
     return menuRecipe;
+  }
+
+  private buildIngredientEntries(
+    ingredients: any[],
+    ratio: number,
+    timestamp: Date,
+    recipeId: string,
+  ) {
+    let totalCost = 0;
+    let hasCost = false;
+
+    const entries = ingredients.map((ingredient) => {
+      const baseQty =
+        ingredient.qty?.toNumber?.() ?? Number(ingredient.qty ?? 0);
+
+      let baseCost: number | null = null;
+      if (ingredient.cost) {
+        baseCost = ingredient.cost.toNumber();
+      } else if (ingredient.master_inventory_items?.price_per_unit) {
+        baseCost =
+          ingredient.master_inventory_items.price_per_unit.toNumber();
+      }
+
+      const scaledQty = Number((baseQty * ratio).toFixed(4));
+      const scaledCost =
+        typeof baseCost === 'number'
+          ? Number((baseCost * ratio).toFixed(4))
+          : null;
+
+      if (typeof scaledCost === 'number') {
+        totalCost += scaledCost;
+        hasCost = true;
+      }
+
+      return {
+        ingredient_id: ingredient.ingredient_id,
+        recipe_id: ingredient.recipe_id ?? recipeId,
+        qty: scaledQty,
+        base_price:
+          typeof baseCost === 'number' ? Number(baseCost.toFixed(4)) : null,
+        cost: scaledCost,
+        created_at: timestamp,
+        updated_at: timestamp.toISOString(),
+      };
+    });
+
+    const costBatch = hasCost ? Number(totalCost.toFixed(4)) : null;
+
+    return { entries, costBatch };
+  }
+
+  private calculateCostPerPortion(
+    costBatch: number | null,
+    targetYield: number | null,
+  ): number | null {
+    if (
+      costBatch === null ||
+      costBatch === undefined ||
+      !targetYield ||
+      targetYield <= 0
+    ) {
+      return null;
+    }
+
+    return Number((costBatch / targetYield).toFixed(4));
+  }
+
+  private calculateMarginSellingPrice(
+    productPrice: number | null,
+    costPerPortion: number | null,
+  ): number | null {
+    if (
+      productPrice === null ||
+      productPrice === undefined ||
+      costPerPortion === null ||
+      costPerPortion === undefined
+    ) {
+      return null;
+    }
+
+    return Number((productPrice - costPerPortion).toFixed(4));
   }
 
   private decimalToNumber(
