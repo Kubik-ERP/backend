@@ -473,7 +473,7 @@ export class BatchRecipeService {
     recipeTargetYield: number | null,
   ) {
     if (!recipeTargetYield || recipeTargetYield <= 0) {
-      return 1;
+      return batchTargetYield;
     }
 
     return batchTargetYield / recipeTargetYield;
@@ -633,18 +633,40 @@ export class BatchRecipeService {
       const baseQty =
         ingredient.qty?.toNumber?.() ?? Number(ingredient.qty ?? 0);
 
+      const qtyNumber = Number.isFinite(baseQty) ? baseQty : 0;
+      const ingredientCost = ingredient.cost
+        ? ingredient.cost.toNumber()
+        : null;
+      const inventoryUnitPrice = ingredient.master_inventory_items
+        ?.price_per_unit
+        ? ingredient.master_inventory_items.price_per_unit.toNumber()
+        : null;
+
+      let baseUnitPrice: number | null = null;
       let baseCost: number | null = null;
-      if (ingredient.cost) {
-        baseCost = ingredient.cost.toNumber();
-      } else if (ingredient.master_inventory_items?.price_per_unit) {
-        baseCost = ingredient.master_inventory_items.price_per_unit.toNumber();
+
+      if (ingredientCost !== null) {
+        baseCost = Number(ingredientCost.toFixed(4));
+        if (qtyNumber > 0) {
+          baseUnitPrice = Number((ingredientCost / qtyNumber).toFixed(4));
+        } else if (inventoryUnitPrice !== null) {
+          baseUnitPrice = Number(inventoryUnitPrice.toFixed(4));
+        }
+      } else if (inventoryUnitPrice !== null) {
+        baseUnitPrice = Number(inventoryUnitPrice.toFixed(4));
+        if (qtyNumber > 0) {
+          baseCost = Number((inventoryUnitPrice * qtyNumber).toFixed(4));
+        }
       }
 
-      const scaledQty = Number((baseQty * ratio).toFixed(4));
-      const scaledCost =
-        typeof baseCost === 'number'
-          ? Number((baseCost * ratio).toFixed(4))
-          : null;
+      const scaledQty = Number((qtyNumber * ratio).toFixed(4));
+      let scaledCost: number | null = null;
+      if (typeof baseCost === 'number') {
+        scaledCost = Number((baseCost * ratio).toFixed(4));
+      } else if (typeof baseUnitPrice === 'number') {
+        scaledCost =
+          scaledQty > 0 ? Number((baseUnitPrice * scaledQty).toFixed(4)) : null;
+      }
 
       if (typeof scaledCost === 'number') {
         totalCost += scaledCost;
@@ -655,8 +677,7 @@ export class BatchRecipeService {
         ingredient_id: ingredient.ingredient_id,
         recipe_id: ingredient.recipe_id ?? recipeId,
         qty: scaledQty,
-        base_price:
-          typeof baseCost === 'number' ? Number(baseCost.toFixed(4)) : null,
+        base_price: baseUnitPrice,
         cost: scaledCost,
         created_at: timestamp,
         updated_at: timestamp.toISOString(),
