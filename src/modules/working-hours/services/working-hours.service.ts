@@ -15,9 +15,10 @@ export class WorkingHoursService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateWorkingHoursDto) {
+    const staffId = await this.resolveStaffId(dto.staffId);
     const result = await this.prisma.working_hours.create({
       data: {
-        staff_id: dto.staffId,
+        staff_id: staffId,
         date: new Date(dto.date),
         notes: dto.notes,
         repeat_type: dto.repeatType,
@@ -89,10 +90,11 @@ export class WorkingHoursService {
   async update(id: number, dto: CreateWorkingHoursDto) {
     await this.findOne(id);
 
+    const staffId = await this.resolveStaffId(dto.staffId);
     const result = await this.prisma.working_hours.update({
       where: { id },
       data: {
-        staff_id: dto.staffId,
+        staff_id: staffId,
         date: new Date(dto.date),
         notes: dto.notes,
         repeat_type: dto.repeatType,
@@ -143,5 +145,22 @@ export class WorkingHoursService {
       include: { working_hour_time_slots: true, working_hour_recurrence: true },
     });
     return result;
+  }
+
+  private async resolveStaffId(staffId?: string | null) {
+    if (!staffId) {
+      return null;
+    }
+
+    const staff = await this.prisma.employees.findUnique({
+      where: { id: staffId },
+      select: { id: true },
+    });
+
+    if (!staff) {
+      throw new NotFoundException('Staff tidak ditemukan');
+    }
+
+    return staff.id;
   }
 }

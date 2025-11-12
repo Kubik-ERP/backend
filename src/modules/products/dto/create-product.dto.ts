@@ -6,6 +6,8 @@ import {
   IsBoolean,
   IsArray,
   ValidateNested,
+  IsUUID,
+  ValidateIf,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { CreateVariantDto } from '../../variants/dto/create-variant.dto';
@@ -102,4 +104,17 @@ export class CreateProductDto {
     example: true,
   })
   isDiscount?: boolean = false;
+
+  @IsOptional()
+  @ValidateIf(
+    (o) => o.recipeId !== null && o.recipeId !== undefined && o.recipeId !== '',
+  )
+  @IsUUID(4, { message: 'recipeId must be a valid UUID' })
+  @ApiPropertyOptional({
+    name: 'recipeId',
+    type: String,
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'ID resep dari menu_recipes',
+  })
+  recipeId?: string;
 }
