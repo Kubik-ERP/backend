@@ -511,6 +511,7 @@ export class PurchaseOrdersService {
         order_status: purchase_order_status.confirmed,
         delivery_number: doNumber,
         delivery_date: dto.delivery_date,
+        confirmed_at: new Date(),
         updated_at: new Date(),
       },
     });

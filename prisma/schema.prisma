@@ -973,6 +973,7 @@ model purchase_orders {
   received_at          DateTime?              @db.Date
   paid_at              DateTime?              @db.Date
   received_by          Int?
+  confirmed_at         DateTime?              @db.Date
   purchase_order_items purchase_order_items[]
   master_suppliers     master_suppliers       @relation(fields: [master_supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_orders_master_suppliers_fk")
   stores               stores                 @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_orders_stores_fk")
