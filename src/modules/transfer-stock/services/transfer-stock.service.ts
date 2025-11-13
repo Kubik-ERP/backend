@@ -385,6 +385,83 @@ export class TransferStockService {
     return result;
   }
 
+  async checkProduct(req: ICustomRequestHeaders, transferStockId: UUID) {
+    const store_id = requireStoreId(req);
+    const transferStock = await this.prisma.transfer_stocks.findFirst({
+      where: { id: transferStockId },
+      include: {
+        transfer_stock_items: true,
+      },
+    });
+
+    if (!transferStock) {
+      throw new BadRequestException('Transfer stock not found.');
+    }
+
+    if (store_id !== transferStock.store_to_id) {
+      throw new BadRequestException('You are not authorized to check products for this destination store.');
+    }
+
+    let createNew = false;
+    for (const item of transferStock.transfer_stock_items) {
+      if (!item.has_destination_product) {
+        const getProduct = await this.prisma.master_inventory_items.findFirst({
+          where: {id: item.master_inventory_item_id}
+        });
+
+        if (!getProduct) {
+          throw new BadRequestException('Source product not found.');
+        }
+
+        const getProductDestination = await this.prisma.master_inventory_items.findFirst({
+          where: {
+            store_id: store_id,
+            sku: getProduct.sku
+          }
+        });
+
+        if (!getProductDestination) {
+          await this.prisma.master_inventory_items.create({
+            data: {
+              name: getProduct.name,
+              brand_id: null,
+              barcode: getProduct.barcode,
+              sku: getProduct.sku,
+              category_id: null,
+              unit: getProduct.unit,
+              notes: getProduct.notes,
+              stock_quantity: 0,
+              reorder_level: getProduct.reorder_level,
+              minimum_stock_quantity: getProduct.minimum_stock_quantity,
+              expiry_date: getProduct.expiry_date,
+              storage_location_id: null,
+              price_per_unit: getProduct.price_per_unit,
+              supplier_id: undefined,
+              store_id: store_id,
+              price_grosir: getProduct.price_grosir,
+              created_at: new Date(),
+              updated_at: new Date()
+            }
+          });
+
+          createNew = true;
+        }
+      }
+    }
+
+    if (createNew) {
+      return {
+        statusCode: 200,
+        message: 'Some products were not found in the destination store and have been created automatically.'
+      };
+    }
+
+    return {
+      statusCode: 200,
+      message: 'All products exist in destination store.'
+    };
+  }
+
   async approve(userId: number, transferStockId: UUID, tx: Prisma.TransactionClient) {
     const transferStock = await tx.transfer_stocks.findFirst({
       where: { id: transferStockId },

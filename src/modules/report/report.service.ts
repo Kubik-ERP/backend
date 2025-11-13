@@ -1055,10 +1055,10 @@ export class ReportService {
       const stockValue =
         (item.stock_quantity || 0) * Number(item.price_per_unit || 0);
 
-      let current = performanceMap.get(category.id);
+      let current = performanceMap.get(category?.id ?? '');
       if (!current) {
         current = {
-          name: category.name,
+          name: category?.name ?? '',
           itemCount: 0,
           totalStockValue: 0,
           totalMovementsCount: 0,
@@ -1071,7 +1071,7 @@ export class ReportService {
       current.totalMovementsCount += aggregates.count;
       current.totalQtyOut += aggregates.qtyOut;
 
-      performanceMap.set(category.id, current);
+      performanceMap.set(category?.id ?? '', current);
     }
 
     return Array.from(performanceMap.values()).map((data) => ({
