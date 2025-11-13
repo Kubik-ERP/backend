@@ -100,8 +100,28 @@ export class TransferStockService {
       this.prisma.transfer_stocks.count({ where: filters }),
     ]);
 
+    const parsedItems = items.map((item) => ({
+      ...toCamelCase(item),
+      transferStockItems: item.transfer_stock_items.map((item) => ({
+        ...toCamelCase(item),
+        unitPrice: item.unit_price ? item.unit_price.toNumber() : 0,
+        subtotal: item.subtotal ? item.subtotal.toNumber() : 0,
+        masterInventoryItems: item.master_inventory_items
+          ? {
+              ...toCamelCase(item.master_inventory_items),
+              pricePerUnit: item.master_inventory_items.price_per_unit
+                ? item.master_inventory_items.price_per_unit.toNumber()
+                : 0,
+              priceGrosir: item.master_inventory_items.price_grosir
+                ? item.master_inventory_items.price_grosir.toNumber()
+                : 0,
+            }
+          : null,
+      })),
+    }));
+
     return {
-      items: items.map(toCamelCase),
+      items: parsedItems,
       meta: {
         page: dto.page,
         pageSize: dto.pageSize,
@@ -238,7 +258,28 @@ export class TransferStockService {
       throw new NotFoundException('Transfer Stock not found');
     }
 
-    return result;
+    const parsed = {
+      ...toCamelCase(result),
+      transferStockItems: result.transfer_stock_items.map((item) => ({
+        ...toCamelCase(item),
+        unitPrice: item.unit_price ? item.unit_price.toNumber() : 0,
+        subtotal: item.subtotal ? item.subtotal.toNumber() : 0,
+        masterInventoryItems: item.master_inventory_items
+          ? {
+              ...toCamelCase(item.master_inventory_items),
+              pricePerUnit: item.master_inventory_items.price_per_unit
+                ? item.master_inventory_items.price_per_unit.toNumber()
+                : 0,
+
+              priceGrosir: item.master_inventory_items.price_grosir
+                ? item.master_inventory_items.price_grosir.toNumber()
+                : 0,
+          }
+          : null,
+      })),
+    };
+
+    return parsed;
   }
 
   async update(
