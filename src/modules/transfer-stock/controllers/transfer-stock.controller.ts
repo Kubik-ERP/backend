@@ -31,6 +31,7 @@ import { ChangeStatusReceiveDto } from '../dtos/change-status-received.dto';
 import { TransferStockLossDto } from '../dtos/transfer-stock-loss.dto';
 import { TransferStockLossResponseDto } from '../dtos/transfer-stock-loss-response.dto';
 import { GetTransferStockLossResponseDto } from '../dtos/get-transfer-stock-loss-response.dto';
+import { CheckProductDestinationResponseDto } from '../dtos/check-product-destination-response.dto';
 
 @ApiTags('Transfer Stock')
 @Controller()
@@ -236,6 +237,26 @@ export class TransferStockController {
   @Post('transfer-stock/change-status/:id')
   async changeStatus(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: ChangeStatusDto) {
     const result = await this.transferStockService.changeStatus(req, id, body);
+    return result;
+  }
+
+  @ApiOperation({ summary: 'Check has product in destination store' })
+  @ApiOkResponse({
+    description: 'Check and create missing destination store products.',
+    type: CheckProductDestinationResponseDto,
+  })
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_transfer_stock')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('transfer-stock/check-product-destination/:id')
+  async checkProduct(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID) {
+    const result = await this.transferStockService.checkProduct(req, id);
     return result;
   }
 
