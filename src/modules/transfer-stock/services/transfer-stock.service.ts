@@ -778,7 +778,7 @@ export class TransferStockService {
 
           await tx.transfer_stock_losses.create({
             data: {
-              store_id: transferStock.store_created_by || transferStock.store_from_id,
+              store_id: transferStock.store_to_id,
               transfer_stock_id: transferStock.id,
               transfer_stock_item_id: stockItem.id,
               qty_lost: difference,
