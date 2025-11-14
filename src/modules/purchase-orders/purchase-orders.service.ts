@@ -109,6 +109,36 @@ export class PurchaseOrdersService {
             fullname: true,
           },
         },
+        cancelled: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
+        confirmed: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
+        created: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
+        paid: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
+        shipped: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
       },
     });
 
@@ -127,6 +157,9 @@ export class PurchaseOrdersService {
     if (!productItems?.length) {
       throw new BadRequestException('productItems is required');
     }
+
+    // akan di assign otomatis ke user yang login
+    const userId = header.user.id;
 
     // Validasi Supplier
     const supplier = await this._prisma.master_suppliers.findFirst({
@@ -216,6 +249,7 @@ export class PurchaseOrdersService {
           purchase_order_items: {
             createMany: { data: purchaseOrderItems },
           },
+          created_by: userId,
         },
         include: { purchase_order_items: true },
       });
@@ -440,6 +474,9 @@ export class PurchaseOrdersService {
     });
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
+    // akan di assign otomatis ke user yang login
+    const userId = header.user.id;
+
     const disallowedStatuses = [
       purchase_order_status.cancelled,
       purchase_order_status.received,
@@ -457,6 +494,7 @@ export class PurchaseOrdersService {
         cancel_reason: dto.reason,
         cancelled_at: new Date(),
         updated_at: new Date(),
+        cancelled_by: userId,
       },
     });
 
@@ -478,6 +516,9 @@ export class PurchaseOrdersService {
       select: { id: true, order_status: true },
     });
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
+
+    // akan di assign otomatis ke user yang login
+    const userId = header.user.id;
 
     // Check if PO status is allowed to confirm
     const disallowedStatuses = [
@@ -513,6 +554,7 @@ export class PurchaseOrdersService {
         delivery_date: dto.delivery_date,
         confirmed_at: new Date(),
         updated_at: new Date(),
+        confirmed_by: userId,
       },
     });
 
@@ -533,6 +575,9 @@ export class PurchaseOrdersService {
     });
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
+    // akan di assign otomatis ke user yang login
+    const userId = header.user.id;
+
     // Check if PO status is allowed to ship
     const disallowedStatuses = [
       purchase_order_status.shipped,
@@ -551,6 +596,7 @@ export class PurchaseOrdersService {
         order_status: purchase_order_status.shipped,
         shipped_at: new Date(),
         updated_at: new Date(),
+        shipped_by: userId,
       },
     });
 
@@ -584,6 +630,7 @@ export class PurchaseOrdersService {
     });
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
+    // akan di assign otomatis ke user yang login
     // Check if PO status is allowed to receive
     const disallowedStatuses = [
       purchase_order_status.received,
@@ -714,6 +761,9 @@ export class PurchaseOrdersService {
       `Processing payment for purchase order ${id} for store ${store_id}`,
     );
 
+    // akan di assign otomatis ke user yang login
+    const userId = header.user.id;
+
     // Ensure PO exists & belongs to store (prevents cross-store updates)
     const existingPO = await this._prisma.purchase_orders.findFirst({
       where: { id, store_id },
@@ -736,6 +786,7 @@ export class PurchaseOrdersService {
         order_status: purchase_order_status.paid,
         paid_at: new Date(),
         updated_at: new Date(),
+        paid_by: userId,
       },
     });
 
