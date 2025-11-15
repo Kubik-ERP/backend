@@ -209,14 +209,14 @@ export class PurchaseOrdersService {
       const purchaseOrderItems = productItems.map(
         ({ masterItemId, quantity }) => {
           const inv = invById.get(masterItemId)!;
-          const unitPrice = Number(inv.price_per_unit); // consider Decimal if you need exact money math
-          const lineTotal = unitPrice * quantity;
+          const unitGrosir = Number(inv.price_grosir); // consider Decimal if you need exact money math
+          const lineTotal = unitGrosir * quantity;
           totalPrice += lineTotal;
 
           return {
             master_inventory_item_id: masterItemId,
             quantity,
-            unit_price: unitPrice,
+            unit_price: unitGrosir,
             total_price: lineTotal,
             actual_quantity: 0,
             diff_quantity: -quantity,
@@ -341,8 +341,8 @@ export class PurchaseOrdersService {
 
       for (const item of productItems) {
         const inv = invById.get(item.masterItemId)!;
-        const unitPrice = Number(inv.price_per_unit);
-        const lineTotal = unitPrice * item.quantity;
+        const unitGrosir = Number(inv.price_grosir);
+        const lineTotal = unitGrosir * item.quantity;
         totalPrice += lineTotal;
 
         if (item.id) {
@@ -356,7 +356,7 @@ export class PurchaseOrdersService {
             id: item.id,
             master_inventory_item_id: item.masterItemId,
             quantity: item.quantity,
-            unit_price: unitPrice,
+            unit_price: unitGrosir,
             total_price: lineTotal,
             actual_quantity: 0,
             diff_quantity: -item.quantity,
@@ -372,7 +372,7 @@ export class PurchaseOrdersService {
           itemsCreate.push({
             master_inventory_item_id: item.masterItemId,
             quantity: item.quantity,
-            unit_price: unitPrice,
+            unit_price: unitGrosir,
             total_price: lineTotal,
             actual_quantity: 0,
             diff_quantity: -item.quantity,
