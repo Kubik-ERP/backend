@@ -207,7 +207,7 @@ export class PurchaseOrdersService {
       // Prepare PO items & total
       let totalPrice = 0;
       const purchaseOrderItems = productItems.map(
-        ({ masterItemId, quantity }) => {
+        ({ masterItemId, quantity, expiredAt }) => {
           const inv = invById.get(masterItemId)!;
           const unitGrosir = Number(inv.price_grosir); // consider Decimal if you need exact money math
           const lineTotal = unitGrosir * quantity;
@@ -220,6 +220,7 @@ export class PurchaseOrdersService {
             total_price: lineTotal,
             actual_quantity: 0,
             diff_quantity: -quantity,
+            expired_at: expiredAt,
             item_info: {
               sku: inv.sku,
               name: inv.name,
@@ -327,6 +328,7 @@ export class PurchaseOrdersService {
         diff_quantity: number;
         actual_quantity: number;
         item_info: any;
+        expired_at?: Date;
       }> = [];
       const itemsUpdate: Array<{
         id: string;
@@ -337,6 +339,7 @@ export class PurchaseOrdersService {
         diff_quantity: number;
         actual_quantity: number;
         item_info: any;
+        expired_at?: Date;
       }> = [];
 
       for (const item of productItems) {
@@ -360,6 +363,7 @@ export class PurchaseOrdersService {
             total_price: lineTotal,
             actual_quantity: 0,
             diff_quantity: -item.quantity,
+            expired_at: item.expiredAt,
             item_info: {
               sku: inv.sku,
               name: inv.name,
@@ -376,6 +380,7 @@ export class PurchaseOrdersService {
             total_price: lineTotal,
             actual_quantity: 0,
             diff_quantity: -item.quantity,
+            expired_at: item.expiredAt,
             item_info: {
               sku: inv.sku,
               name: inv.name,
@@ -432,6 +437,7 @@ export class PurchaseOrdersService {
                 actual_quantity: 0,
                 diff_quantity: -u.quantity,
                 updated_at: new Date(),
+                expired_at: u.expired_at,
               },
             }),
           ),

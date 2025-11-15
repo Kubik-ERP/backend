@@ -955,6 +955,7 @@ model purchase_order_items {
   actual_quantity          Int                    @default(0)
   notes                    String?
   diff_quantity            Int                    @default(0)
+  expired_at               DateTime?              @db.Date
   master_inventory_items   master_inventory_items @relation(fields: [master_inventory_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_order_items_master_inventory_items_fk")
   purchase_orders          purchase_orders        @relation(fields: [purchase_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_order_items_purchase_orders_fk")
 }
