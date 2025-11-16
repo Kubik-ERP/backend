@@ -99,41 +99,41 @@ export class PurchaseOrdersService {
   async findOne(id: string, header: ICustomRequestHeaders) {
     const store_id = requireStoreId(header);
 
-    const purchaseOrder = await this._prisma.purchase_orders.findUnique({
+    const purchaseOrderRaw = await this._prisma.purchase_orders.findUnique({
       where: { id, store_id },
       include: {
         purchase_order_items: true,
-        receiver: {
+        users: {
           select: {
             id: true,
             fullname: true,
           },
         },
-        cancelled: {
+        users_purchase_orders_cancelled_byTousers: {
           select: {
             id: true,
             fullname: true,
           },
         },
-        confirmed: {
+        users_purchase_orders_confirmed_byTousers: {
           select: {
             id: true,
             fullname: true,
           },
         },
-        created: {
+        users_purchase_orders_created_byTousers: {
           select: {
             id: true,
             fullname: true,
           },
         },
-        paid: {
+        users_purchase_orders_paid_byTousers: {
           select: {
             id: true,
             fullname: true,
           },
         },
-        shipped: {
+        users_purchase_orders_shipped_byTousers: {
           select: {
             id: true,
             fullname: true,
@@ -142,11 +142,32 @@ export class PurchaseOrdersService {
       },
     });
 
-    if (!purchaseOrder) {
+    // ✅ Cek dulu apakah datanya ada
+    if (!purchaseOrderRaw) {
       throw new NotFoundException('Purchase order not found');
     }
 
-    return purchaseOrder;
+    // ✅ Rename users -> receiver
+    const {
+      users: receiver,
+      users_purchase_orders_cancelled_byTousers: cancelled,
+      users_purchase_orders_confirmed_byTousers: confirmed,
+      users_purchase_orders_created_byTousers: created,
+      users_purchase_orders_paid_byTousers: paid,
+      users_purchase_orders_shipped_byTousers: shipped,
+      ...purchaseOrder
+    } = purchaseOrderRaw;
+
+    // ✅ Return hasil dengan alias receiver
+    return {
+      ...purchaseOrder,
+      receiver,
+      cancelled,
+      confirmed,
+      created,
+      paid,
+      shipped,
+    };
   }
 
   async create(dto: CreatePurchaseOrdersDto, header: ICustomRequestHeaders) {

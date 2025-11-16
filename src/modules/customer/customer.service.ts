@@ -277,8 +277,8 @@ export class CustomerService {
         stores: true,
         trn_customer_points: {
           include: {
-            invoice: true,
-          },
+            invoice: true
+          }
         },
       },
     });
@@ -333,7 +333,7 @@ export class CustomerService {
       created_at: { invoice: { created_at: sortDirection } },
     };
     const prismaOrderBy = orderByMap[orderBy as string] ?? {
-      id: 'desc',
+      created_at: 'desc',
     };
     const [totalItems, points] = await this.prisma.$transaction([
       this.prisma.trn_customer_points.count({ where: whereCondition }),
@@ -343,6 +343,7 @@ export class CustomerService {
         take: limit,
         include: {
           invoice: true,
+          products: true
         },
         orderBy: prismaOrderBy,
       }),
@@ -390,13 +391,6 @@ export class CustomerService {
 
     const currentPoint = existingCustomer.point ?? 0;
 
-    console.log({
-      type,
-      'dto.customer_id': dto.customer_id,
-      'dto.value': dto.value,
-      currentPoint,
-    });
-
     if (type === 'point_addition') {
       if (dto.value <= 0) {
         throw new BadRequestException('Invalid point addition');
@@ -410,6 +404,8 @@ export class CustomerService {
           },
         },
       });
+
+      dto.status = 'active';
     }
 
     if (type === 'point_deduction') {
@@ -427,9 +423,10 @@ export class CustomerService {
       });
     }
 
+    dto.earn_type = 'adjustment';
     const dataToCreate = {
       ...dto,
-      type,
+      type
     };
 
     try {

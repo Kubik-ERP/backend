@@ -5,6 +5,7 @@ import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import {
   AdvancedSalesReportType,
   InventoryReportType,
+  LoyaltyReportType,
   NewFinancialReportType,
   ReportService,
   StaffReportType,
@@ -186,13 +187,16 @@ export class ReportController {
     summary:
       'Get customer report data for the main dashboard within a date range.',
   })
-  async getCustomerReport(
-    @Req() req: ICustomRequestHeaders,
-    @Query('store_ids') storeIds?: string,
+  async getLoyaltyReport(
+    @Query('type') type: LoyaltyReportType,
+    @Query('store_ids') storeIdsString: string,
   ) {
-    const data = await this.reportService.getCustomerReport(req, storeIds);
+    const data = await this.reportService.getLoyaltyReport(
+      type,
+      storeIdsString,
+    );
     return {
-      message: 'Customer report data retrieved successfully',
+      message: 'Loyalty report data retrieved successfully',
       result: data,
     };
   }
