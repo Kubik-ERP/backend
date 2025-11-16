@@ -1094,7 +1094,7 @@ export class InventoryItemsService {
           category_id: dto.categoryId,
           unit: dto.unit,
           notes: dto.notes,
-          stock_quantity: dto.stockQuantity,
+          stock_quantity: dto?.stockQuantity ?? 0,
           reorder_level: dto.reorderLevel,
           minimum_stock_quantity: dto.minimumStockQuantity,
           expiry_date: dto.expiryDate ? new Date(dto.expiryDate) : null,

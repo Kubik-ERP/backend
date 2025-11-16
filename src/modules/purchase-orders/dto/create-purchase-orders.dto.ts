@@ -1,6 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDate,
   IsDateString,
   IsNumber,
   IsOptional,
@@ -26,6 +27,15 @@ export class PurchaseOrderItems {
   @IsNumber()
   @Min(1)
   quantity: number;
+
+  @ApiPropertyOptional({
+    example: '2025-12-31',
+    description: 'Expired At',
+  })
+  @IsDate()
+  @IsOptional()
+  @Type(() => Date)
+  expiredAt?: Date;
 
   //NOTE: Dibawah ini tidak diolah backend
   // diadakan karena harus menyesuaikan dengan yang ada di frontend
@@ -75,6 +85,7 @@ export class CreatePurchaseOrdersDto {
         id: '123e4567-e89b-12d3-a456-426614174000',
         masterItemId: '123e4567-e89b-12d3-a456-426614174000',
         quantity: 1,
+        expiredAt: '2025-08-10',
       },
     ],
     description: 'Purchase Order Items',
