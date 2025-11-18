@@ -484,8 +484,8 @@ export class BatchRecipeService {
     userId: unknown,
     timestamp: Date,
   ) {
-    const ingredientEntries =
-      await tx.batch_cooking_recipe_ingredient.findMany({
+    const ingredientEntries = await tx.batch_cooking_recipe_ingredient.findMany(
+      {
         where: { batch_id: batch.id },
         select: {
           qty: true,
@@ -502,7 +502,8 @@ export class BatchRecipeService {
             },
           },
         },
-      });
+      },
+    );
 
     const adjustmentsMap = new Map<
       string,
