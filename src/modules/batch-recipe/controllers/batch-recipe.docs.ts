@@ -4,6 +4,7 @@ import {
   ApiHeader,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
 } from '@nestjs/swagger';
 
@@ -29,6 +30,17 @@ export function CreateBatchDocs() {
     ApiResponse({ status: 201, description: 'Batch recipe created' }),
   );
 }
+
+export function UpdateBatchDocs() {
+  return applyDecorators(
+    HttpCode(HttpStatus.OK),
+    ApiOperation({ summary: 'Update batch cooking plan' }),
+    ApiBearerAuth(),
+    ApiHeader(STORE_HEADER),
+    ApiParam(BATCH_ID_PARAM),
+    ApiResponse({ status: 200, description: 'Batch recipe updated' }),
+  );
+}
 export function StartBatchDocs() {
   return applyDecorators(
     HttpCode(HttpStatus.OK),
@@ -37,6 +49,39 @@ export function StartBatchDocs() {
     ApiHeader(STORE_HEADER),
     ApiParam(BATCH_ID_PARAM),
     ApiResponse({ status: 200, description: 'Batch cooking started' }),
+  );
+}
+
+export function GetBatchDocs() {
+  return applyDecorators(
+    HttpCode(HttpStatus.OK),
+    ApiOperation({ summary: 'Get batch cooking plans by store' }),
+    ApiBearerAuth(),
+    ApiHeader(STORE_HEADER),
+    ApiQuery({
+      name: 'page',
+      required: false,
+      type: Number,
+      description: 'Halaman data (default 1)',
+    }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      type: Number,
+      description: 'Jumlah data per halaman (default 10, maks 100)',
+    }),
+    ApiResponse({ status: 200, description: 'Batch recipes retrieved' }),
+  );
+}
+
+export function GetBatchDetailDocs() {
+  return applyDecorators(
+    HttpCode(HttpStatus.OK),
+    ApiOperation({ summary: 'Get batch cooking detail' }),
+    ApiBearerAuth(),
+    ApiHeader(STORE_HEADER),
+    ApiParam(BATCH_ID_PARAM),
+    ApiResponse({ status: 200, description: 'Batch recipe detail retrieved' }),
   );
 }
 
@@ -59,5 +104,16 @@ export function CompleteBatchDocs() {
     ApiHeader(STORE_HEADER),
     ApiParam(BATCH_ID_PARAM),
     ApiResponse({ status: 200, description: 'Batch cooking completed' }),
+  );
+}
+
+export function DeleteBatchDocs() {
+  return applyDecorators(
+    HttpCode(HttpStatus.OK),
+    ApiOperation({ summary: 'Delete batch cooking plan' }),
+    ApiBearerAuth(),
+    ApiHeader(STORE_HEADER),
+    ApiParam(BATCH_ID_PARAM),
+    ApiResponse({ status: 200, description: 'Batch recipe deleted' }),
   );
 }
