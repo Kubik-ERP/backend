@@ -12,6 +12,7 @@ import { CreateBatchRecipeDto } from '../dtos/create-batch-recipe.dto';
 import { UpdateBatchRecipeDto } from '../dtos/update-batch-recipe.dto';
 import { BatchRecipeStatus } from '../interfaces/batch-recipe.interface';
 import { FindBatchRecipesQueryDto } from '../dtos/find-batch-recipes-query.dto';
+import { StockAdjustmentActionDto } from 'src/modules/inventory-items/dtos/create-stock-adjustment.dto';
 
 @Injectable()
 export class BatchRecipeService {
@@ -431,6 +432,14 @@ export class BatchRecipeService {
         },
       });
 
+      await this.applyInventoryAdjustmentsForBatch(
+        tx,
+        batch,
+        storeId,
+        user.id,
+        now,
+      );
+
       if (dto.wasteLog?.items?.length) {
         const wasteLog = await tx.waste_log.create({
           data: {
@@ -466,6 +475,126 @@ export class BatchRecipeService {
     });
 
     return this.getBatchDetail(batchId, storeId);
+  }
+
+  private async applyInventoryAdjustmentsForBatch(
+    tx: Prisma.TransactionClient,
+    batch: { id: string; recipe_id?: string | null },
+    storeId: string,
+    userId: unknown,
+    timestamp: Date,
+  ) {
+    const ingredientEntries =
+      await tx.batch_cooking_recipe_ingredient.findMany({
+        where: { batch_id: batch.id },
+        select: {
+          qty: true,
+          ingredients: {
+            select: {
+              ingredient_id: true,
+              master_inventory_items: {
+                select: {
+                  id: true,
+                  name: true,
+                  stock_quantity: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+    const adjustmentsMap = new Map<
+      string,
+      {
+        itemId: string;
+        itemName: string | null | undefined;
+        totalQty: number;
+        currentStock: number;
+      }
+    >();
+
+    for (const entry of ingredientEntries) {
+      const inventoryItem = entry.ingredients?.master_inventory_items;
+      if (!inventoryItem) {
+        continue;
+      }
+
+      const qty = entry.qty ?? 0;
+      if (!Number.isFinite(qty) || qty <= 0) {
+        continue;
+      }
+
+      // Stock quantities are stored as integers, so round usage to match DB shape.
+      const adjustmentQty = Math.round(qty);
+      if (adjustmentQty <= 0) {
+        continue;
+      }
+
+      const existing = adjustmentsMap.get(inventoryItem.id);
+      if (existing) {
+        existing.totalQty += adjustmentQty;
+      } else {
+        adjustmentsMap.set(inventoryItem.id, {
+          itemId: inventoryItem.id,
+          itemName: inventoryItem.name,
+          totalQty: adjustmentQty,
+          currentStock: inventoryItem.stock_quantity ?? 0,
+        });
+      }
+    }
+
+    if (!adjustmentsMap.size) {
+      return;
+    }
+
+    const createdBy = this.normalizeUserId(userId);
+    const recipeIdentifier = batch.recipe_id ?? batch.id;
+
+    for (const adjustment of adjustmentsMap.values()) {
+      if (adjustment.totalQty > adjustment.currentStock) {
+        throw new BadRequestException(
+          `Stok ${adjustment.itemName ?? 'inventory item'} tidak mencukupi`,
+        );
+      }
+
+      const newQuantity = adjustment.currentStock - adjustment.totalQty;
+      await tx.master_inventory_items.update({
+        where: { id: adjustment.itemId },
+        data: {
+          stock_quantity: newQuantity,
+          updated_at: timestamp,
+        },
+      });
+
+      await tx.inventory_stock_adjustments.create({
+        data: {
+          master_inventory_items_id: adjustment.itemId,
+          stores_id: storeId,
+          action: StockAdjustmentActionDto.STOCK_OUT,
+          adjustment_quantity: adjustment.totalQty,
+          notes: `Pengurangan stok batch recipe ${recipeIdentifier}`,
+          previous_quantity: adjustment.currentStock,
+          new_quantity: newQuantity,
+          created_by: createdBy,
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+      });
+    }
+  }
+
+  private normalizeUserId(userId: unknown): number | null {
+    if (typeof userId === 'number' && Number.isFinite(userId)) {
+      return userId;
+    }
+
+    if (typeof userId === 'string' && userId.trim() !== '') {
+      const parsed = Number(userId);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
   }
 
   private getYieldRatio(
