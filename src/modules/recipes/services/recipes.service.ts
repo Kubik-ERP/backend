@@ -254,7 +254,11 @@ export class RecipesService {
         include: {
           ingredient_versions: {
             include: {
-              master_inventory_items: true,
+              master_inventory_items: {
+                include: {
+                  master_inventory_item_conversions: true,
+                },
+              },
             },
           },
         },
@@ -293,7 +297,11 @@ export class RecipesService {
           products: true,
           ingredients: {
             include: {
-              master_inventory_items: true,
+              master_inventory_items: {
+                include: {
+                  master_inventory_item_conversions: true,
+                },
+              },
             },
           },
         },
@@ -669,6 +677,17 @@ export class RecipesService {
                     ...item,
                     price_per_unit: toNumberSafe(item.price_per_unit),
                     price_grosir: toNumberSafe(item.price_grosir),
+                    master_inventory_item_conversions:
+                      item.master_inventory_item_conversions
+                        ? item.master_inventory_item_conversions.map(
+                            (conversion: any) => ({
+                              ...conversion,
+                              conversion_value: toNumberSafe(
+                                conversion.conversion_value,
+                              ),
+                            }),
+                          )
+                        : [],
                   }
                 : null,
             };
@@ -792,6 +811,17 @@ export class RecipesService {
                     price_per_unit: toNumberSafe(item.price_per_unit),
                     price_grosir: toNumberSafe(item.price_grosir),
                     margin: toNumberSafe(item.margin),
+                    master_inventory_item_conversions:
+                      item.master_inventory_item_conversions
+                        ? item.master_inventory_item_conversions.map(
+                            (conversion: any) => ({
+                              ...conversion,
+                              conversion_value: toNumberSafe(
+                                conversion.conversion_value,
+                              ),
+                            }),
+                          )
+                        : [],
                   }
                 : null,
             };
