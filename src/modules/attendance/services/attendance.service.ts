@@ -8,11 +8,16 @@ export class AttendanceService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateAttendanceDto) {
+    const staff = await this.resolveStaff(dto.staffId);
+    if(!staff) {
+      throw new NotFoundException('Staff tidak ditemukan');
+    }
+
     return this.prisma.attendance.create({
       data: {
-        staff_id: dto.staffId,
+        staff_id: staff!.id,
         date: new Date(dto.date),
-        staff_name: dto.staffName,
+        staff_name: dto.staffName ?? staff?.name ?? null,
         created_by: dto.createdBy,
         attendance_shifts: {
           create: dto.shifts.map((s) => ({
@@ -50,13 +55,17 @@ export class AttendanceService {
 
   async update(id: number, dto: CreateAttendanceDto) {
     await this.findOne(id);
-
+    const staff = await this.resolveStaff(dto.staffId);
+    if(!staff) {
+      throw new NotFoundException('Staff tidak ditemukan');
+    }
+    
     return this.prisma.attendance.update({
       where: { id },
       data: {
-        staff_id: dto.staffId,
+        staff_id: staff!.id,
         date: new Date(dto.date),
-        staff_name: dto.staffName,
+        staff_name: dto.staffName ?? staff?.name ?? null,
         created_by: dto.createdBy,
         attendance_shifts: {
           deleteMany: {},
@@ -83,5 +92,25 @@ export class AttendanceService {
       where: { id },
       include: { attendance_shifts: true },
     });
+  }
+
+  private async resolveStaff(staffId?: string | null) {
+    if (!staffId) {
+      return null;
+    }
+
+    const staff = await this.prisma.employees.findUnique({
+      where: { id: staffId },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (!staff) {
+      throw new NotFoundException('Staff tidak ditemukan');
+    }
+
+    return staff;
   }
 }
