@@ -9,7 +9,7 @@ export class AttendanceService {
 
   async create(dto: CreateAttendanceDto) {
     const staff = await this.resolveStaff(dto.staffId);
-    if(!staff) {
+    if (!staff) {
       throw new NotFoundException('Staff tidak ditemukan');
     }
 
@@ -56,10 +56,10 @@ export class AttendanceService {
   async update(id: number, dto: CreateAttendanceDto) {
     await this.findOne(id);
     const staff = await this.resolveStaff(dto.staffId);
-    if(!staff) {
+    if (!staff) {
       throw new NotFoundException('Staff tidak ditemukan');
     }
-    
+
     return this.prisma.attendance.update({
       where: { id },
       data: {
