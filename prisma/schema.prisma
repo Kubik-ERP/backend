@@ -404,6 +404,7 @@ model inventory_stock_adjustments {
   created_at                DateTime                @default(now()) @db.Timestamptz(6)
   updated_at                DateTime                @default(now()) @db.Timestamptz(6)
   created_by                Int?
+  expiry_date               DateTime?               @db.Date
   users                     users?                  @relation(fields: [created_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
   master_inventory_items    master_inventory_items  @relation(fields: [master_inventory_items_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   stores                    stores                  @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -665,7 +666,7 @@ model master_inventory_items {
   stock_quantity                    Int                                 @default(0)
   reorder_level                     Int
   minimum_stock_quantity            Int
-  expiry_date                       DateTime?                           @db.Date
+  expiry_date                       DateTime?                           @db.Date // deprecated
   storage_location_id               String?                             @db.Uuid
   price_per_unit                    Decimal                             @db.Decimal(18, 2)
   supplier_id                       String?                             @db.Uuid

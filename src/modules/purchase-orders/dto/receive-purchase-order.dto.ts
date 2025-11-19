@@ -1,6 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDate,
   IsNumber,
   IsOptional,
   IsString,
@@ -35,6 +36,15 @@ export class PurchaseOrderItems {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    example: '2025-12-31',
+    description: 'Expired At',
+  })
+  @IsDate()
+  @IsOptional()
+  @Type(() => Date)
+  expiredAt?: Date;
 }
 
 export class ReceivePurchaseOrderDto {
@@ -53,6 +63,7 @@ export class ReceivePurchaseOrderDto {
         id: 'Lebih 1',
         actualQuantity: 10,
         notes: 'Notes',
+        expiredAt: '2025-12-31',
       },
     ],
     description: 'Purchase Order Items',
