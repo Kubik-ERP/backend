@@ -58,6 +58,7 @@ import {
 } from '../dtos/setting-invoice.dto';
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
+import { percentageToAmount } from 'src/common/helpers/common.helpers';
 
 @Injectable()
 export class InvoiceService {
@@ -711,7 +712,7 @@ export class InvoiceService {
           });
 
         // update invoice with original subtotal and total product discount
-        await this.update(tx, invoiceId, {
+        const invoiceUpdated = await this.update(tx, invoiceId, {
           subtotal: originalSubtotal, // subtotal dari original price
           tax_id: calculation.taxId,
           service_charge_id: calculation.serviceChargeId,
@@ -1017,6 +1018,11 @@ export class InvoiceService {
               header.user?.id,
             );
           }
+        }
+
+        // jika statusnya paid maka akan create employee commission logs
+        if (invoiceUpdated.payment_status === invoice_type.paid) {
+          await this.createEmployeeCommissionLogs(tx, invoiceUpdated);
         }
       },
       { timeout: 500_000 },
@@ -2855,7 +2861,7 @@ export class InvoiceService {
       totalProductDiscount = calculation.discountTotal;
       totalRedeemDiscount = calculation.totalRedeemDiscount ?? 0;
 
-      await this.update(tx, invoice.id, {
+      const invoiceUpdated = await this.update(tx, invoice.id, {
         payment_status:
           method.name === 'Cash' ? invoice_type.paid : invoice_type.unpaid,
         subtotal: calculation.subTotal,
@@ -2875,6 +2881,11 @@ export class InvoiceService {
           calculation.paymentRoundingSetting?.id ?? undefined,
         rounding_amount: calculation.roundingAdjustment ?? undefined,
       });
+
+      // jika statusnya paid maka akan create employee commission logs
+      if (invoiceUpdated.payment_status === invoice_type.paid) {
+        await this.createEmployeeCommissionLogs(tx, invoiceUpdated);
+      }
     });
 
     if (request.provider !== 'cash') {
@@ -4046,9 +4057,18 @@ export class InvoiceService {
     status: invoice_type,
   ): Promise<invoice> {
     try {
-      return await this._prisma.invoice.update({
-        where: { id },
-        data: { payment_status: status, paid_at: new Date() },
+      return await this._prisma.$transaction(async (tx) => {
+        const result = await this._prisma.invoice.update({
+          where: { id },
+          data: { payment_status: status, paid_at: new Date() },
+        });
+
+        // jika statusnya paid maka akan create employee commission logs
+        if (status === invoice_type.paid) {
+          await this.createEmployeeCommissionLogs(tx, result);
+        }
+
+        return result;
       });
     } catch (error) {
       this.logger.error('Failed to update invoice status');
@@ -4110,6 +4130,11 @@ export class InvoiceService {
       // jika ada voucher, kurangi quota voucher
       if (result.voucher_id) {
         await this._voucherService.decreaseQuota(tx, result.voucher_id);
+      }
+
+      // jika statusnya paid maka akan create employee commission logs
+      if (result.payment_status === invoice_type.paid) {
+        await this.createEmployeeCommissionLogs(tx, result);
       }
 
       return result;
@@ -4186,7 +4211,7 @@ export class InvoiceService {
         };
       }
 
-      await tx.invoice.update({
+      return await tx.invoice.update({
         where: { id: invoiceId },
         data: updateData,
       });
@@ -4515,6 +4540,124 @@ export class InvoiceService {
           starting_number: 1,
         },
       });
+    }
+  }
+
+  /**
+   * @description Create employee commission logs when invoice is paid
+   */
+  public async createEmployeeCommissionLogs(
+    tx: Prisma.TransactionClient,
+    invoice: invoice,
+  ): Promise<void> {
+    try {
+      if (!invoice.cashier_id) {
+        this.logger.warn(`No cashier found for invoice ${invoice.id}`);
+        return;
+      }
+
+      const employee = await tx.employees.findUniqueOrThrow({
+        where: {
+          user_id: invoice.cashier_id,
+        },
+      });
+
+      // Kalau gak punya data employee, maka skip
+      if (!employee) {
+        return;
+      }
+
+      const dataToCreate: Prisma.employee_commission_logsCreateManyInput[] = [];
+
+      // Process voucher commission
+      if (invoice.voucher_id && invoice.voucher_amount > 0) {
+        // Get voucher commission for this employee and voucher
+        const voucherCommission = await tx.voucher_commissions.findFirst({
+          where: {
+            employees_id: employee?.id,
+            voucher_id: invoice.voucher_id,
+          },
+        });
+
+        if (voucherCommission && voucherCommission.amount) {
+          let commissionAmount = voucherCommission.amount;
+          if (voucherCommission.is_percent) {
+            commissionAmount = percentageToAmount(
+              voucherCommission.amount,
+              invoice.voucher_amount,
+            );
+          }
+
+          dataToCreate.push({
+            voucher_id: invoice.voucher_id,
+            invoice_id: invoice.id,
+            employee_id: employee.id,
+            voucher_commission_id: voucherCommission.id,
+            commission_value: voucherCommission.amount,
+            commission_amount: commissionAmount,
+            source_type: 'voucher',
+            is_commission_value_boolean: voucherCommission.is_percent,
+          });
+        }
+      }
+
+      const invoiceDetails = await tx.invoice_details.findMany({
+        where: {
+          invoice_id: invoice.id,
+        },
+      });
+
+      // Process product commissions
+      for (const detail of invoiceDetails) {
+        if (!detail.product_id) continue;
+
+        // Get product commission for this employee and product
+        const productCommission = await tx.product_commissions.findFirst({
+          where: {
+            employees_id: employee.id,
+            products_id: detail.product_id,
+          },
+        });
+        if (productCommission && productCommission.amount) {
+          let commissionAmount = productCommission.amount;
+          if (productCommission.is_percent) {
+            commissionAmount = percentageToAmount(
+              productCommission.amount,
+              (detail.product_price ?? 0) * (detail.qty ?? 1),
+            );
+          }
+
+          dataToCreate.push({
+            invoice_id: invoice.id,
+            employee_id: employee.id,
+            invoice_detail_id: detail.id,
+            product_commission_id: productCommission.id,
+            commission_value: productCommission.amount,
+            commission_amount: commissionAmount,
+            source_type: 'product',
+            is_commission_value_boolean: productCommission.is_percent,
+          });
+        } else {
+          this.logger.warn(
+            `No product commission found for employee ${employee.id} and product ${detail.product_id}`,
+          );
+        }
+      }
+
+      const result = await tx.employee_commission_logs.createManyAndReturn({
+        data: dataToCreate,
+        skipDuplicates: true,
+      });
+
+      console.log({ result, dataToCreate });
+
+      this.logger.log(`Created commission logs for invoice ${invoice.id}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to create commission logs for invoice ${invoice.id}:`,
+        error,
+      );
+      // Don't throw error to avoid breaking the payment flow
     }
   }
 

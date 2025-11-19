@@ -448,15 +448,15 @@ model invoice {
   loyalty_points_benefit_id                  String?                    @db.Uuid
   customers_has_invoices                     customers_has_invoices[]
   employee_commission_logs                   employee_commission_logs[]
-  customer                                   customer?                  @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
-  payment_methods                            payment_methods?           @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
-  payment_rounding_settings                  payment_rounding_settings? @relation(fields: [rounding_setting_id], references: [id], map: "fk_invoice_rounding")
-  charges_invoice_tax_idTocharges            charges?                   @relation("invoice_tax_idTocharges", fields: [tax_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk")
-  charges_invoice_service_charge_idTocharges charges?                   @relation("invoice_service_charge_idTocharges", fields: [service_charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk_1")
-  loyalty_points_benefit                     loyalty_points_benefit?    @relation(fields: [loyalty_points_benefit_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  stores                                     stores?                    @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_stores_fk")
-  users                                      users?                     @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
-  voucher                                    voucher?                   @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_voucher_fk")
+  customer                                   customer?                       @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_customer1")
+  payment_methods                            payment_methods?                @relation(fields: [payment_methods_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_payment_methods1")
+  payment_rounding_settings                  payment_rounding_settings?      @relation(fields: [rounding_setting_id], references: [id], map: "fk_invoice_rounding")
+  charges_invoice_tax_idTocharges            charges?                        @relation("invoice_tax_idTocharges", fields: [tax_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk")
+  charges_invoice_service_charge_idTocharges charges?                        @relation("invoice_service_charge_idTocharges", fields: [service_charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_charges_fk_1")
+  loyalty_points_benefit                     loyalty_points_benefit?         @relation(fields: [loyalty_points_benefit_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  stores                                     stores?                         @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_stores_fk")
+  users                                      users?                          @relation(fields: [cashier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_users_fk")
+  voucher                                    voucher?                        @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_voucher_fk")
   invoice_charges                            invoice_charges[]
   invoice_details                            invoice_details[]
   kitchen_queue                              kitchen_queue[]
@@ -491,24 +491,24 @@ model invoice_charges {
 }
 
 model invoice_details {
-  id                       String                    @db.Uuid
-  product_id               String?                   @db.Uuid
-  product_price            Float?
-  variant_id               String?                   @db.Uuid
-  notes                    String?                   @db.VarChar(45)
-  qty                      Int?
-  invoice_id               String                    @db.Uuid
-  variant_price            Float?
-  product_discount         Float?
-  catalog_bundling_id      String?                   @db.Uuid
-  benefit_free_items_id    String?                   @db.Uuid
+  id                     String                   @db.Uuid
+  product_id             String?                  @db.Uuid
+  product_price          Float?
+  variant_id             String?                  @db.Uuid
+  notes                  String?                  @db.VarChar(45)
+  qty                    Int?
+  invoice_id             String                   @db.Uuid
+  variant_price          Float?
+  product_discount       Float?
+  catalog_bundling_id    String?                  @db.Uuid
+  benefit_free_items_id  String?                  @db.Uuid
   employee_commission_logs employee_commission_logs?
-  invoice_bundling_items   invoice_bundling_items[]
-  invoice                  invoice                   @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
-  benefit_free_items       benefit_free_items?       @relation(fields: [benefit_free_items_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  catalog_bundling         catalog_bundling?         @relation(fields: [catalog_bundling_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  products                 products?                 @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
-  variant                  variant?                  @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
+  invoice_bundling_items invoice_bundling_items[] @relation("InvoiceDetailToBundlingItems")
+  invoice                invoice                  @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_invoice_details_invoice1")
+  benefit_free_items     benefit_free_items?      @relation(fields: [benefit_free_items_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  catalog_bundling       catalog_bundling?        @relation(fields: [catalog_bundling_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products               products?                @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_products_fk")
+  variant                variant?                 @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invoice_details_variant_fk")
 
   @@id([id, invoice_id])
   @@index([invoice_id], map: "fk_invoice_details_invoice1_idx")
@@ -560,6 +560,473 @@ model kitchen_queue {
   products            products?    @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_products_fk")
   stores              stores       @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_stores_fk")
   variant             variant?     @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "kitchen_queue_variant_fk")
+}
+
+model material {
+  id                String              @id @db.Uuid
+  name              String?             @db.VarChar(45)
+  material_has_unit material_has_unit[]
+  recipe_details    recipe_details[]
+}
+
+model material_has_unit {
+  material_id String   @db.Uuid
+  unit_id     String   @db.Uuid
+  multiply    Float?
+  material    material @relation(fields: [material_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_material_has_unit_material1")
+  unit        unit     @relation(fields: [unit_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_material_has_unit_unit1")
+
+  @@id([material_id, unit_id])
+  @@index([material_id], map: "fk_material_has_unit_material1_idx")
+  @@index([unit_id], map: "fk_material_has_unit_unit1_idx")
+}
+
+model operational_hours {
+  id         BigInt  @default(autoincrement())
+  days       Int?
+  open_time  String?
+  close_time String?
+  stores_id  String  @db.Uuid
+  stores     stores  @relation(fields: [stores_id], references: [id], onDelete: Cascade, map: "operational_hours_stores_fk")
+
+  @@id([id, stores_id])
+  @@index([stores_id], map: "fk_operational_hours_stores1_idx")
+}
+
+model payment_logs {
+  id            String    @id(map: "payment_logs_pk") @db.Uuid
+  service_name  String?   @db.VarChar
+  url           String?   @db.VarChar
+  method        String?   @db.VarChar
+  request_body  String?
+  response_body String?
+  status_code   Int?
+  created_at    DateTime? @db.Timestamp(6)
+}
+
+model payment_methods {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String?   @db.VarChar(45)
+  icon_name    String?   @db.VarChar
+  sort_no      Int?      @unique
+  is_available Boolean   @default(true)
+  image_url    String?   @db.VarChar(45)
+  stores_id    String?   @db.Uuid
+  invoice      invoice[]
+  stores       stores?   @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "payment_methods_has_store")
+}
+
+model payments {
+  id                String         @db.Uuid
+  amount            Float?
+  due_date          DateTime?      @db.Date
+  status            payment_type?
+  business_owner_id String         @db.Uuid
+  business_owner    business_owner @relation(fields: [business_owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payments_business_owner1")
+
+  @@id([id, business_owner_id])
+  @@index([business_owner_id], map: "fk_payments_business_owner1_idx")
+}
+
+model permissions {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String?                  @db.VarChar(45)
+  key                    String                   @unique(map: "permissions_key_unique") @db.VarChar(100)
+  permission_category_id String                   @db.Uuid
+  permission_categories  permission_categories    @relation(fields: [permission_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "permissions_permission_categories_fk")
+  role_permissions       role_permissions[]
+  store_role_permissions store_role_permissions[]
+  sub_package_access     sub_package_access[]
+}
+
+model platforms {
+  id                      String                    @id @db.Uuid
+  name                    String?                   @db.VarChar(45)
+  platforms_has_employees platforms_has_employees[]
+}
+
+model platforms_has_employees {
+  platforms_id String    @db.Uuid
+  employees_id String    @db.Uuid
+  username     String?   @db.VarChar(45)
+  employees    employees @relation(fields: [employees_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_platforms_has_employees_employees1")
+  platforms    platforms @relation(fields: [platforms_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_platforms_has_employees_platforms1")
+
+  @@id([platforms_id, employees_id])
+  @@index([employees_id], map: "fk_platforms_has_employees_employees1_idx")
+  @@index([platforms_id], map: "fk_platforms_has_employees_platforms1_idx")
+}
+
+model product_commissions {
+  employees_id             String                     @db.Uuid
+  products_id              String                     @db.Uuid
+  is_percent               Boolean?
+  amount                   Float?
+  id                       String                     @id(map: "product_commissions_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_commission_logs employee_commission_logs[]
+  employees                employees                  @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_employees_has_items_employees1")
+  products                 products                   @relation(fields: [products_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_employees_has_items_items1")
+
+  @@index([employees_id], map: "fk_employees_has_items_employees1_idx")
+  @@index([products_id], map: "fk_employees_has_items_items1_idx")
+}
+
+model products {
+  id                           String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                         String?                        @db.VarChar(45)
+  price                        Float?
+  discount_price               Float?
+  picture_url                  String?                        @db.VarChar(45)
+  is_percent                   Boolean?                       @default(false)
+  stores_id                    String                         @db.Uuid
+  master_inventory_item_id     String?                        @unique(map: "products_master_inventory_item_id_unique") @db.Uuid
+  barcode                      String?                        @db.VarChar(50)
+  benefit_free_items           benefit_free_items[]
+  catalog_bundling_has_product catalog_bundling_has_product[]
+  categories_has_products      categories_has_products[]
+  invoice_bundling_items       invoice_bundling_items[]
+  invoice_details              invoice_details[]
+  kitchen_queue                kitchen_queue[]
+  loyalty_product_item         loyalty_product_item[]
+  menu_recipes                 menu_recipes[]
+  product_commissions          product_commissions[]
+  master_inventory_items       master_inventory_items?        @relation(fields: [master_inventory_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "products_master_inventory_items_fk")
+  stores                       stores                         @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "store_has_products_fk")
+  recipe                       recipe[]
+  variant_has_products         variant_has_products[]
+  voucher_has_products         voucher_has_products[]
+}
+
+model recipe {
+  id             String           @unique(map: "id_unique") @db.Uuid
+  recipe_code    String?          @unique(map: "recipe_code_unique") @db.VarChar(45)
+  instructions   String?
+  products_id    String           @db.Uuid
+  products       products         @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_products1")
+  recipe_details recipe_details[]
+
+  @@id([id, products_id])
+  @@index([products_id], map: "fk_recipe_products1_idx")
+}
+
+model recipe_details {
+  id          String   @db.Uuid
+  quantity    Float?
+  recipe_id   String   @db.Uuid
+  material_id String   @db.Uuid
+  material    material @relation(fields: [material_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_details_material1")
+  recipe      recipe   @relation(fields: [recipe_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_details_recipe1")
+
+  @@id([id, recipe_id, material_id])
+  @@index([material_id], map: "fk_recipe_details_material1_idx")
+  @@index([recipe_id], map: "fk_recipe_details_recipe1_idx")
+}
+
+model role_permissions {
+  role_id       String      @db.Uuid
+  permission_id String      @db.Uuid
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_roles_has_permissions_permissions1")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_roles_has_permissions_roles1")
+
+  @@id([role_id, permission_id])
+  @@index([permission_id], map: "fk_roles_has_permissions_permissions1_idx")
+  @@index([role_id], map: "fk_roles_has_permissions_roles1_idx")
+}
+
+model roles {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String?                  @db.VarChar(45)
+  store_id               String?                  @db.Uuid
+  is_system              Boolean                  @default(false)
+  created_at             DateTime                 @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at             DateTime?                @db.Timestamp(6)
+  employees              employees[]
+  employees_has_roles    employees_has_roles[]
+  role_permissions       role_permissions[]
+  store_role_permissions store_role_permissions[]
+  users                  users[]
+
+  @@unique([name, is_system], map: "roles_name_is_system_unique")
+  @@unique([name, store_id], map: "roles_name_store_id_unique")
+}
+
+model store_floors {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  uid          BigInt
+  store_id     String         @db.Uuid
+  floor_name   String         @db.VarChar(255)
+  created_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  stores       stores         @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_store_floors_store")
+  store_tables store_tables[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model store_tables {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  uid               BigInt
+  store_id          String       @db.Uuid
+  floor_id          String       @db.Uuid
+  name              String       @db.VarChar(255)
+  seats             Int
+  shape             table_shape
+  width             Int
+  height            Int
+  position_x        Int
+  position_y        Int
+  is_enable_qr_code Boolean      @default(false)
+  created_at        DateTime?    @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?    @default(now()) @db.Timestamptz(6)
+  status_override   String?
+  store_floors      store_floors @relation(fields: [floor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model stores {
+  id                          String                        @id @db.Uuid
+  name                        String?                       @db.VarChar(45)
+  address                     String?                       @db.VarChar(255)
+  phone_number                String?                       @db.VarChar(45)
+  photo                       String?                       @db.VarChar(45)
+  city                        String?                       @db.VarChar(45)
+  postal_code                 String?                       @db.VarChar(45)
+  building                    String?                       @db.VarChar(45)
+  email                       String                        @db.VarChar(255)
+  business_type               String                        @db.VarChar(50)
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  business_owner_has_stores   business_owner_has_stores[]
+  cash_drawer_transactions    cash_drawer_transactions[]
+  cash_drawers                cash_drawers[]
+  catalog_bundling            catalog_bundling[]
+  categories                  categories[]
+  charges                     charges[]
+  customer                    customer[]
+  device_codes                device_codes[]
+  employee_login_sessions     employee_login_sessions[]
+  employees                   employees[]
+  floor                       floor[]
+  integrations                integrations[]
+  inventory_stock_adjustments inventory_stock_adjustments[]
+  invoice                     invoice[]
+  invoice_settings            invoice_settings?
+  kitchen_queue               kitchen_queue[]
+  loyalty_point_settings      loyalty_point_settings[]
+  master_brands               master_brands[]
+  master_inventory_categories master_inventory_categories[]
+  master_inventory_items      master_inventory_items[]
+  master_storage_locations    master_storage_locations[]
+  master_suppliers            master_suppliers[]
+  menu_recipes                menu_recipes[]
+  operational_hours           operational_hours[]
+  payment_methods             payment_methods[]
+  payment_rounding_settings   payment_rounding_settings[]
+  products                    products[]
+  purchase_orders             purchase_orders[]
+  stock_opnames               stock_opnames[]
+  store_facilities            store_facilities[]
+  store_floors                store_floors[]
+  store_role_permissions      store_role_permissions[]
+  tables                      tables[]
+  user_has_stores             user_has_stores[]
+  voucher                     voucher[]
+}
+
+model tables {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  table_code   String? @db.VarChar(45)
+  capacity     Int?
+  floor_number Int?
+  store_id     String? @db.Uuid
+  stores       stores? @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "tables_stores_id_fk")
+}
+
+model tag {
+  id                String              @id(map: "tag_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String?             @db.VarChar(255)
+  customers_has_tag customers_has_tag[]
+}
+
+model trn_customer_points {
+  id          String      @id(map: "trn_customer_points_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  value       Int
+  customer_id String      @db.Uuid
+  invoice_id  String?     @db.Uuid
+  type        point_type?
+  expiry_date DateTime?   @db.Date
+  notes       String?     @db.VarChar(45)
+  customer    customer    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_customer_id_fk")
+  invoice     invoice?    @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trn_customer_points_invoice_id_fk")
+}
+
+model unit {
+  id                String              @id @db.Uuid
+  name              String?             @db.VarChar(45)
+  material_has_unit material_has_unit[]
+}
+
+model user_has_stores {
+  id       BigInt @id(map: "user_has_stores_pk") @default(autoincrement())
+  user_id  Int
+  store_id String @db.Uuid
+  stores   stores @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_store")
+  users    users  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
+}
+
+model users {
+  id                          Int                           @id(map: "users_pk") @unique(map: "users_id_idx") @default(autoincrement())
+  username                    String?                       @db.VarChar
+  email                       String                        @unique(map: "mail_unq") @db.VarChar
+  password                    String                        @db.VarChar
+  phone                       String                        @default(dbgenerated("0")) @db.VarChar
+  ext                         Int                           @default(62)
+  created_at                  BigInt?
+  updated_at                  BigInt?
+  verified_at                 BigInt?
+  deleted_at                  BigInt?
+  pin                         String?                       @db.VarChar
+  fullname                    String?                       @db.VarChar
+  role_id                     String                        @db.Uuid
+  picture_url                 String?                       @db.VarChar(45)
+  subs_id                     String?                       @db.Uuid
+  sub_expired_at              DateTime?                     @db.Timestamp(6)
+  is_staff                    Boolean                       @default(false)
+  store_quota                 Int                           @default(0)
+  cash_drawer_transactions    cash_drawer_transactions[]
+  cash_drawers                cash_drawers[]
+  employees                   employees?
+  inventory_stock_adjustments inventory_stock_adjustments[]
+  invoice                     invoice[]
+  purchase_orders             purchase_orders[]
+  stock_opnames               stock_opnames[]
+  user_has_stores             user_has_stores[]
+  roles                       roles                         @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
+  subs_package                subs_package?                 @relation(fields: [subs_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_subs_package_fk")
+  users_has_banks             users_has_banks[]
+}
+
+model users_has_banks {
+  id             String  @id(map: "users_has_banks_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  users_id       Int?
+  bank_name      String? @db.VarChar(255)
+  account_number String? @db.VarChar(45)
+  account_name   String? @db.VarChar(45)
+  users          users?  @relation(fields: [users_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_has_banks_users_id_fk")
+}
+
+model users_token {
+  id         Int     @id(map: "users_token_pk") @default(autoincrement())
+  token      String  @unique(map: "users_token_unique")
+  expired_at BigInt
+  user_id    Int
+  type       String? @db.VarChar
+  created_at BigInt?
+  updated_at BigInt?
+}
+
+model variant {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String?                @db.VarChar(45)
+  price                Float?                 @default(0)
+  invoice_details      invoice_details[]
+  kitchen_queue        kitchen_queue[]
+  variant_has_products variant_has_products[]
+}
+
+model variant_has_products {
+  variant_id  String   @db.Uuid
+  products_id String   @db.Uuid
+  products    products @relation(fields: [products_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_variant_has_products_products1")
+  variant     variant  @relation(fields: [variant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_variant_has_products_variant1")
+
+  @@id([variant_id, products_id])
+  @@index([products_id], map: "fk_variant_has_products_products1_idx")
+  @@index([variant_id], map: "fk_variant_has_products_variant1_idx")
+}
+
+model voucher {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String                 @db.VarChar(45)
+  amount                Float                  @default(0)
+  min_price             Float                  @default(0)
+  max_price             Float                  @default(0)
+  promo_code            String                 @db.VarChar(45)
+  start_period          DateTime               @db.Date
+  end_period            DateTime               @db.Date
+  quota                 Int                    @default(1)
+  is_percent            Boolean                @default(false)
+  created_at            DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at            DateTime?              @db.Timestamp(6)
+  store_id              String                 @db.Uuid
+  is_apply_all_products Boolean                @default(false)
+  employee_commission_logs employee_commission_logs[]
+  invoice               invoice[]
+  stores                stores                 @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "voucher_stores_fk")
+  voucher_commissions   voucher_commissions[]
+  voucher_has_products  voucher_has_products[]
+
+  @@unique([promo_code, store_id], map: "voucher_promo_code_store_id_unique")
+}
+
+model voucher_commissions {
+  voucher_id               String                     @db.Uuid
+  employees_id             String                     @db.Uuid
+  amount                   Float?
+  is_percent               Boolean?
+  id                       String                     @id(map: "voucher_commissions_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_commission_logs employee_commission_logs[]
+  employees                employees                  @relation(fields: [employees_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_voucher_has_employees_employees1")
+  voucher                  voucher                    @relation(fields: [voucher_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_voucher_has_employees_voucher1")
+
+  @@index([employees_id], map: "fk_voucher_has_employees_employees1_idx")
+  @@index([voucher_id], map: "fk_voucher_has_employees_voucher1_idx")
+}
+
+model voucher_has_products {
+  voucher_id  String   @db.Uuid
+  products_id String   @db.Uuid
+  products    products @relation(fields: [products_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_voucher_has_products_products1")
+  voucher     voucher  @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_voucher_has_products_voucher1")
+
+  @@id([voucher_id, products_id])
+  @@index([products_id], map: "fk_voucher_has_products_products1_idx")
+  @@index([voucher_id], map: "fk_voucher_has_products_voucher1_idx")
+}
+
+model master_suppliers {
+  id                        String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplier_name             String
+  contact_person            String
+  phone_number              String                   @db.VarChar(20)
+  email                     String?
+  address                   String?
+  bank_name                 String?
+  bank_account_number       String?                  @db.VarChar(50)
+  bank_account_name         String?
+  tax_identification_number String?                  @db.VarChar(50)
+  created_at                DateTime?                @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime?                @default(now()) @db.Timestamptz(6)
+  code                      String                   @default("") @db.VarChar(255)
+  store_id                  String                   @db.Uuid
+  master_inventory_items    master_inventory_items[]
+  stores                    stores                   @relation(fields: [store_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  purchase_orders           purchase_orders[]
+
+  @@index([contact_person], map: "idx_master_suppliers_contact_person")
+  @@index([phone_number], map: "idx_master_suppliers_phone_number")
+  @@index([supplier_name], map: "idx_master_suppliers_supplier_name")
+  @@index([store_id], map: "idx_master_suppliers_store_id")
+}
+
+model benefit_free_items {
+  id                       String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  loyalty_point_benefit_id String                 @db.Uuid
+  product_id               String                 @db.Uuid
+  quantity                 Int?                   @default(1)
+  created_at               DateTime?              @default(now()) @db.Timestamp(6)
+  updated_at               DateTime?              @default(now()) @db.Timestamp(6)
+  loyalty_points_benefit   loyalty_points_benefit @relation(fields: [loyalty_point_benefit_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "benefit_free_items_loyalty_points_benefit_fk")
+  products                 products               @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "benefit_free_items_products_fk")
+  invoice_details          invoice_details[]
 }
 
 model loyalty_point_settings {
@@ -1686,6 +2153,31 @@ enum bundling_price_type {
   CUSTOM
 }
 
+model employee_commission_logs {
+  id                          String               @id(map: "product_commission_logs_pk") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at                  DateTime             @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at                  DateTime?            @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  employee_id                 String               @db.Uuid
+  invoice_id                  String               @db.Uuid
+  invoice_detail_id           String?              @db.Uuid
+  source_type                 commission_source
+  is_commission_value_boolean Boolean?
+  commission_value            Float                @default(0)
+  commission_amount           Float                @default(0)
+  product_commission_id       String?              @db.Uuid
+  voucher_commission_id       String?              @db.Uuid
+  voucher_id                  String?              @db.Uuid
+  employees                   employees            @relation(fields: [employee_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_employees_fk")
+  invoice_details             invoice_details?     @relation(fields: [invoice_detail_id, invoice_id], references: [id, invoice_id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_invoice_details_fk")
+  invoice                     invoice              @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_invoice_fk")
+  product_commissions         product_commissions? @relation(fields: [product_commission_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_product_commissions_fk")
+  voucher_commissions         voucher_commissions? @relation(fields: [voucher_commission_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_voucher_commissions_fk")
+  voucher                     voucher?             @relation(fields: [voucher_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_commission_logs_voucher_fk")
+
+  @@unique([invoice_detail_id, invoice_id], map: "product_commission_unique")
+  @@unique([voucher_id, invoice_id], map: "voucher_commission_unique")
+}
+
 enum cash_drawer_type {
   open
   close
@@ -1820,4 +2312,9 @@ enum transfer_stock_status {
   received
   received_with_issue
   canceled
+}
+
+enum commission_source {
+  product
+  voucher
 }
