@@ -1048,6 +1048,7 @@ export class InventoryItemsService {
     created_at: true,
     updated_at: true,
     created_by: true,
+    expiry_date: true,
     users: {
       select: {
         id: true,

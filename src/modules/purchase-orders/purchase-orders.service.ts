@@ -677,6 +677,7 @@ export class PurchaseOrdersService {
           id: true,
           master_inventory_item_id: true,
           quantity: true,
+          expired_at: true,
         },
       });
 
@@ -689,6 +690,11 @@ export class PurchaseOrdersService {
         where: {
           id: { in: poItems.map((i) => i.master_inventory_item_id) },
           store_id: store_id,
+        },
+        select: {
+          id: true,
+          stock_quantity: true,
+          expiry_date: true,
         },
       });
 
@@ -722,6 +728,7 @@ export class PurchaseOrdersService {
             diff_quantity: itemDto.actualQuantity - item.quantity,
             updated_at: new Date(),
             notes: itemDto.notes ?? null,
+            expired_at: itemDto.expiredAt,
           },
         });
       });
@@ -731,10 +738,17 @@ export class PurchaseOrdersService {
         const inv = invById.get(item.master_inventory_item_id)!;
         const newQuantity = inv.stock_quantity + item.quantity;
 
+        // Determine the best expiry date
+        const bestExpiryDate = this.getClosestExpiryDate(
+          inv.expiry_date,
+          item.expired_at,
+        );
+
         return tx.master_inventory_items.update({
           where: { id: item.master_inventory_item_id },
           data: {
             stock_quantity: newQuantity,
+            expiry_date: bestExpiryDate,
             updated_at: new Date(),
           },
         });
@@ -755,6 +769,7 @@ export class PurchaseOrdersService {
             notes: `Received PO (${existingPO.order_number})`,
             previous_quantity: previousQuantity,
             new_quantity: newQuantity,
+            expiry_date: item.expired_at,
           },
         });
       });
@@ -820,4 +835,49 @@ export class PurchaseOrdersService {
     this.logger.log(`Successfully processed payment for purchase order ${id}`);
     return result;
   }
+
+  // Helper function to determine the closest expiry date
+  private getClosestExpiryDate = (
+    currentExpiry: Date | null,
+    newExpiry: Date | null,
+  ): Date | null => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
+
+    console.log({
+      currentExpiry,
+      newExpiry,
+    });
+
+    // If both are null, return null
+    if (!currentExpiry && !newExpiry) return null;
+
+    // If one is null, return the non-null one
+    if (!currentExpiry) return newExpiry;
+    if (!newExpiry) return currentExpiry;
+
+    // Both dates exist, compare them
+    const currentExpiryDate = new Date(currentExpiry);
+    const newExpiryDate = new Date(newExpiry);
+
+    // Reset time for comparison
+    currentExpiryDate.setHours(0, 0, 0, 0);
+    newExpiryDate.setHours(0, 0, 0, 0);
+
+    // Check if dates are still valid (not expired)
+    const currentValid = currentExpiryDate >= today;
+    const newValid = newExpiryDate >= today;
+
+    // If both are valid, choose the closest to today
+    if (currentValid && newValid) {
+      return currentExpiryDate <= newExpiryDate ? currentExpiry : newExpiry;
+    }
+
+    // If only one is valid, choose the valid one
+    if (currentValid) return currentExpiry;
+    if (newValid) return newExpiry;
+
+    // If both are expired, choose the less expired one (closest to today)
+    return currentExpiryDate >= newExpiryDate ? currentExpiry : newExpiry;
+  };
 }
