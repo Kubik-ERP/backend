@@ -621,6 +621,7 @@ export class PDFReportService {
     // 5. Hasilkan PDF
     return this.generatePdfFromTemplate('table-report', templateData);
   }
+  // Di dalam ReportService
 
   async generateStaffReportPdf(
     startDateString: Date,
@@ -628,95 +629,127 @@ export class PDFReportService {
     type: StaffReportType,
     req: ICustomRequestHeaders,
     storeIdsString?: string,
+    staffId?: string,
   ) {
-    // 1. Panggil FUNGSI PUBLIK untuk mendapatkan data JSON
+    // 1. Ambil Data JSON
+    // data = { dashboard: {...}, table: [...] }
     const data = await this.reportService.getStaffReports(
       startDateString,
       endDateString,
       type,
       req,
       storeIdsString,
+      staffId, // Kirim staffId untuk individual report
     );
 
-    // 2. Siapkan variabel
-    let templateData: any;
-
-    // 3. Ambil data header umum
+    // 2. Siapkan Header
     const commonReportData = await this.getCommonReportData(
-      `Staff Report - ${type}`,
-      undefined, // Laporan ini tidak difilter per staf
+      `Staff Report - ${type.replace(/-/g, ' ').toUpperCase()}`,
+      staffId,
       req,
       storeIdsString,
       startDateString,
       endDateString,
     );
 
-    // 4. Transformasi data berdasarkan tipenya
+    let templateData: any;
+
+    // 3. Mapping Data
     switch (type) {
-      case 'attendance-summary': {
-        // 'data' di sini adalah: { totalStaff: number, staff: any[] }
-        const attendanceData = data as { totalStaff: number; staff: any[] };
+      case 'commission-report': {
+        const report = data as { dashboard: any; table: any[] };
 
         templateData = {
           reportData: commonReportData,
-          columns: [
-            { label: 'Name', value: 'name' },
-            { label: 'Email', value: 'email' },
-            { label: 'Title', value: 'title' },
-            { label: 'Start Date', value: 'start_date' },
-          ],
-          tableData: attendanceData.staff,
-        };
-        break;
-      }
-
-      case 'commission-summary': {
-        // 'data' di sini adalah: { summary: {...}, details: [...] }
-        const commissionData = data as { summary: any; details: any[] };
-
-        templateData = {
-          reportData: commonReportData,
-          columns: [], // Tidak ada tabel untuk 'summary'
-          tableData: [], // Tidak ada tabel
-        };
-        break;
-      }
-
-      case 'commission-details': {
-        // 'data' di sini juga: { summary: {...}, details: [...] }
-        const commissionData = data as { summary: any; details: any[] };
-
-        templateData = {
-          reportData: commonReportData,
+          // Dashboard -> Recap Widget
+          recapWidget: {
+            'Total Staff': report.dashboard.totalStaff,
+            'Total Invoices': report.dashboard.totalInvoices,
+            'Total Revenue': `Rp ${this.formatNumber(report.dashboard.totalRevenue)}`,
+            'Item Comm': `Rp ${this.formatNumber(report.dashboard.totalItemCommission)}`,
+            'Voucher Comm': `Rp ${this.formatNumber(report.dashboard.totalVoucherCommission)}`,
+            'Grand Total': `Rp ${this.formatNumber(report.dashboard.grandTotalCommission)}`,
+          },
           columns: [
             { label: 'Staff Name', value: 'staffName' },
-            {
-              label: 'Total Product Commission',
-              value: 'totalProductCommission',
-            },
-            {
-              label: 'Total Voucher Commission',
-              value: 'totalVoucherCommission',
-            },
-            { label: 'Total Commission', value: 'totalCommission' },
+            { label: 'Inv Count', value: 'totalInvoices' },
+            { label: 'Items Sold', value: 'totalItemsSold' },
+            { label: 'Revenue', value: 'totalRevenue' },
+            { label: 'Voucher Used', value: 'totalVouchersUsed' },
+            { label: 'Item Comm', value: 'totalItemCommission' },
+            { label: 'Voucher Comm', value: 'totalVoucherCommission' },
+            { label: 'Grand Total', value: 'grandTotalCommission' },
           ],
-          tableData: commissionData.details,
-          overallSummary: {
-            totalProductCommission: commissionData.summary.totalKomisiProduk,
-            totalVoucherCommission:
-              commissionData.summary.totalVoucherCommission,
-            totalCommission: commissionData.summary.totalNilaiKomisi,
+          tableData: report.table,
+        };
+        break;
+      }
+
+      case 'individual-report': {
+        const report = data as { dashboard: any; table: any[] };
+
+        templateData = {
+          reportData: commonReportData,
+          recapWidget: {
+            'Inv Served': report.dashboard.totalInvoicesServed,
+            'Items Sold': report.dashboard.totalItemsSold,
+            Vouchers: report.dashboard.totalVouchersUsed,
+            'Item Comm': `Rp ${this.formatNumber(report.dashboard.totalItemCommission)}`,
+            'Voucher Comm': `Rp ${this.formatNumber(report.dashboard.totalVoucherCommission)}`,
+            'Total Comm': `Rp ${this.formatNumber(report.dashboard.grandTotalCommission)}`,
           },
+          columns: [
+            { label: 'Invoice No', value: 'invoiceNumber' },
+            { label: 'Date', value: 'date' },
+            { label: 'Customer', value: 'customer' },
+            { label: 'Grand Total', value: 'grandTotal' },
+            { label: 'Items Qty', value: 'itemsCount' },
+            { label: 'Total Comm', value: 'totalCommission' },
+          ],
+          tableData: report.table,
+        };
+        break;
+      }
+
+      case 'commission-by-items': {
+        const report = data as { table: any[] };
+        // Tidak ada dashboard spesifik
+        templateData = {
+          reportData: commonReportData,
+          columns: [
+            { label: 'Item Name', value: 'itemName' },
+            { label: 'Item Price', value: 'itemPrice' },
+            { label: 'Avg Comm Ratio %', value: 'averageCommissionRatio' },
+            { label: 'Total Comm', value: 'totalCommissionAccumulated' },
+          ],
+          tableData: report.table,
+        };
+        break;
+      }
+
+      case 'commission-by-voucher': {
+        const report = data as { table: any[] };
+        templateData = {
+          reportData: commonReportData,
+          columns: [
+            { label: 'Voucher Name', value: 'voucherName' },
+            { label: 'Total Comm Accumulated', value: 'totalCommission' },
+          ],
+          tableData: report.table,
         };
         break;
       }
 
       default:
-        throw new BadRequestException(`Invalid report type: ${type}`);
+        throw new BadRequestException('Invalid PDF report type');
     }
 
-    // 5. Hasilkan PDF
     return this.generatePdfFromTemplate('table-report', templateData);
+  }
+
+  // Helper kecil di dalam class untuk format angka di recapWidget (karena di template hbs agak terbatas)
+  private formatNumber(num: number) {
+    return Math.round(num).toLocaleString('id-ID');
   }
 
   async generateLoyaltyReportPdf(

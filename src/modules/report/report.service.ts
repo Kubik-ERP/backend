@@ -21,9 +21,10 @@ export type AdvancedSalesReportType =
   | 'variant';
 
 export type StaffReportType =
-  | 'attendance-summary'
-  | 'commission-summary'
-  | 'commission-details';
+  | 'commission-report' // 1. Laporan semua staf
+  | 'individual-report' // 2. Laporan detail per staf
+  | 'commission-by-items' // 3. Komisi berdasarkan item
+  | 'commission-by-voucher'; // 4. Komisi berdasarkan voucher
 
 export type InventoryReportType =
   | 'movement-ledger'
@@ -1198,7 +1199,9 @@ export class ReportService {
       };
       const stockValue =
         (item.stock_quantity || 0) * Number(item.price_per_unit || 0);
-
+      if (!category) {
+        continue; // Lewati item tanpa kategori
+      }
       let current = performanceMap.get(category.id);
       if (!current) {
         current = {
@@ -1594,50 +1597,338 @@ export class ReportService {
     return { summary, details: staffDetailsList };
   }
 
-  /**
-   * Fungsi publik utama untuk laporan terkait staf.
-   */
+  // Di dalam ReportService
+
+  // =================================================================
+  // HELPER: Fetch Commission Rules (Optimasi Cache)
+  // =================================================================
+  private async getCommissionRules() {
+    const [prodRules, voucherRules] = await Promise.all([
+      this.prisma.product_commissions.findMany(),
+      this.prisma.voucher_commissions.findMany(),
+    ]);
+
+    // Map key: "employeeId-productId" -> rule
+    const productMap = new Map<string, any>();
+    prodRules.forEach((r) =>
+      productMap.set(`${r.employees_id}-${r.products_id}`, r),
+    );
+
+    // Map key: "employeeId-voucherId" -> rule
+    const voucherMap = new Map<string, any>();
+    voucherRules.forEach((r) =>
+      voucherMap.set(`${r.employees_id}-${r.voucher_id}`, r),
+    );
+
+    return { productMap, voucherMap };
+  }
+
+  // =================================================================
+  // FUNGSI UTAMA: GET STAFF REPORTS (JSON)
+  // =================================================================
   async getStaffReports(
     startDateString: Date,
     endDateString: Date,
     type: StaffReportType,
     req: ICustomRequestHeaders,
-    storeIds?: string,
+    storeIdsString?: string,
+    staffId?: string, // Opsional, tapi wajib untuk 'individual-report'
   ) {
-    let storeId: string[] = [];
-    if (storeIds) {
-      storeId = storeIds.split(',');
-    } else if (req.store_id) {
-      storeId = [req.store_id];
-    } else {
-      throw new BadRequestException('store_ids is required.');
-    }
-    if (type === 'attendance-summary') {
-      return this.getAttendanceSummary(storeId);
-    }
+    // 1. Validasi Tanggal & Store
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
     endDate.setHours(23, 59, 59, 999);
 
-    if (startDate > endDate) {
-      throw new BadRequestException(
-        'Start date must be earlier than or equal to end date',
-      );
+    let storeIds: string[] = [];
+    if (storeIdsString) {
+      storeIds = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeIds = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
     }
 
-    // Panggil fungsi private
-    const commissionData = await this.getCommissionReport(
-      startDate,
-      endDate,
-      storeId,
-    );
-    if (type === 'commission-summary' || type === 'commission-details') {
-      return commissionData;
+    if (startDate > endDate)
+      throw new BadRequestException('Invalid date range');
+
+    // 2. Ambil Rules Komisi & Invoice Data
+    const { productMap, voucherMap } = await this.getCommissionRules();
+
+    // Base Query Invoice
+    const invoiceWhere: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      payment_status: 'paid',
+      paid_at: { gte: startDate, lte: endDate },
+      cashier_id: { not: null }, // Hanya yang ada kasirnya
+    };
+
+    // Filter Spesifik untuk Individual Report
+    if (type === 'individual-report') {
+      if (!staffId || staffId === 'all') {
+        throw new BadRequestException(
+          'Staff ID is required for individual report',
+        );
+      }
+      // Cari user_id dari employee UUID
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+      if (!employee || !employee.user_id) return { dashboard: {}, table: [] };
+      invoiceWhere.cashier_id = employee.user_id;
     }
 
-    throw new BadRequestException(
-      'Invalid report type provided for staff reports',
-    );
+    // Fetch Invoice dengan Relasi Lengkap
+    const invoices = await this.prisma.invoice.findMany({
+      where: invoiceWhere,
+      include: {
+        invoice_details: { include: { products: true } },
+        users: { include: { employees: true } }, // Link ke staff
+        voucher: true,
+        customer: true,
+      },
+      orderBy: { paid_at: 'desc' },
+    });
+
+    // =================================================================
+    // LOGIKA PEMROSESAN BERDASARKAN TIPE
+    // =================================================================
+
+    switch (type) {
+      // ----------------------------------------------------------------
+      // 1. Commission Report (All Staff Summary)
+      // ----------------------------------------------------------------
+      case 'commission-report': {
+        const staffMap = new Map<string, any>();
+
+        for (const inv of invoices) {
+          const employee = inv.users?.employees;
+          if (!employee) continue;
+
+          if (!staffMap.has(employee.id)) {
+            staffMap.set(employee.id, {
+              staffName: employee.name,
+              totalInvoices: 0,
+              totalItemsSold: 0,
+              totalRevenue: 0,
+              totalVouchersUsed: 0,
+              totalItemCommission: 0,
+              totalVoucherCommission: 0,
+              grandTotalCommission: 0,
+            });
+          }
+          const data = staffMap.get(employee.id);
+
+          // Agregasi Invoice
+          data.totalInvoices += 1;
+          if (inv.voucher_id) data.totalVouchersUsed += 1;
+
+          // Hitung Item & Komisi Produk
+          for (const item of inv.invoice_details) {
+            const qty = item.qty ?? 0;
+            const price = item.product_price ?? 0;
+            data.totalItemsSold += qty;
+            data.totalRevenue += price * qty;
+
+            // Cek Rule Komisi Produk
+            const rule = productMap.get(`${employee.id}-${item.product_id}`);
+            if (rule) {
+              const comm = rule.is_percent
+                ? price * qty * rule.amount
+                : qty * rule.amount;
+              data.totalItemCommission += comm;
+            }
+          }
+
+          // Hitung Komisi Voucher
+          if (inv.voucher_id) {
+            const rule = voucherMap.get(`${employee.id}-${inv.voucher_id}`);
+            if (rule) {
+              data.totalVoucherCommission += rule.amount ?? 0;
+            }
+          }
+
+          data.grandTotalCommission =
+            data.totalItemCommission + data.totalVoucherCommission;
+        }
+
+        const table = Array.from(staffMap.values());
+        // Dashboard Aggregate
+        const dashboard = table.reduce(
+          (acc, curr) => ({
+            totalStaff: acc.totalStaff + 1, // Increment karena ini loop staff unik
+            totalInvoices: acc.totalInvoices + curr.totalInvoices,
+            totalRevenue: acc.totalRevenue + curr.totalRevenue,
+            totalItemCommission:
+              acc.totalItemCommission + curr.totalItemCommission,
+            totalVoucherCommission:
+              acc.totalVoucherCommission + curr.totalVoucherCommission,
+            grandTotalCommission:
+              acc.grandTotalCommission + curr.grandTotalCommission,
+          }),
+          {
+            totalStaff: 0,
+            totalInvoices: 0,
+            totalRevenue: 0,
+            totalItemCommission: 0,
+            totalVoucherCommission: 0,
+            grandTotalCommission: 0,
+          },
+        );
+
+        // Fix totalStaff logic (reduce starts at 0, but we just counted iterations)
+        // dashboard.totalStaff = table.length;
+
+        return { dashboard, table };
+      }
+
+      // ----------------------------------------------------------------
+      // 2. Individual Report (Detail Transaksi 1 Staf)
+      // ----------------------------------------------------------------
+      case 'individual-report': {
+        const dashboard = {
+          totalInvoicesServed: invoices.length,
+          totalItemsSold: 0,
+          totalVouchersUsed: 0,
+          totalItemCommission: 0,
+          totalVoucherCommission: 0,
+          grandTotalCommission: 0,
+        };
+
+        const table = invoices.map((inv) => {
+          const employeeId = inv.users?.employees?.id;
+          let invItemComm = 0;
+          let invVoucherComm = 0;
+          let itemsCount = 0;
+
+          // Hitung per invoice
+          inv.invoice_details.forEach((item) => {
+            itemsCount += item.qty ?? 0;
+            if (employeeId) {
+              const rule = productMap.get(`${employeeId}-${item.product_id}`);
+              if (rule) {
+                invItemComm += rule.is_percent
+                  ? (item.product_price ?? 0) * (item.qty ?? 0) * rule.amount
+                  : (item.qty ?? 0) * rule.amount;
+              }
+            }
+          });
+
+          if (inv.voucher_id && employeeId) {
+            const rule = voucherMap.get(`${employeeId}-${inv.voucher_id}`);
+            if (rule) invVoucherComm += rule.amount ?? 0;
+          }
+
+          // Update Dashboard
+          dashboard.totalItemsSold += itemsCount;
+          if (inv.voucher_id) dashboard.totalVouchersUsed += 1;
+          dashboard.totalItemCommission += invItemComm;
+          dashboard.totalVoucherCommission += invVoucherComm;
+
+          // Return row data
+          return {
+            invoiceNumber: inv.invoice_number,
+            date: inv.paid_at,
+            customer: inv.customer?.name ?? 'Guest',
+            grandTotal: inv.grand_total,
+            itemsCount: itemsCount,
+            totalCommission: invItemComm + invVoucherComm,
+          };
+        });
+
+        dashboard.grandTotalCommission =
+          dashboard.totalItemCommission + dashboard.totalVoucherCommission;
+        return { dashboard, table };
+      }
+
+      // ----------------------------------------------------------------
+      // 3. Commission by Items
+      // ----------------------------------------------------------------
+      case 'commission-by-items': {
+        const itemMap = new Map<string, any>();
+
+        for (const inv of invoices) {
+          const employeeId = inv.users?.employees?.id;
+          if (!employeeId) continue;
+
+          for (const detail of inv.invoice_details) {
+            const productId = detail.product_id;
+            if (!productId) continue;
+            const productName = detail.products?.name ?? 'Unknown';
+            const price = detail.product_price ?? 0;
+            const qty = detail.qty ?? 0;
+
+            let comm = 0;
+            const rule = productMap.get(`${employeeId}-${productId}`);
+            if (rule) {
+              comm = rule.is_percent
+                ? price * qty * rule.amount
+                : qty * rule.amount;
+            }
+
+            if (!itemMap.has(productId)) {
+              itemMap.set(productId, {
+                itemName: productName,
+                itemPrice: price, // Asumsi harga terakhir/rata-rata
+                totalRevenue: 0,
+                totalCommissionAccumulated: 0,
+              });
+            }
+
+            const data = itemMap.get(productId);
+            data.totalRevenue += price * qty;
+            data.totalCommissionAccumulated += comm;
+            // Update price (optional, if prices change)
+            data.itemPrice = price;
+          }
+        }
+
+        const table = Array.from(itemMap.values()).map((item) => ({
+          itemName: item.itemName,
+          itemPrice: item.itemPrice,
+          totalCommissionAccumulated: item.totalCommissionAccumulated,
+          // Ratio % = (Total Comm / Total Revenue) * 100
+          averageCommissionRatio:
+            item.totalRevenue > 0
+              ? (item.totalCommissionAccumulated / item.totalRevenue) * 100
+              : 0,
+        }));
+
+        return { dashboard: {}, table }; // Tidak ada dashboard spesifik diminta
+      }
+
+      // ----------------------------------------------------------------
+      // 4. Commission by Voucher
+      // ----------------------------------------------------------------
+      case 'commission-by-voucher': {
+        const voucherAggMap = new Map<string, any>();
+
+        for (const inv of invoices) {
+          const employeeId = inv.users?.employees?.id;
+          const voucherId = inv.voucher_id;
+          if (!employeeId || !voucherId) continue;
+
+          let comm = 0;
+          const rule = voucherMap.get(`${employeeId}-${voucherId}`);
+          if (rule) comm = rule.amount ?? 0;
+
+          if (!voucherAggMap.has(voucherId)) {
+            voucherAggMap.set(voucherId, {
+              voucherName: inv.voucher?.name ?? 'Unknown',
+              totalCommission: 0,
+            });
+          }
+          const data = voucherAggMap.get(voucherId);
+          data.totalCommission += comm;
+        }
+
+        const table = Array.from(voucherAggMap.values());
+        return { dashboard: {}, table }; // Tidak ada dashboard spesifik diminta
+      }
+
+      default:
+        throw new BadRequestException('Invalid staff report type');
+    }
   }
 
   async getLoyaltyReport(

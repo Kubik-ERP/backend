@@ -169,6 +169,7 @@ export class ReportController {
     @Query('type') type: StaffReportType,
     @Req() req: ICustomRequestHeaders,
     @Query('store_ids') storeIds?: string,
+    @Query('staff_ids') staffId?: string,
   ) {
     const data = await this.reportService.getStaffReports(
       startDate,
@@ -176,6 +177,7 @@ export class ReportController {
       type,
       req,
       storeIds,
+      staffId,
     );
     return {
       message: 'Staff report data retrieved successfully',
