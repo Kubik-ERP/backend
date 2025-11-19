@@ -3879,7 +3879,7 @@ export class InvoiceService {
               ...d.products,
               type,
               quantity,
-              name
+              name,
             };
           }) ?? [];
     }
@@ -3936,19 +3936,21 @@ export class InvoiceService {
 
         if (canEarnPoints) {
           for (const product of products) {
-            const getProductId = product.productId ? product.productId : (product.id ?? null);
+            const getProductId = product.productId
+              ? product.productId
+              : (product.id ?? null);
             if (!getProductId) {
               return {
                 earnPointsBySpend,
                 earnPointsByProduct,
-                data
-              }
+                data,
+              };
             }
 
             const getProduct = await this._prisma.products.findFirst({
               where: {
-                id: getProductId
-              }
+                id: getProductId,
+              },
             });
 
             if (product.type == 'single') {
@@ -3956,7 +3958,7 @@ export class InvoiceService {
                 await this._prisma.loyalty_product_item.findFirst({
                   where: {
                     loyalty_point_setting_id: loyaltySettings.id,
-                    product_id: getProductId
+                    product_id: getProductId,
                   },
                 });
               if (loyaltyItem) {
@@ -3979,7 +3981,7 @@ export class InvoiceService {
                 data.push({
                   product_id: getProductId,
                   product_name: getProduct?.name ?? '',
-                  total_points: totalPoints
+                  total_points: totalPoints,
                 });
               }
             }
@@ -3991,7 +3993,7 @@ export class InvoiceService {
     return {
       earnPointsBySpend,
       earnPointsByProduct,
-      data
+      data,
     };
   }
 
@@ -4043,7 +4045,7 @@ export class InvoiceService {
             expiry_date: spendBasedExpired,
             status: 'active',
             created_at: new Date(),
-            updated_at: new Date()
+            updated_at: new Date(),
           },
         });
       }
@@ -4070,7 +4072,7 @@ export class InvoiceService {
                 expiry_date: productBasedExpired,
                 status: 'active',
                 created_at: new Date(),
-                updated_at: new Date()
+                updated_at: new Date(),
               },
             });
           }
@@ -4103,16 +4105,13 @@ export class InvoiceService {
       today.setHours(0, 0, 0, 0);
 
       const earn = await this._prisma.trn_customer_points.aggregate({
-          where: {
-              customer_id: customerId,
-              type: 'point_addition',
-              status: 'active',
-              OR: [
-                  { expiry_date: { gte: today } },
-                  { expiry_date: null }
-              ],
-          },
-          _sum: { value: true },
+        where: {
+          customer_id: customerId,
+          type: 'point_addition',
+          status: 'active',
+          OR: [{ expiry_date: { gte: today } }, { expiry_date: null }],
+        },
+        _sum: { value: true },
       });
 
       const totalActivePoints = earn._sum.value ?? 0;

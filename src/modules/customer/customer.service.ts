@@ -277,8 +277,8 @@ export class CustomerService {
         stores: true,
         trn_customer_points: {
           include: {
-            invoice: true
-          }
+            invoice: true,
+          },
         },
       },
     });
@@ -343,7 +343,7 @@ export class CustomerService {
         take: limit,
         include: {
           invoice: true,
-          products: true
+          products: true,
         },
         orderBy: prismaOrderBy,
       }),
@@ -426,7 +426,7 @@ export class CustomerService {
     dto.earn_type = 'adjustment';
     const dataToCreate = {
       ...dto,
-      type
+      type,
     };
 
     try {
