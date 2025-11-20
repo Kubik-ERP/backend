@@ -676,12 +676,12 @@ export class BatchRecipeService {
       data: { stock_quantity: newQuantity },
     });
 
-      await tx.product_portion_stock.create({
-        data: {
-          product_id: menuRecipe.product_id,
-          stores_id: storeId,
-          action: ProductPortionAction.INCREASE,
-          adjustment_quantity: quantity,
+    await tx.product_portion_stock.create({
+      data: {
+        product_id: menuRecipe.product_id,
+        stores_id: storeId,
+        action: ProductPortionAction.INCREASE,
+        adjustment_quantity: quantity,
         notes: `Penambahan stok dari batch recipe ${menuRecipe.recipe_name ?? batchId}`,
         previous_quantity: previousQuantity,
         new_quantity: newQuantity,
