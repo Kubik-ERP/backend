@@ -648,37 +648,39 @@ export class BatchRecipeService {
       select: {
         recipe_name: true,
         product_id: true,
-        products: {
-          select: {
-            id: true,
-            stores_id: true,
-            stock_quantity: true,
-          },
-        },
       },
     });
 
-    if (!menuRecipe?.product_id || !menuRecipe.products) {
+    if (!menuRecipe?.product_id) {
       return;
     }
 
-    if (menuRecipe.products.stores_id !== storeId) {
-      throw new BadRequestException(
-        'Produk menu recipe tidak terhubung dengan store ini',
-      );
+    const product = await tx.products.findFirst({
+      where: {
+        id: menuRecipe.product_id,
+        stores_id: storeId,
+      },
+      select: {
+        id: true,
+        stock_quantity: true,
+      },
+    });
+
+    if (!product) {
+      return;
     }
 
-    const previousQuantity = menuRecipe.products.stock_quantity ?? 0;
+    const previousQuantity = product.stock_quantity ?? 0;
     const newQuantity = previousQuantity + quantity;
 
     await tx.products.update({
-      where: { id: menuRecipe.product_id },
+      where: { id: product.id },
       data: { stock_quantity: newQuantity },
     });
 
     await tx.product_portion_stock.create({
       data: {
-        product_id: menuRecipe.product_id,
+        product_id: product.id,
         stores_id: storeId,
         action: ProductPortionAction.INCREASE,
         adjustment_quantity: quantity,
