@@ -22,20 +22,8 @@ import { requireStoreId } from 'src/common/helpers/common.helpers';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  public async findWithStaff(
-    header: ICustomRequestHeaders,
-    store_ids?: string,
-  ) {
+  public async findWithStaff(header: ICustomRequestHeaders) {
     const storeId = requireStoreId(header);
-
-    const storeids = new Set<string>();
-    // add store id from header
-    storeids.add(storeId);
-    // add store ids from query
-    if (store_ids) {
-      store_ids.split(',').forEach((id) => storeids.add(id));
-    }
-
     const users = await this.prisma.users.findMany({
       where: {
         OR: [
@@ -48,7 +36,7 @@ export class UsersService {
           {
             is_staff: true,
             employees: {
-              stores_id: { in: Array.from(storeids) },
+              stores_id: storeId,
             },
           },
         ],

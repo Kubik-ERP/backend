@@ -9,15 +9,6 @@ import { StorageService } from '../storage-service/services/storage-service.serv
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { EmployeeCommissionsListDto } from './dto/employee-commissions-list.dto';
-import {
-  convertToIsoDate,
-  requireStoreId,
-} from 'src/common/helpers/common.helpers';
-import {
-  getOffset,
-  getTotalPages,
-} from 'src/common/helpers/pagination.helpers';
 
 @Injectable()
 export class EmployeesService {
@@ -224,103 +215,6 @@ export class EmployeesService {
       shift,
       productCommissions: insertedProductCommissions,
       voucherCommissions: insertedVoucherCommissions,
-    };
-  }
-
-  async findCommissions(
-    id: string,
-    query: EmployeeCommissionsListDto,
-    header: ICustomRequestHeaders,
-  ) {
-    const store_id = requireStoreId(header);
-
-    // --- Filter range active voucher
-    const whereClause: Prisma.employee_commission_logsWhereInput = {
-      employee_id: id,
-    };
-
-    if (query.startDate || query.endDate) {
-      const start = query.startDate
-        ? convertToIsoDate(query.startDate)
-        : undefined;
-      const end = query.endDate ? convertToIsoDate(query.endDate) : undefined;
-
-      whereClause.AND = [
-        // Start period before or same as end filter date
-        ...(end ? [{ created_at: { lte: new Date(end) } }] : []),
-        // End period after or same as start filter date
-        ...(start ? [{ created_at: { gte: new Date(start) } }] : []),
-      ];
-    }
-
-    // filter sourceType
-    if (query.sourceType) {
-      whereClause.source_type = query.sourceType;
-    }
-
-    const filters: Prisma.employee_commission_logsWhereInput = {
-      ...whereClause,
-      employees: {
-        stores_id: store_id,
-      },
-    };
-
-    const [items, total] = await Promise.all([
-      this.prisma.employee_commission_logs.findMany({
-        where: whereClause,
-        skip: getOffset(query.page, query.pageSize),
-        take: query.pageSize,
-        orderBy: [{ created_at: 'desc' }],
-        include: {
-          voucher: {
-            select: {
-              name: true,
-            },
-          },
-          invoice: {
-            select: {
-              invoice_number: true,
-              paid_at: true,
-            },
-          },
-          invoice_details: {
-            select: {
-              products: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      }),
-      this.prisma.employee_commission_logs.count({
-        where: filters,
-      }),
-    ]);
-
-    // --- Add status to items
-    const data = items.map((item) => {
-      const name = item.invoice_details?.products?.name || item.voucher?.name;
-
-      return {
-        id: item.id,
-        invoiceNumber: item.invoice?.invoice_number,
-        paidAt: item.invoice?.paid_at,
-        sourceType: item.source_type,
-        commissionAmount: item.commission_amount,
-        name,
-      };
-    });
-
-    return {
-      items: data,
-      meta: {
-        page: query.page,
-        pageSize: query.pageSize,
-        total,
-        totalPages: getTotalPages(total, query.pageSize),
-      },
     };
   }
 
@@ -557,43 +451,17 @@ export class EmployeesService {
         });
       }
 
-      // Handle product commissions with upsert logic
-      if (commissions && Array.isArray(commissions.productCommission)) {
-        // Get existing product commissions
-        const existingProductCommissions =
-          await tx.product_commissions.findMany({
-            where: { employees_id: id },
-            include: {
-              employee_commission_logs: {
-                select: { id: true },
-              },
-            },
-          });
+      await tx.product_commissions.deleteMany({
+        where: { employees_id: id },
+      });
+      await tx.voucher_commissions.deleteMany({
+        where: { employees_id: id },
+      });
 
-        // Track which commissions are being updated/created
-        const processedProductIds = new Set<string>();
-
-        for (const pc of commissions.productCommission) {
-          if (!pc.product_id || pc.amount === undefined) continue;
-
-          processedProductIds.add(pc.product_id);
-
-          // Check if commission already exists
-          const existingCommission = existingProductCommissions.find(
-            (ec) => ec.products_id === pc.product_id,
-          );
-
-          if (existingCommission) {
-            // Update existing commission
-            await tx.product_commissions.update({
-              where: { id: existingCommission.id },
-              data: {
-                is_percent: pc.is_percent ?? false,
-                amount: pc.amount ?? 0,
-              },
-            });
-          } else {
-            // Create new commission
+      if (commissions) {
+        if (Array.isArray(commissions.productCommission)) {
+          for (const pc of commissions.productCommission) {
+            if (!pc.product_id || pc.amount === undefined) continue;
             await tx.product_commissions.create({
               data: {
                 employees_id: id,
@@ -605,78 +473,9 @@ export class EmployeesService {
           }
         }
 
-        // Delete commissions that are no longer needed (only if they don't have commission logs)
-        const commissionsToDelete = existingProductCommissions.filter(
-          (ec) =>
-            !processedProductIds.has(ec.products_id) &&
-            ec.employee_commission_logs.length === 0,
-        );
-
-        for (const commission of commissionsToDelete) {
-          await tx.product_commissions.delete({
-            where: { id: commission.id },
-          });
-        }
-      } else {
-        // If no product commissions provided, delete existing ones (only if they don't have commission logs)
-        const existingProductCommissions =
-          await tx.product_commissions.findMany({
-            where: { employees_id: id },
-            include: {
-              employee_commission_logs: {
-                select: { id: true },
-              },
-            },
-          });
-
-        const commissionsToDelete = existingProductCommissions.filter(
-          (ec) => ec.employee_commission_logs.length === 0,
-        );
-
-        for (const commission of commissionsToDelete) {
-          await tx.product_commissions.delete({
-            where: { id: commission.id },
-          });
-        }
-      }
-
-      // Handle voucher commissions with upsert logic
-      if (commissions && Array.isArray(commissions.voucherCommission)) {
-        // Get existing voucher commissions
-        const existingVoucherCommissions =
-          await tx.voucher_commissions.findMany({
-            where: { employees_id: id },
-            include: {
-              employee_commission_logs: {
-                select: { id: true },
-              },
-            },
-          });
-
-        // Track which commissions are being updated/created
-        const processedVoucherIds = new Set<string>();
-
-        for (const vc of commissions.voucherCommission) {
-          if (!vc.voucher_id || vc.amount === undefined) continue;
-
-          processedVoucherIds.add(vc.voucher_id);
-
-          // Check if commission already exists
-          const existingCommission = existingVoucherCommissions.find(
-            (ec) => ec.voucher_id === vc.voucher_id,
-          );
-
-          if (existingCommission) {
-            // Update existing commission
-            await tx.voucher_commissions.update({
-              where: { id: existingCommission.id },
-              data: {
-                is_percent: vc.is_percent ?? false,
-                amount: vc.amount ?? 0,
-              },
-            });
-          } else {
-            // Create new commission
+        if (Array.isArray(commissions.voucherCommission)) {
+          for (const vc of commissions.voucherCommission) {
+            if (!vc.voucher_id || vc.amount === undefined) continue;
             await tx.voucher_commissions.create({
               data: {
                 employees_id: id,
@@ -686,40 +485,6 @@ export class EmployeesService {
               },
             });
           }
-        }
-
-        // Delete commissions that are no longer needed (only if they don't have commission logs)
-        const commissionsToDelete = existingVoucherCommissions.filter(
-          (ec) =>
-            !processedVoucherIds.has(ec.voucher_id) &&
-            ec.employee_commission_logs.length === 0,
-        );
-
-        for (const commission of commissionsToDelete) {
-          await tx.voucher_commissions.delete({
-            where: { id: commission.id },
-          });
-        }
-      } else {
-        // If no voucher commissions provided, delete existing ones (only if they don't have commission logs)
-        const existingVoucherCommissions =
-          await tx.voucher_commissions.findMany({
-            where: { employees_id: id },
-            include: {
-              employee_commission_logs: {
-                select: { id: true },
-              },
-            },
-          });
-
-        const commissionsToDelete = existingVoucherCommissions.filter(
-          (ec) => ec.employee_commission_logs.length === 0,
-        );
-
-        for (const commission of commissionsToDelete) {
-          await tx.voucher_commissions.delete({
-            where: { id: commission.id },
-          });
         }
       }
 
