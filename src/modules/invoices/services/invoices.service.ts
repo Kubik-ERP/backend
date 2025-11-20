@@ -39,6 +39,7 @@ import { VariantsService } from '../../variants/variants.service';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 import {
   GetInvoiceDto,
+  GetInvoiceByNumberDto,
   GetListInvoiceDto,
   InvoiceUpdateDto,
   UpdateInvoiceOrderStatusDto,
@@ -254,6 +255,143 @@ export class InvoiceService {
       this.logger.error(`Invoice with ID ${request.invoiceId} not found.`);
       throw new NotFoundException(
         `Invoice with ID ${request.invoiceId} not found.`,
+      );
+    }
+
+    // Calculate queue number for this invoice based on created_at order in the same day
+    let queueNumber = 0;
+    if (invoice.created_at && invoice.store_id) {
+      const invoiceDate = new Date(invoice.created_at);
+      const startOfDay = new Date(invoiceDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(invoiceDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Count invoices created before this invoice on the same day in the same store
+      const count = await this._prisma.invoice.count({
+        where: {
+          store_id: invoice.store_id,
+          created_at: {
+            gte: startOfDay,
+            lte: endOfDay,
+            lt: invoice.created_at,
+          },
+        },
+      });
+
+      queueNumber = count + 1; // Queue starts from 1
+    }
+
+    let totalEarnPoints = 0;
+    let totalPointsUsed = 0;
+
+    if (invoice.store_id && invoice.customer) {
+      const getData = await this.prepareUpdateLoyaltyPoints(
+        invoice.store_id,
+        invoice.id,
+      );
+
+      let grandTotalInvoice = 0;
+      if (invoice.payment_status == 'unpaid') {
+        for (const item of invoice.invoice_details) {
+          if (!item.benefit_free_items_id) {
+            grandTotalInvoice +=
+              (item.product_price ?? 0) * (item.qty ?? 0) -
+              (item.product_discount ?? 0) * (item.qty ?? 0);
+          }
+        }
+
+        let loyaltyDiscount = 0;
+        if (invoice.loyalty_points_benefit) {
+          if (invoice.loyalty_points_benefit.is_percent) {
+            loyaltyDiscount =
+              grandTotalInvoice *
+              ((invoice.loyalty_points_benefit.discount_value ?? 0) / 100);
+          } else {
+            loyaltyDiscount =
+              invoice.loyalty_points_benefit.discount_value ?? 0;
+          }
+        }
+
+        grandTotalInvoice -= loyaltyDiscount;
+        invoice.loyalty_discount = loyaltyDiscount;
+      } else {
+        grandTotalInvoice = invoice.grand_total ?? 0;
+      }
+
+      const getPoints = await this.calculateLoyaltyPoints(
+        invoice.store_id,
+        getData.products,
+        grandTotalInvoice,
+        getData.redeemLoyalty,
+      );
+
+      totalEarnPoints =
+        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+      totalPointsUsed = invoice.loyalty_points_benefit?.points_needs ?? 0;
+    }
+
+    // formatting returned response
+    const formatted = {
+      ...invoice,
+      queue: queueNumber,
+      invoiceCharges: invoice.invoice_charges.map((c) => ({
+        ...c,
+        percentage: (c.percentage as Prisma.Decimal).toNumber(),
+        amount: (c.amount as Prisma.Decimal).toNumber(),
+      })),
+      totalEarnPoints,
+      totalPointsUsed,
+    };
+
+    return formatted;
+  }
+
+  public async getInvoicePreviewByNumber(request: GetInvoiceByNumberDto) {
+    const invoice = await this._prisma.invoice.findFirst({
+      where: {
+        ...{ invoice_number: request.invoiceNumber },
+      },
+      include: {
+        customer: true,
+        stores: true,
+        invoice_details: {
+          include: {
+            products: true,
+            variant: true,
+            catalog_bundling: true,
+            invoice_bundling_items: {
+              include: {
+                products: true,
+              },
+            },
+          },
+        },
+        loyalty_points_benefit: {
+          include: {
+            benefit_free_items: {
+              include: {
+                products: true,
+              },
+            },
+          },
+        },
+        users: {
+          select: { id: true, fullname: true },
+        },
+        invoice_charges: true,
+        payment_methods: true,
+        payment_rounding_settings: true,
+      },
+    });
+
+    if (!invoice) {
+      this.logger.error(
+        `Invoice with number ${request.invoiceNumber} not found.`,
+      );
+      throw new NotFoundException(
+        `Invoice with number ${request.invoiceNumber} not found.`,
       );
     }
 
