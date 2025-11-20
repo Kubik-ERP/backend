@@ -25,6 +25,7 @@ import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
 import {
   GetListInvoiceDto,
+  GetInvoiceByNumberDto,
   UpdateInvoiceOrderStatusDto,
 } from '../dtos/invoice.dto';
 import { SentEmailInvoiceByIdDto } from '../dtos/sent-email.dto';
@@ -82,6 +83,20 @@ export class InvoiceController {
   public async invoiceByKey(@Param('invoiceId') invoiceId: string) {
     const response = await this.invoiceService.getInvoicePreview({
       invoiceId: invoiceId,
+    });
+
+    return {
+      result: toCamelCase(response),
+    };
+  }
+
+  @Get('share/:invoiceNumber')
+  @ApiOperation({
+    summary: 'Get invoice by invoice number for share link',
+  })
+  public async invoiceShareLink(@Param('invoiceNumber') invoiceNumber: string) {
+    const response = await this.invoiceService.getInvoicePreviewByNumber({
+      invoiceNumber: invoiceNumber,
     });
 
     return {
