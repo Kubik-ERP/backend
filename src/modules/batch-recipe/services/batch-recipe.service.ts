@@ -479,7 +479,11 @@ export class BatchRecipeService {
 
   private async applyInventoryAdjustmentsForBatch(
     tx: Prisma.TransactionClient,
-    batch: { id: string; recipe_id?: string | null },
+    batch: {
+      id: string;
+      recipe_id?: string | null;
+      batch_target_yield?: number | null;
+    },
     storeId: string,
     userId: unknown,
     timestamp: Date,
@@ -492,6 +496,7 @@ export class BatchRecipeService {
           ingredients: {
             select: {
               ingredient_id: true,
+              qty: true,
               master_inventory_items: {
                 select: {
                   id: true,
@@ -515,13 +520,20 @@ export class BatchRecipeService {
       }
     >();
 
+    const batchYield = batch.batch_target_yield ?? 0;
+
     for (const entry of ingredientEntries) {
       const inventoryItem = entry.ingredients?.master_inventory_items;
       if (!inventoryItem) {
         continue;
       }
 
-      const qty = entry.qty ?? 0;
+      const recipeMaterialQty =
+        this.decimalToNumber(entry.ingredients?.qty) ?? null;
+      const qty =
+        recipeMaterialQty !== null && batchYield > 0
+          ? recipeMaterialQty * batchYield
+          : (entry.qty ?? 0);
       if (!Number.isFinite(qty) || qty <= 0) {
         continue;
       }
