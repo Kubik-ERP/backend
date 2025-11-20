@@ -14,6 +14,11 @@ import { BatchRecipeStatus } from '../interfaces/batch-recipe.interface';
 import { FindBatchRecipesQueryDto } from '../dtos/find-batch-recipes-query.dto';
 import { StockAdjustmentActionDto } from 'src/modules/inventory-items/dtos/create-stock-adjustment.dto';
 
+enum ProductPortionAction {
+  INCREASE = 'INCREASE',
+  DECREASE = 'DECREASE',
+}
+
 @Injectable()
 export class BatchRecipeService {
   constructor(private readonly prisma: PrismaService) {}
@@ -431,13 +436,18 @@ export class BatchRecipeService {
     }
 
     const now = new Date();
+    const finalBatchWaste = dto.batchWaste ?? batch.batch_waste ?? 0;
+    const portionStockIncrease = this.calculatePortionStockIncrease(
+      batch.batch_target_yield,
+      finalBatchWaste,
+    );
 
     await this.prisma.$transaction(async (tx) => {
       await tx.batch_cooking_recipe.update({
         where: { id: batch.id },
         data: {
           status: BatchRecipeStatus.COMPLETED,
-          batch_waste: dto.batchWaste ?? batch.batch_waste ?? 0,
+          batch_waste: finalBatchWaste,
           notes: dto.notes ?? batch.notes,
           updated_at: now,
           updated_by: user.id,
@@ -476,6 +486,14 @@ export class BatchRecipeService {
           });
         }
       }
+
+      await this.addPortionStockForBatch(tx, {
+        batchId: batch.id,
+        recipeId: batch.recipe_id,
+        storeId,
+        portionQty: portionStockIncrease,
+        userId: user.id,
+      });
     });
 
     return this.getBatchDetail(batchId, storeId);
@@ -601,6 +619,77 @@ export class BatchRecipeService {
     }
   }
 
+  private async addPortionStockForBatch(
+    tx: Prisma.TransactionClient,
+    params: {
+      storeId: string;
+      batchId: string;
+      recipeId?: string | null;
+      portionQty: number;
+      userId: unknown;
+    },
+  ) {
+    const { storeId, batchId, recipeId, portionQty, userId } = params;
+
+    if (!recipeId) {
+      return;
+    }
+
+    const quantity = Math.trunc(portionQty);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return;
+    }
+
+    const menuRecipe = await tx.menu_recipes.findFirst({
+      where: {
+        recipe_id: recipeId,
+        store_id: storeId,
+      },
+      select: {
+        recipe_name: true,
+        product_id: true,
+        products: {
+          select: {
+            id: true,
+            stores_id: true,
+            stock_quantity: true,
+          },
+        },
+      },
+    });
+
+    if (!menuRecipe?.product_id || !menuRecipe.products) {
+      return;
+    }
+
+    if (menuRecipe.products.stores_id !== storeId) {
+      throw new BadRequestException(
+        'Produk menu recipe tidak terhubung dengan store ini',
+      );
+    }
+
+    const previousQuantity = menuRecipe.products.stock_quantity ?? 0;
+    const newQuantity = previousQuantity + quantity;
+
+    await tx.products.update({
+      where: { id: menuRecipe.product_id },
+      data: { stock_quantity: newQuantity },
+    });
+
+      await tx.product_portion_stock.create({
+        data: {
+          product_id: menuRecipe.product_id,
+          stores_id: storeId,
+          action: ProductPortionAction.INCREASE,
+          adjustment_quantity: quantity,
+        notes: `Penambahan stok dari batch recipe ${menuRecipe.recipe_name ?? batchId}`,
+        previous_quantity: previousQuantity,
+        new_quantity: newQuantity,
+        created_by: this.normalizeUserId(userId),
+      },
+    });
+  }
+
   private normalizeUserId(userId: unknown): number | null {
     if (typeof userId === 'number' && Number.isFinite(userId)) {
       return userId;
@@ -623,6 +712,28 @@ export class BatchRecipeService {
     }
 
     return batchTargetYield / recipeTargetYield;
+  }
+
+  private calculatePortionStockIncrease(
+    batchTargetYield: number | null | undefined,
+    batchWaste: number | null | undefined,
+  ) {
+    const target = Number(batchTargetYield ?? 0);
+    if (!Number.isFinite(target) || target <= 0) {
+      return 0;
+    }
+
+    const wasteValue = Number(batchWaste ?? 0);
+    const normalizedWaste = Number.isFinite(wasteValue)
+      ? Math.max(0, wasteValue)
+      : 0;
+
+    const netYield = target - normalizedWaste;
+    if (!Number.isFinite(netYield) || netYield <= 0) {
+      return 0;
+    }
+
+    return Math.floor(netYield);
   }
 
   private async getBatchDetail(batchId: string, storeId: string) {
