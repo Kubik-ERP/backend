@@ -749,6 +749,7 @@ export class TransferStockService {
       await tx.transfer_stock_items.update({
         where: { id: stockItem.id },
         data: {
+          qty_received: receivedItem.qty_received,
           status: data.status === 'received' ? 'received' : 'received_with_issue',
           note: receivedItem.notes ?? null
         },
