@@ -27,7 +27,6 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { FindAllEmployeeQueryDto } from './dto/find-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeesService } from './employees.service';
-import { EmployeeCommissionsListDto } from './dto/employee-commissions-list.dto';
 
 @Controller('employees')
 export class EmployeesController {
@@ -88,38 +87,6 @@ export class EmployeesController {
       message: 'Employees fetched successfully',
       result: toCamelCase(data),
     };
-  }
-
-  @ApiOperation({ summary: 'Get all employee commissions' })
-  @UseGuards(AuthPermissionGuard)
-  @RequirePermissions('manage_staff_member')
-  @ApiHeader({
-    name: 'X-STORE-ID',
-    description: 'Store ID associated with this request',
-    required: true,
-    schema: { type: 'string' },
-  })
-  @ApiBearerAuth()
-  @Get(':id/commissions')
-  async findCommissions(
-    @Param('id') id: string,
-    @Query() query: EmployeeCommissionsListDto,
-    @Req() req: ICustomRequestHeaders,
-  ) {
-    try {
-      const data = await this.employeesService.findCommissions(id, query, req);
-      return {
-        statusCode: 200,
-        message: 'Employee commissions fetched successfully',
-        result: toCamelCase(data),
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: error.message,
-        result: null,
-      };
-    }
   }
 
   @UseGuards(AuthPermissionGuard)
