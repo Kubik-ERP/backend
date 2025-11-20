@@ -352,14 +352,26 @@ export class BatchRecipeService {
       );
     }
 
-    await this.prisma.batch_cooking_recipe.update({
-      where: { id: batch.id },
-      data: {
-        status: BatchRecipeStatus.COOKING,
-        cooking_at: new Date(),
-        updated_at: new Date(),
-        updated_by: user.id,
-      },
+    const now = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.applyInventoryAdjustmentsForBatch(
+        tx,
+        batch,
+        storeId,
+        user.id,
+        now,
+      );
+
+      await tx.batch_cooking_recipe.update({
+        where: { id: batch.id },
+        data: {
+          status: BatchRecipeStatus.COOKING,
+          cooking_at: now,
+          updated_at: now,
+          updated_by: user.id,
+        },
+      });
     });
 
     return this.getBatchDetail(batchId, storeId);
@@ -431,14 +443,6 @@ export class BatchRecipeService {
           updated_by: user.id,
         },
       });
-
-      await this.applyInventoryAdjustmentsForBatch(
-        tx,
-        batch,
-        storeId,
-        user.id,
-        now,
-      );
 
       if (dto.wasteLog?.items?.length) {
         const wasteLog = await tx.waste_log.create({
