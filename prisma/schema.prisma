@@ -690,7 +690,6 @@ model master_inventory_items {
   stock_opname_items                stock_opname_items[]
   transfer_stock_items              transfer_stock_items[]
   waste_log_item                    waste_log_item[]
-  transfer_stock_items              transfer_stock_items[]
 
   @@index([store_id], map: "idx_master_inventory_items_store_id")
   @@index([brand_id], map: "idx_mii_brand_id")
