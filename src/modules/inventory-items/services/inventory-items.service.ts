@@ -1990,34 +1990,12 @@ export class InventoryItemsService {
       typeof markup.toNumber === 'function'
         ? markup.toNumber()
         : markup;
-
-    // Handle master_inventory_item_conversions formatting
-    let processedConversions = item.master_inventory_item_conversions;
-    if (processedConversions && Array.isArray(processedConversions)) {
-      processedConversions = processedConversions.map((conv: any) => {
-        // Convert conversion_value to number if it's a Decimal object
-        const conversionValue = conv.conversion_value;
-        const numericValue =
-          conversionValue &&
-          typeof conversionValue === 'object' &&
-          typeof conversionValue.toNumber === 'function'
-            ? conversionValue.toNumber()
-            : Number(conversionValue);
-
-        return {
-          ...conv,
-          conversion_value: numericValue,
-        };
-      });
-    }
-
     return {
       ...item,
       price_per_unit: priceNumber,
       price_grosir: priceGrosirNumber,
       margin: marginNumber,
       markup: markupNumber,
-      master_inventory_item_conversions: processedConversions,
     };
   }
 

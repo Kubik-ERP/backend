@@ -1,8 +1,16 @@
-import { Controller, Get, HttpStatus, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpStatus,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation } from '@nestjs/swagger';
 import { AuthenticationJWTGuard } from 'src/common/guards/authentication-jwt.guard';
 import { UsersService } from '../services/users.service';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
+import { UserStaffsDto } from '../dtos/user-staffs.dto';
 
 @Controller('users')
 export class UsersController {
@@ -18,9 +26,13 @@ export class UsersController {
   })
   @ApiBearerAuth()
   @Get('staffs')
-  async findWithStaff(@Req() req: ICustomRequestHeaders) {
+  async findWithStaff(
+    @Req() req: ICustomRequestHeaders,
+    @Query() query: UserStaffsDto,
+  ) {
+    const { store_ids } = query;
     try {
-      const result = await this.usersService.findWithStaff(req);
+      const result = await this.usersService.findWithStaff(req, store_ids);
       return {
         statusCode: 200,
         message: 'Users fetched successfully',
