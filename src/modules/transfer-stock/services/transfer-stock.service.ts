@@ -73,35 +73,45 @@ export class TransferStockService {
         take: dto.pageSize,
         orderBy: orderBy,
         include: {
-          store_from: true,
-          store_to: true,
-          drafted_user: {
+          stores_transfer_stocks_store_from_idTostores: true,
+          stores_transfer_stocks_store_to_idTostores: true,
+          users_transfer_stocks_drafted_byTousers: {
             select: { id: true, fullname: true, email: true },
           },
-          approved_user: {
+          users_transfer_stocks_approved_byTousers: {
             select: { id: true, fullname: true, email: true },
           },
-          shipped_user: {
+          users_transfer_stocks_shipped_byTousers: {
             select: { id: true, fullname: true, email: true },
           },
-          received_user: {
+          users_transfer_stocks_received_byTousers: {
             select: { id: true, fullname: true, email: true },
           },
-          canceled_user: {
+          users_transfer_stocks_canceled_byTousers: {
             select: { id: true, fullname: true, email: true },
           },
           transfer_stock_items: {
             include: {
-              master_inventory_items: true
+              master_inventory_items: true,
             },
-          }
+          },
         },
       }),
       this.prisma.transfer_stocks.count({ where: filters }),
     ]);
 
     const parsedItems = items.map((item) => ({
-      ...toCamelCase(item),
+      ...toCamelCase({
+        ...item,
+        store_from: item.stores_transfer_stocks_store_from_idTostores,
+        store_to: item.stores_transfer_stocks_store_to_idTostores,
+        drafted_user: item.users_transfer_stocks_drafted_byTousers,
+        approved_user: item.users_transfer_stocks_approved_byTousers,
+        shipped_user: item.users_transfer_stocks_shipped_byTousers,
+        received_user: item.users_transfer_stocks_received_byTousers,
+        canceled_user: item.users_transfer_stocks_canceled_byTousers,
+        transfer_stock_item: item.transfer_stock_items,
+      }),
       transferStockItems: item.transfer_stock_items.map((item) => ({
         ...toCamelCase(item),
         unitPrice: item.unit_price ? item.unit_price.toNumber() : 0,
@@ -229,21 +239,21 @@ export class TransferStockService {
     const result = await this.prisma.transfer_stocks.findFirst({
       where: {id: id},
       include: {
-        store_from: true,
-        store_to: true,
-        drafted_user: {
+        stores_transfer_stocks_store_from_idTostores: true,
+        stores_transfer_stocks_store_to_idTostores: true,
+        users_transfer_stocks_drafted_byTousers: {
           select: { id: true, fullname: true, email: true },
         },
-        approved_user: {
+        users_transfer_stocks_approved_byTousers: {
           select: { id: true, fullname: true, email: true },
         },
-        shipped_user: {
+        users_transfer_stocks_shipped_byTousers: {
           select: { id: true, fullname: true, email: true },
         },
-        received_user: {
+        users_transfer_stocks_received_byTousers: {
           select: { id: true, fullname: true, email: true },
         },
-        canceled_user: {
+        users_transfer_stocks_canceled_byTousers: {
           select: { id: true, fullname: true, email: true },
         },
         transfer_stock_items: {
@@ -259,7 +269,17 @@ export class TransferStockService {
     }
 
     const parsed = {
-      ...toCamelCase(result),
+      ...toCamelCase({
+        ...result,
+        store_from: result.stores_transfer_stocks_store_from_idTostores,
+        store_to: result.stores_transfer_stocks_store_to_idTostores,
+        drafted_user: result.users_transfer_stocks_drafted_byTousers,
+        approved_user: result.users_transfer_stocks_approved_byTousers,
+        shipped_user: result.users_transfer_stocks_shipped_byTousers,
+        received_user: result.users_transfer_stocks_received_byTousers,
+        canceled_user: result.users_transfer_stocks_canceled_byTousers,
+        transfer_stock_item: result.transfer_stock_items,
+      }),
       transferStockItems: result.transfer_stock_items.map((item) => ({
         ...toCamelCase(item),
         unitPrice: item.unit_price ? item.unit_price.toNumber() : 0,
@@ -274,7 +294,7 @@ export class TransferStockService {
               priceGrosir: item.master_inventory_items.price_grosir
                 ? item.master_inventory_items.price_grosir.toNumber()
                 : 0,
-          }
+            }
           : null,
       })),
     };
@@ -862,25 +882,29 @@ export class TransferStockService {
         take: dto.pageSize,
         orderBy,
         include: {
-          transfer_stock: true,
-          transfer_stock_item: true,
+          transfer_stocks: true,
+          transfer_stock_items: true,
         },
       }),
       this.prisma.transfer_stock_losses.count({ where: filters }),
     ]);
 
     const parsedItems = items.map((loss) => ({
-      ...toCamelCase(loss),
+      ...toCamelCase({
+        ...loss,
+        transfer_stock: loss.transfer_stocks,
+        transfer_stock_item: loss.transfer_stock_items,
+      }),
       unitPrice: loss.unit_price ? loss.unit_price.toNumber() : 0,
       lossAmount: loss.loss_amount ? loss.loss_amount.toNumber() : 0,
-      transferStockItem: loss.transfer_stock_item
+      transferStockItem: loss.transfer_stock_items
         ? {
-            ...toCamelCase(loss.transfer_stock_item),
-            unitPrice: loss.transfer_stock_item.unit_price
-              ? loss.transfer_stock_item.unit_price.toNumber()
+            ...toCamelCase(loss.transfer_stock_items),
+            unitPrice: loss.transfer_stock_items.unit_price
+              ? loss.transfer_stock_items.unit_price.toNumber()
               : 0,
-            subtotal: loss.transfer_stock_item.subtotal
-              ? loss.transfer_stock_item.subtotal.toNumber()
+            subtotal: loss.transfer_stock_items.subtotal
+              ? loss.transfer_stock_items.subtotal.toNumber()
               : 0,
           }
         : null,
@@ -901,8 +925,8 @@ export class TransferStockService {
     const result = await this.prisma.transfer_stock_losses.findFirst({
       where: { id },
       include: {
-        transfer_stock: true,
-        transfer_stock_item: true,
+        transfer_stocks: true,
+        transfer_stock_items: true,
       },
     });
 
@@ -911,17 +935,21 @@ export class TransferStockService {
     }
 
     const parsed = {
-      ...toCamelCase(result),
+      ...toCamelCase({
+        ...result,
+        transfer_stock: result.transfer_stocks,
+        transfer_stock_item: result.transfer_stock_items,
+      }),
       unitPrice: result.unit_price ? result.unit_price.toNumber() : 0,
       lossAmount: result.loss_amount ? result.loss_amount.toNumber() : 0,
-      transferStockItem: result.transfer_stock_item
+      transferStockItem: result.transfer_stock_items
         ? {
-            ...toCamelCase(result.transfer_stock_item),
-            unitPrice: result.transfer_stock_item.unit_price
-              ? result.transfer_stock_item.unit_price.toNumber()
+            ...toCamelCase(result.transfer_stock_items),
+            unitPrice: result.transfer_stock_items.unit_price
+              ? result.transfer_stock_items.unit_price.toNumber()
               : 0,
-            subtotal: result.transfer_stock_item.subtotal
-              ? result.transfer_stock_item.subtotal.toNumber()
+            subtotal: result.transfer_stock_items.subtotal
+              ? result.transfer_stock_items.subtotal.toNumber()
               : 0,
           }
         : null,
