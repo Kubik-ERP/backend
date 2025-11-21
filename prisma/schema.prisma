@@ -688,7 +688,6 @@ model master_inventory_items {
   products                          products?
   purchase_order_items              purchase_order_items[]
   stock_opname_items                stock_opname_items[]
-  transfer_stock_items              transfer_stock_items[]
   waste_log_item                    waste_log_item[]
   transfer_stock_items              transfer_stock_items[]
 
@@ -1182,9 +1181,6 @@ model stores {
   store_floors                                          store_floors[]
   store_role_permissions                                store_role_permissions[]
   tables                                                tables[]
-  transfer_stock_losses                                 transfer_stock_losses[]
-  transfer_stocks_transfer_stocks_store_from_idTostores transfer_stocks[]             @relation("transfer_stocks_store_from_idTostores")
-  transfer_stocks_transfer_stocks_store_to_idTostores   transfer_stocks[]             @relation("transfer_stocks_store_to_idTostores")
   user_has_stores                                       user_has_stores[]
   voucher                                               voucher[]
   waste_log                                             waste_log[]
@@ -1409,11 +1405,6 @@ model users {
   purchase_orders_purchase_orders_shipped_byTousers   purchase_orders[]             @relation("purchase_orders_shipped_byTousers")
   purchase_orders                                     purchase_orders[]
   stock_opnames                                       stock_opnames[]
-  transfer_stocks_transfer_stocks_approved_byTousers  transfer_stocks[]             @relation("transfer_stocks_approved_byTousers")
-  transfer_stocks_transfer_stocks_canceled_byTousers  transfer_stocks[]             @relation("transfer_stocks_canceled_byTousers")
-  transfer_stocks_transfer_stocks_drafted_byTousers   transfer_stocks[]             @relation("transfer_stocks_drafted_byTousers")
-  transfer_stocks_transfer_stocks_received_byTousers  transfer_stocks[]             @relation("transfer_stocks_received_byTousers")
-  transfer_stocks_transfer_stocks_shipped_byTousers   transfer_stocks[]             @relation("transfer_stocks_shipped_byTousers")
   user_has_stores                                     user_has_stores[]
   roles                                               roles                         @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
   subs_package                                        subs_package?                 @relation(fields: [subs_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_subs_package_fk")
