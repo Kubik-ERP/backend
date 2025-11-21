@@ -3,9 +3,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsArray,
   IsDateString,
-  IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -49,9 +49,13 @@ class AttendanceShiftDto {
 }
 
 export class CreateAttendanceDto {
-  @ApiProperty({ example: 1, nullable: true })
+  @ApiProperty({
+    example: 'c73c0f40-6df3-4e56-b5a6-5b4b24da5f55',
+    nullable: true,
+  })
   @IsOptional()
-  staffId: number | null;
+  @IsUUID()
+  staffId: string | null;
 
   @ApiProperty({ example: '2025-09-10' })
   @IsDateString()

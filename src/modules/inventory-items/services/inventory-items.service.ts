@@ -1048,6 +1048,7 @@ export class InventoryItemsService {
     created_at: true,
     updated_at: true,
     created_by: true,
+    expiry_date: true,
     users: {
       select: {
         id: true,
@@ -1094,7 +1095,7 @@ export class InventoryItemsService {
           category_id: dto.categoryId,
           unit: dto.unit,
           notes: dto.notes,
-          stock_quantity: dto.stockQuantity,
+          stock_quantity: dto?.stockQuantity ?? 0,
           reorder_level: dto.reorderLevel,
           minimum_stock_quantity: dto.minimumStockQuantity,
           expiry_date: dto.expiryDate ? new Date(dto.expiryDate) : null,
@@ -1205,6 +1206,7 @@ export class InventoryItemsService {
           margin: true,
           markup: true,
           created_at: true,
+          master_inventory_item_conversions: true,
           purchase_order_items: {
             take: 1,
             orderBy: { purchase_orders: { order_date: 'asc' } },
@@ -1240,6 +1242,7 @@ export class InventoryItemsService {
       margin: it.margin,
       markup: it.markup,
       created_at: it.created_at,
+      master_inventory_item_conversions: it.master_inventory_item_conversions,
     }));
 
     const totalPages = Math.ceil(total / pageSize);

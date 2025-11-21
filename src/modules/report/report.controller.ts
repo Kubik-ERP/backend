@@ -240,7 +240,7 @@ export class ReportController {
       storeIdsString,
     );
     return {
-      message: 'Customer report data retrieved successfully',
+      message: 'Loyalty report data retrieved successfully',
       result: data,
     };
   }

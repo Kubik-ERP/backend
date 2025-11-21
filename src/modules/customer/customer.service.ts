@@ -278,7 +278,7 @@ export class CustomerService {
         trn_customer_points: {
           include: {
             invoice: true,
-          }
+          },
         },
       },
     });
@@ -343,6 +343,7 @@ export class CustomerService {
         take: limit,
         include: {
           invoice: true,
+          products: true,
         },
         orderBy: prismaOrderBy,
       }),
@@ -390,13 +391,6 @@ export class CustomerService {
 
     const currentPoint = existingCustomer.point ?? 0;
 
-    console.log({
-      type,
-      'dto.customer_id': dto.customer_id,
-      'dto.value': dto.value,
-      currentPoint,
-    });
-
     if (type === 'point_addition') {
       if (dto.value <= 0) {
         throw new BadRequestException('Invalid point addition');
@@ -429,6 +423,7 @@ export class CustomerService {
       });
     }
 
+    dto.earn_type = 'adjustment';
     const dataToCreate = {
       ...dto,
       type,

@@ -54,8 +54,9 @@ export class CreateInventoryItemDto {
   @ApiProperty({ description: 'Stock quantity', example: 100, minimum: 0 })
   @IsInt()
   @Min(0)
+  @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
-  stockQuantity: number;
+  stockQuantity?: number;
 
   @ApiProperty({ description: 'Reorder level', example: 10, minimum: 0 })
   @IsInt()
@@ -73,6 +74,9 @@ export class CreateInventoryItemDto {
   @Transform(({ value }) => parseInt(value, 10))
   minimumStockQuantity: number;
 
+  /**
+   * @deprecated
+   */
   @ApiProperty({ description: 'Expiry date (YYYY-MM-DD)', required: false })
   @IsOptional()
   expiryDate?: string;

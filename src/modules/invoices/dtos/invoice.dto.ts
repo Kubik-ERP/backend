@@ -127,6 +127,16 @@ export class GetInvoiceDto {
   invoiceId: string;
 }
 
+export class GetInvoiceByNumberDto {
+  @ApiProperty({
+    description: 'Invoice number',
+    required: true,
+    example: 'INV-2024-001',
+  })
+  @IsString()
+  invoiceNumber: string;
+}
+
 export class UpdateInvoiceOrderStatusDto {
   @ApiProperty({
     description: 'Order status',

@@ -16,12 +16,20 @@ import {
   WasteLogResponseDto,
 } from '../dtos';
 import { StorageService } from 'src/modules/storage-service/services/storage-service.service';
+import { ProductsService } from 'src/modules/products/products.service';
+import {
+  CreateProductPortionStockAdjustmentDto,
+  ProductPortionActionDto,
+} from 'src/modules/products/dto/create-product-portion-stock-adjustment.dto';
 
 @Injectable()
 export class WasteLogService {
   private readonly logger = new Logger(WasteLogService.name);
 
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(
+    private readonly _prisma: PrismaService,
+    private readonly _productsService: ProductsService,
+  ) {}
 
   /**
    * Validate if batch cooking recipe exists in the store
@@ -96,6 +104,16 @@ export class WasteLogService {
 
         return { wasteLog, wasteLogItems };
       });
+
+      // If batchId is provided, reduce product stock quantity
+      if (dto.batchId) {
+        await this.reduceProductStockFromWaste(
+          dto.batchId,
+          dto.payload,
+          store_id,
+          header,
+        );
+      }
 
       // Fetch complete data with relations
       return await this.detail(result.wasteLog.waste_log_id, header);
@@ -269,6 +287,7 @@ export class WasteLogService {
       this._prisma.waste_log.findMany({
         where,
         include: {
+          batch_cooking_recipe: true,
           waste_log_item: {
             include: {
               master_inventory_items: {
@@ -291,11 +310,12 @@ export class WasteLogService {
       this._prisma.waste_log.count({ where }),
     ]);
 
-    const data = wasteLogs.map((wasteLog) => ({
+    const items = wasteLogs.map((wasteLog) => ({
       wasteLogId: wasteLog.waste_log_id,
       batchId: wasteLog.batch_id || undefined,
       storeId: wasteLog.store_id,
       storeName: wasteLog.stores?.name || undefined,
+      batchCookingRecipe: wasteLog.batch_cooking_recipe || undefined,
       wasteLogItems: wasteLog.waste_log_item.map((item) => ({
         wasteLogItemId: item.waste_log_item_id,
         inventoryItemId: item.inventory_item_id,
@@ -313,7 +333,7 @@ export class WasteLogService {
     }));
 
     return {
-      data,
+      items,
       meta: {
         page,
         limit,
@@ -399,6 +419,80 @@ export class WasteLogService {
     } catch (error) {
       this.logger.error('Error deleting waste log item:', error);
       throw new BadRequestException('Failed to delete waste log item');
+    }
+  }
+
+  /**
+   * Reduce product stock quantity based on waste log payload
+   * Follows the relationship: batch_id -> recipe_id -> product_id
+   */
+  private async reduceProductStockFromWaste(
+    batchId: string,
+    payload: any[],
+    storeId: string,
+    header: ICustomRequestHeaders,
+  ): Promise<void> {
+    try {
+      // Get batch cooking recipe with menu recipe and product information
+      const batchRecipe = await this._prisma.batch_cooking_recipe.findFirst({
+        where: {
+          id: batchId,
+          store_id: storeId,
+        },
+        include: {
+          menu_recipes: {
+            select: {
+              recipe_id: true,
+              recipe_name: true,
+              product_id: true,
+            },
+          },
+        },
+      });
+
+      if (!batchRecipe || !batchRecipe.menu_recipes?.product_id) {
+        this.logger.warn(
+          `No product found for batch ${batchId} or recipe not linked to product`,
+        );
+        return;
+      }
+
+      const productId = batchRecipe.menu_recipes.product_id;
+      const recipeName = batchRecipe.menu_recipes.recipe_name;
+
+      // Calculate total waste quantity from all payload items
+      const totalWasteQuantity = payload.reduce((sum, item) => {
+        return sum + (item.quantity || 0);
+      }, 0);
+
+      if (totalWasteQuantity <= 0) {
+        this.logger.warn('No waste quantity to reduce from product stock');
+        return;
+      }
+
+      // Use ProductsService to decrease stock
+      const stockAdjustmentDto: CreateProductPortionStockAdjustmentDto = {
+        action: ProductPortionActionDto.DECREASE,
+        adjustmentQuantity: totalWasteQuantity,
+        notes: `Stock reduction due to waste log for batch ${batchId} (Recipe: ${recipeName})`,
+      };
+
+      await this._productsService.addProductPortionStockAdjustment(
+        productId,
+        stockAdjustmentDto,
+        header,
+      );
+
+      this.logger.log(
+        `Successfully reduced product ${productId} stock by ${totalWasteQuantity} due to waste log for batch ${batchId} (Recipe: ${recipeName})`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error reducing product stock for batch ${batchId}:`,
+        error,
+      );
+      // Don't throw error to avoid rolling back waste log creation
+      // Just log the error for monitoring
     }
   }
 }
