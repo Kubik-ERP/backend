@@ -112,7 +112,7 @@ const permissionsMaster = [
       { name: 'Manage Brand', key: 'manage_brand' },
       { name: 'Manage Stock Opname', key: 'manage_stock_opname' },
       { name: 'Manage Storage Location', key: 'manage_storage_location' },
-      { name: 'Transfer Stock', key: 'manage_transfer_stock' },
+      { name: 'Transfer Stock', key: 'manage_transfer_stock' }
     ],
   },
   {

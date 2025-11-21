@@ -12,14 +12,7 @@ import {
   Put,
 } from '@nestjs/common';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiHeader,
-  ApiOkResponse,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiHeader, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { RequirePermissions } from 'src/common/decorators/permissions.decorator';
 import { TransferStockService } from '../services/transfer-stock.service';
@@ -48,7 +41,7 @@ export class TransferStockController {
   @ApiOperation({ summary: 'Get all transfer stock' })
   @ApiOkResponse({
     description: 'Transfer stock list response',
-    type: TransferStockListResponseDto,
+    type: TransferStockListResponseDto
   })
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('manage_transfer_stock')
@@ -84,7 +77,7 @@ export class TransferStockController {
   @ApiOperation({ summary: 'Create transfer stock' })
   @ApiOkResponse({
     description: 'Create transfer stock response',
-    type: CreateTransferStockResponseDto,
+    type: CreateTransferStockResponseDto
   })
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('manage_transfer_stock')
@@ -100,7 +93,10 @@ export class TransferStockController {
     @Req() req: ICustomRequestHeaders,
     @Body() dto: CreateTransferStockDto,
   ) {
-    const newTransferStock = await this.transferStockService.create(req, dto);
+    const newTransferStock = await this.transferStockService.create(
+      req,
+      dto
+    );
 
     return {
       statusCode: HttpStatus.CREATED,
@@ -112,7 +108,7 @@ export class TransferStockController {
   @ApiOperation({ summary: 'Get transfer stock' })
   @ApiOkResponse({
     description: 'Get transfer stock response',
-    type: GetTransferStockResponseDto,
+    type: GetTransferStockResponseDto
   })
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('manage_transfer_stock')
@@ -126,7 +122,7 @@ export class TransferStockController {
   @Get('transfer-stock/:id')
   async getTransferStock(
     @Req() req: ICustomRequestHeaders,
-    @Param('id') id: UUID,
+    @Param('id') id: UUID
   ) {
     const transferStock = await this.transferStockService.get(id);
 
@@ -140,7 +136,7 @@ export class TransferStockController {
   @ApiOperation({ summary: 'Update transfer stock' })
   @ApiOkResponse({
     description: 'Update transfer stock response',
-    type: UpdateTransferStockResponseDto,
+    type: UpdateTransferStockResponseDto
   })
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('manage_transfer_stock')
@@ -155,9 +151,13 @@ export class TransferStockController {
   async updateTransferStock(
     @Req() req: ICustomRequestHeaders,
     @Body() dto: UpdateTransferStockDto,
-    @Param('id') id: UUID,
+    @Param('id') id: UUID
   ) {
-    const transferStock = await this.transferStockService.update(id, req, dto);
+    const transferStock = await this.transferStockService.update(
+      id,
+      req,
+      dto
+    );
 
     return {
       statusCode: 200,
@@ -235,11 +235,7 @@ export class TransferStockController {
   })
   @ApiBearerAuth()
   @Post('transfer-stock/change-status/:id')
-  async changeStatus(
-    @Req() req: ICustomRequestHeaders,
-    @Param('id') id: UUID,
-    @Body() body: ChangeStatusDto,
-  ) {
+  async changeStatus(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: ChangeStatusDto) {
     const result = await this.transferStockService.changeStatus(req, id, body);
     return result;
   }
@@ -343,11 +339,7 @@ export class TransferStockController {
   })
   @ApiBearerAuth()
   @Post('transfer-stock/receive/:id')
-  async receiveStock(
-    @Req() req: ICustomRequestHeaders,
-    @Param('id') id: UUID,
-    @Body() body: ChangeStatusReceiveDto,
-  ) {
+  async receiveStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID, @Body() body: ChangeStatusReceiveDto) {
     const result = await this.transferStockService.receiveStock(req, id, body);
     return result;
   }
@@ -355,7 +347,7 @@ export class TransferStockController {
   @ApiOperation({ summary: 'Delete transfer sotck' })
   @ApiOkResponse({
     description: 'Delete transfer stock response',
-    type: DeleteTransferStockResponseDto,
+    type: DeleteTransferStockResponseDto
   })
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('manage_transfer_stock')
@@ -367,10 +359,7 @@ export class TransferStockController {
   })
   @ApiBearerAuth()
   @Delete('transfer-stock/:id')
-  async deleteTransferStock(
-    @Req() req: ICustomRequestHeaders,
-    @Param('id') id: UUID,
-  ) {
+  async deleteTransferStock(@Req() req: ICustomRequestHeaders, @Param('id') id: UUID) {
     const result = await this.transferStockService.delete(req, id);
     return result;
   }
@@ -378,7 +367,7 @@ export class TransferStockController {
   @ApiOperation({ summary: 'Get all transfer stock loss' })
   @ApiOkResponse({
     description: 'Transfer stock loss response',
-    type: TransferStockLossResponseDto,
+    type: TransferStockLossResponseDto
   })
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('manage_transfer_stock')
@@ -392,7 +381,7 @@ export class TransferStockController {
   @Get('transfer-stock-losses')
   async findAllTransferStockLoss(
     @Req() req: ICustomRequestHeaders,
-    @Query() dto: TransferStockLossDto,
+    @Query() dto: TransferStockLossDto
   ) {
     try {
       const transferStockLoss =
@@ -414,7 +403,7 @@ export class TransferStockController {
   @ApiOperation({ summary: 'Get transfer stock loss' })
   @ApiOkResponse({
     description: 'Get transfer stock loss response',
-    type: GetTransferStockLossResponseDto,
+    type: GetTransferStockLossResponseDto
   })
   @UseGuards(AuthPermissionGuard)
   @RequirePermissions('manage_transfer_stock')
@@ -428,7 +417,7 @@ export class TransferStockController {
   @Get('transfer-stock-losses/:id')
   async getTransferStockLoss(
     @Req() req: ICustomRequestHeaders,
-    @Param('id') id: UUID,
+    @Param('id') id: UUID
   ) {
     const transferStockLoss = await this.transferStockService.getLoss(id);
 

@@ -690,6 +690,7 @@ model master_inventory_items {
   stock_opname_items                stock_opname_items[]
   transfer_stock_items              transfer_stock_items[]
   waste_log_item                    waste_log_item[]
+  transfer_stock_items              transfer_stock_items[]
 
   @@index([store_id], map: "idx_master_inventory_items_store_id")
   @@index([brand_id], map: "idx_mii_brand_id")
@@ -1187,6 +1188,9 @@ model stores {
   user_has_stores                                       user_has_stores[]
   voucher                                               voucher[]
   waste_log                                             waste_log[]
+  transfer_stocks_from        transfer_stocks[]             @relation("store_from_transfer")
+  transfer_stocks_to          transfer_stocks[]             @relation("store_to_transfer")
+  transfer_stock_losses       transfer_stock_losses[]
 }
 
 model sub_package_access {
@@ -1414,6 +1418,11 @@ model users {
   roles                                               roles                         @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_roles_fk")
   subs_package                                        subs_package?                 @relation(fields: [subs_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_subs_package_fk")
   users_has_banks                                     users_has_banks[]
+  drafted_transfers           transfer_stocks[]             @relation("drafted_transfer")
+  approved_transfers          transfer_stocks[]             @relation("approved_transfer")
+  canceled_transfers          transfer_stocks[]             @relation("canceled_transfer")
+  shipped_transfers           transfer_stocks[]             @relation("shipped_transfer")
+  received_transfers          transfer_stocks[]             @relation("received_transfer")
 }
 
 model users_has_banks {
@@ -1604,10 +1613,53 @@ model product_portion_stock {
   stores              stores                 @relation(fields: [stores_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
+model transfer_stocks {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  store_from_id     String                @db.Uuid
+  store_to_id       String                @db.Uuid
+  store_created_by  String?               @db.Uuid
+  transaction_code  String                @unique
+  status            transfer_stock_status
+  note              String?
+  drafted_by        Int?
+  drafted_at        DateTime?             @db.Timestamp(6)
+  approved_by       Int?
+  approved_at       DateTime?             @db.Timestamp(6)
+  canceled_by       Int?
+  canceled_at       DateTime?             @db.Timestamp(6)
+  canceled_note     String?
+  shipped_by        Int?
+  shipped_at        DateTime?             @db.Timestamp(6)
+  received_by       Int?
+  received_at       DateTime?             @db.Timestamp(6)
+  delivery_note     String?
+  logistic_provider String?
+  tracking_number   String?
+  created_at        DateTime              @default(now()) @db.Timestamp(6)
+  updated_at        DateTime              @default(now()) @updatedAt @db.Timestamp(6)
+
+  store_from stores @relation("store_from_transfer", fields: [store_from_id], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  store_to   stores @relation("store_to_transfer", fields: [store_to_id], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  drafted_user  users? @relation("drafted_transfer", fields: [drafted_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
+  approved_user users? @relation("approved_transfer", fields: [approved_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
+  canceled_user users? @relation("canceled_transfer", fields: [canceled_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
+  shipped_user  users? @relation("shipped_transfer", fields: [shipped_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
+  received_user users? @relation("received_transfer", fields: [received_by], references: [id], onUpdate: NoAction, onDelete: SetNull)
+
+  transfer_stock_items  transfer_stock_items[]
+  transfer_stock_losses transfer_stock_losses[]
+
+  @@index([status])
+  @@index([store_from_id])
+  @@index([store_to_id])
+}
+
 model transfer_stock_items {
   id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   transfer_stock_id        String                     @db.Uuid
   master_inventory_item_id String                     @db.Uuid
+  has_destination_product  Boolean                    @default(false)
   qty_reserved             Int
   qty_received             Int?
   unit_price               Decimal?                   @db.Decimal(18, 2)
@@ -1615,65 +1667,27 @@ model transfer_stock_items {
   status                   transfer_stock_item_status
   note                     String?                    @db.VarChar(255)
   created_at               DateTime                   @default(now()) @db.Timestamp(6)
-  updated_at               DateTime                   @default(now()) @db.Timestamp(6)
-  has_destination_product  Boolean                    @default(false)
-  master_inventory_items   master_inventory_items     @relation(fields: [master_inventory_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  transfer_stocks          transfer_stocks            @relation(fields: [transfer_stock_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  transfer_stock_losses    transfer_stock_losses[]
+  updated_at               DateTime                   @default(now()) @updatedAt @db.Timestamp(6)
+
+  transfer_stocks        transfer_stocks         @relation(fields: [transfer_stock_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  master_inventory_items master_inventory_items  @relation(fields: [master_inventory_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  transfer_stock_losses  transfer_stock_losses[]
 }
 
 model transfer_stock_losses {
-  id                     String               @id @default(uuid())
-  store_id               String               @db.Uuid
-  transfer_stock_id      String               @db.Uuid
-  transfer_stock_item_id String               @db.Uuid
-  qty_lost               Int?
-  unit_price             Decimal?             @db.Decimal(18, 2)
-  loss_amount            Decimal              @db.Decimal(12, 2)
-  created_at             DateTime             @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime             @updatedAt @db.Timestamptz(6)
-  stores                 stores               @relation(fields: [store_id], references: [id], onDelete: Cascade)
-  transfer_stocks        transfer_stocks      @relation(fields: [transfer_stock_id], references: [id], onDelete: Cascade)
-  transfer_stock_items   transfer_stock_items @relation(fields: [transfer_stock_item_id], references: [id], onDelete: Cascade)
-}
+  id                     String   @id @default(uuid())
+  store_id               String   @db.Uuid
+  transfer_stock_id      String   @db.Uuid
+  transfer_stock_item_id String   @db.Uuid
+  qty_lost               Int? // jumlah item rusak/kurang
+  unit_price             Decimal? @db.Decimal(18, 2)
+  loss_amount            Decimal  @db.Decimal(12, 2) // total kerugian (misal 150000.00)
+  created_at             DateTime @default(now()) @db.Timestamptz
+  updated_at             DateTime @updatedAt @db.Timestamptz
 
-model transfer_stocks {
-  id                                           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  store_from_id                                String                  @db.Uuid
-  store_to_id                                  String                  @db.Uuid
-  store_created_by                             String?                 @db.Uuid
-  transaction_code                             String                  @unique
-  status                                       transfer_stock_status
-  note                                         String?
-  drafted_by                                   Int?
-  drafted_at                                   DateTime?               @db.Timestamp(6)
-  approved_by                                  Int?
-  approved_at                                  DateTime?               @db.Timestamp(6)
-  canceled_by                                  Int?
-  canceled_at                                  DateTime?               @db.Timestamp(6)
-  canceled_note                                String?
-  shipped_by                                   Int?
-  shipped_at                                   DateTime?               @db.Timestamp(6)
-  received_by                                  Int?
-  received_at                                  DateTime?               @db.Timestamp(6)
-  delivery_note                                String?
-  logistic_provider                            String?
-  tracking_number                              String?
-  created_at                                   DateTime                @default(now()) @db.Timestamp(6)
-  updated_at                                   DateTime                @default(now()) @db.Timestamp(6)
-  transfer_stock_items                         transfer_stock_items[]
-  transfer_stock_losses                        transfer_stock_losses[]
-  users_transfer_stocks_approved_byTousers     users?                  @relation("transfer_stocks_approved_byTousers", fields: [approved_by], references: [id], onUpdate: NoAction)
-  users_transfer_stocks_canceled_byTousers     users?                  @relation("transfer_stocks_canceled_byTousers", fields: [canceled_by], references: [id], onUpdate: NoAction)
-  users_transfer_stocks_drafted_byTousers      users?                  @relation("transfer_stocks_drafted_byTousers", fields: [drafted_by], references: [id], onUpdate: NoAction)
-  users_transfer_stocks_received_byTousers     users?                  @relation("transfer_stocks_received_byTousers", fields: [received_by], references: [id], onUpdate: NoAction)
-  users_transfer_stocks_shipped_byTousers      users?                  @relation("transfer_stocks_shipped_byTousers", fields: [shipped_by], references: [id], onUpdate: NoAction)
-  stores_transfer_stocks_store_from_idTostores stores                  @relation("transfer_stocks_store_from_idTostores", fields: [store_from_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  stores_transfer_stocks_store_to_idTostores   stores                  @relation("transfer_stocks_store_to_idTostores", fields: [store_to_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([status])
-  @@index([store_from_id])
-  @@index([store_to_id])
+  store               stores               @relation(fields: [store_id], references: [id], onDelete: Cascade)
+  transfer_stock      transfer_stocks      @relation(fields: [transfer_stock_id], references: [id], onDelete: Cascade)
+  transfer_stock_item transfer_stock_items @relation(fields: [transfer_stock_item_id], references: [id], onDelete: Cascade)
 }
 
 enum benefit_type {
@@ -1805,18 +1819,18 @@ enum product_portion_action {
   DECREASE
 }
 
-enum transfer_stock_item_status {
-  pending
-  on_progress
+enum transfer_stock_status {
+  drafted
+  approved
   shipped
   received
   received_with_issue
   canceled
 }
 
-enum transfer_stock_status {
-  drafted
-  approved
+enum transfer_stock_item_status {
+  pending
+  on_progress
   shipped
   received
   received_with_issue
