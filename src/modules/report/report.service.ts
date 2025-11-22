@@ -2335,6 +2335,7 @@ export class ReportService {
     storeIdsString?: string,
   ) {
     let storeId: string[] = [];
+
     if (storeIdsString) {
       storeId = storeIdsString.split(',');
     } else if (req.store_id) {
@@ -2344,301 +2345,101 @@ export class ReportService {
     }
 
     // 1. Ambil semua data master pelanggan dari toko ini.
+
     const customersPromise = this.prisma.customer.findMany({
       where: {
-        customer: { stores_id: { in: storeIds } },
-        type: 'point_addition',
-        expiry_date: { lt: now },
+        stores_id: { in: storeId },
       },
-      _sum: { value: true },
+
+      orderBy: {
+        name: 'asc',
+      },
     });
 
-    return {
-      sumOfAllPoints: totalPointsAgg._sum.point || 0,
-      sumOfAllPointsExpired: pointsExpiredAgg._sum.value || 0,
-      totalCustomers: totalCustomers,
-    };
-  }
+    // 2. Agregasi total penjualan (invoice yang sudah 'paid') per pelanggan.
 
-  private async getSpendBasedReport(storeIds: string[]) {
-    const baseMetrics = await this.getLoyaltyDashboardBase(storeIds);
-    const totalInvoices = await this.prisma.invoice.count({
+    const salesDataPromise = this.prisma.invoice.groupBy({
+      by: ['customer_id'],
+
       where: {
-        store_id: { in: storeIds },
-        payment_status: 'paid',
+        store_id: { in: storeId },
+
+        payment_status: 'paid', // Hanya hitung yang sudah lunas
+
         customer_id: { not: null },
       },
+
+      _sum: {
+        grand_total: true,
+      },
     });
 
-    // Asumsi: 'Spend Based' diidentifikasi dengan `invoice_id` yang terisi
-    // dan `notes` yang spesifik (atau null). Kita asumsikan `invoice_id` not null.
-    const pointTransactions = await this.prisma.trn_customer_points.findMany({
+    // 3. Agregasi total tagihan terutang (invoice yang 'unpaid') per pelanggan.
+
+    const outstandingDataPromise = this.prisma.invoice.groupBy({
+      by: ['customer_id'],
+
       where: {
-        customer: { stores_id: { in: storeIds } },
-        type: 'point_addition',
-        invoice_id: { not: null },
+        store_id: { in: storeId },
+
+        payment_status: 'unpaid', // Hanya hitung yang belum lunas
+
+        customer_id: { not: null },
       },
-      include: {
-        invoice: true,
-        customer: true,
+
+      _sum: {
+        grand_total: true,
       },
     });
 
-    const table = pointTransactions.map((tx) => ({
-      invoiceId: tx.invoice?.invoice_number,
-      purchaseDate: tx.invoice?.paid_at,
-      customer: tx.customer.name,
-      grandTotal: tx.invoice?.grand_total,
-      orderType: tx.invoice?.order_type,
-      totalPointsEarned: tx.value,
-      pointExpiryDate: tx.expiry_date,
-    }));
+    // Jalankan semua kueri secara bersamaan untuk efisiensi
 
-    return {
-      dashboard: {
-        ...baseMetrics,
-        totalInvoices: totalInvoices,
-      },
-      table: table,
-    };
-  }
+    const [customers, salesData, outstandingData] = await Promise.all([
+      customersPromise,
 
-  private async getProductBasedReport(storeIds: string[]) {
-    const baseMetrics = await this.getLoyaltyDashboardBase(storeIds);
-    const totalProducts = await this.prisma.loyalty_product_item.count({
-      where: {
-        loyalty_point_settings: { storesId: { in: storeIds } },
-      },
-    });
+      salesDataPromise,
 
-    // Ambil daftar produk yang memberi poin
-    const productRules = await this.prisma.loyalty_product_item.findMany({
-      where: {
-        loyalty_point_settings: { storesId: { in: storeIds } },
-      },
-      include: {
-        products: true,
-      },
-    });
-
-    // ASUMSI BERAT:
-    // Schema tidak menghubungkan `trn_customer_points` ke `loyalty_product_item`.
-    // Laporan ini hanya dapat menampilkan *definisi* produk,
-    // bukan agregasi transaksinya.
-    const table = productRules.map((rule) => ({
-      productName: rule.products.name,
-      productPrice: rule.products.price,
-      pointsToIDR:
-        (rule.products.price ?? 0) > 0
-          ? (rule.points || 0) / (rule.products.price ?? 0)
-          : 0,
-      sumOfPointsGivenToCust: 'N/A (Schema limitation)',
-      totalCust: 'N/A (Schema limitation)',
-    }));
+      outstandingDataPromise,
+    ]);
 
     // 4. Ubah hasil agregasi menjadi Map untuk pencarian cepat (lookup)
+
     const salesMap = new Map(
       salesData.map((item) => [item.customer_id, item._sum?.grand_total || 0]),
     );
+
     const outstandingMap = new Map(
       outstandingData.map((item) => [
         item.customer_id,
+
         item._sum?.grand_total || 0,
       ]),
     );
 
-  private async getBenefitUtilizationReport(storeIds: string[]) {
-    // Total poin (aktif)
-    const { sumOfAllPoints } = await this.getLoyaltyDashboardBase(storeIds);
+    // 5. Gabungkan semua data menjadi satu laporan yang utuh
 
-    // Ambil semua transaksi penukaran poin dalam periode
-    const deductions = await this.prisma.trn_customer_points.findMany({
-      where: {
-        customer: { stores_id: { in: storeIds } },
-        type: 'point_deduction',
-        // created_at: { gte: startDate, lte: endDate },
-      },
-    });
+    const report = customers.map((customer) => {
+      // Ambil data dari map, jika tidak ada berarti nilainya 0
 
-    // Ambil definisi benefit untuk mencocokkan
-    const benefits = await this.prisma.loyalty_points_benefit.findMany({
-      where: {
-        loyalty_point_settings: { storesId: { in: storeIds } },
-      },
-      include: {
-        benefit_free_items: true,
-      },
-    });
-    const benefitMap = new Map(benefits.map((b) => [b.benefit_name, b]));
+      const totalSales = salesMap.get(customer.id) || 0;
 
-    // Agregasi data
-    // Terapkan interface yang baru dibuat di sini
-    const dashboard: IBenefitDashboard = {
-      sumOfAllPoints: sumOfAllPoints,
-      countCustomers: new Set(deductions.map((d) => d.customer_id)).size,
-      sumPointsUsedByType: {}, // <-- Sekarang TS tahu ini adalah Record<string, number>
-      sumOfDiscountAmount: 0,
-      sumOfCountTotalFreeItems: 0,
-    };
-
-    const tableMap = new Map<
-      string,
-      {
-        type: string;
-        benefitName: string;
-        countUsed: number;
-        totalPointUsed: number;
-        amount: number;
-      }
-    >();
-
-    for (const tx of deductions) {
-      // ASUMSI: tx.notes berisi nama benefit_name
-      const benefitName = tx.notes || 'Unknown Benefit';
-      const benefitRule = benefitMap.get(benefitName);
-
-      const type = benefitRule?.type || 'unknown';
-      const pointsUsed = Math.abs(tx.value);
-      let amount = 0;
-
-      if (benefitRule?.type === 'discount') {
-        // Asumsi nilai diskon ada di rule, bukan di tx
-        amount = benefitRule.discount_value || 0;
-        dashboard.sumOfDiscountAmount += amount;
-      } else if (benefitRule?.type === 'free_items') {
-        // Asumsi 1 transaksi = 1 item (atau ambil dari rule)
-        amount = benefitRule.benefit_free_items[0]?.quantity || 1;
-        dashboard.sumOfCountTotalFreeItems += amount;
-      }
-
-      // Update dashboard - INI SEKARANG AMAN DARI ERROR
-      dashboard.sumPointsUsedByType[type] =
-        (dashboard.sumPointsUsedByType[type] || 0) + pointsUsed;
-
-      // Update tabel
-      if (!tableMap.has(benefitName)) {
-        tableMap.set(benefitName, {
-          type: type,
-          benefitName: benefitName,
-          countUsed: 0,
-          totalPointUsed: 0,
-          amount: 0,
-        });
-      }
-      const tableEntry = tableMap.get(benefitName)!;
-      tableEntry.countUsed += 1;
-      tableEntry.totalPointUsed += pointsUsed;
-      tableEntry.amount += amount;
-    }
-
-    return {
-      dashboard,
-      table: Array.from(tableMap.values()),
-    };
-  }
-
-  private async getExpiryWarningReport(storeIds: string[]) {
-    // expiry warning = h-7
-
-    // Untuk laporan ini, startDate = hari ini, endDate = tanggal horizon
-    const expiringSoonTxs = await this.prisma.trn_customer_points.findMany({
-      where: {
-        customer: { stores_id: { in: storeIds } },
-        type: 'point_addition',
-        expiry_date: {
-          lt: new Date(),
-        },
-        // Kita juga harus mengecek apakah poin ini masih "ada"
-        // Ini adalah limitasi skema, kita tidak bisa tahu
-      },
-      include: {
-        customer: true,
-        invoice: true,
-      },
-      orderBy: {
-        expiry_date: 'asc',
-      },
-    });
-
-    const dashboard: IExpiryDashboard = {
-      sumOfAllPoints: 0,
-      countCustomers: new Set(expiringSoonTxs.map((tx) => tx.customer_id)).size,
-      sumByEachTypes: {},
-    };
-
-    const table = expiringSoonTxs.map((tx) => {
-      const points = tx.value;
-      // ASUMSI: 'type' adalah `notes`
-      const type = tx.type ?? 'Unknown';
-
-      dashboard.sumOfAllPoints += points;
-      dashboard.sumByEachTypes[type] =
-        (dashboard.sumByEachTypes[type] || 0) + points;
+      const outstanding = outstandingMap.get(customer.id) || 0;
 
       return {
         nama: customer.name,
+
         gender: customer.gender,
+
         totalSales: parseFloat(totalSales.toFixed(2)),
-        dateAdded: this.formatDate(
-          customer.created_at ?? new Date(),
-          gmt,
-          'yyyy-mm-dd hh:MM:ss',
-        ),
+
+        dateAdded: customer.created_at,
+
         outstanding: parseFloat(outstanding.toFixed(2)),
+
         loyaltyPoints: customer.point || 0,
       };
     });
 
-    return { dashboard, table };
-  }
-
-  private async getTypeAccumulationReport(storeIds: string[]) {
-    const baseMetrics = await this.getLoyaltyDashboardBase(storeIds);
-
-    // ASUMSI: Tipe poin disimpan di `notes`
-    const pointsByType = await this.prisma.trn_customer_points.groupBy({
-      by: ['notes'],
-      where: {
-        customer: { stores_id: { in: storeIds } },
-        type: 'point_addition',
-      },
-      _sum: {
-        value: true,
-      },
-    });
-
-    // Hitung total pelanggan unik per tipe
-    const distinctTxs = await this.prisma.trn_customer_points.findMany({
-      where: {
-        customer: { stores_id: { in: storeIds } },
-        type: 'point_addition',
-        // created_at: { gte: startDate, lte: endDate },
-        notes: { not: null },
-      },
-      distinct: ['customer_id', 'notes'],
-      select: {
-        notes: true,
-      },
-    });
-
-    const customerCounts = new Map<string, number>();
-    for (const tx of distinctTxs) {
-      const type = tx.notes!;
-      customerCounts.set(type, (customerCounts.get(type) || 0) + 1);
-    }
-
-    const table = pointsByType.map((row) => {
-      const type = row.notes || 'Unknown';
-      return {
-        type: type,
-        sumTotalPoints: row._sum?.value || 0,
-        totalCustomers: customerCounts.get(type) || 0,
-      };
-    });
-
-    return {
-      dashboard: baseMetrics,
-      table: table,
-    };
+    return report;
   }
 }
