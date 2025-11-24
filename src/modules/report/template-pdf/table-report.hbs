@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>{{reportData.reportName}}</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      font-size: 10px; 
+      color: #333; 
+      margin: 0; 
+    }
+    
+    /* Kontainer halaman utama.
+      Puppeteer akan menggunakan ini sebagai dasar tata letak.
+      Kita tidak perlu 'chunking' manual.
+    */
+    .page-container {
+      height: 1123px; /* A4 Potret */
+      width: 794px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    
+    /* Kelas opsional untuk mode Landscape */
+    .landscape {
+      height: 794px;
+      width: 1123px;
+    }
+    
+    /* Navbar */
+    #navbar {
+      background-color: #ffefe8;
+      padding: 24px 32px;
+      border-bottom: 1px solid #f3631d;
+    }
+    
+    #navbar img { 
+      width: 200px; 
+    }
+    
+    /* Konten Utama */
+    #content { 
+      padding: 0px 32px; 
+      flex-grow: 1; 
+    }
+    
+    /* Header Laporan */
+    .main-header-container {
+      border-bottom: 1px solid #f3631d;
+      padding: 16px;
+      margin: 32px auto 32px auto;
+      min-height: 201px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .main-header-container h2 { 
+      margin: 0; 
+    }
+
+    /* Blok Recap Widget */
+    .recap-container {
+      display: flex;
+      justify-content: space-around;
+      padding: 10px;
+      margin-bottom: 20px;
+      background-color: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 8px;
+    }
+    
+    .recap-item {
+      text-align: center;
+    }
+    
+    .recap-item h3 {
+      margin: 0;
+      color: #555;
+      font-size: 10pt;
+    }
+    
+    .recap-item p {
+      margin: 5px 0 0 0;
+      font-size: 14pt;
+      font-weight: bold;
+    }
+
+    /* Tabel */
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: 8pt; 
+      margin-top: 20px; 
+    }
+    
+    /* Penting: Mengulang header tabel di setiap halaman */
+    thead { 
+      display: table-header-group; 
+    }
+    
+    /* Penting: Menampilkan total di akhir tabel */
+    tfoot {
+      display: table-footer-group;
+    }
+    
+    /* Penting: Mencegah baris terbelah antar halaman */
+    tr { 
+      page-break-inside: avoid; 
+    }
+    
+    th {
+      padding: 8px; 
+      border: 1px solid #ddd; 
+      text-align: center;
+      font-weight: bold; 
+      background-color: #f2f2f2;
+    }
+    
+    td { 
+      padding: 8px; 
+      text-align: center; 
+      border: 1px solid #ddd; 
+    }
+    
+    /* Sel pertama di body/foot rata kiri (misal: Nama, Metric) */
+    tbody td:first-child, tfoot td:first-child {
+      text-align: left;
+    }
+    
+    /* Footer Halaman */
+    footer {
+      position: absolute; /* Diposisikan absolut relatif ke .page-container */
+      bottom: 0; 
+      left: 0; 
+      right: 0;
+      display: flex; 
+      justify-content: center; 
+      align-items: center;
+      text-align: center; 
+      padding: 20px 32px; 
+      font-size: 8pt;
+      color: #888; 
+      border-top: 1px solid #eee; 
+      background: white;
+    }
+    
+    footer img { 
+      height: 20px; 
+      vertical-align: middle; 
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="page-container {{#if options.landscape}}landscape{{/if}}">
+    <div id="navbar">
+      <img src="{{reportData.appLogoBase64}}" alt="Store Logo" />
+    </div>
+
+    <div id="content">
+      
+      <div class="main-header-container">
+        <div style="font-size: 16pt; font-weight: bold; color: #333333;">
+          {{reportData.reportName}}
+        </div>
+        <h2 style="font-size: 12pt; font-weight: bold; color: #b7b7b7;">
+          {{reportData.storeName}}
+        </h2>
+        <h2 style="font-size: 12pt; font-weight: bold; color: #333333;">
+          {{reportData.storeAddress}}
+        </h2>
+        <h2 style="font-size: 12pt; font-weight: bold; color: #333333;">
+          Staff Member : {{reportData.staffMember}}
+        </h2>
+        <h2 style="font-size: 10pt; color: #b7b7b7;">
+          Period : {{reportData.period}} | Printed on {{reportData.printDate}}, {{reportData.printTime}}
+        </h2>
+      </div>
+
+      {{#if recapWidget}}
+      <div class="recap-container">
+        <div class="recap-item">
+          <h3>Total Transaksi</h3>
+          <p>{{recapWidget.totalTransaksi}}</p>
+        </div>
+        <div class="recap-item">
+          <h3>Pendapatan Kotor</h3>
+          <p>Rp {{formatNumber recapWidget.pendapatanKotor}}</p>
+        </div>
+        <div class="recap-item">
+          <h3>Nett Summary</h3>
+          <p>Rp {{formatNumber recapWidget.nettSummary}}</p>
+        </div>
+        <div class="recap-item">
+          <h3>Voucher</h3>
+          <p>Rp {{formatNumber recapWidget.totalPenggunaanVoucher}}</p>
+        </div>
+      </div>
+      {{/if}}
+
+      <table>
+        <thead>
+          <tr>
+            {{#each columns}}
+            <th>{{this.label}}</th>
+            {{/each}}
+          </tr>
+        </thead>
+        <tbody>
+          {{#unless tableData.length}}
+            <tr>
+              <td colspan="{{columns.length}}" style="text-align: center; padding: 20px; color: #777;">
+                Tidak ada data untuk ditampilkan.
+              </td>
+            </tr>
+          {{/unless}}
+          
+          {{#each tableData}}
+          <tr>
+            {{#each ../columns}}
+            <td>{{lookup ../this this.value}}</td>
+            {{/each}}
+          </tr>
+          {{/each}}
+        </tbody>
+        
+        {{#if overallSummary}}
+        <tfoot style="font-weight: bold; background-color: #f2f2f2;">
+          <tr>
+            {{#each columns}}
+              {{#if @first}}
+                <td>TOTAL</td>
+              {{else}}
+                <td>{{lookup ../overallSummary this.value}}</td>
+              {{/if}}
+            {{/each}}
+          </tr>
+        </tfoot>
+        {{/if}}
+      </table>
+    </div>
+
+    <footer>
+      <p style="margin: 0; margin-right: 5px;">Powered by</p>
+      <img src="{{reportData.appLogoBase64}}" alt="KUBIXPOS Logo" style="height: 20px; vertical-align: middle" />
+    </footer>
+  </div>
+</body>
+</html>

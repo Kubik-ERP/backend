@@ -21,9 +21,10 @@ export type AdvancedSalesReportType =
   | 'variant';
 
 export type StaffReportType =
-  | 'attendance-summary'
-  | 'commission-summary'
-  | 'commission-details';
+  | 'commission-report' // 1. Laporan semua staf
+  | 'individual-report' // 2. Laporan detail per staf
+  | 'commission-by-items' // 3. Komisi berdasarkan item
+  | 'commission-by-voucher'; // 4. Komisi berdasarkan voucher
 
 export type InventoryReportType =
   | 'movement-ledger'
@@ -34,9 +35,136 @@ export type InventoryReportType =
   | 'item-performance-by-category'
   | 'item-performance-by-brand';
 
+export type LoyaltyReportType =
+  | 'spend-based'
+  | 'product-based'
+  | 'benefit-utilization'
+  | 'expiry-warning'
+  | 'type-accumulation';
+
+export interface IBenefitDashboard {
+  sumOfAllPoints: number;
+  countCustomers: number;
+  sumPointsUsedByType: Record<string, number>;
+  sumOfDiscountAmount: number;
+  sumOfCountTotalFreeItems: number;
+}
+
+export interface IExpiryDashboard {
+  sumOfAllPoints: number;
+  countCustomers: number;
+  sumByEachTypes: Record<string, number>;
+}
+
 @Injectable()
 export class ReportService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private roundToTwo(num: number): number {
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+  }
+
+  private formatDate(
+    date: Date,
+    gmt: number,
+    format: string = 'yyyy-mm-dd', // Default ke format asli Anda
+  ): string {
+    // 1. Terapkan offset GMT (logika asli Anda)
+    // Ini memastikan tanggalnya benar-benar di zona waktu yang Anda inginkan
+    const utc = date.getTime() + date.getTimezoneOffset() * 60000;
+    const localDate = new Date(utc + 3600000 * gmt);
+
+    // 2. Terapkan logika format kustom (diambil dari contoh Anda)
+    try {
+      if (isNaN(localDate.getTime())) {
+        throw new Error('Invalid date after GMT adjustment');
+      }
+
+      const hours = localDate.getHours();
+      const is12HourFormat = format.includes('am/pm');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const hours12 = hours % 12 || 12; // Konversi 0 menjadi 12
+
+      const shortMonthNames = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      const fullMonthNames = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
+
+      // Peta format (dari contoh Anda, mm=bulan, MM=menit)
+      const map: Record<string, string | number> = {
+        yyyy: localDate.getFullYear(),
+        MMMM: fullMonthNames[localDate.getMonth()],
+        MMM: shortMonthNames[localDate.getMonth()],
+        mm: String(localDate.getMonth() + 1).padStart(2, '0'), // Bulan
+        dd: String(localDate.getDate()).padStart(2, '0'), // Hari
+        hh: is12HourFormat
+          ? String(hours12).padStart(2, '0')
+          : String(hours).padStart(2, '0'), // Jam
+        MM: String(localDate.getMinutes()).padStart(2, '0'), // Menit
+        ss: String(localDate.getSeconds()).padStart(2, '0'), // Detik
+        'am/pm': ampm,
+      };
+
+      // Ganti pola format (Regex dari contoh Anda)
+      return format.replace(/yyyy|MMMM|MMM|mm|dd|hh|MM|ss|am\/pm/g, (matched) =>
+        map[matched].toString(),
+      );
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      // Fallback jika terjadi error
+      return localDate.toISOString();
+    }
+  }
+
+  private formatSummaryObject(summary: {
+    jumlahTerjual: number;
+    kotor: number;
+    diskonItem: number;
+    refund: number;
+    pajak: number;
+    biayaLayanan: number;
+    totalPenjualan: number;
+    countPenggunaanVoucher: number;
+  }) {
+    return {
+      // Integer (tidak perlu dibulatkan)
+      jumlahTerjual: summary.jumlahTerjual,
+      countPenggunaanVoucher: summary.countPenggunaanVoucher,
+
+      // Mata Uang (dibulatkan 2 desimal)
+      kotor: this.roundToTwo(summary.kotor),
+      diskonItem: this.roundToTwo(summary.diskonItem),
+      refund: this.roundToTwo(summary.refund),
+      pajak: this.roundToTwo(summary.pajak),
+      biayaLayanan: this.roundToTwo(summary.biayaLayanan),
+      totalPenjualan: this.roundToTwo(summary.totalPenjualan),
+    };
+  }
+
   private async getPaymentMethodData(
     begDate: Date,
     endDate: Date,
@@ -418,6 +546,7 @@ export class ReportService {
     endDate: Date,
     storeIds: string[],
     groupBy: AdvancedSalesReportType,
+    gmt: number,
     staffId?: string,
   ) {
     let cashierId: number | undefined = undefined;
@@ -442,7 +571,10 @@ export class ReportService {
       if (employee) {
         cashierId = employee.id;
       } else {
-        return { overallSummary: createDefaultSummary(), groupedSummary: [] };
+        return {
+          overallSummary: this.formatSummaryObject(createDefaultSummary()),
+          groupedSummary: [],
+        };
       }
     }
 
@@ -520,12 +652,12 @@ export class ReportService {
           groupKey = invoice.users?.id.toString() ?? 'unknown-staff';
           break;
         case 'day':
-          groupKey = invoice.paid_at!.toISOString().split('T')[0];
+          const customFormat = 'dd/MMM/yyyy';
+          groupKey = this.formatDate(invoice.paid_at!, gmt, customFormat);
           break;
         case 'month':
-          groupKey = `${invoice.paid_at!.getFullYear()}-${String(
-            invoice.paid_at!.getMonth() + 1,
-          ).padStart(2, '0')}`;
+          const customFormatMonth = 'yyyy-MM';
+          groupKey = this.formatDate(invoice.paid_at!, gmt, customFormatMonth);
           break;
         case 'quarter':
           const month = invoice.paid_at!.getMonth();
@@ -640,16 +772,39 @@ export class ReportService {
           idToNameMap.set('guest-customer', 'Guest Customer');
         }
         break;
-      // ... other cases like 'variant', 'store' would follow the same pattern ...
       // Cases for time-based grouping remain the same as their key is their label
       case 'day':
         let currentDate = new Date(startDate.toISOString().split('T')[0]);
+        const customFormat = 'dd/MMM/yyyy'; // Definisikan format yang sama
+
         while (currentDate <= endDate) {
-          masterGroupIds.push(currentDate.toISOString().split('T')[0]);
+          masterGroupIds.push(this.formatDate(currentDate, gmt, customFormat));
           currentDate.setDate(currentDate.getDate() + 1);
         }
         break;
-      // ... other time-based cases ...
+      case 'month':
+        const monthGroups = [];
+        const customFormatMonth = 'yyyy-mm'; // Definisikan format
+        let currentMonth = new Date(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          1,
+        );
+        const finalMonth = new Date(
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          1,
+        );
+
+        while (currentMonth <= finalMonth) {
+          // ✅ PERBAIKAN: Gunakan formatDate di sini
+          monthGroups.push(
+            this.formatDate(currentMonth, gmt, customFormatMonth),
+          );
+          currentMonth.setMonth(currentMonth.getMonth() + 1);
+        }
+        masterGroupIds = monthGroups;
+        break;
       default:
         masterGroupIds = Array.from(salesDataMap.keys());
         break;
@@ -661,15 +816,18 @@ export class ReportService {
     const groupedSummary = masterGroupIds
       .map((groupKey) => {
         const summary = salesDataMap.get(groupKey) || createDefaultSummary();
-        // Use the map to get the display name, or fall back to the key itself.
         const groupName = idToNameMap.get(groupKey) ?? groupKey;
+
         return {
           group: groupName,
-          ...summary,
+          // Terapkan format ke summary per grup
+          ...this.formatSummaryObject(summary),
         };
       })
-      .sort((a, b) => a.group.localeCompare(b.group)); // Pindahkan sort ke sini
-    return { overallSummary, groupedSummary };
+      .sort((a, b) => a.group.localeCompare(b.group));
+    const formattedOverallSummary = this.formatSummaryObject(overallSummary);
+
+    return { overallSummary: formattedOverallSummary, groupedSummary };
   }
 
   async getAdvancedSalesReport(
@@ -677,6 +835,7 @@ export class ReportService {
     endDateString: Date,
     type: AdvancedSalesReportType,
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
     staffId?: string,
   ) {
@@ -704,6 +863,7 @@ export class ReportService {
       endDate,
       storeIds,
       type,
+      gmt,
       staffId,
     );
   }
@@ -712,6 +872,7 @@ export class ReportService {
     storeId: string[],
     startDate: Date,
     endDate: Date,
+    gmt: number,
   ) {
     const movements = await this.prisma.inventory_stock_adjustments.findMany({
       where: {
@@ -733,7 +894,7 @@ export class ReportService {
     });
 
     return movements.map((m) => ({
-      tanggal: m.created_at,
+      tanggal: this.formatDate(m.created_at!, gmt, 'yyyy-mm-dd hh:MM:ss'),
       itemName: m.master_inventory_items.name,
       adjustmentType: m.action,
       // Jika STOCK_OUT, kuantitasnya negatif
@@ -834,6 +995,7 @@ export class ReportService {
     storeId: string[],
     startDate: Date,
     endDate: Date,
+    gmt: number,
   ) {
     // 1. Dapatkan daftar ID item unik yang MEMILIKI pergerakan dalam rentang waktu.
     // Ini adalah item yang "aktif" atau "tidak lambat".
@@ -901,7 +1063,11 @@ export class ReportService {
       slowStock.push({
         item: item.name,
         onHand: item.stock_quantity,
-        lastStockUpdated,
+        lastStockUpdated: this.formatDate(
+          lastStockUpdated,
+          gmt,
+          'yyyy-mm-dd hh:MM:ss',
+        ),
         daysIdle,
       });
     }
@@ -1033,11 +1199,13 @@ export class ReportService {
       };
       const stockValue =
         (item.stock_quantity || 0) * Number(item.price_per_unit || 0);
-
+      if (!category) {
+        continue; // Lewati item tanpa kategori
+      }
       let current = performanceMap.get(category.id);
       if (!current) {
         current = {
-          name: category.name,
+          name: category?.name ?? '',
           itemCount: 0,
           totalStockValue: 0,
           totalMovementsCount: 0,
@@ -1050,7 +1218,7 @@ export class ReportService {
       current.totalMovementsCount += aggregates.count;
       current.totalQtyOut += aggregates.qtyOut;
 
-      performanceMap.set(category.id, current);
+      performanceMap.set(category?.id ?? '', current);
     }
 
     return Array.from(performanceMap.values()).map((data) => ({
@@ -1139,6 +1307,7 @@ export class ReportService {
     endDateString: Date,
     type: InventoryReportType,
     req: ICustomRequestHeaders,
+    gmt: number,
     storeIdsString?: string,
   ) {
     const startDate = new Date(startDateString);
@@ -1162,13 +1331,13 @@ export class ReportService {
 
     switch (type) {
       case 'movement-ledger':
-        return this.getMovementLedger(storeIds, startDate, endDate);
+        return this.getMovementLedger(storeIds, startDate, endDate, gmt);
       case 'current-stock-overview':
         return this.getCurrentStockOverview(storeIds);
       case 'po-receiving-variance':
         return this.getPoReceivingVariance(storeIds, startDate, endDate);
       case 'slow-dead-stock':
-        return this.getSlowDeadStock(storeIds, startDate, endDate);
+        return this.getSlowDeadStock(storeIds, startDate, endDate, gmt);
       case 'item-performance':
         return this.getItemPerformance(storeIds, startDate, endDate);
       case 'item-performance-by-category':
@@ -1180,7 +1349,11 @@ export class ReportService {
     }
   }
 
-  async getVoucherStatusReport(req: ICustomRequestHeaders, storeIds?: string) {
+  async getVoucherStatusReport(
+    req: ICustomRequestHeaders,
+    gmt: number,
+    storeIds?: string,
+  ) {
     let storeId: string[] = [];
     if (storeIds) {
       storeId = storeIds.split(',');
@@ -1229,19 +1402,10 @@ export class ReportService {
         status = 'Active';
       }
 
-      // Format tanggal untuk keterbacaan
-      const formatDate = (date: Date) => {
-        return date.toLocaleDateString('en-EN', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
-        });
-      };
-
       return {
         voucherName: voucher.name,
         promoCode: voucher.promo_code,
-        validityPeriod: `${startDate.toISOString()} - ${endDate.toISOString()}`,
+        validityPeriod: `${this.formatDate(startDate, gmt, 'dd/MMM/yyyy')} - ${this.formatDate(endDate, gmt, 'dd/MMM/yyyy')}`,
         status: status,
         totalQuota: quota,
         totalUsage: totalUsage,
@@ -1433,133 +1597,845 @@ export class ReportService {
     return { summary, details: staffDetailsList };
   }
 
-  /**
-   * Fungsi publik utama untuk laporan terkait staf.
-   */
+  // Di dalam ReportService
+
+  // =================================================================
+  // HELPER: Fetch Commission Rules (Optimasi Cache)
+  // =================================================================
+  private async getCommissionRules() {
+    const [prodRules, voucherRules] = await Promise.all([
+      this.prisma.product_commissions.findMany(),
+      this.prisma.voucher_commissions.findMany(),
+    ]);
+
+    // Map key: "employeeId-productId" -> rule
+    const productMap = new Map<string, any>();
+    prodRules.forEach((r) =>
+      productMap.set(`${r.employees_id}-${r.products_id}`, r),
+    );
+
+    // Map key: "employeeId-voucherId" -> rule
+    const voucherMap = new Map<string, any>();
+    voucherRules.forEach((r) =>
+      voucherMap.set(`${r.employees_id}-${r.voucher_id}`, r),
+    );
+
+    return { productMap, voucherMap };
+  }
+
+  // =================================================================
+  // FUNGSI UTAMA: GET STAFF REPORTS (JSON)
+  // =================================================================
   async getStaffReports(
     startDateString: Date,
     endDateString: Date,
     type: StaffReportType,
     req: ICustomRequestHeaders,
-    storeIds?: string,
+    storeIdsString?: string,
+    staffId?: string, // Opsional, tapi wajib untuk 'individual-report'
   ) {
-    let storeId: string[] = [];
-    if (storeIds) {
-      storeId = storeIds.split(',');
-    } else if (req.store_id) {
-      storeId = [req.store_id];
-    } else {
-      throw new BadRequestException('store_ids is required.');
-    }
-    if (type === 'attendance-summary') {
-      return this.getAttendanceSummary(storeId);
-    }
-
-    // Hanya butuh tanggal untuk laporan komisi
+    // 1. Validasi Tanggal & Store
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
     endDate.setHours(23, 59, 59, 999);
 
-    if (startDate > endDate) {
-      throw new BadRequestException(
-        'Start date must be earlier than or equal to end date',
-      );
+    let storeIds: string[] = [];
+    if (storeIdsString) {
+      storeIds = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeIds = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
     }
 
-    const commissionData = await this.getCommissionReport(
-      startDate,
-      endDate,
-      storeId,
-    );
+    if (startDate > endDate)
+      throw new BadRequestException('Invalid date range');
 
-    if (type === 'commission-summary') {
-      return commissionData.summary;
+    // 2. Ambil Rules Komisi & Invoice Data
+    const { productMap, voucherMap } = await this.getCommissionRules();
+
+    // Base Query Invoice
+    const invoiceWhere: Prisma.invoiceWhereInput = {
+      store_id: { in: storeIds },
+      payment_status: 'paid',
+      paid_at: { gte: startDate, lte: endDate },
+      cashier_id: { not: null }, // Hanya yang ada kasirnya
+    };
+
+    // Filter Spesifik untuk Individual Report
+    if (type === 'individual-report') {
+      if (!staffId || staffId === 'all') {
+        throw new BadRequestException(
+          'Staff ID is required for individual report',
+        );
+      }
+      // Cari user_id dari employee UUID
+      const employee = await this.prisma.employees.findUnique({
+        where: { id: staffId },
+        select: { user_id: true },
+      });
+      if (!employee || !employee.user_id) return { dashboard: {}, table: [] };
+      invoiceWhere.cashier_id = employee.user_id;
     }
 
-    if (type === 'commission-details') {
-      return commissionData.details;
-    }
+    // Fetch Invoice dengan Relasi Lengkap
+    const invoices = await this.prisma.invoice.findMany({
+      where: invoiceWhere,
+      include: {
+        invoice_details: { include: { products: true } },
+        users: { include: { employees: true } }, // Link ke staff
+        voucher: true,
+        customer: true,
+      },
+      orderBy: { paid_at: 'desc' },
+    });
 
-    throw new BadRequestException(
-      'Invalid report type provided for staff reports',
-    );
+    // =================================================================
+    // LOGIKA PEMROSESAN BERDASARKAN TIPE
+    // =================================================================
+
+    switch (type) {
+      // ----------------------------------------------------------------
+      // 1. Commission Report (All Staff Summary)
+      // ----------------------------------------------------------------
+      case 'commission-report': {
+        const staffMap = new Map<string, any>();
+
+        for (const inv of invoices) {
+          const employee = inv.users?.employees;
+          if (!employee) continue;
+
+          if (!staffMap.has(employee.id)) {
+            staffMap.set(employee.id, {
+              staffName: employee.name,
+              totalInvoices: 0,
+              totalItemsSold: 0,
+              totalRevenue: 0,
+              totalVouchersUsed: 0,
+              totalItemCommission: 0,
+              totalVoucherCommission: 0,
+              grandTotalCommission: 0,
+            });
+          }
+          const data = staffMap.get(employee.id);
+
+          // Agregasi Invoice
+          data.totalInvoices += 1;
+          if (inv.voucher_id) data.totalVouchersUsed += 1;
+
+          // Hitung Item & Komisi Produk
+          for (const item of inv.invoice_details) {
+            const qty = item.qty ?? 0;
+            const price = item.product_price ?? 0;
+            data.totalItemsSold += qty;
+            data.totalRevenue += price * qty;
+
+            // Cek Rule Komisi Produk
+            const rule = productMap.get(`${employee.id}-${item.product_id}`);
+            if (rule) {
+              const comm = rule.is_percent
+                ? price * qty * rule.amount
+                : qty * rule.amount;
+              data.totalItemCommission += comm;
+            }
+          }
+
+          // Hitung Komisi Voucher
+          if (inv.voucher_id) {
+            const rule = voucherMap.get(`${employee.id}-${inv.voucher_id}`);
+            if (rule) {
+              data.totalVoucherCommission += rule.amount ?? 0;
+            }
+          }
+
+          data.grandTotalCommission =
+            data.totalItemCommission + data.totalVoucherCommission;
+        }
+
+        const table = Array.from(staffMap.values());
+        // Dashboard Aggregate
+        const dashboard = table.reduce(
+          (acc, curr) => ({
+            totalStaff: acc.totalStaff + 1, // Increment karena ini loop staff unik
+            totalInvoices: acc.totalInvoices + curr.totalInvoices,
+            totalRevenue: acc.totalRevenue + curr.totalRevenue,
+            totalItemCommission:
+              acc.totalItemCommission + curr.totalItemCommission,
+            totalVoucherCommission:
+              acc.totalVoucherCommission + curr.totalVoucherCommission,
+            grandTotalCommission:
+              acc.grandTotalCommission + curr.grandTotalCommission,
+          }),
+          {
+            totalStaff: 0,
+            totalInvoices: 0,
+            totalRevenue: 0,
+            totalItemCommission: 0,
+            totalVoucherCommission: 0,
+            grandTotalCommission: 0,
+          },
+        );
+
+        // Fix totalStaff logic (reduce starts at 0, but we just counted iterations)
+        // dashboard.totalStaff = table.length;
+
+        return { dashboard, table };
+      }
+
+      // ----------------------------------------------------------------
+      // 2. Individual Report (Detail Transaksi 1 Staf)
+      // ----------------------------------------------------------------
+      case 'individual-report': {
+        const dashboard = {
+          totalInvoicesServed: invoices.length,
+          totalItemsSold: 0,
+          totalVouchersUsed: 0,
+          totalItemCommission: 0,
+          totalVoucherCommission: 0,
+          grandTotalCommission: 0,
+        };
+
+        const table = invoices.map((inv) => {
+          const employeeId = inv.users?.employees?.id;
+          let invItemComm = 0;
+          let invVoucherComm = 0;
+          let itemsCount = 0;
+
+          // Hitung per invoice
+          inv.invoice_details.forEach((item) => {
+            itemsCount += item.qty ?? 0;
+            if (employeeId) {
+              const rule = productMap.get(`${employeeId}-${item.product_id}`);
+              if (rule) {
+                invItemComm += rule.is_percent
+                  ? (item.product_price ?? 0) * (item.qty ?? 0) * rule.amount
+                  : (item.qty ?? 0) * rule.amount;
+              }
+            }
+          });
+
+          if (inv.voucher_id && employeeId) {
+            const rule = voucherMap.get(`${employeeId}-${inv.voucher_id}`);
+            if (rule) invVoucherComm += rule.amount ?? 0;
+          }
+
+          // Update Dashboard
+          dashboard.totalItemsSold += itemsCount;
+          if (inv.voucher_id) dashboard.totalVouchersUsed += 1;
+          dashboard.totalItemCommission += invItemComm;
+          dashboard.totalVoucherCommission += invVoucherComm;
+
+          // Return row data
+          return {
+            invoiceNumber: inv.invoice_number,
+            date: inv.paid_at,
+            customer: inv.customer?.name ?? 'Guest',
+            grandTotal: inv.grand_total,
+            itemsCount: itemsCount,
+            totalCommission: invItemComm + invVoucherComm,
+          };
+        });
+
+        dashboard.grandTotalCommission =
+          dashboard.totalItemCommission + dashboard.totalVoucherCommission;
+        return { dashboard, table };
+      }
+
+      // ----------------------------------------------------------------
+      // 3. Commission by Items
+      // ----------------------------------------------------------------
+      case 'commission-by-items': {
+        const itemMap = new Map<string, any>();
+
+        for (const inv of invoices) {
+          const employeeId = inv.users?.employees?.id;
+          if (!employeeId) continue;
+
+          for (const detail of inv.invoice_details) {
+            const productId = detail.product_id;
+            if (!productId) continue;
+            const productName = detail.products?.name ?? 'Unknown';
+            const price = detail.product_price ?? 0;
+            const qty = detail.qty ?? 0;
+
+            let comm = 0;
+            const rule = productMap.get(`${employeeId}-${productId}`);
+            if (rule) {
+              comm = rule.is_percent
+                ? price * qty * rule.amount
+                : qty * rule.amount;
+            }
+
+            if (!itemMap.has(productId)) {
+              itemMap.set(productId, {
+                itemName: productName,
+                itemPrice: price, // Asumsi harga terakhir/rata-rata
+                totalRevenue: 0,
+                totalCommissionAccumulated: 0,
+              });
+            }
+
+            const data = itemMap.get(productId);
+            data.totalRevenue += price * qty;
+            data.totalCommissionAccumulated += comm;
+            // Update price (optional, if prices change)
+            data.itemPrice = price;
+          }
+        }
+
+        const table = Array.from(itemMap.values()).map((item) => ({
+          itemName: item.itemName,
+          itemPrice: item.itemPrice,
+          totalCommissionAccumulated: item.totalCommissionAccumulated,
+          // Ratio % = (Total Comm / Total Revenue) * 100
+          averageCommissionRatio:
+            item.totalRevenue > 0
+              ? (item.totalCommissionAccumulated / item.totalRevenue) * 100
+              : 0,
+        }));
+
+        return { dashboard: {}, table }; // Tidak ada dashboard spesifik diminta
+      }
+
+      // ----------------------------------------------------------------
+      // 4. Commission by Voucher
+      // ----------------------------------------------------------------
+      case 'commission-by-voucher': {
+        const voucherAggMap = new Map<string, any>();
+
+        for (const inv of invoices) {
+          const employeeId = inv.users?.employees?.id;
+          const voucherId = inv.voucher_id;
+          if (!employeeId || !voucherId) continue;
+
+          let comm = 0;
+          const rule = voucherMap.get(`${employeeId}-${voucherId}`);
+          if (rule) comm = rule.amount ?? 0;
+
+          if (!voucherAggMap.has(voucherId)) {
+            voucherAggMap.set(voucherId, {
+              voucherName: inv.voucher?.name ?? 'Unknown',
+              totalCommission: 0,
+            });
+          }
+          const data = voucherAggMap.get(voucherId);
+          data.totalCommission += comm;
+        }
+
+        const table = Array.from(voucherAggMap.values());
+        return { dashboard: {}, table }; // Tidak ada dashboard spesifik diminta
+      }
+
+      default:
+        throw new BadRequestException('Invalid staff report type');
+    }
   }
 
-  async getCustomerReport(req: ICustomRequestHeaders, storeIds?: string) {
+  async getLoyaltyReport(
+    type: LoyaltyReportType,
+    req: ICustomRequestHeaders,
+    gmt: number,
+    storeIdsString?: string,
+  ) {
+    let storeIds: string[] = [];
+    if (storeIdsString) {
+      storeIds = storeIdsString.split(',');
+    } else if (req.store_id) {
+      storeIds = [req.store_id];
+    } else {
+      throw new BadRequestException('store_ids is required.');
+    }
+
+    switch (type) {
+      case 'spend-based':
+        return this.getSpendBasedReport(storeIds);
+      case 'product-based':
+        return this.getProductBasedReport(storeIds);
+      case 'benefit-utilization':
+        return this.getBenefitUtilizationReport(storeIds);
+      case 'expiry-warning':
+        return this.getExpiryWarningReport(storeIds, gmt);
+      case 'type-accumulation':
+        return this.getTypeAccumulationReport(storeIds);
+      default:
+        throw new BadRequestException('Invalid loyalty report type');
+    }
+  }
+
+  private async getLoyaltyDashboardBase(storeIds: string[]) {
+    const totalPointsAgg = await this.prisma.customer.aggregate({
+      where: { stores_id: { in: storeIds } },
+      _sum: { point: true },
+    });
+    const totalCustomers = await this.prisma.customer.count({
+      where: { stores_id: { in: storeIds } },
+    });
+
+    // PERUBAHAN: Menggunakan status: 'expired' (asumsi)
+    const pointsExpiredAgg = await this.prisma.trn_customer_points.aggregate({
+      where: {
+        customer: { stores_id: { in: storeIds } },
+        type: 'point_addition',
+        status: 'expired',
+      },
+      _sum: { value: true },
+    });
+
+    return {
+      sumOfAllPoints: totalPointsAgg._sum.point || 0,
+      sumOfAllPointsExpired: pointsExpiredAgg._sum.value || 0,
+      totalCustomers: totalCustomers,
+    };
+  }
+
+  private async getSpendBasedReport(storeIds: string[]) {
+    const baseMetrics = await this.getLoyaltyDashboardBase(storeIds);
+    const totalInvoices = await this.prisma.invoice.count({
+      where: {
+        store_id: { in: storeIds },
+        payment_status: 'paid',
+        customer_id: { not: null },
+      },
+    });
+
+    // Asumsi: 'Spend Based' diidentifikasi dengan `invoice_id` yang terisi
+    // dan `notes` yang spesifik (atau null). Kita asumsikan `invoice_id` not null.
+    const pointTransactions = await this.prisma.trn_customer_points.findMany({
+      where: {
+        customer: { stores_id: { in: storeIds } },
+        type: 'point_addition',
+        earn_type: 'spend_based',
+        invoice_id: { not: null },
+      },
+      include: {
+        invoice: true,
+        customer: true,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    const table = pointTransactions.map((tx) => ({
+      invoiceId: tx.invoice?.invoice_number,
+      purchaseDate: tx.invoice?.paid_at,
+      customer: tx.customer.name,
+      grandTotal: tx.invoice?.grand_total,
+      orderType: tx.invoice?.order_type,
+      totalPointsEarned: tx.value,
+      pointExpiryDate: tx.expiry_date,
+    }));
+
+    return {
+      dashboard: {
+        ...baseMetrics,
+        totalInvoices: totalInvoices,
+      },
+      table: table.map((row) => ({
+        ...row,
+        grandTotal: parseFloat((row.grandTotal || 0).toFixed(2)),
+        purchaseDate: row.purchaseDate?.toISOString().substring(0, 10) || '',
+        pointExpiryDate:
+          row.pointExpiryDate?.toISOString().substring(0, 10) || '',
+      })),
+    };
+  }
+
+  private async getProductBasedReport(storeIds: string[]) {
+    const baseMetrics = await this.getLoyaltyDashboardBase(storeIds);
+    const totalProducts = await this.prisma.loyalty_product_item.count({
+      where: {
+        loyalty_point_settings: { storesId: { in: storeIds } },
+      },
+    });
+
+    // Ambil daftar produk yang memberi poin
+    const productRules = await this.prisma.loyalty_product_item.findMany({
+      where: {
+        loyalty_point_settings: { storesId: { in: storeIds } },
+      },
+      include: {
+        products: true,
+      },
+    });
+
+    const pointAggregates = await this.prisma.trn_customer_points.groupBy({
+      by: ['product_id'],
+      where: {
+        customer: { stores_id: { in: storeIds } },
+        type: 'point_addition',
+        earn_type: 'product_based',
+        product_id: { not: null },
+      },
+      _sum: {
+        value: true,
+      },
+    });
+    const pointsGivenMap = new Map(
+      pointAggregates.map((agg) => [agg.product_id, agg._sum.value || 0]),
+    );
+
+    const distinctCustomers = await this.prisma.trn_customer_points.findMany({
+      where: {
+        customer: { stores_id: { in: storeIds } },
+        type: 'point_addition',
+        earn_type: 'product_based',
+        product_id: { not: null },
+      },
+      distinct: ['product_id', 'customer_id'],
+      select: { product_id: true, customer_id: true },
+    });
+
+    const customerCountMap = new Map<string, number>();
+    for (const tx of distinctCustomers) {
+      if (tx.product_id) {
+        customerCountMap.set(
+          tx.product_id,
+          (customerCountMap.get(tx.product_id) || 0) + 1,
+        );
+      }
+    }
+
+    const table = productRules.map((rule) => {
+      const price = rule.products.price || 0;
+      const points = rule.points || 0;
+      const productId = rule.products.id;
+
+      return {
+        productName: rule.products.name,
+        productPrice: price,
+        pointsToIDR: price > 0 ? points / price : 0,
+        sumOfPointsGivenToCust: pointsGivenMap.get(productId) || 0,
+        totalCust: customerCountMap.get(productId) || 0,
+      };
+    });
+
+    return {
+      dashboard: {
+        ...baseMetrics,
+        totalProductsForEarningBenefit: totalProducts,
+      },
+      table: table,
+    };
+  }
+
+  private async getBenefitUtilizationReport(storeIds: string[]) {
+    // Total poin (aktif)
+    const { sumOfAllPoints } = await this.getLoyaltyDashboardBase(storeIds);
+
+    // Ambil semua transaksi penukaran poin dalam periode
+    const deductions = await this.prisma.trn_customer_points.findMany({
+      where: {
+        customer: { stores_id: { in: storeIds } },
+        invoice_id: { not: null },
+        type: 'point_deduction',
+      },
+      include: {
+        invoice: {
+          include: {
+            loyalty_points_benefit: true,
+          },
+        },
+      },
+    });
+
+    const benefits = await this.prisma.loyalty_points_benefit.findMany({
+      where: {
+        loyalty_point_settings: { storesId: { in: storeIds } },
+      },
+      include: {
+        benefit_free_items: true,
+      },
+    });
+    const benefitMap = new Map(benefits.map((b) => [b.benefit_name, b]));
+
+    const dashboard: IBenefitDashboard = {
+      sumOfAllPoints: sumOfAllPoints,
+      countCustomers: new Set(deductions.map((d) => d.customer_id)).size,
+      sumPointsUsedByType: {},
+      sumOfDiscountAmount: 0,
+      sumOfCountTotalFreeItems: 0,
+    };
+
+    const tableMap = new Map<
+      string,
+      {
+        type: string;
+        benefitName: string;
+        countUsed: number;
+        totalPointUsed: number;
+        amount: number;
+      }
+    >();
+
+    for (const tx of deductions) {
+      const benefitName =
+        tx.invoice?.loyalty_points_benefit?.benefit_name || 'Unknown Benefit';
+      const benefitRule = benefitMap.get(benefitName);
+
+      const type = benefitRule?.type || 'unknown';
+      const pointsUsed = Math.abs(tx.value);
+      let amount = 0;
+
+      if (benefitRule?.type === 'discount') {
+        amount = tx.invoice?.loyalty_discount || 0;
+        dashboard.sumOfDiscountAmount += amount;
+      } else if (benefitRule?.type === 'free_items') {
+        benefitRule.benefit_free_items.forEach((item) => {
+          amount += item.quantity || 0;
+        });
+        dashboard.sumOfCountTotalFreeItems += amount;
+      }
+
+      dashboard.sumPointsUsedByType[type] =
+        (dashboard.sumPointsUsedByType[type] || 0) + pointsUsed;
+
+      // Update tabel
+      if (!tableMap.has(benefitName)) {
+        tableMap.set(benefitName, {
+          benefitName: benefitName,
+          type: type,
+          countUsed: 0,
+          totalPointUsed: 0,
+          amount: 0,
+        });
+      }
+      const tableEntry = tableMap.get(benefitName)!;
+      tableEntry.countUsed += 1;
+      tableEntry.totalPointUsed += pointsUsed;
+      tableEntry.amount += amount;
+    }
+
+    return {
+      dashboard,
+      table: Array.from(tableMap.values()),
+    };
+  }
+
+  private async getExpiryWarningReport(storeIds: string[], gmt: number) {
+    const now = new Date();
+    const nowMs = now.getTime();
+    const allActivePoints = await this.prisma.trn_customer_points.findMany({
+      where: {
+        customer: { stores_id: { in: storeIds } },
+        type: 'point_addition',
+        status: 'active', // Asumsi Anda punya status 'active'
+        expiry_date: { gte: now }, // Hanya poin yang belum kedaluwarsa
+      },
+      include: {
+        customer: true,
+        invoice: true,
+      },
+      orderBy: {
+        expiry_date: 'asc',
+      },
+    });
+
+    const expiringSoonTxs = allActivePoints.filter((tx) => {
+      if (!tx.created_at || !tx.expiry_date) {
+        return false;
+      }
+
+      const createdMs = tx.created_at.getTime();
+      const expiryMs = tx.expiry_date.getTime();
+
+      const totalLifespanMs = expiryMs - createdMs;
+
+      if (totalLifespanMs <= 0) {
+        return false;
+      }
+
+      const halfwayMarkMs = createdMs + totalLifespanMs / 2;
+
+      return nowMs >= halfwayMarkMs;
+    });
+
+    const dashboard: IExpiryDashboard = {
+      sumOfAllPoints: 0,
+      countCustomers: new Set(expiringSoonTxs.map((tx) => tx.customer_id)).size,
+      sumByEachTypes: {},
+    };
+
+    const table = expiringSoonTxs.map((tx) => {
+      const points = tx.value;
+      const type = tx.earn_type || 'N/A';
+      dashboard.sumOfAllPoints += points;
+      dashboard.sumByEachTypes[type] =
+        (dashboard.sumByEachTypes[type] || 0) + points;
+
+      return {
+        custName: tx.customer.name,
+        invoice: tx.invoice?.invoice_number || 'N/A',
+        type: type,
+        points: points,
+        expiryDate: this.formatDate(
+          tx.expiry_date ?? new Date(),
+          gmt,
+          'yyyy-mm-dd hh:MM:ss',
+        ),
+      };
+    });
+
+    return { dashboard, table };
+  }
+
+  private async getTypeAccumulationReport(storeIds: string[]) {
+    const baseMetrics = await this.getLoyaltyDashboardBase(storeIds);
+
+    // ASUMSI: Tipe poin disimpan di `notes`
+    const pointsByType = await this.prisma.trn_customer_points.groupBy({
+      by: ['earn_type'],
+      where: {
+        customer: { stores_id: { in: storeIds } },
+        type: 'point_addition',
+        earn_type: { not: null },
+      },
+      _sum: {
+        value: true,
+      },
+    });
+
+    // Hitung total pelanggan unik per tipe
+    const distinctTxs = await this.prisma.trn_customer_points.findMany({
+      where: {
+        customer: { stores_id: { in: storeIds } },
+        type: 'point_addition',
+        earn_type: { not: null },
+      },
+      distinct: ['customer_id', 'earn_type'],
+      select: {
+        earn_type: true,
+      },
+    });
+
+    const customerCounts = new Map<string, number>();
+    for (const tx of distinctTxs) {
+      const type = tx.earn_type!;
+      customerCounts.set(type, (customerCounts.get(type) || 0) + 1);
+    }
+
+    const table = pointsByType.map((row) => {
+      const type = row.earn_type || 'Unknown';
+      return {
+        type: type,
+        sumTotalPoints: row._sum?.value || 0,
+        totalCustomers: customerCounts.get(type) || 0,
+      };
+    });
+
+    return {
+      dashboard: baseMetrics,
+      table: table,
+    };
+  }
+
+  async getCustomerReport(
+    req: ICustomRequestHeaders,
+    gmt: number,
+    storeIdsString?: string,
+  ) {
     let storeId: string[] = [];
-    if (storeIds) {
-      storeId = storeIds.split(',');
+
+    if (storeIdsString) {
+      storeId = storeIdsString.split(',');
     } else if (req.store_id) {
       storeId = [req.store_id];
     } else {
       throw new BadRequestException('store_ids is required.');
     }
+
     // 1. Ambil semua data master pelanggan dari toko ini.
+
     const customersPromise = this.prisma.customer.findMany({
       where: {
         stores_id: { in: storeId },
       },
+
       orderBy: {
         name: 'asc',
       },
     });
 
     // 2. Agregasi total penjualan (invoice yang sudah 'paid') per pelanggan.
+
     const salesDataPromise = this.prisma.invoice.groupBy({
       by: ['customer_id'],
+
       where: {
         store_id: { in: storeId },
+
         payment_status: 'paid', // Hanya hitung yang sudah lunas
+
         customer_id: { not: null },
       },
+
       _sum: {
         grand_total: true,
       },
     });
 
     // 3. Agregasi total tagihan terutang (invoice yang 'unpaid') per pelanggan.
+
     const outstandingDataPromise = this.prisma.invoice.groupBy({
       by: ['customer_id'],
+
       where: {
         store_id: { in: storeId },
+
         payment_status: 'unpaid', // Hanya hitung yang belum lunas
+
         customer_id: { not: null },
       },
+
       _sum: {
         grand_total: true,
       },
     });
 
     // Jalankan semua kueri secara bersamaan untuk efisiensi
+
     const [customers, salesData, outstandingData] = await Promise.all([
       customersPromise,
+
       salesDataPromise,
+
       outstandingDataPromise,
     ]);
 
     // 4. Ubah hasil agregasi menjadi Map untuk pencarian cepat (lookup)
+
     const salesMap = new Map(
-      salesData.map((item) => [item.customer_id, item._sum.grand_total || 0]),
+      salesData.map((item) => [item.customer_id, item._sum?.grand_total || 0]),
     );
+
     const outstandingMap = new Map(
       outstandingData.map((item) => [
         item.customer_id,
-        item._sum.grand_total || 0,
+
+        item._sum?.grand_total || 0,
       ]),
     );
 
     // 5. Gabungkan semua data menjadi satu laporan yang utuh
+
     const report = customers.map((customer) => {
       // Ambil data dari map, jika tidak ada berarti nilainya 0
+
       const totalSales = salesMap.get(customer.id) || 0;
+
       const outstanding = outstandingMap.get(customer.id) || 0;
 
       return {
         nama: customer.name,
+
         gender: customer.gender,
+
         totalSales: parseFloat(totalSales.toFixed(2)),
+
         dateAdded: customer.created_at,
+
         outstanding: parseFloat(outstanding.toFixed(2)),
+
         loyaltyPoints: customer.point || 0,
       };
     });
