@@ -103,7 +103,7 @@ export class PurchaseOrdersService {
       where: { id, store_id },
       include: {
         purchase_order_items: true,
-        users: {
+        users_purchase_orders_received_byTousers: {
           select: {
             id: true,
             fullname: true,
@@ -149,7 +149,7 @@ export class PurchaseOrdersService {
 
     // ✅ Rename users -> receiver
     const {
-      users: receiver,
+      users_purchase_orders_received_byTousers: receiver,
       users_purchase_orders_cancelled_byTousers: cancelled,
       users_purchase_orders_confirmed_byTousers: confirmed,
       users_purchase_orders_created_byTousers: created,
