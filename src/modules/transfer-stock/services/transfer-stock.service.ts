@@ -853,7 +853,7 @@ export class TransferStockService {
               unit_price: unitPrice,
               loss_amount: lossAmount,
               updated_at: new Date(),
-            }
+            },
           });
         }
       }
