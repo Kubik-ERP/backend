@@ -738,10 +738,17 @@ export class PurchaseOrdersService {
         const inv = invById.get(item.master_inventory_item_id)!;
         const newQuantity = inv.stock_quantity + item.quantity;
 
+        const itemDto = dto.productItems.find((i) => i.id === item.id);
+        if (!itemDto) {
+          throw new BadRequestException(
+            `Item id ${item.id} not found in purchase order items`,
+          );
+        }
+
         // Determine the best expiry date
         const bestExpiryDate = this.getClosestExpiryDate(
           inv.expiry_date,
-          item.expired_at,
+          itemDto.expiredAt ?? null,
         );
 
         return tx.master_inventory_items.update({
@@ -760,6 +767,13 @@ export class PurchaseOrdersService {
         const previousQuantity = inv.stock_quantity;
         const newQuantity = previousQuantity + item.quantity;
 
+        const itemDto = dto.productItems.find((i) => i.id === item.id);
+        if (!itemDto) {
+          throw new BadRequestException(
+            `Item id ${item.id} not found in purchase order items`,
+          );
+        }
+
         return tx.inventory_stock_adjustments.create({
           data: {
             master_inventory_items_id: item.master_inventory_item_id,
@@ -769,7 +783,7 @@ export class PurchaseOrdersService {
             notes: `Received PO (${existingPO.order_number})`,
             previous_quantity: previousQuantity,
             new_quantity: newQuantity,
-            expiry_date: item.expired_at,
+            expiry_date: itemDto.expiredAt ?? null,
           },
         });
       });
