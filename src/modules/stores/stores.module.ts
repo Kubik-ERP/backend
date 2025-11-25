@@ -28,7 +28,7 @@ import { OwnerOrPermissionGuard } from 'src/common/guards/owner-or-permission.gu
       useFactory: async (configService: JwtConfigService) => ({
         secret: configService.jwtSecret,
         signOptions: {
-          expiresIn: configService.jwtExp,
+          expiresIn: configService.jwtExp as any,
           issuer: configService.jwtIssuer,
         },
       }),

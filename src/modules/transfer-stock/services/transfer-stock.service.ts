@@ -158,16 +158,13 @@ export class TransferStockService {
     return `TS-${datePart}-${sequence}`;
   }
 
-  async create(
-    header: ICustomRequestHeaders,
-    dto: CreateTransferStockDto
-  ) {
+  async create(header: ICustomRequestHeaders, dto: CreateTransferStockDto) {
     const store_id = requireStoreId(header);
     const allItemIds = dto.items.map((i) => i.itemId);
     const inventoryItems = await this.prisma.master_inventory_items.findMany({
       where: {
         id: { in: allItemIds },
-        store_id: store_id
+        store_id: store_id,
       },
     });
     const itemMap = new Map(inventoryItems.map((i) => [i.id, i]));
@@ -175,7 +172,8 @@ export class TransferStockService {
     for (const item of dto.items) {
       const found = itemMap.get(item.itemId);
 
-      if (!found) throw new BadRequestException(`Item with ID ${item.itemId} not found`);
+      if (!found)
+        throw new BadRequestException(`Item with ID ${item.itemId} not found`);
 
       if (found.stock_quantity < item.qty) {
         throw new BadRequestException(
@@ -237,7 +235,7 @@ export class TransferStockService {
 
   async get(id: UUID) {
     const result = await this.prisma.transfer_stocks.findFirst({
-      where: {id: id},
+      where: { id: id },
       include: {
         stores_transfer_stocks_store_from_idTostores: true,
         stores_transfer_stocks_store_to_idTostores: true,
@@ -258,13 +256,13 @@ export class TransferStockService {
         },
         transfer_stock_items: {
           include: {
-            master_inventory_items: true
+            master_inventory_items: true,
           },
-        }
-      }
+        },
+      },
     });
 
-     if (!result) {
+    if (!result) {
       throw new NotFoundException('Transfer Stock not found');
     }
 
@@ -305,7 +303,7 @@ export class TransferStockService {
   async update(
     transferStockId: UUID,
     header: ICustomRequestHeaders,
-    dto: UpdateTransferStockDto
+    dto: UpdateTransferStockDto,
   ) {
     const store_id = requireStoreId(header);
     const transferStock = await this.prisma.transfer_stocks.findFirst({
@@ -313,23 +311,27 @@ export class TransferStockService {
       include: { transfer_stock_items: true },
     });
 
-    if (!transferStock) throw new BadRequestException('Transfer Stock not found');
+    if (!transferStock)
+      throw new BadRequestException('Transfer Stock not found');
 
     const isAuthorized =
-      transferStock.store_created_by === store_id && (
-        (transferStock.store_from_id === store_id && transferStock.status === 'drafted') ||
-        (transferStock.store_to_id === store_id && transferStock.status === 'approved')
-      )
+      transferStock.store_created_by === store_id &&
+      ((transferStock.store_from_id === store_id &&
+        transferStock.status === 'drafted') ||
+        (transferStock.store_to_id === store_id &&
+          transferStock.status === 'approved'));
 
     if (!isAuthorized) {
-      throw new BadRequestException('You are not authorized to update this data.');
+      throw new BadRequestException(
+        'You are not authorized to update this data.',
+      );
     }
 
     const allItemIds = dto.items.map((i) => i.itemId);
     const inventoryItems = await this.prisma.master_inventory_items.findMany({
       where: {
         id: { in: allItemIds },
-        store_id: store_id
+        store_id: store_id,
       },
     });
     const itemMap = new Map(inventoryItems.map((i) => [i.id, i]));
@@ -337,7 +339,8 @@ export class TransferStockService {
     for (const item of dto.items) {
       const found = itemMap.get(item.itemId);
 
-      if (!found) throw new BadRequestException(`Item with ID ${item.itemId} not found`);
+      if (!found)
+        throw new BadRequestException(`Item with ID ${item.itemId} not found`);
 
       if (found.stock_quantity < item.qty) {
         throw new BadRequestException(
@@ -390,14 +393,19 @@ export class TransferStockService {
     return result;
   }
 
-  async changeStatus(req: ICustomRequestHeaders, transferStockId: UUID, body: ChangeStatusDto) {
+  async changeStatus(
+    req: ICustomRequestHeaders,
+    transferStockId: UUID,
+    body: ChangeStatusDto,
+  ) {
     const store_id = requireStoreId(req);
     const transferStock = await this.prisma.transfer_stocks.findFirst({
       where: { id: transferStockId },
       include: { transfer_stock_items: true },
     });
 
-    if (!transferStock) throw new BadRequestException('Transfer stock not found.');
+    if (!transferStock)
+      throw new BadRequestException('Transfer stock not found.');
 
     const status = body.status?.toLowerCase();
     let isAuthorized = false;
@@ -409,18 +417,21 @@ export class TransferStockService {
     } else if (status === 'cancel') {
       isAuthorized =
         transferStock.store_created_by === store_id &&
-        (transferStock.status === 'drafted' || transferStock.status === 'approved');
+        (transferStock.status === 'drafted' ||
+          transferStock.status === 'approved');
     } else if (status === 'ship') {
       isAuthorized =
         transferStock.store_created_by === store_id &&
         transferStock.status === 'approved';
     } else {
-      throw new BadRequestException('Invalid status value. Allowed values: approve, cancel, ship.');
+      throw new BadRequestException(
+        'Invalid status value. Allowed values: approve, cancel, ship.',
+      );
     }
 
     if (!isAuthorized) {
       throw new BadRequestException(
-        `You are not authorized to update this transfer stock to status "${status}".`
+        `You are not authorized to update this transfer stock to status "${status}".`,
       );
     }
 
@@ -460,26 +471,29 @@ export class TransferStockService {
     }
 
     if (store_id !== transferStock.store_to_id) {
-      throw new BadRequestException('You are not authorized to check products for this destination store.');
+      throw new BadRequestException(
+        'You are not authorized to check products for this destination store.',
+      );
     }
 
     let createNew = false;
     for (const item of transferStock.transfer_stock_items) {
       if (!item.has_destination_product) {
         const getProduct = await this.prisma.master_inventory_items.findFirst({
-          where: {id: item.master_inventory_item_id}
+          where: { id: item.master_inventory_item_id },
         });
 
         if (!getProduct) {
           throw new BadRequestException('Source product not found.');
         }
 
-        const getProductDestination = await this.prisma.master_inventory_items.findFirst({
-          where: {
-            store_id: store_id,
-            sku: getProduct.sku
-          }
-        });
+        const getProductDestination =
+          await this.prisma.master_inventory_items.findFirst({
+            where: {
+              store_id: store_id,
+              sku: getProduct.sku,
+            },
+          });
 
         if (!getProductDestination) {
           await this.prisma.master_inventory_items.create({
@@ -501,8 +515,8 @@ export class TransferStockService {
               store_id: store_id,
               price_grosir: getProduct.price_grosir,
               created_at: new Date(),
-              updated_at: new Date()
-            }
+              updated_at: new Date(),
+            },
           });
 
           createNew = true;
@@ -513,17 +527,22 @@ export class TransferStockService {
     if (createNew) {
       return {
         statusCode: 200,
-        message: 'Some products were not found in the destination store and have been created automatically.'
+        message:
+          'Some products were not found in the destination store and have been created automatically.',
       };
     }
 
     return {
       statusCode: 200,
-      message: 'All products exist in destination store.'
+      message: 'All products exist in destination store.',
     };
   }
 
-  async approve(userId: number, transferStockId: UUID, tx: Prisma.TransactionClient) {
+  async approve(
+    userId: number,
+    transferStockId: UUID,
+    tx: Prisma.TransactionClient,
+  ) {
     const transferStock = await tx.transfer_stocks.findFirst({
       where: { id: transferStockId },
       include: {
@@ -550,7 +569,7 @@ export class TransferStockService {
         );
       }
     }
-    
+
     await tx.transfer_stocks.update({
       where: { id: transferStockId },
       data: {
@@ -571,7 +590,12 @@ export class TransferStockService {
     };
   }
 
-  async cancel(userId: number, transferStockId: UUID, data: ChangeStatusDto, tx: Prisma.TransactionClient) {
+  async cancel(
+    userId: number,
+    transferStockId: UUID,
+    data: ChangeStatusDto,
+    tx: Prisma.TransactionClient,
+  ) {
     const transferStock = await tx.transfer_stocks.findFirst({
       where: { id: transferStockId },
       include: {
@@ -617,7 +641,12 @@ export class TransferStockService {
     };
   }
 
-  async ship(userId: number, transferStockId: UUID, data: ChangeStatusDto, tx: Prisma.TransactionClient) {
+  async ship(
+    userId: number,
+    transferStockId: UUID,
+    data: ChangeStatusDto,
+    tx: Prisma.TransactionClient,
+  ) {
     const transferStock = await tx.transfer_stocks.findFirst({
       where: { id: transferStockId },
       include: {
@@ -646,10 +675,10 @@ export class TransferStockService {
 
       await tx.master_inventory_items.update({
         where: { id: masterItem.id },
-        data: { stock_quantity: masterItem.stock_quantity - item.qty_reserved }
+        data: { stock_quantity: masterItem.stock_quantity - item.qty_reserved },
       });
     }
-    
+
     await tx.transfer_stocks.update({
       where: { id: transferStockId },
       data: {
@@ -658,7 +687,7 @@ export class TransferStockService {
         logistic_provider: data.logistic_provider,
         tracking_number: data.tracking_number,
         delivery_note: data.delivery_note,
-        status: 'shipped'
+        status: 'shipped',
       },
     });
 
@@ -673,14 +702,19 @@ export class TransferStockService {
     };
   }
 
-  async receiveStock(req: ICustomRequestHeaders, transferStockId: UUID, body: ChangeStatusReceiveDto) {
+  async receiveStock(
+    req: ICustomRequestHeaders,
+    transferStockId: UUID,
+    body: ChangeStatusReceiveDto,
+  ) {
     const store_id = requireStoreId(req);
     const transferStock = await this.prisma.transfer_stocks.findFirst({
       where: { id: transferStockId },
       include: { transfer_stock_items: true },
     });
 
-    if (!transferStock) throw new BadRequestException('Transfer stock not found.');
+    if (!transferStock)
+      throw new BadRequestException('Transfer stock not found.');
 
     const status = body.status?.toLowerCase();
     let isAuthorized = false;
@@ -690,12 +724,14 @@ export class TransferStockService {
         transferStock.store_to_id === store_id &&
         transferStock.status === 'shipped';
     } else {
-      throw new BadRequestException('Invalid status value. Allowed values: approve, cancel, ship.');
+      throw new BadRequestException(
+        'Invalid status value. Allowed values: approve, cancel, ship.',
+      );
     }
 
     if (!isAuthorized) {
       throw new BadRequestException(
-        `You are not authorized to update this transfer stock to status "${status}".`
+        `You are not authorized to update this transfer stock to status "${status}".`,
       );
     }
 
@@ -706,7 +742,12 @@ export class TransferStockService {
     return result;
   }
 
-  async received(userId: number, transferStockId: UUID, data: ChangeStatusReceiveDto, tx: Prisma.TransactionClient) {
+  async received(
+    userId: number,
+    transferStockId: UUID,
+    data: ChangeStatusReceiveDto,
+    tx: Prisma.TransactionClient,
+  ) {
     const transferStock = await tx.transfer_stocks.findFirst({
       where: { id: transferStockId },
       include: {
@@ -720,7 +761,9 @@ export class TransferStockService {
       throw new BadRequestException('Transfer stock not found.');
     }
 
-    const validItemIds = transferStock.transfer_stock_items.map((item) => item.master_inventory_item_id);
+    const validItemIds = transferStock.transfer_stock_items.map(
+      (item) => item.master_inventory_item_id,
+    );
     const invalidItemIds = data.items.filter(
       (x) => !validItemIds.includes(x.itemId),
     );
@@ -733,7 +776,7 @@ export class TransferStockService {
       );
     }
 
-     for (const receivedItem of data.items) {
+    for (const receivedItem of data.items) {
       const stockItem = transferStock.transfer_stock_items.find(
         (x) => x.master_inventory_item_id === receivedItem.itemId,
       );
@@ -770,9 +813,10 @@ export class TransferStockService {
         where: { id: stockItem.id },
         data: {
           qty_received: receivedItem.qty_received,
-          status: data.status === 'received' ? 'received' : 'received_with_issue',
+          status:
+            data.status === 'received' ? 'received' : 'received_with_issue',
           note: receivedItem.notes ?? null,
-          has_destination_product: true
+          has_destination_product: true,
         },
       });
     }
@@ -782,7 +826,7 @@ export class TransferStockService {
       data: {
         received_by: userId,
         received_at: new Date(),
-        status:  data.status === 'received' ? 'received' : 'received_with_issue',
+        status: data.status === 'received' ? 'received' : 'received_with_issue',
       },
     });
 
@@ -795,7 +839,9 @@ export class TransferStockService {
 
         const difference = receivedItem.qty_shipped - receivedItem.qty_received;
         if (difference > 0) {
-          const unitPrice = Number(stockItem.master_inventory_items?.price_per_unit ?? 0);
+          const unitPrice = Number(
+            stockItem.master_inventory_items?.price_per_unit ?? 0,
+          );
           const lossAmount = difference * unitPrice;
 
           await tx.transfer_stock_losses.create({
@@ -805,8 +851,8 @@ export class TransferStockService {
               transfer_stock_item_id: stockItem.id,
               qty_lost: difference,
               unit_price: unitPrice,
-              loss_amount: lossAmount
-            }
+              loss_amount: lossAmount,
+            },
           });
         }
       }
@@ -814,7 +860,10 @@ export class TransferStockService {
 
     return {
       statusCode: 200,
-      message: data.status === 'received' ? 'Transfer stock received successfully.' : 'Transfer stock received with issues successfully.'
+      message:
+        data.status === 'received'
+          ? 'Transfer stock received successfully.'
+          : 'Transfer stock received with issues successfully.',
     };
   }
 
@@ -830,13 +879,16 @@ export class TransferStockService {
     }
 
     const isAuthorized =
-      transferStock.store_created_by === store_id && (
-        (transferStock.store_from_id === store_id && transferStock.status === 'drafted') ||
-        (transferStock.store_to_id === store_id && transferStock.status === 'approved')
-      )
+      transferStock.store_created_by === store_id &&
+      ((transferStock.store_from_id === store_id &&
+        transferStock.status === 'drafted') ||
+        (transferStock.store_to_id === store_id &&
+          transferStock.status === 'approved'));
 
     if (!isAuthorized) {
-      throw new BadRequestException('You are not authorized to delete this data.');
+      throw new BadRequestException(
+        'You are not authorized to delete this data.',
+      );
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -850,7 +902,7 @@ export class TransferStockService {
 
       return {
         statusCode: 200,
-        message: 'Transfer stock deleted successfully and stock restored.'
+        message: 'Transfer stock deleted successfully and stock restored.',
       };
     });
 

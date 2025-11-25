@@ -2006,7 +2006,6 @@ export class ReportService {
     };
   }
 
-
   private async getProductBasedReport(storeIds: string[]) {
     const baseMetrics = await this.getLoyaltyDashboardBase(storeIds);
     const totalProducts = await this.prisma.loyalty_product_item.count({
@@ -2314,18 +2313,99 @@ export class ReportService {
 
     const customersPromise = this.prisma.customer.findMany({
       where: {
-        customer: { stores_id: { in: storeIds } },
-        type: 'point_addition',
-        expiry_date: { lt: now },
+        stores_id: { in: storeId },
       },
-      _sum: { value: true },
+
+      orderBy: {
+        name: 'asc',
+      },
     });
 
-    return {
-      sumOfAllPoints: totalPointsAgg._sum.point || 0,
-      sumOfAllPointsExpired: pointsExpiredAgg._sum.value || 0,
-      totalCustomers: totalCustomers,
-    };
+    // 2. Agregasi total penjualan (invoice yang sudah 'paid') per pelanggan.
+
+    const salesDataPromise = this.prisma.invoice.groupBy({
+      by: ['customer_id'],
+
+      where: {
+        store_id: { in: storeId },
+
+        payment_status: 'paid', // Hanya hitung yang sudah lunas
+
+        customer_id: { not: null },
+      },
+
+      _sum: {
+        grand_total: true,
+      },
+    });
+
+    // 3. Agregasi total tagihan terutang (invoice yang 'unpaid') per pelanggan.
+
+    const outstandingDataPromise = this.prisma.invoice.groupBy({
+      by: ['customer_id'],
+
+      where: {
+        store_id: { in: storeId },
+
+        payment_status: 'unpaid', // Hanya hitung yang belum lunas
+
+        customer_id: { not: null },
+      },
+
+      _sum: {
+        grand_total: true,
+      },
+    });
+
+    // Jalankan semua kueri secara bersamaan untuk efisiensi
+
+    const [customers, salesData, outstandingData] = await Promise.all([
+      customersPromise,
+
+      salesDataPromise,
+
+      outstandingDataPromise,
+    ]);
+
+    // 4. Ubah hasil agregasi menjadi Map untuk pencarian cepat (lookup)
+
+    const salesMap = new Map(
+      salesData.map((item) => [item.customer_id, item._sum?.grand_total || 0]),
+    );
+
+    const outstandingMap = new Map(
+      outstandingData.map((item) => [
+        item.customer_id,
+
+        item._sum?.grand_total || 0,
+      ]),
+    );
+
+    // 5. Gabungkan semua data menjadi satu laporan yang utuh
+
+    const report = customers.map((customer) => {
+      // Ambil data dari map, jika tidak ada berarti nilainya 0
+
+      const totalSales = salesMap.get(customer.id) || 0;
+
+      const outstanding = outstandingMap.get(customer.id) || 0;
+
+      return {
+        nama: customer.name,
+
+        gender: customer.gender,
+
+        totalSales: parseFloat(totalSales.toFixed(2)),
+
+        dateAdded: customer.created_at,
+
+        outstanding: parseFloat(outstanding.toFixed(2)),
+
+        loyaltyPoints: customer.point || 0,
+      };
+    });
+
+    return report;
   }
 
   private async getSpendBasedReport(storeIds: string[]) {
@@ -2370,5 +2450,4 @@ export class ReportService {
       table: table,
     };
   }
-
 }
