@@ -852,7 +852,8 @@ export class TransferStockService {
               qty_lost: difference,
               unit_price: unitPrice,
               loss_amount: lossAmount,
-            },
+              updated_at: new Date(),
+            }
           });
         }
       }

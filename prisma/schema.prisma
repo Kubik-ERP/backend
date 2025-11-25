@@ -1391,7 +1391,7 @@ model transfer_stock_items {
 }
 
 model transfer_stock_losses {
-  id                     String               @id
+  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   store_id               String               @db.Uuid
   transfer_stock_id      String               @db.Uuid
   transfer_stock_item_id String               @db.Uuid
