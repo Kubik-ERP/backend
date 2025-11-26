@@ -61,6 +61,42 @@ export class SelfOrderController {
     private readonly customersService: CustomerService,
   ) {}
 
+  /* ----------------------- // * Get Store Detail ----------------------- */
+  @Get('store/:storeId')
+  @ApiOperation({
+    summary: 'Get Store Detail by ID',
+  })
+  async getStoreDetail(@Param('storeId') storeId: string) {
+    try {
+      const store = await this.storeService.getStoreDetailForSelfOrder(storeId);
+
+      if (!store) {
+        throw new HttpException(
+          { statusCode: HttpStatus.NOT_FOUND, message: 'Store not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      return {
+        statusCode: 200,
+        message: 'Success',
+        result: toCamelCase(store),
+      };
+    } catch (error) {
+      console.error('Error fetching store detail:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch store detail',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   // Sign up: if exists (by code+number+store) return existing, else create via customersService.create
   @Post('customers/signup')
   @ApiOperation({

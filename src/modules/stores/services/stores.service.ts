@@ -539,4 +539,17 @@ export class StoresService {
 
     return true;
   }
+
+  public async getStoreDetailForSelfOrder(storeId: string) {
+    return await this.prisma.stores.findUnique({
+      where: { id: storeId },
+      include: {
+        operational_hours: {
+          orderBy: {
+            days: 'asc',
+          },
+        },
+      },
+    });
+  }
 }
