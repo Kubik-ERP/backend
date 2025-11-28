@@ -191,6 +191,7 @@ export class PDFReportController {
     @Res() res: Response,
     @Req() req: ICustomRequestHeaders,
     @Query('store_ids') storeIdsString?: string,
+    @Query('staff_ids') staffIds?: string,
   ) {
     const pdfBuffer = await this.reportService.generateStaffReportPdf(
       startDateString,
@@ -198,6 +199,7 @@ export class PDFReportController {
       type,
       req,
       storeIdsString,
+      staffIds,
     );
 
     // Set header untuk 'langsung download'

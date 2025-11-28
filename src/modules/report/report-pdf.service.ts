@@ -42,7 +42,7 @@ export class PDFReportService {
     const templateHtml = fs.readFileSync(
       path.join(
         process.cwd(),
-        `src/modules/report/template-pdf/${templateName}.hbs`,
+        `dist/src/modules/report/template-pdf/${templateName}.hbs`,
       ),
       'utf8',
     );
@@ -378,7 +378,7 @@ export class PDFReportService {
     const templateHtml = fs.readFileSync(
       path.join(
         process.cwd(),
-        'src/modules/report/template-pdf/sales-report.hbs',
+        'dist/src/modules/report/template-pdf/sales-report.hbs',
       ),
       'utf8',
     );
@@ -639,7 +639,7 @@ export class PDFReportService {
       type,
       req,
       storeIdsString,
-      staffId, // Kirim staffId untuk individual report
+      staffId,
     );
 
     // 2. Siapkan Header
@@ -661,15 +661,14 @@ export class PDFReportService {
 
         templateData = {
           reportData: commonReportData,
-          // Dashboard -> Recap Widget
-          recapWidget: {
-            'Total Staff': report.dashboard.totalStaff,
-            'Total Invoices': report.dashboard.totalInvoices,
-            'Total Revenue': `Rp ${this.formatNumber(report.dashboard.totalRevenue)}`,
-            'Item Comm': `Rp ${this.formatNumber(report.dashboard.totalItemCommission)}`,
-            'Voucher Comm': `Rp ${this.formatNumber(report.dashboard.totalVoucherCommission)}`,
-            'Grand Total': `Rp ${this.formatNumber(report.dashboard.grandTotalCommission)}`,
-          },
+          // recapWidget: {
+          //   'Total Staff': report.dashboard.totalStaff,
+          //   'Total Invoices': report.dashboard.totalInvoices,
+          //   'Total Revenue': `Rp ${this.formatNumber(report.dashboard.totalRevenue)}`,
+          //   'Item Comm': `Rp ${this.formatNumber(report.dashboard.totalItemCommission)}`,
+          //   'Voucher Comm': `Rp ${this.formatNumber(report.dashboard.totalVoucherCommission)}`,
+          //   'Grand Total': `Rp ${this.formatNumber(report.dashboard.grandTotalCommission)}`,
+          // },
           columns: [
             { label: 'Staff Name', value: 'staffName' },
             { label: 'Inv Count', value: 'totalInvoices' },
@@ -690,14 +689,14 @@ export class PDFReportService {
 
         templateData = {
           reportData: commonReportData,
-          recapWidget: {
-            'Inv Served': report.dashboard.totalInvoicesServed,
-            'Items Sold': report.dashboard.totalItemsSold,
-            Vouchers: report.dashboard.totalVouchersUsed,
-            'Item Comm': `Rp ${this.formatNumber(report.dashboard.totalItemCommission)}`,
-            'Voucher Comm': `Rp ${this.formatNumber(report.dashboard.totalVoucherCommission)}`,
-            'Total Comm': `Rp ${this.formatNumber(report.dashboard.grandTotalCommission)}`,
-          },
+          // recapWidget: {
+          //   'Inv Served': report.dashboard.totalInvoicesServed,
+          //   'Items Sold': report.dashboard.totalItemsSold,
+          //   Vouchers: report.dashboard.totalVouchersUsed,
+          //   'Item Comm': `Rp ${this.formatNumber(report.dashboard.totalItemCommission)}`,
+          //   'Voucher Comm': `Rp ${this.formatNumber(report.dashboard.totalVoucherCommission)}`,
+          //   'Total Comm': `Rp ${this.formatNumber(report.dashboard.grandTotalCommission)}`,
+          // },
           columns: [
             { label: 'Invoice No', value: 'invoiceNumber' },
             { label: 'Date', value: 'date' },
