@@ -10,6 +10,7 @@ import {
   Req,
   Put,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
 import { PurchaseOrdersService } from './purchase-orders.service';
 import { CreatePurchaseOrdersDto } from './dto/create-purchase-orders.dto';
@@ -24,6 +25,7 @@ import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { CancelPurchaseOrderDto } from './dto/cancel-purchase-order.dto';
 import { ConfirmPurchaseOrderDto } from './dto/confirm-purchase-order.dto';
 import { ReceivePurchaseOrderDto } from './dto/receive-purchase-order.dto';
+import { Response } from 'express';
 
 @Controller('purchase-orders')
 export class PurchaseOrdersController {
@@ -259,5 +261,46 @@ export class PurchaseOrdersController {
       message: 'Purchase order paid successfully',
       result: toCamelCase(result),
     };
+  }
+
+  @ApiOperation({ summary: 'Generate PDF for purchase order' })
+  // @UseGuards(AuthPermissionGuard)
+  // @RequirePermissions('manage_purchase_order')
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get(':id/pdf')
+  async generatePdf(
+    @Param('id') id: string,
+    @Req() req: ICustomRequestHeaders,
+    @Res() res: Response,
+  ) {
+    try {
+      const pdfBuffer =
+        await this.purchaseOrderService.generatePurchaseOrderPdf(id, req);
+
+      // Get purchase order details for filename
+      const purchaseOrder = await this.purchaseOrderService.findOne(id, req);
+      const filename = `PO-${purchaseOrder.order_number}.pdf`;
+
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': pdfBuffer.length,
+      });
+
+      res.end(pdfBuffer);
+    } catch (error) {
+      console.log({ error });
+      res.status(error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR).json({
+        statusCode: error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
+        message: error.message,
+        result: null,
+      });
+    }
   }
 }

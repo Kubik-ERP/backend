@@ -18,6 +18,7 @@ import {
   UpdateInventoryItemDto,
   UpdateStockAdjustmentDto,
 } from '../dtos';
+import { getClosestExpiryDate } from 'src/common/helpers/common.helpers';
 
 type OrderByKey = 'id' | 'created_at' | 'name' | 'updated_at' | 'sku';
 
@@ -1787,9 +1788,19 @@ export class InventoryItemsService {
     }
 
     const result = await this._prisma.$transaction(async (tx) => {
+      // Determine the best expiry date
+      const bestExpiryDate = getClosestExpiryDate(
+        dto.expiredAt ?? null,
+        item.expiry_date ?? null,
+      );
+
       const updatedItem = await tx.master_inventory_items.update({
         where: { id: itemId },
-        data: { stock_quantity: newQty, updated_at: new Date() },
+        data: {
+          stock_quantity: newQty,
+          updated_at: new Date(),
+          expiry_date: bestExpiryDate,
+        },
       });
       const adjData: any = {
         master_inventory_items_id: itemId,
@@ -1800,6 +1811,7 @@ export class InventoryItemsService {
         previous_quantity: prevQty,
         new_quantity: newQty,
         created_by: header.user?.id || null, // Add created_by field with user ID
+        expiry_date: dto.expiredAt,
       };
       // if (slId) adjData.storage_location_id = slId;
       const adj = await tx.inventory_stock_adjustments.create({
@@ -1838,6 +1850,7 @@ export class InventoryItemsService {
         adjustment_quantity: true,
         previous_quantity: true,
         new_quantity: true,
+        expiry_date: true,
       },
     });
     if (!existing) throw new NotFoundException('Stock adjustment not found');
@@ -1852,6 +1865,12 @@ export class InventoryItemsService {
       });
       if (!item) throw new NotFoundException('Inventory item not found');
 
+      // Determine the best expiry date
+      const bestExpiryDate = getClosestExpiryDate(
+        dto.expiredAt ?? null,
+        item.expiry_date ?? null,
+      );
+
       // Update the adjustment record first
       const updatedAdj = await tx.inventory_stock_adjustments.update({
         where: { id: adjustmentId },
@@ -1863,6 +1882,9 @@ export class InventoryItemsService {
           ...(dto.notes !== undefined && { notes: dto.notes }),
           created_by: header.user?.id || null, // Track who updated the adjustment
           updated_at: new Date(),
+          ...(dto.expiredAt !== undefined && {
+            expiry_date: dto.expiredAt,
+          }),
         },
         select: {
           ...this.stockAdjustmentSafeSelect,
@@ -1884,6 +1906,7 @@ export class InventoryItemsService {
             adjustment_quantity: true,
             previous_quantity: true,
             created_at: true,
+            expiry_date: true,
           },
         });
 
@@ -1912,7 +1935,9 @@ export class InventoryItemsService {
           // Update the new_quantity for each adjustment record
           await tx.inventory_stock_adjustments.update({
             where: { id: adj.id },
-            data: { new_quantity: runningStockQuantity },
+            data: {
+              new_quantity: runningStockQuantity,
+            },
           });
         }
 
@@ -1922,6 +1947,7 @@ export class InventoryItemsService {
           data: {
             stock_quantity: runningStockQuantity,
             updated_at: new Date(),
+            expiry_date: bestExpiryDate,
           },
         });
       }

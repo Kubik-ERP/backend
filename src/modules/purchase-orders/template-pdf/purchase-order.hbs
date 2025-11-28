@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Delivery Order - {{orderInfo.doNumber}}</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      font-size: 12px; 
+      color: #333; 
+      margin: 0; 
+      line-height: 1.4;
+    }
+    
+    .page-container {
+      width: 794px;
+      margin: 0 auto;
+      padding: 0;
+      position: relative;
+      min-height: 1123px;
+    }
+
+     #navbar {
+      background-color: #ffefe8;
+      padding: 24px 32px;
+      border-bottom: 1px solid #f3631d;
+    }
+    
+    /* Content area with padding */
+    .content {
+      padding: 30px;
+    }
+    
+    /* Document Title */
+    .document-title {
+      text-align: center;
+      margin: 40px 0;
+    }
+    
+    .document-title h2 {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 0 0 10px 0;
+      color: #333;
+    }
+    
+    .document-title .do-number {
+      font-size: 16px;
+      color: #333;
+      margin-top: 5px;
+      font-weight: bold;
+    }
+    
+    /* Order Information */
+    .order-info {
+      border: 1px solid #f3631d;
+      padding: 20px;
+      margin-bottom: 30px;
+      background-color: white;
+      border-radius: 5px;
+    }
+    
+    .order-info h3 {
+      margin: 0 0 20px 0;
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .info-row {
+      display: flex;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    
+    .info-label {
+      width: 200px;
+      font-weight: bold;
+      font-size: 12px;
+      color: #333;
+    }
+
+    .info-separator {
+      width: 20px;
+      font-weight: bold;
+    }
+    
+    .info-value {
+      flex: 1;
+      color: #333;
+    }
+    
+    /* Items Table */
+    .items-section {
+      margin-bottom: 30px;
+      border: 1px solid #f3631d;
+      padding: 25px;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    
+    .items-section h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+      background-color: white;
+    }
+    
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: 12px;
+      margin: 0;
+      border: none;
+    }
+    
+    thead { 
+      display: table-header-group; 
+    }
+    
+    tfoot {
+      display: table-footer-group;
+    }
+    
+    tr { 
+      page-break-inside: avoid; 
+      border-bottom: 2px solid #ddd;
+    }
+    
+    
+    th {
+      padding: 12px 0; 
+      border: none;
+      text-align: left;
+      font-weight: bold; 
+      background-color: white;
+      color: #333;
+      font-size: 12px;
+      border-bottom: 2px solid #ddd;
+    }
+    
+    td { 
+      padding: 12px 0; 
+      text-align: left; 
+      border: none;
+      vertical-align: middle;
+    }
+    
+    /* Right align for numbers */
+    .text-right {
+      text-align: right !important;
+    }
+    
+    /* Total row styling */
+    .total-row {
+      font-weight: bold;
+      background-color: white;
+      font-size: 12px;
+    }
+    
+    .total-row td {
+      border: none;
+      padding-top: 20px;
+    }
+    
+    /* Signatures Section */
+    .signatures {
+      margin-top: 50px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 0 50px;
+    }
+    
+    .signature-box {
+      text-align: center;
+      width: 150px;
+    }
+    
+    .signature-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #555;
+    }
+    
+    .signature-role {
+      color: #777;
+      font-size: 11px;
+      margin-bottom: 60px;
+    }
+    
+    .signature-line {
+      border-bottom: 1px solid #333;
+      margin-bottom: 10px;
+      height: 1px;
+    }
+    
+    .signature-name {
+      font-weight: bold;
+      font-size: 12px;
+    }
+    
+    /* Footer */
+    .footer {
+      position: absolute;
+      bottom: 20px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 10px;
+      color: #666;
+      padding: 0 20px;
+    }
+    
+    /* Status badge */
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 15px;
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    
+    .status-pending {
+      background-color: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+    
+    .status-confirmed {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .status-shipped {
+      background-color: #cce5ff;
+      color: #004085;
+      border: 1px solid #b3d7ff;
+    }
+    
+    .status-received {
+      background-color: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    
+    .status-cancelled {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+
+  <div id="navbar">
+      <img src="{{appLogoBase64}}" alt="Logo" width="200px">
+  </div>
+
+    <!-- Content area -->
+    <div class="content">
+      <!-- Document Title -->
+      <div class="document-title">
+        <h2>Delivery Order</h2>
+        <div class="do-number">{{orderInfo.deliveryNumber}}</div>
+      </div>
+
+      <!-- Order Information -->
+      <div class="order-info">
+      <h3>Order Information</h3>
+      
+      <div class="info-row">
+        <div class="info-label">Supplier</div>
+        <div class="info-separator">:</div>
+        <div class="info-value">{{orderInfo.supplier}}</div>
+      </div>
+      
+      <div class="info-row">
+        <div class="info-label">Order Date</div>
+        <div class="info-separator">:</div>
+        <div class="info-value">{{orderInfo.orderDate}}</div>
+      </div>
+      
+      <div class="info-row">
+        <div class="info-label">Delivery Date</div>
+        <div class="info-separator">:</div>
+        <div class="info-value">{{orderInfo.deliveryDate}}</div>
+      </div>
+      
+      <div class="info-row">
+        <div class="info-label">Receiver</div>
+        <div class="info-separator">:</div>
+        <div class="info-value">{{orderInfo.receiver}}</div>
+      </div>
+      
+      <div class="info-row">
+        <div class="info-label">Delivery Address</div>
+        <div class="info-separator">:</div>
+        <div class="info-value">{{orderInfo.deliveryAddress}}</div>
+      </div>
+    </div>
+
+    <!-- Items Section -->
+    <div class="items-section">
+      <h3>Items</h3>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Item Name</th>
+            <th>Brand</th>
+            <th>Unit</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Total Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each items}}
+          <tr>
+            <td>{{this.item_info.sku}}</td>
+            <td>{{this.item_info.name}}</td>
+            <td>{{this.item_info.brand_name}}</td>
+            <td>{{this.item_info.unit}}</td>
+            <td>{{this.quantity}}</td>
+            <td>{{formatNumber this.unit_price}}</td>
+            <td>{{formatNumber this.total_price}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td colspan="5"></td>
+            <td><strong>Total Price:</strong></td>
+            <td><strong>{{formatNumber totalPrice}}</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- Signatures -->
+    <div class="signatures">
+      <div class="signature-box">
+        <div class="signature-title">Prepared by:</div>
+        <div class="signature-role">{{ orderInfo.preparedBy }}</div>
+        <div class="signature-line"></div>
+        <div class="signature-name">Name & Signature</div>
+      </div>
+      
+      <div class="signature-box">
+        <div class="signature-title">Delivered by:</div>
+        <div class="signature-role">{{ orderInfo.deliveredBy }}</div>
+        <div class="signature-line"></div>
+        <div class="signature-name">Name & Signature</div>
+      </div>
+      
+      <div class="signature-box">
+        <div class="signature-title">Received by:</div>
+        <div class="signature-role">{{ orderInfo.receiver }}</div>
+        <div class="signature-line"></div>
+        <div class="signature-name">Name & Signature</div>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <p style="margin: 0;">
+          Generated on {{generatedDate}} {{generatedTime}}
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
