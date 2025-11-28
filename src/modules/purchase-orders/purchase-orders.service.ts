@@ -21,11 +21,17 @@ import {
 import { CancelPurchaseOrderDto } from './dto/cancel-purchase-order.dto';
 import {
   generateNextId,
+  getClosestExpiryDate,
   requireStoreId,
 } from 'src/common/helpers/common.helpers';
 import { idToNumber } from 'src/common/helpers/common.helpers';
 import { ConfirmPurchaseOrderDto } from './dto/confirm-purchase-order.dto';
 import { ReceivePurchaseOrderDto } from './dto/receive-purchase-order.dto';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as handlebars from 'handlebars';
+import * as puppeteer from 'puppeteer';
+import { APP_LOGO_BASE64 } from '../report/constant/base64.constants';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -746,7 +752,7 @@ export class PurchaseOrdersService {
         }
 
         // Determine the best expiry date
-        const bestExpiryDate = this.getClosestExpiryDate(
+        const bestExpiryDate = getClosestExpiryDate(
           inv.expiry_date,
           itemDto.expiredAt ?? null,
         );
@@ -850,48 +856,117 @@ export class PurchaseOrdersService {
     return result;
   }
 
-  // Helper function to determine the closest expiry date
-  private getClosestExpiryDate = (
-    currentExpiry: Date | null,
-    newExpiry: Date | null,
-  ): Date | null => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
-
-    console.log({
-      currentExpiry,
-      newExpiry,
+  async generatePurchaseOrderPdf(
+    purchaseOrderId: string,
+    header: ICustomRequestHeaders,
+  ) {
+    const store_id = requireStoreId(header);
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+      select: { name: true, photo: true },
     });
 
-    // If both are null, return null
-    if (!currentExpiry && !newExpiry) return null;
+    const purchaseOrder = await this.findOne(purchaseOrderId, header);
+    const totalPrice = purchaseOrder.total_price;
 
-    // If one is null, return the non-null one
-    if (!currentExpiry) return newExpiry;
-    if (!newExpiry) return currentExpiry;
+    const supplierInfo = purchaseOrder.supplier_info as {
+      address: string;
+      phone_number: string;
+      supplier_name: string;
+      contact_person: string;
+    };
 
-    // Both dates exist, compare them
-    const currentExpiryDate = new Date(currentExpiry);
-    const newExpiryDate = new Date(newExpiry);
+    // 4. Prepare template data
+    const templateData = {
+      // Header Information
+      orderInfo: {
+        deliveryNumber: purchaseOrder.delivery_number,
+        supplier: supplierInfo.supplier_name || '-',
+        orderDate: new Date(purchaseOrder.order_date).toLocaleDateString(
+          'id-ID',
+        ),
+        deliveryDate: purchaseOrder.delivery_date
+          ? new Date(purchaseOrder.delivery_date).toLocaleDateString('id-ID')
+          : '-',
+        receiver: purchaseOrder.receiver?.fullname || '-',
+        deliveryAddress: supplierInfo.address || '-',
+        status: purchaseOrder.order_status,
+        deliveredBy: purchaseOrder.confirmed?.fullname || '-',
+        preparedBy: purchaseOrder.created?.fullname || '-',
+      },
 
-    // Reset time for comparison
-    currentExpiryDate.setHours(0, 0, 0, 0);
-    newExpiryDate.setHours(0, 0, 0, 0);
+      // Items data
+      items: purchaseOrder.purchase_order_items,
+      totalPrice: totalPrice,
 
-    // Check if dates are still valid (not expired)
-    const currentValid = currentExpiryDate >= today;
-    const newValid = newExpiryDate >= today;
+      // Store info
+      storeName: store?.name || '-',
+      // Generation info
+      generatedDate: new Date().toLocaleDateString('id-ID'),
+      generatedTime: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
 
-    // If both are valid, choose the closest to today
-    if (currentValid && newValid) {
-      return currentExpiryDate <= newExpiryDate ? currentExpiry : newExpiry;
+      // Logo
+      appLogoBase64: APP_LOGO_BASE64,
+    };
+
+    // 5. Generate PDF using the purchase order template
+    return this.generatePdfFromTemplate('purchase-order', templateData);
+  }
+
+  async generatePdfFromTemplate(
+    templateName: string,
+    data: any,
+  ): Promise<Buffer> {
+    // Register handlebars helpers
+    handlebars.registerHelper('formatNumber', (value) => {
+      if (typeof value !== 'number') return value;
+      return Math.round(value).toLocaleString('id-ID');
+    });
+
+    // 1. Tentukan path template yang benar
+    const dir = __dirname;
+    const templatePath = path.join(dir, `/template-pdf/${templateName}.hbs`);
+
+    // Cek apakah file template ada
+    if (!fs.existsSync(templatePath)) {
+      throw new Error(`Template file not found at path: ${templatePath}.`);
     }
 
-    // If only one is valid, choose the valid one
-    if (currentValid) return currentExpiry;
-    if (newValid) return newExpiry;
+    // 2. Baca dan kompilasi template Handlebars dengan Handlebars
+    const templateHtml = fs.readFileSync(templatePath, 'utf8');
+    const template = handlebars.compile(templateHtml);
 
-    // If both are expired, choose the less expired one (closest to today)
-    return currentExpiryDate >= newExpiryDate ? currentExpiry : newExpiry;
-  };
+    // 3. Masukkan data ke HTML
+    const finalHtml = template({ ...data });
+
+    // 4. Luncurkan Puppeteer dengan konfigurasi production-ready
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+      ],
+    });
+    const page = await browser.newPage();
+
+    await page.setContent(finalHtml, { waitUntil: 'networkidle0' });
+
+    // 5. Hasilkan PDF
+    const pdfBuffer = await page.pdf({
+      printBackground: true,
+      format: 'A4',
+    });
+
+    await browser.close();
+    return Buffer.from(pdfBuffer);
+  }
 }

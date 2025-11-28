@@ -5,7 +5,12 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "assets": [
-      { "include": "modules/report/template-pdf/*.hbs", "outDir": "dist/src", "watchAssets": false }
+      { "include": "modules/report/template-pdf/*.hbs", "outDir": "dist/src", "watchAssets": false },
+      {
+        "include": "modules/purchase-orders/template-pdf/*.hbs",
+        "outDir": "dist/src",
+        "watchAssets": false
+      }
     ]
   }
 }
