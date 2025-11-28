@@ -227,14 +227,7 @@ export class ReportService {
   ) {
     let cashierId: number | undefined = undefined;
     if (staffId && staffId !== 'all') {
-      const employee = await this.prisma.employees.findUnique({
-        where: { id: staffId },
-        select: { user_id: true },
-      });
-
-      if (employee) {
-        cashierId = employee.user_id;
-      }
+      cashierId = +staffId;
     }
     const invoiceWhere: Prisma.invoiceWhereInput = {
       store_id: { in: storeIds },
@@ -292,14 +285,7 @@ export class ReportService {
   ) {
     let cashierId: number | undefined = undefined;
     if (staffId && staffId !== 'all') {
-      const employee = await this.prisma.employees.findUnique({
-        where: { id: staffId },
-        select: { user_id: true },
-      });
-
-      if (employee) {
-        cashierId = employee.user_id;
-      }
+      cashierId = +staffId;
     }
     const invoiceWhere: Prisma.invoiceWhereInput = {
       store_id: { in: storeIds },
@@ -393,14 +379,7 @@ export class ReportService {
   ) {
     let cashierId: number | undefined = undefined;
     if (staffId && staffId !== 'all') {
-      const employee = await this.prisma.employees.findUnique({
-        where: { id: staffId },
-        select: { user_id: true },
-      });
-
-      if (employee) {
-        cashierId = employee.user_id;
-      }
+      cashierId = +staffId;
     }
     const invoiceWhere: Prisma.invoiceWhereInput = {
       store_id: { in: storeIds },
@@ -471,14 +450,7 @@ export class ReportService {
   ) {
     let cashierId: number | undefined = undefined;
     if (staffId && staffId !== 'all') {
-      const employee = await this.prisma.employees.findUnique({
-        where: { id: staffId },
-        select: { user_id: true },
-      });
-
-      if (employee) {
-        cashierId = employee.user_id;
-      }
+      cashierId = +staffId;
     }
     const invoiceWhere: Prisma.invoiceWhereInput = {
       store_id: { in: storeIds },
@@ -534,8 +506,6 @@ export class ReportService {
   ) {
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
-    console.log('Store IDS String:', storeIdsString);
-    console.log('Request Store ID:', req.store_id);
     let storeIds: string[] = [];
     if (storeIdsString) {
       storeIds = storeIdsString.split(',');
@@ -593,19 +563,7 @@ export class ReportService {
     });
 
     if (staffId && staffId !== 'all') {
-      const employee = await this.prisma.employees.findUnique({
-        where: { id: staffId },
-        select: { user_id: true },
-      });
-
-      if (employee) {
-        cashierId = employee.user_id;
-      } else {
-        return {
-          overallSummary: this.formatSummaryObject(createDefaultSummary()),
-          groupedSummary: [],
-        };
-      }
+      cashierId = +staffId;
     }
 
     const invoiceWhere: Prisma.invoiceWhereInput = {
@@ -652,9 +610,6 @@ export class ReportService {
       const serviceCharge = (invoice.service_charge_amount ?? 0) * itemPortion;
       const itemTotal = itemGross - itemDiscount + itemTax + serviceCharge;
 
-      // =================================================================
-      // FIX #1: Grouping is now done by ID instead of by name.
-      // =================================================================
       let groupKey: string;
       switch (groupBy) {
         case 'category':
@@ -732,10 +687,6 @@ export class ReportService {
       }
     }
 
-    // =================================================================
-    // FIX #2: Fetch all possible groups with their IDs and names
-    // to build a complete list and a map for labeling.
-    // =================================================================
     let masterGroupIds: string[] = [];
     const idToNameMap = new Map<string, string>();
 
@@ -828,9 +779,6 @@ export class ReportService {
         break;
     }
 
-    // =================================================================
-    // FIX #3: Map the final summary using the ID key, but display the name.
-    // =================================================================
     const groupedSummary = masterGroupIds
       .map((groupKey) => {
         const summary = salesDataMap.get(groupKey) || createDefaultSummary();
@@ -925,9 +873,6 @@ export class ReportService {
     }));
   }
 
-  /**
-   * Laporan 2: Current Stock Overview (Widget)
-   */
   private async getCurrentStockOverview(storeIds: string[]) {
     const inventoryItems = await this.prisma.master_inventory_items.findMany({
       where: { store_id: { in: storeIds } },
@@ -1438,7 +1383,6 @@ export class ReportService {
     const staffList = await this.prisma.employees.findMany({
       where: {
         stores_id: { in: storeIds },
-        // Asumsi 'end_date' null berarti staf masih aktif
         end_date: null,
       },
       select: {
@@ -1458,168 +1402,6 @@ export class ReportService {
     };
   }
 
-  /**
-   * Menghitung dan memberikan rincian komisi untuk semua staf dalam rentang tanggal.
-   * @param startDate Tanggal mulai periode laporan.
-   * @param endDate Tanggal akhir periode laporan.
-   * @param req Request object yang berisi store_id.
-   * @returns Objek yang berisi ringkasan total komisi dan rincian per staf.
-   */
-  private async getCommissionReport(
-    startDate: Date,
-    endDate: Date,
-    storeIds: string[],
-  ) {
-    // 1. Ambil semua transaksi yang dicatat oleh kasir dalam rentang waktu
-    const invoices = await this.prisma.invoice.findMany({
-      where: {
-        store_id: { in: storeIds },
-        payment_status: 'paid',
-        paid_at: { gte: startDate, lte: endDate },
-        // Pastikan ada kasir yang tercatat
-        cashier_id: { not: null },
-      },
-      include: {
-        // Ambil detail item untuk komisi produk
-        invoice_details: {
-          include: {
-            products: true,
-          },
-        },
-        // Ambil data user kasir -> employee
-        users: {
-          include: {
-            employees: true,
-          },
-        },
-        // Ambil data voucher untuk komisi voucher
-        voucher: true,
-      },
-    });
-
-    // 2. Ambil semua aturan komisi yang ada untuk efisiensi
-    const productCommissionRules =
-      await this.prisma.product_commissions.findMany();
-    const voucherCommissionRules =
-      await this.prisma.voucher_commissions.findMany();
-
-    // Buat Map untuk pencarian aturan yang cepat
-    const productRulesMap = new Map(
-      productCommissionRules.map((r) => [
-        `${r.employees_id}-${r.products_id}`,
-        r,
-      ]),
-    );
-    const voucherRulesMap = new Map(
-      voucherCommissionRules.map((r) => [
-        `${r.employees_id}-${r.voucher_id}`,
-        r,
-      ]),
-    );
-
-    // 3. Proses dan agregasi data komisi
-    const staffCommissionDetails = new Map<
-      string,
-      {
-        staffName: string;
-        totalCommission: number;
-        totalVoucherCommission: number;
-        totalProductCommission: number;
-        details: {
-          sourceName: string; // Nama produk atau voucher
-          sourceType: 'Produk' | 'Voucher';
-          commissionEarned: number;
-        }[];
-      }
-    >();
-
-    for (const invoice of invoices) {
-      const employee = invoice.users?.employees;
-      if (!employee) continue;
-
-      // Inisialisasi data staf jika belum ada
-      if (!staffCommissionDetails.has(employee.id)) {
-        staffCommissionDetails.set(employee.id, {
-          staffName: employee.name ?? 'Unknown Staff',
-          totalCommission: 0,
-          totalVoucherCommission: 0,
-          totalProductCommission: 0,
-          details: [],
-        });
-      }
-
-      const staffData = staffCommissionDetails.get(employee.id)!;
-
-      // Hitung komisi produk dari setiap item di invoice
-      for (const detail of invoice.invoice_details) {
-        const rule = productRulesMap.get(`${employee.id}-${detail.product_id}`);
-        if (rule) {
-          let commission = 0;
-          const itemValue = (detail.product_price ?? 0) * (detail.qty ?? 1);
-
-          if (rule.is_percent) {
-            commission = itemValue * (rule.amount ?? 0);
-          } else {
-            // Komisi flat per item terjual
-            commission = (rule.amount ?? 0) * (detail.qty ?? 1);
-          }
-
-          staffData.totalProductCommission += commission;
-          staffData.details.push({
-            sourceName: detail.products?.name ?? 'Unknown Product',
-            sourceType: 'Produk',
-            commissionEarned: commission,
-          });
-        }
-      }
-
-      // Hitung komisi voucher jika ada di invoice
-      if (invoice.voucher_id) {
-        const rule = voucherRulesMap.get(
-          `${employee.id}-${invoice.voucher_id}`,
-        );
-        if (rule) {
-          let commission = 0;
-          // Asumsi komisi voucher adalah nilai flat, karena tidak ada nilai dasar untuk persentase
-          commission = rule.amount ?? 0;
-
-          staffData.totalVoucherCommission += commission;
-          staffData.details.push({
-            sourceName: invoice.voucher?.name ?? 'Unknown Voucher',
-            sourceType: 'Voucher',
-            commissionEarned: commission,
-          });
-        }
-      }
-    }
-
-    // 4. Hitung total akhir dan siapkan output
-    let totalProductCommission = 0;
-    let totalVoucherCommission = 0;
-    const staffDetailsList = [];
-
-    for (const [staffId, data] of staffCommissionDetails.entries()) {
-      data.totalCommission =
-        data.totalProductCommission + data.totalVoucherCommission;
-      totalProductCommission += data.totalProductCommission;
-      totalVoucherCommission += data.totalVoucherCommission;
-      staffDetailsList.push({ id: staffId, ...data });
-    }
-
-    const summary = {
-      totalNilaiKomisi: totalProductCommission + totalVoucherCommission,
-      totalKomisiVoucher: totalVoucherCommission,
-      totalKomisiProduk: totalProductCommission,
-    };
-
-    return { summary, details: staffDetailsList };
-  }
-
-  // Di dalam ReportService
-
-  // =================================================================
-  // HELPER: Fetch Commission Rules (Optimasi Cache)
-  // =================================================================
   private async getCommissionRules() {
     const [prodRules, voucherRules] = await Promise.all([
       this.prisma.product_commissions.findMany(),
@@ -1641,18 +1423,14 @@ export class ReportService {
     return { productMap, voucherMap };
   }
 
-  // =================================================================
-  // FUNGSI UTAMA: GET STAFF REPORTS (JSON)
-  // =================================================================
   async getStaffReports(
     startDateString: Date,
     endDateString: Date,
     type: StaffReportType,
     req: ICustomRequestHeaders,
     storeIdsString?: string,
-    staffId?: string, // Opsional, tapi wajib untuk 'individual-report'
+    staffId?: string,
   ) {
-    // 1. Validasi Tanggal & Store
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
     endDate.setHours(23, 59, 59, 999);
@@ -1669,53 +1447,36 @@ export class ReportService {
     if (startDate > endDate)
       throw new BadRequestException('Invalid date range');
 
-    // 2. Ambil Rules Komisi & Invoice Data
     const { productMap, voucherMap } = await this.getCommissionRules();
 
-    // Base Query Invoice
     const invoiceWhere: Prisma.invoiceWhereInput = {
       store_id: { in: storeIds },
       payment_status: 'paid',
       paid_at: { gte: startDate, lte: endDate },
-      cashier_id: { not: null }, // Hanya yang ada kasirnya
+      cashier_id: { not: null },
     };
 
-    // Filter Spesifik untuk Individual Report
     if (type === 'individual-report') {
       if (!staffId || staffId === 'all') {
         throw new BadRequestException(
           'Staff ID is required for individual report',
         );
       }
-      // Cari user_id dari employee UUID
-      const employee = await this.prisma.employees.findUnique({
-        where: { id: staffId },
-        select: { user_id: true },
-      });
-      if (!employee || !employee.user_id) return { dashboard: {}, table: [] };
-      invoiceWhere.cashier_id = employee.user_id;
+      invoiceWhere.cashier_id = +staffId;
     }
 
-    // Fetch Invoice dengan Relasi Lengkap
     const invoices = await this.prisma.invoice.findMany({
       where: invoiceWhere,
       include: {
         invoice_details: { include: { products: true } },
-        users: { include: { employees: true } }, // Link ke staff
+        users: { include: { employees: true } },
         voucher: true,
         customer: true,
       },
       orderBy: { paid_at: 'desc' },
     });
 
-    // =================================================================
-    // LOGIKA PEMROSESAN BERDASARKAN TIPE
-    // =================================================================
-
     switch (type) {
-      // ----------------------------------------------------------------
-      // 1. Commission Report (All Staff Summary)
-      // ----------------------------------------------------------------
       case 'commission-report': {
         const staffMap = new Map<string, any>();
 
@@ -1774,7 +1535,7 @@ export class ReportService {
         // Dashboard Aggregate
         const dashboard = table.reduce(
           (acc, curr) => ({
-            totalStaff: acc.totalStaff + 1, // Increment karena ini loop staff unik
+            totalStaff: acc.totalStaff + 1,
             totalInvoices: acc.totalInvoices + curr.totalInvoices,
             totalRevenue: acc.totalRevenue + curr.totalRevenue,
             totalItemCommission:
@@ -1794,15 +1555,9 @@ export class ReportService {
           },
         );
 
-        // Fix totalStaff logic (reduce starts at 0, but we just counted iterations)
-        // dashboard.totalStaff = table.length;
-
         return { dashboard, table };
       }
 
-      // ----------------------------------------------------------------
-      // 2. Individual Report (Detail Transaksi 1 Staf)
-      // ----------------------------------------------------------------
       case 'individual-report': {
         const dashboard = {
           totalInvoicesServed: invoices.length,
@@ -1859,9 +1614,6 @@ export class ReportService {
         return { dashboard, table };
       }
 
-      // ----------------------------------------------------------------
-      // 3. Commission by Items
-      // ----------------------------------------------------------------
       case 'commission-by-items': {
         const itemMap = new Map<string, any>();
 
@@ -1887,7 +1639,7 @@ export class ReportService {
             if (!itemMap.has(productId)) {
               itemMap.set(productId, {
                 itemName: productName,
-                itemPrice: price, // Asumsi harga terakhir/rata-rata
+                itemPrice: price,
                 totalRevenue: 0,
                 totalCommissionAccumulated: 0,
               });
@@ -1896,7 +1648,6 @@ export class ReportService {
             const data = itemMap.get(productId);
             data.totalRevenue += price * qty;
             data.totalCommissionAccumulated += comm;
-            // Update price (optional, if prices change)
             data.itemPrice = price;
           }
         }
@@ -1912,12 +1663,9 @@ export class ReportService {
               : 0,
         }));
 
-        return { dashboard: {}, table }; // Tidak ada dashboard spesifik diminta
+        return { dashboard: {}, table };
       }
 
-      // ----------------------------------------------------------------
-      // 4. Commission by Voucher
-      // ----------------------------------------------------------------
       case 'commission-by-voucher': {
         const voucherAggMap = new Map<string, any>();
 
@@ -1941,7 +1689,7 @@ export class ReportService {
         }
 
         const table = Array.from(voucherAggMap.values());
-        return { dashboard: {}, table }; // Tidak ada dashboard spesifik diminta
+        return { dashboard: {}, table };
       }
 
       default:
@@ -2397,7 +2145,11 @@ export class ReportService {
 
         totalSales: parseFloat(totalSales.toFixed(2)),
 
-        dateAdded: customer.created_at,
+        dateAdded: this.formatDate(
+          customer.created_at ? new Date(customer.created_at) : new Date(),
+          gmt,
+          'yyyy-mm-dd hh:MM:ss',
+        ),
 
         outstanding: parseFloat(outstanding.toFixed(2)),
 
