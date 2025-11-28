@@ -78,6 +78,25 @@ export class WorkingHoursService {
     };
   }
 
+  async findByStaffId(staffId: string) {
+    const resolvedStaffId = await this.resolveStaffId(staffId);
+    if (!resolvedStaffId) {
+      throw new NotFoundException('Staff tidak ditemukan');
+    }
+
+    const items = await this.prisma.working_hours.findMany({
+      where: { staff_id: resolvedStaffId },
+      include: {
+        working_hour_time_slots: true,
+        working_hour_recurrence: true,
+        employees: true,
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    return items;
+  }
+
   async findOne(id: number) {
     const result = await this.prisma.working_hours.findUnique({
       where: { id },

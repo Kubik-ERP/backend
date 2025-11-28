@@ -16,6 +16,7 @@ import { WorkingHoursService } from '../services/working-hours.service';
 import {
   CreateWorkingHoursDto,
   WorkingHoursListDto,
+  WorkingHoursStaffParamDto,
 } from '../dtos/working-hours.dto';
 
 @ApiTags('Working Hours')
@@ -35,6 +36,12 @@ export class WorkingHoursController {
   async findAll(@Query() query: WorkingHoursListDto) {
     const data = await this.service.findAll(query);
     return { message: 'Working hours list', result: data };
+  }
+
+  @Get('staff/:staffId')
+  async findByStaffId(@Param() params: WorkingHoursStaffParamDto) {
+    const data = await this.service.findByStaffId(params.staffId);
+    return { message: 'Working hours by staff', result: data };
   }
 
   @Get(':id')
