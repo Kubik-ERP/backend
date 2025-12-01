@@ -3,12 +3,14 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsArray,
   IsDateString,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   ValidateNested,
+  Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 class AttendanceShiftDto {
   @ApiProperty({ example: '07:00' })
@@ -74,4 +76,24 @@ export class CreateAttendanceDto {
   @ValidateNested({ each: true })
   @Type(() => AttendanceShiftDto)
   shifts: AttendanceShiftDto[];
+}
+
+export class AttendanceListDto {
+  @ApiProperty({ description: 'Page number', example: 1, required: false })
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return 1;
+    return parseInt(value, 10);
+  })
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @ApiProperty({ description: 'Items per page', example: 10, required: false })
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return 10;
+    return parseInt(value, 10);
+  })
+  @IsInt()
+  @Min(1)
+  pageSize: number = 10;
 }

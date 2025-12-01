@@ -5,7 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CreateAttendanceDto } from '../dtos/attendance.dto';
+import {
+  AttendanceListDto,
+  CreateAttendanceDto,
+} from '../dtos/attendance.dto';
+import {
+  getOffset,
+  getTotalPages,
+} from 'src/common/helpers/pagination.helpers';
 
 @Injectable()
 export class AttendanceService {
@@ -31,11 +38,28 @@ export class AttendanceService {
     });
   }
 
-  async findAll() {
-    return this.prisma.attendance.findMany({
-      include: { attendance_shifts: true },
-      orderBy: { created_at: 'desc' },
-    });
+  async findAll(query: AttendanceListDto) {
+    const { page, pageSize } = query;
+
+    const [items, total] = await Promise.all([
+      this.prisma.attendance.findMany({
+        include: { attendance_shifts: true },
+        orderBy: { created_at: 'desc' },
+        skip: getOffset(page, pageSize),
+        take: pageSize,
+      }),
+      this.prisma.attendance.count(),
+    ]);
+
+    return {
+      items,
+      meta: {
+        page,
+        pageSize,
+        total,
+        totalPages: getTotalPages(total, pageSize),
+      },
+    };
   }
 
   async findOne(id: number) {
