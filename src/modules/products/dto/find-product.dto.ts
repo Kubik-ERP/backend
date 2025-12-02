@@ -4,11 +4,11 @@ import { Transform, Type } from 'class-transformer';
 export class FindAllProductsQueryDto {
   @IsOptional()
   @IsNumberString()
-  page?: number;
+  page?: string;
 
   @IsOptional()
   @IsNumberString()
-  limit?: number;
+  limit?: string;
 
   @IsOptional()
   @IsString()

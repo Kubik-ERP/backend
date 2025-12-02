@@ -39,6 +39,7 @@ import { VariantsService } from '../../variants/variants.service';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 import {
   GetInvoiceDto,
+  GetInvoiceByNumberDto,
   GetListInvoiceDto,
   InvoiceUpdateDto,
   UpdateInvoiceOrderStatusDto,
@@ -133,6 +134,7 @@ export class InvoiceService {
         include: {
           customer: true,
           users: true,
+          stores: true,
           invoice_details: {
             include: {
               products: {
@@ -143,6 +145,12 @@ export class InvoiceService {
                 },
               },
               variant: true,
+              catalog_bundling: true,
+              invoice_bundling_items: {
+                include: {
+                  products: true,
+                },
+              },
             },
           },
           payment_methods: true,
@@ -247,6 +255,143 @@ export class InvoiceService {
       this.logger.error(`Invoice with ID ${request.invoiceId} not found.`);
       throw new NotFoundException(
         `Invoice with ID ${request.invoiceId} not found.`,
+      );
+    }
+
+    // Calculate queue number for this invoice based on created_at order in the same day
+    let queueNumber = 0;
+    if (invoice.created_at && invoice.store_id) {
+      const invoiceDate = new Date(invoice.created_at);
+      const startOfDay = new Date(invoiceDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(invoiceDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Count invoices created before this invoice on the same day in the same store
+      const count = await this._prisma.invoice.count({
+        where: {
+          store_id: invoice.store_id,
+          created_at: {
+            gte: startOfDay,
+            lte: endOfDay,
+            lt: invoice.created_at,
+          },
+        },
+      });
+
+      queueNumber = count + 1; // Queue starts from 1
+    }
+
+    let totalEarnPoints = 0;
+    let totalPointsUsed = 0;
+
+    if (invoice.store_id && invoice.customer) {
+      const getData = await this.prepareUpdateLoyaltyPoints(
+        invoice.store_id,
+        invoice.id,
+      );
+
+      let grandTotalInvoice = 0;
+      if (invoice.payment_status == 'unpaid') {
+        for (const item of invoice.invoice_details) {
+          if (!item.benefit_free_items_id) {
+            grandTotalInvoice +=
+              (item.product_price ?? 0) * (item.qty ?? 0) -
+              (item.product_discount ?? 0) * (item.qty ?? 0);
+          }
+        }
+
+        let loyaltyDiscount = 0;
+        if (invoice.loyalty_points_benefit) {
+          if (invoice.loyalty_points_benefit.is_percent) {
+            loyaltyDiscount =
+              grandTotalInvoice *
+              ((invoice.loyalty_points_benefit.discount_value ?? 0) / 100);
+          } else {
+            loyaltyDiscount =
+              invoice.loyalty_points_benefit.discount_value ?? 0;
+          }
+        }
+
+        grandTotalInvoice -= loyaltyDiscount;
+        invoice.loyalty_discount = loyaltyDiscount;
+      } else {
+        grandTotalInvoice = invoice.grand_total ?? 0;
+      }
+
+      const getPoints = await this.calculateLoyaltyPoints(
+        invoice.store_id,
+        getData.products,
+        grandTotalInvoice,
+        getData.redeemLoyalty,
+      );
+
+      totalEarnPoints =
+        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+      totalPointsUsed = invoice.loyalty_points_benefit?.points_needs ?? 0;
+    }
+
+    // formatting returned response
+    const formatted = {
+      ...invoice,
+      queue: queueNumber,
+      invoiceCharges: invoice.invoice_charges.map((c) => ({
+        ...c,
+        percentage: (c.percentage as Prisma.Decimal).toNumber(),
+        amount: (c.amount as Prisma.Decimal).toNumber(),
+      })),
+      totalEarnPoints,
+      totalPointsUsed,
+    };
+
+    return formatted;
+  }
+
+  public async getInvoicePreviewByNumber(request: GetInvoiceByNumberDto) {
+    const invoice = await this._prisma.invoice.findFirst({
+      where: {
+        ...{ invoice_number: request.invoiceNumber },
+      },
+      include: {
+        customer: true,
+        stores: true,
+        invoice_details: {
+          include: {
+            products: true,
+            variant: true,
+            catalog_bundling: true,
+            invoice_bundling_items: {
+              include: {
+                products: true,
+              },
+            },
+          },
+        },
+        loyalty_points_benefit: {
+          include: {
+            benefit_free_items: {
+              include: {
+                products: true,
+              },
+            },
+          },
+        },
+        users: {
+          select: { id: true, fullname: true },
+        },
+        invoice_charges: true,
+        payment_methods: true,
+        payment_rounding_settings: true,
+      },
+    });
+
+    if (!invoice) {
+      this.logger.error(
+        `Invoice with number ${request.invoiceNumber} not found.`,
+      );
+      throw new NotFoundException(
+        `Invoice with number ${request.invoiceNumber} not found.`,
       );
     }
 
@@ -1062,6 +1207,7 @@ export class InvoiceService {
       );
 
       await this.updateCustomerPoint(
+        storeId,
         invoiceId,
         request.customerId,
         request.redeemLoyalty ?? null,
@@ -2940,6 +3086,7 @@ export class InvoiceService {
       );
 
       await this.updateCustomerPoint(
+        storeId,
         invoice.id,
         invoice.customer_id ?? null,
         loyaltyPayload.redeemLoyalty,
@@ -3014,6 +3161,7 @@ export class InvoiceService {
           );
 
           await this.updateCustomerPoint(
+            invoice.store_id,
             invoice.id,
             invoice.customer_id ?? null,
             getData.redeemLoyalty,
@@ -3113,6 +3261,7 @@ export class InvoiceService {
           );
 
           await this.updateCustomerPoint(
+            invoice.store_id,
             invoice.id,
             invoice.customer_id ?? null,
             getData.redeemLoyalty,
@@ -3847,9 +3996,30 @@ export class InvoiceService {
       });
 
       products =
-        getInvoice?.invoice_details.map((d) => ({
-          ...d.products,
-        })) ?? [];
+        getInvoice?.invoice_details
+          ?.filter((d) => !d.benefit_free_items_id)
+          ?.map((d) => {
+            let type: string | null = null;
+            let quantity: number = 0;
+            let name: string = '';
+
+            if (d.product_id) {
+              type = 'single';
+              quantity = d.qty ?? 0;
+              name = d.products?.name ?? '';
+            } else if (d.catalog_bundling_id) {
+              type = 'bundling';
+              quantity = d.qty ?? 0;
+              name = d.products?.name ?? '';
+            }
+
+            return {
+              ...d.products,
+              type,
+              quantity,
+              name,
+            };
+          }) ?? [];
     }
 
     return {
@@ -3867,9 +4037,7 @@ export class InvoiceService {
   ) {
     let earnPointsBySpend = 0;
     let earnPointsByProduct = 0;
-    let descriptionBySpend = '';
-    let descriptionByProduct = '';
-    let description = '';
+    let data: any = [];
 
     const loyaltySettings = await this._prisma.loyalty_point_settings.findFirst(
       {
@@ -3894,11 +4062,6 @@ export class InvoiceService {
           } else {
             earnPointsBySpend += pointsPerTrans;
           }
-
-          descriptionBySpend =
-            earnPointsBySpend > 0
-              ? 'Earned from based spend = ' + earnPointsBySpend
-              : '';
         }
       }
 
@@ -3911,62 +4074,69 @@ export class InvoiceService {
 
         if (canEarnPoints) {
           for (const product of products) {
+            const getProductId = product.productId
+              ? product.productId
+              : (product.id ?? null);
+            if (!getProductId) {
+              return {
+                earnPointsBySpend,
+                earnPointsByProduct,
+                data,
+              };
+            }
+
+            const getProduct = await this._prisma.products.findFirst({
+              where: {
+                id: getProductId,
+              },
+            });
+
             if (product.type == 'single') {
               const loyaltyItem =
                 await this._prisma.loyalty_product_item.findFirst({
                   where: {
                     loyalty_point_setting_id: loyaltySettings.id,
-                    product_id: product.productId,
+                    product_id: getProductId,
                   },
                 });
-
               if (loyaltyItem) {
                 const qty = product.quantity ?? 0;
                 const minimumPurchase = loyaltyItem.minimum_transaction ?? 0;
 
+                let totalPoints = 0;
                 if (qty >= minimumPurchase) {
                   if (loyaltySettings.product_based_points_apply_multiple) {
                     const multiplierProduct = Math.floor(qty / minimumPurchase);
-                    earnPointsByProduct +=
+                    totalPoints +=
                       multiplierProduct * (loyaltyItem.points ?? 0);
                   } else {
-                    earnPointsByProduct += loyaltyItem.points ?? 0;
+                    totalPoints += loyaltyItem.points ?? 0;
                   }
                 }
+
+                earnPointsByProduct += totalPoints;
+
+                data.push({
+                  product_id: getProductId,
+                  product_name: getProduct?.name ?? '',
+                  total_points: totalPoints,
+                });
               }
             }
           }
-
-          descriptionByProduct =
-            earnPointsByProduct > 0
-              ? 'Earned from product spend = ' + earnPointsByProduct
-              : '';
         }
-      }
-
-      if (earnPointsBySpend > 0 || earnPointsByProduct > 0) {
-        let descriptionParts: string[] = [];
-
-        if (descriptionBySpend) {
-          descriptionParts.push(descriptionBySpend);
-        }
-
-        if (descriptionByProduct) {
-          descriptionParts.push(descriptionByProduct);
-        }
-
-        description = descriptionParts.join(' and ');
       }
     }
 
     return {
       earnPointsBySpend,
       earnPointsByProduct,
-      description,
+      data,
     };
   }
 
   private async updateCustomerPoint(
+    storeId: string,
     invoiceId: string,
     customerId: string | null,
     redeemLoyalty: RedeemLoyaltyDto | null,
@@ -3976,15 +4146,76 @@ export class InvoiceService {
       customerId &&
       (points.earnPointsBySpend > 0 || points.earnPointsByProduct > 0)
     ) {
-      await this._prisma.customer_loyalty_transactions.create({
-        data: {
-          customer_id: customerId,
-          invoice_id: invoiceId,
-          type: 'earn',
-          points: points.earnPointsBySpend + points.earnPointsByProduct,
-          description: points.description,
-        },
-      });
+      const loyaltySetting =
+        await this._prisma.loyalty_point_settings.findFirst({
+          where: {
+            storesId: storeId,
+          },
+          select: {
+            spend_based_points_expiry_days: true,
+            product_based_points_expiry_days: true,
+          },
+        });
+
+      if (!loyaltySetting) {
+        throw new NotFoundException(
+          `Loyalty Setting with Store ID ${storeId} not found`,
+        );
+      }
+
+      const now = new Date();
+
+      if (points.earnPointsBySpend > 0) {
+        const spendBasedExpired = new Date(now);
+        spendBasedExpired.setDate(
+          now.getDate() + (loyaltySetting.spend_based_points_expiry_days ?? 0),
+        );
+        spendBasedExpired.setHours(23, 59, 59, 999);
+
+        await this._prisma.trn_customer_points.create({
+          data: {
+            customer_id: customerId,
+            invoice_id: invoiceId,
+            type: 'point_addition',
+            earn_type: 'spend_based',
+            value: points.earnPointsBySpend,
+            notes: `Earned from spend-based = ${points.earnPointsBySpend}`,
+            expiry_date: spendBasedExpired,
+            status: 'active',
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+      }
+
+      if (points.earnPointsByProduct > 0) {
+        const productBasedExpired = new Date(now);
+        productBasedExpired.setDate(
+          now.getDate() +
+            (loyaltySetting.product_based_points_expiry_days ?? 0),
+        );
+        productBasedExpired.setHours(23, 59, 59, 999);
+
+        for (const item of points.data) {
+          if (item.total_points > 0) {
+            await this._prisma.trn_customer_points.create({
+              data: {
+                customer_id: customerId,
+                invoice_id: invoiceId,
+                product_id: item.product_id,
+                type: 'point_addition',
+                earn_type: 'product_based',
+                value: item.total_points,
+                notes: `Earned from product ${item.product_name}`,
+                expiry_date: productBasedExpired,
+                status: 'active',
+                created_at: new Date(),
+                updated_at: new Date(),
+              },
+            });
+          }
+        }
+      }
 
       if (redeemLoyalty) {
         const benefit = await this._prisma.loyalty_points_benefit.findFirst({
@@ -3994,13 +4225,13 @@ export class InvoiceService {
         });
 
         if (benefit) {
-          await this._prisma.customer_loyalty_transactions.create({
+          await this._prisma.trn_customer_points.create({
             data: {
               customer_id: customerId,
               invoice_id: invoiceId,
-              type: 'redeem',
-              points: benefit.points_needs ?? 0,
-              description: 'Redeem ' + benefit.benefit_name,
+              type: 'point_deduction',
+              value: benefit.points_needs ?? 0,
+              notes: 'Redeem ' + benefit.benefit_name,
             },
           });
         }
@@ -4008,22 +4239,20 @@ export class InvoiceService {
     }
 
     if (customerId) {
-      const [earnAndAdjustment, redeem] = await Promise.all([
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: {
-            customer_id: customerId,
-            type: { in: ['earn', 'adjustment'] },
-          },
-          _sum: { points: true },
-        }),
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: { customer_id: customerId, type: 'redeem' },
-          _sum: { points: true },
-        }),
-      ]);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      const totalActivePoints =
-        (earnAndAdjustment._sum.points ?? 0) - (redeem._sum.points ?? 0);
+      const earn = await this._prisma.trn_customer_points.aggregate({
+        where: {
+          customer_id: customerId,
+          type: 'point_addition',
+          status: 'active',
+          OR: [{ expiry_date: { gte: today } }, { expiry_date: null }],
+        },
+        _sum: { value: true },
+      });
+
+      const totalActivePoints = earn._sum.value ?? 0;
 
       await this._prisma.customer.update({
         where: { id: customerId },

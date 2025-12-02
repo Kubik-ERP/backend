@@ -6,9 +6,11 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   ValidateNested,
+  Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 class AttendanceShiftDto {
   @ApiProperty({ example: '07:00' })
@@ -49,9 +51,13 @@ class AttendanceShiftDto {
 }
 
 export class CreateAttendanceDto {
-  @ApiProperty({ example: 1, nullable: true })
+  @ApiProperty({
+    example: 'c73c0f40-6df3-4e56-b5a6-5b4b24da5f55',
+    nullable: true,
+  })
   @IsOptional()
-  staffId: number | null;
+  @IsUUID()
+  staffId: string | null;
 
   @ApiProperty({ example: '2025-09-10' })
   @IsDateString()
@@ -70,4 +76,24 @@ export class CreateAttendanceDto {
   @ValidateNested({ each: true })
   @Type(() => AttendanceShiftDto)
   shifts: AttendanceShiftDto[];
+}
+
+export class AttendanceListDto {
+  @ApiProperty({ description: 'Page number', example: 1, required: false })
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return 1;
+    return parseInt(value, 10);
+  })
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @ApiProperty({ description: 'Items per page', example: 10, required: false })
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return 10;
+    return parseInt(value, 10);
+  })
+  @IsInt()
+  @Min(1)
+  pageSize: number = 10;
 }

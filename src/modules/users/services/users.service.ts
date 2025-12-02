@@ -35,7 +35,6 @@ export class UsersService {
     if (store_ids) {
       store_ids.split(',').forEach((id) => storeids.add(id));
     }
-
     const users = await this.prisma.users.findMany({
       where: {
         OR: [

@@ -39,4 +39,5 @@ export type TPermissions =
   | 'manage_purchase_order'
   | 'manage_staff_member'
   | 'manage_staff_attendance'
-  | 'recipe_management';
+  | 'recipe_management'
+  | 'manage_transfer_stock';

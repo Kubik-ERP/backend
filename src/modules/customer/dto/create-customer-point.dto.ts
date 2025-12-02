@@ -27,4 +27,14 @@ export class CreateCustomerPointDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({ example: 'active' })
+  @IsUUID()
+  @IsOptional()
+  status?: string;
+
+  @ApiPropertyOptional({ example: 'adjustment' })
+  @IsUUID()
+  @IsOptional()
+  earn_type?: 'product_based' | 'spend_based' | 'adjustment';
 }
