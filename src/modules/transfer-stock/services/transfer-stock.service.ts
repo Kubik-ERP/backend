@@ -687,25 +687,27 @@ export class TransferStockService {
         stores_id: dto.store_id,
       },
     });
+    
+    let categoryCatalogId = null;
     if (existingCategory) {
-      throw new BadRequestException(
-        `Category product with name '${inventoryCategory.name}' already exists in this store`,
-      );
+      categoryCatalogId = existingCategory.id;
+    } else {
+      const categoryCatalogCreated = await tx.categories.create({
+        data: {
+          category: inventoryCategory.name,
+          description: inventoryCategory.notes,
+          stores_id: dto.store_id,
+          master_inventory_category_id: dto.category_id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      categoryCatalogId = categoryCatalogCreated.id;
     }
 
-    const categoryCatalogCreated = await tx.categories.create({
-      data: {
-        category: inventoryCategory.name,
-        description: inventoryCategory.notes,
-        stores_id: dto.store_id,
-        master_inventory_category_id: dto.category_id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    return categoryCatalogCreated.id;
+    return categoryCatalogId;
   };
 
   private upsertProduct = async (
