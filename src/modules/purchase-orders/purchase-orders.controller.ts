@@ -264,8 +264,8 @@ export class PurchaseOrdersController {
   }
 
   @ApiOperation({ summary: 'Generate PDF for purchase order' })
-  // @UseGuards(AuthPermissionGuard)
-  // @RequirePermissions('manage_purchase_order')
+  @UseGuards(AuthPermissionGuard)
+  @RequirePermissions('manage_purchase_order')
   @ApiHeader({
     name: 'X-STORE-ID',
     description: 'Store ID associated with this request',
