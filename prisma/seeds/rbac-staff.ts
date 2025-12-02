@@ -112,6 +112,7 @@ const permissionsMaster = [
       { name: 'Manage Brand', key: 'manage_brand' },
       { name: 'Manage Stock Opname', key: 'manage_stock_opname' },
       { name: 'Manage Storage Location', key: 'manage_storage_location' },
+      { name: 'Transfer Stock', key: 'manage_transfer_stock' }
     ],
   },
   {
@@ -175,6 +176,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'manage_staff_attendance',
     'recipe_management',
     'integration',
+    'manage_transfer_stock'
   ],
   Supervisor: [
     'store_management',
@@ -212,6 +214,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'manage_staff_attendance',
     'recipe_management',
     'integration',
+    'manage_transfer_stock'
   ],
   Senior: [
     'product_category',
@@ -242,6 +245,7 @@ const rolePermissionsMaster: Record<string, string[]> = {
     'manage_staff_member',
     'manage_staff_attendance',
     'recipe_management',
+    'manage_transfer_stock'
   ],
   Cashier: [
     'set_up_cash_drawer',

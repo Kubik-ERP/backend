@@ -18,6 +18,7 @@ import {
   UpdateInventoryItemDto,
   UpdateStockAdjustmentDto,
 } from '../dtos';
+import { getClosestExpiryDate } from 'src/common/helpers/common.helpers';
 
 type OrderByKey = 'id' | 'created_at' | 'name' | 'updated_at' | 'sku';
 
@@ -1048,6 +1049,7 @@ export class InventoryItemsService {
     created_at: true,
     updated_at: true,
     created_by: true,
+    expiry_date: true,
     users: {
       select: {
         id: true,
@@ -1094,7 +1096,7 @@ export class InventoryItemsService {
           category_id: dto.categoryId,
           unit: dto.unit,
           notes: dto.notes,
-          stock_quantity: dto.stockQuantity,
+          stock_quantity: dto?.stockQuantity ?? 0,
           reorder_level: dto.reorderLevel,
           minimum_stock_quantity: dto.minimumStockQuantity,
           expiry_date: dto.expiryDate ? new Date(dto.expiryDate) : null,
@@ -1205,6 +1207,7 @@ export class InventoryItemsService {
           margin: true,
           markup: true,
           created_at: true,
+          master_inventory_item_conversions: true,
           purchase_order_items: {
             take: 1,
             orderBy: { purchase_orders: { order_date: 'asc' } },
@@ -1240,6 +1243,7 @@ export class InventoryItemsService {
       margin: it.margin,
       markup: it.markup,
       created_at: it.created_at,
+      master_inventory_item_conversions: it.master_inventory_item_conversions,
     }));
 
     const totalPages = Math.ceil(total / pageSize);
@@ -1784,9 +1788,19 @@ export class InventoryItemsService {
     }
 
     const result = await this._prisma.$transaction(async (tx) => {
+      // Determine the best expiry date
+      const bestExpiryDate = getClosestExpiryDate(
+        dto.expiredAt ?? null,
+        item.expiry_date ?? null,
+      );
+
       const updatedItem = await tx.master_inventory_items.update({
         where: { id: itemId },
-        data: { stock_quantity: newQty, updated_at: new Date() },
+        data: {
+          stock_quantity: newQty,
+          updated_at: new Date(),
+          expiry_date: bestExpiryDate,
+        },
       });
       const adjData: any = {
         master_inventory_items_id: itemId,
@@ -1797,6 +1811,7 @@ export class InventoryItemsService {
         previous_quantity: prevQty,
         new_quantity: newQty,
         created_by: header.user?.id || null, // Add created_by field with user ID
+        expiry_date: dto.expiredAt,
       };
       // if (slId) adjData.storage_location_id = slId;
       const adj = await tx.inventory_stock_adjustments.create({
@@ -1835,6 +1850,7 @@ export class InventoryItemsService {
         adjustment_quantity: true,
         previous_quantity: true,
         new_quantity: true,
+        expiry_date: true,
       },
     });
     if (!existing) throw new NotFoundException('Stock adjustment not found');
@@ -1849,6 +1865,12 @@ export class InventoryItemsService {
       });
       if (!item) throw new NotFoundException('Inventory item not found');
 
+      // Determine the best expiry date
+      const bestExpiryDate = getClosestExpiryDate(
+        dto.expiredAt ?? null,
+        item.expiry_date ?? null,
+      );
+
       // Update the adjustment record first
       const updatedAdj = await tx.inventory_stock_adjustments.update({
         where: { id: adjustmentId },
@@ -1860,6 +1882,9 @@ export class InventoryItemsService {
           ...(dto.notes !== undefined && { notes: dto.notes }),
           created_by: header.user?.id || null, // Track who updated the adjustment
           updated_at: new Date(),
+          ...(dto.expiredAt !== undefined && {
+            expiry_date: dto.expiredAt,
+          }),
         },
         select: {
           ...this.stockAdjustmentSafeSelect,
@@ -1881,6 +1906,7 @@ export class InventoryItemsService {
             adjustment_quantity: true,
             previous_quantity: true,
             created_at: true,
+            expiry_date: true,
           },
         });
 
@@ -1909,7 +1935,9 @@ export class InventoryItemsService {
           // Update the new_quantity for each adjustment record
           await tx.inventory_stock_adjustments.update({
             where: { id: adj.id },
-            data: { new_quantity: runningStockQuantity },
+            data: {
+              new_quantity: runningStockQuantity,
+            },
           });
         }
 
@@ -1919,6 +1947,7 @@ export class InventoryItemsService {
           data: {
             stock_quantity: runningStockQuantity,
             updated_at: new Date(),
+            expiry_date: bestExpiryDate,
           },
         });
       }
@@ -1987,12 +2016,34 @@ export class InventoryItemsService {
       typeof markup.toNumber === 'function'
         ? markup.toNumber()
         : markup;
+
+    // Handle master_inventory_item_conversions formatting
+    let processedConversions = item.master_inventory_item_conversions;
+    if (processedConversions && Array.isArray(processedConversions)) {
+      processedConversions = processedConversions.map((conv: any) => {
+        // Convert conversion_value to number if it's a Decimal object
+        const conversionValue = conv.conversion_value;
+        const numericValue =
+          conversionValue &&
+          typeof conversionValue === 'object' &&
+          typeof conversionValue.toNumber === 'function'
+            ? conversionValue.toNumber()
+            : Number(conversionValue);
+
+        return {
+          ...conv,
+          conversion_value: numericValue,
+        };
+      });
+    }
+
     return {
       ...item,
       price_per_unit: priceNumber,
       price_grosir: priceGrosirNumber,
       margin: marginNumber,
       markup: markupNumber,
+      master_inventory_item_conversions: processedConversions,
     };
   }
 

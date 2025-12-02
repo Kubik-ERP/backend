@@ -39,6 +39,7 @@ import { VariantsService } from '../../variants/variants.service';
 import { PaymentCallbackCoreDto } from '../dtos/callback-payment.dto';
 import {
   GetInvoiceDto,
+  GetInvoiceByNumberDto,
   GetListInvoiceDto,
   InvoiceUpdateDto,
   UpdateInvoiceOrderStatusDto,
@@ -58,6 +59,7 @@ import {
 } from '../dtos/setting-invoice.dto';
 import { CalculationResult } from '../interfaces/calculation.interface';
 import { PaymentGateway } from '../interfaces/payments.interface';
+import { percentageToAmount } from 'src/common/helpers/common.helpers';
 
 @Injectable()
 export class InvoiceService {
@@ -132,6 +134,7 @@ export class InvoiceService {
         include: {
           customer: true,
           users: true,
+          stores: true,
           invoice_details: {
             include: {
               products: {
@@ -142,6 +145,12 @@ export class InvoiceService {
                 },
               },
               variant: true,
+              catalog_bundling: true,
+              invoice_bundling_items: {
+                include: {
+                  products: true,
+                },
+              },
             },
           },
           payment_methods: true,
@@ -246,6 +255,143 @@ export class InvoiceService {
       this.logger.error(`Invoice with ID ${request.invoiceId} not found.`);
       throw new NotFoundException(
         `Invoice with ID ${request.invoiceId} not found.`,
+      );
+    }
+
+    // Calculate queue number for this invoice based on created_at order in the same day
+    let queueNumber = 0;
+    if (invoice.created_at && invoice.store_id) {
+      const invoiceDate = new Date(invoice.created_at);
+      const startOfDay = new Date(invoiceDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(invoiceDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Count invoices created before this invoice on the same day in the same store
+      const count = await this._prisma.invoice.count({
+        where: {
+          store_id: invoice.store_id,
+          created_at: {
+            gte: startOfDay,
+            lte: endOfDay,
+            lt: invoice.created_at,
+          },
+        },
+      });
+
+      queueNumber = count + 1; // Queue starts from 1
+    }
+
+    let totalEarnPoints = 0;
+    let totalPointsUsed = 0;
+
+    if (invoice.store_id && invoice.customer) {
+      const getData = await this.prepareUpdateLoyaltyPoints(
+        invoice.store_id,
+        invoice.id,
+      );
+
+      let grandTotalInvoice = 0;
+      if (invoice.payment_status == 'unpaid') {
+        for (const item of invoice.invoice_details) {
+          if (!item.benefit_free_items_id) {
+            grandTotalInvoice +=
+              (item.product_price ?? 0) * (item.qty ?? 0) -
+              (item.product_discount ?? 0) * (item.qty ?? 0);
+          }
+        }
+
+        let loyaltyDiscount = 0;
+        if (invoice.loyalty_points_benefit) {
+          if (invoice.loyalty_points_benefit.is_percent) {
+            loyaltyDiscount =
+              grandTotalInvoice *
+              ((invoice.loyalty_points_benefit.discount_value ?? 0) / 100);
+          } else {
+            loyaltyDiscount =
+              invoice.loyalty_points_benefit.discount_value ?? 0;
+          }
+        }
+
+        grandTotalInvoice -= loyaltyDiscount;
+        invoice.loyalty_discount = loyaltyDiscount;
+      } else {
+        grandTotalInvoice = invoice.grand_total ?? 0;
+      }
+
+      const getPoints = await this.calculateLoyaltyPoints(
+        invoice.store_id,
+        getData.products,
+        grandTotalInvoice,
+        getData.redeemLoyalty,
+      );
+
+      totalEarnPoints =
+        getPoints.earnPointsBySpend + getPoints.earnPointsByProduct;
+      totalPointsUsed = invoice.loyalty_points_benefit?.points_needs ?? 0;
+    }
+
+    // formatting returned response
+    const formatted = {
+      ...invoice,
+      queue: queueNumber,
+      invoiceCharges: invoice.invoice_charges.map((c) => ({
+        ...c,
+        percentage: (c.percentage as Prisma.Decimal).toNumber(),
+        amount: (c.amount as Prisma.Decimal).toNumber(),
+      })),
+      totalEarnPoints,
+      totalPointsUsed,
+    };
+
+    return formatted;
+  }
+
+  public async getInvoicePreviewByNumber(request: GetInvoiceByNumberDto) {
+    const invoice = await this._prisma.invoice.findFirst({
+      where: {
+        ...{ invoice_number: request.invoiceNumber },
+      },
+      include: {
+        customer: true,
+        stores: true,
+        invoice_details: {
+          include: {
+            products: true,
+            variant: true,
+            catalog_bundling: true,
+            invoice_bundling_items: {
+              include: {
+                products: true,
+              },
+            },
+          },
+        },
+        loyalty_points_benefit: {
+          include: {
+            benefit_free_items: {
+              include: {
+                products: true,
+              },
+            },
+          },
+        },
+        users: {
+          select: { id: true, fullname: true },
+        },
+        invoice_charges: true,
+        payment_methods: true,
+        payment_rounding_settings: true,
+      },
+    });
+
+    if (!invoice) {
+      this.logger.error(
+        `Invoice with number ${request.invoiceNumber} not found.`,
+      );
+      throw new NotFoundException(
+        `Invoice with number ${request.invoiceNumber} not found.`,
       );
     }
 
@@ -711,7 +857,7 @@ export class InvoiceService {
           });
 
         // update invoice with original subtotal and total product discount
-        await this.update(tx, invoiceId, {
+        const invoiceUpdated = await this.update(tx, invoiceId, {
           subtotal: originalSubtotal, // subtotal dari original price
           tax_id: calculation.taxId,
           service_charge_id: calculation.serviceChargeId,
@@ -1018,6 +1164,11 @@ export class InvoiceService {
             );
           }
         }
+
+        // jika statusnya paid maka akan create employee commission logs
+        if (invoiceUpdated.payment_status === invoice_type.paid) {
+          await this.createEmployeeCommissionLogs(tx, invoiceUpdated);
+        }
       },
       { timeout: 500_000 },
     );
@@ -1056,6 +1207,7 @@ export class InvoiceService {
       );
 
       await this.updateCustomerPoint(
+        storeId,
         invoiceId,
         request.customerId,
         request.redeemLoyalty ?? null,
@@ -2855,7 +3007,7 @@ export class InvoiceService {
       totalProductDiscount = calculation.discountTotal;
       totalRedeemDiscount = calculation.totalRedeemDiscount ?? 0;
 
-      await this.update(tx, invoice.id, {
+      const invoiceUpdated = await this.update(tx, invoice.id, {
         payment_status:
           method.name === 'Cash' ? invoice_type.paid : invoice_type.unpaid,
         subtotal: calculation.subTotal,
@@ -2875,6 +3027,11 @@ export class InvoiceService {
           calculation.paymentRoundingSetting?.id ?? undefined,
         rounding_amount: calculation.roundingAdjustment ?? undefined,
       });
+
+      // jika statusnya paid maka akan create employee commission logs
+      if (invoiceUpdated.payment_status === invoice_type.paid) {
+        await this.createEmployeeCommissionLogs(tx, invoiceUpdated);
+      }
     });
 
     if (request.provider !== 'cash') {
@@ -2929,6 +3086,7 @@ export class InvoiceService {
       );
 
       await this.updateCustomerPoint(
+        storeId,
         invoice.id,
         invoice.customer_id ?? null,
         loyaltyPayload.redeemLoyalty,
@@ -3003,6 +3161,7 @@ export class InvoiceService {
           );
 
           await this.updateCustomerPoint(
+            invoice.store_id,
             invoice.id,
             invoice.customer_id ?? null,
             getData.redeemLoyalty,
@@ -3102,6 +3261,7 @@ export class InvoiceService {
           );
 
           await this.updateCustomerPoint(
+            invoice.store_id,
             invoice.id,
             invoice.customer_id ?? null,
             getData.redeemLoyalty,
@@ -3836,9 +3996,30 @@ export class InvoiceService {
       });
 
       products =
-        getInvoice?.invoice_details.map((d) => ({
-          ...d.products,
-        })) ?? [];
+        getInvoice?.invoice_details
+          ?.filter((d) => !d.benefit_free_items_id)
+          ?.map((d) => {
+            let type: string | null = null;
+            let quantity: number = 0;
+            let name: string = '';
+
+            if (d.product_id) {
+              type = 'single';
+              quantity = d.qty ?? 0;
+              name = d.products?.name ?? '';
+            } else if (d.catalog_bundling_id) {
+              type = 'bundling';
+              quantity = d.qty ?? 0;
+              name = d.products?.name ?? '';
+            }
+
+            return {
+              ...d.products,
+              type,
+              quantity,
+              name,
+            };
+          }) ?? [];
     }
 
     return {
@@ -3856,9 +4037,7 @@ export class InvoiceService {
   ) {
     let earnPointsBySpend = 0;
     let earnPointsByProduct = 0;
-    let descriptionBySpend = '';
-    let descriptionByProduct = '';
-    let description = '';
+    let data: any = [];
 
     const loyaltySettings = await this._prisma.loyalty_point_settings.findFirst(
       {
@@ -3883,11 +4062,6 @@ export class InvoiceService {
           } else {
             earnPointsBySpend += pointsPerTrans;
           }
-
-          descriptionBySpend =
-            earnPointsBySpend > 0
-              ? 'Earned from based spend = ' + earnPointsBySpend
-              : '';
         }
       }
 
@@ -3900,62 +4074,69 @@ export class InvoiceService {
 
         if (canEarnPoints) {
           for (const product of products) {
+            const getProductId = product.productId
+              ? product.productId
+              : (product.id ?? null);
+            if (!getProductId) {
+              return {
+                earnPointsBySpend,
+                earnPointsByProduct,
+                data,
+              };
+            }
+
+            const getProduct = await this._prisma.products.findFirst({
+              where: {
+                id: getProductId,
+              },
+            });
+
             if (product.type == 'single') {
               const loyaltyItem =
                 await this._prisma.loyalty_product_item.findFirst({
                   where: {
                     loyalty_point_setting_id: loyaltySettings.id,
-                    product_id: product.productId,
+                    product_id: getProductId,
                   },
                 });
-
               if (loyaltyItem) {
                 const qty = product.quantity ?? 0;
                 const minimumPurchase = loyaltyItem.minimum_transaction ?? 0;
 
+                let totalPoints = 0;
                 if (qty >= minimumPurchase) {
                   if (loyaltySettings.product_based_points_apply_multiple) {
                     const multiplierProduct = Math.floor(qty / minimumPurchase);
-                    earnPointsByProduct +=
+                    totalPoints +=
                       multiplierProduct * (loyaltyItem.points ?? 0);
                   } else {
-                    earnPointsByProduct += loyaltyItem.points ?? 0;
+                    totalPoints += loyaltyItem.points ?? 0;
                   }
                 }
+
+                earnPointsByProduct += totalPoints;
+
+                data.push({
+                  product_id: getProductId,
+                  product_name: getProduct?.name ?? '',
+                  total_points: totalPoints,
+                });
               }
             }
           }
-
-          descriptionByProduct =
-            earnPointsByProduct > 0
-              ? 'Earned from product spend = ' + earnPointsByProduct
-              : '';
         }
-      }
-
-      if (earnPointsBySpend > 0 || earnPointsByProduct > 0) {
-        let descriptionParts: string[] = [];
-
-        if (descriptionBySpend) {
-          descriptionParts.push(descriptionBySpend);
-        }
-
-        if (descriptionByProduct) {
-          descriptionParts.push(descriptionByProduct);
-        }
-
-        description = descriptionParts.join(' and ');
       }
     }
 
     return {
       earnPointsBySpend,
       earnPointsByProduct,
-      description,
+      data,
     };
   }
 
   private async updateCustomerPoint(
+    storeId: string,
     invoiceId: string,
     customerId: string | null,
     redeemLoyalty: RedeemLoyaltyDto | null,
@@ -3965,15 +4146,76 @@ export class InvoiceService {
       customerId &&
       (points.earnPointsBySpend > 0 || points.earnPointsByProduct > 0)
     ) {
-      await this._prisma.customer_loyalty_transactions.create({
-        data: {
-          customer_id: customerId,
-          invoice_id: invoiceId,
-          type: 'earn',
-          points: points.earnPointsBySpend + points.earnPointsByProduct,
-          description: points.description,
-        },
-      });
+      const loyaltySetting =
+        await this._prisma.loyalty_point_settings.findFirst({
+          where: {
+            storesId: storeId,
+          },
+          select: {
+            spend_based_points_expiry_days: true,
+            product_based_points_expiry_days: true,
+          },
+        });
+
+      if (!loyaltySetting) {
+        throw new NotFoundException(
+          `Loyalty Setting with Store ID ${storeId} not found`,
+        );
+      }
+
+      const now = new Date();
+
+      if (points.earnPointsBySpend > 0) {
+        const spendBasedExpired = new Date(now);
+        spendBasedExpired.setDate(
+          now.getDate() + (loyaltySetting.spend_based_points_expiry_days ?? 0),
+        );
+        spendBasedExpired.setHours(23, 59, 59, 999);
+
+        await this._prisma.trn_customer_points.create({
+          data: {
+            customer_id: customerId,
+            invoice_id: invoiceId,
+            type: 'point_addition',
+            earn_type: 'spend_based',
+            value: points.earnPointsBySpend,
+            notes: `Earned from spend-based = ${points.earnPointsBySpend}`,
+            expiry_date: spendBasedExpired,
+            status: 'active',
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+      }
+
+      if (points.earnPointsByProduct > 0) {
+        const productBasedExpired = new Date(now);
+        productBasedExpired.setDate(
+          now.getDate() +
+            (loyaltySetting.product_based_points_expiry_days ?? 0),
+        );
+        productBasedExpired.setHours(23, 59, 59, 999);
+
+        for (const item of points.data) {
+          if (item.total_points > 0) {
+            await this._prisma.trn_customer_points.create({
+              data: {
+                customer_id: customerId,
+                invoice_id: invoiceId,
+                product_id: item.product_id,
+                type: 'point_addition',
+                earn_type: 'product_based',
+                value: item.total_points,
+                notes: `Earned from product ${item.product_name}`,
+                expiry_date: productBasedExpired,
+                status: 'active',
+                created_at: new Date(),
+                updated_at: new Date(),
+              },
+            });
+          }
+        }
+      }
 
       if (redeemLoyalty) {
         const benefit = await this._prisma.loyalty_points_benefit.findFirst({
@@ -3983,13 +4225,13 @@ export class InvoiceService {
         });
 
         if (benefit) {
-          await this._prisma.customer_loyalty_transactions.create({
+          await this._prisma.trn_customer_points.create({
             data: {
               customer_id: customerId,
               invoice_id: invoiceId,
-              type: 'redeem',
-              points: benefit.points_needs ?? 0,
-              description: 'Redeem ' + benefit.benefit_name,
+              type: 'point_deduction',
+              value: benefit.points_needs ?? 0,
+              notes: 'Redeem ' + benefit.benefit_name,
             },
           });
         }
@@ -3997,22 +4239,20 @@ export class InvoiceService {
     }
 
     if (customerId) {
-      const [earnAndAdjustment, redeem] = await Promise.all([
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: {
-            customer_id: customerId,
-            type: { in: ['earn', 'adjustment'] },
-          },
-          _sum: { points: true },
-        }),
-        this._prisma.customer_loyalty_transactions.aggregate({
-          where: { customer_id: customerId, type: 'redeem' },
-          _sum: { points: true },
-        }),
-      ]);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      const totalActivePoints =
-        (earnAndAdjustment._sum.points ?? 0) - (redeem._sum.points ?? 0);
+      const earn = await this._prisma.trn_customer_points.aggregate({
+        where: {
+          customer_id: customerId,
+          type: 'point_addition',
+          status: 'active',
+          OR: [{ expiry_date: { gte: today } }, { expiry_date: null }],
+        },
+        _sum: { value: true },
+      });
+
+      const totalActivePoints = earn._sum.value ?? 0;
 
       await this._prisma.customer.update({
         where: { id: customerId },
@@ -4046,9 +4286,18 @@ export class InvoiceService {
     status: invoice_type,
   ): Promise<invoice> {
     try {
-      return await this._prisma.invoice.update({
-        where: { id },
-        data: { payment_status: status, paid_at: new Date() },
+      return await this._prisma.$transaction(async (tx) => {
+        const result = await this._prisma.invoice.update({
+          where: { id },
+          data: { payment_status: status, paid_at: new Date() },
+        });
+
+        // jika statusnya paid maka akan create employee commission logs
+        if (status === invoice_type.paid) {
+          await this.createEmployeeCommissionLogs(tx, result);
+        }
+
+        return result;
       });
     } catch (error) {
       this.logger.error('Failed to update invoice status');
@@ -4110,6 +4359,11 @@ export class InvoiceService {
       // jika ada voucher, kurangi quota voucher
       if (result.voucher_id) {
         await this._voucherService.decreaseQuota(tx, result.voucher_id);
+      }
+
+      // jika statusnya paid maka akan create employee commission logs
+      if (result.payment_status === invoice_type.paid) {
+        await this.createEmployeeCommissionLogs(tx, result);
       }
 
       return result;
@@ -4186,7 +4440,7 @@ export class InvoiceService {
         };
       }
 
-      await tx.invoice.update({
+      return await tx.invoice.update({
         where: { id: invoiceId },
         data: updateData,
       });
@@ -4515,6 +4769,124 @@ export class InvoiceService {
           starting_number: 1,
         },
       });
+    }
+  }
+
+  /**
+   * @description Create employee commission logs when invoice is paid
+   */
+  public async createEmployeeCommissionLogs(
+    tx: Prisma.TransactionClient,
+    invoice: invoice,
+  ): Promise<void> {
+    try {
+      if (!invoice.cashier_id) {
+        this.logger.warn(`No cashier found for invoice ${invoice.id}`);
+        return;
+      }
+
+      const employee = await tx.employees.findUniqueOrThrow({
+        where: {
+          user_id: invoice.cashier_id,
+        },
+      });
+
+      // Kalau gak punya data employee, maka skip
+      if (!employee) {
+        return;
+      }
+
+      const dataToCreate: Prisma.employee_commission_logsCreateManyInput[] = [];
+
+      // Process voucher commission
+      if (invoice.voucher_id && invoice.voucher_amount > 0) {
+        // Get voucher commission for this employee and voucher
+        const voucherCommission = await tx.voucher_commissions.findFirst({
+          where: {
+            employees_id: employee?.id,
+            voucher_id: invoice.voucher_id,
+          },
+        });
+
+        if (voucherCommission && voucherCommission.amount) {
+          let commissionAmount = voucherCommission.amount;
+          if (voucherCommission.is_percent) {
+            commissionAmount = percentageToAmount(
+              voucherCommission.amount,
+              invoice.voucher_amount,
+            );
+          }
+
+          dataToCreate.push({
+            voucher_id: invoice.voucher_id,
+            invoice_id: invoice.id,
+            employee_id: employee.id,
+            voucher_commission_id: voucherCommission.id,
+            commission_value: voucherCommission.amount,
+            commission_amount: commissionAmount,
+            source_type: 'voucher',
+            is_commission_value_boolean: voucherCommission.is_percent,
+          });
+        }
+      }
+
+      const invoiceDetails = await tx.invoice_details.findMany({
+        where: {
+          invoice_id: invoice.id,
+        },
+      });
+
+      // Process product commissions
+      for (const detail of invoiceDetails) {
+        if (!detail.product_id) continue;
+
+        // Get product commission for this employee and product
+        const productCommission = await tx.product_commissions.findFirst({
+          where: {
+            employees_id: employee.id,
+            products_id: detail.product_id,
+          },
+        });
+        if (productCommission && productCommission.amount) {
+          let commissionAmount = productCommission.amount;
+          if (productCommission.is_percent) {
+            commissionAmount = percentageToAmount(
+              productCommission.amount,
+              (detail.product_price ?? 0) * (detail.qty ?? 1),
+            );
+          }
+
+          dataToCreate.push({
+            invoice_id: invoice.id,
+            employee_id: employee.id,
+            invoice_detail_id: detail.id,
+            product_commission_id: productCommission.id,
+            commission_value: productCommission.amount,
+            commission_amount: commissionAmount,
+            source_type: 'product',
+            is_commission_value_boolean: productCommission.is_percent,
+          });
+        } else {
+          this.logger.warn(
+            `No product commission found for employee ${employee.id} and product ${detail.product_id}`,
+          );
+        }
+      }
+
+      const result = await tx.employee_commission_logs.createManyAndReturn({
+        data: dataToCreate,
+        skipDuplicates: true,
+      });
+
+      console.log({ result, dataToCreate });
+
+      this.logger.log(`Created commission logs for invoice ${invoice.id}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to create commission logs for invoice ${invoice.id}:`,
+        error,
+      );
+      // Don't throw error to avoid breaking the payment flow
     }
   }
 

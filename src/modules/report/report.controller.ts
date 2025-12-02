@@ -5,6 +5,7 @@ import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import {
   AdvancedSalesReportType,
   InventoryReportType,
+  LoyaltyReportType,
   NewFinancialReportType,
   ReportService,
   StaffReportType,
@@ -66,6 +67,7 @@ export class ReportController {
     @Query('endDate') endDate: Date,
     @Query('type') type: AdvancedSalesReportType,
     @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
     @Query('store_ids') storeIdsString?: string,
     @Query('staff_ids') staffId?: string,
   ) {
@@ -74,6 +76,7 @@ export class ReportController {
       endDate,
       type,
       req,
+      gmt,
       storeIdsString,
       staffId,
     );
@@ -101,6 +104,7 @@ export class ReportController {
     @Query('endDate') endDate: Date,
     @Query('type') type: InventoryReportType,
     @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
     @Query('store_ids') storeIdsString?: string,
   ) {
     const data = await this.reportService.getInventoryValuation(
@@ -108,6 +112,7 @@ export class ReportController {
       endDate,
       type,
       req,
+      gmt,
       storeIdsString,
     );
     return {
@@ -131,9 +136,14 @@ export class ReportController {
   })
   async getVoucherStatusReport(
     @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
     @Query('store_ids') storeIds?: string,
   ) {
-    const data = await this.reportService.getVoucherStatusReport(req, storeIds);
+    const data = await this.reportService.getVoucherStatusReport(
+      req,
+      gmt,
+      storeIds,
+    );
     return {
       message: 'Voucher status report data retrieved successfully',
       result: data,
@@ -159,6 +169,7 @@ export class ReportController {
     @Query('type') type: StaffReportType,
     @Req() req: ICustomRequestHeaders,
     @Query('store_ids') storeIds?: string,
+    @Query('staff_ids') staffId?: string,
   ) {
     const data = await this.reportService.getStaffReports(
       startDate,
@@ -166,9 +177,41 @@ export class ReportController {
       type,
       req,
       storeIds,
+      staffId,
     );
     return {
       message: 'Staff report data retrieved successfully',
+      result: data,
+    };
+  }
+
+  @UseGuards(AuthenticationJWTGuard)
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  @ApiBearerAuth()
+  @Get('loyalty-report')
+  @ApiOperation({
+    summary:
+      'Get loyalty report data for the main dashboard within a date range.',
+  })
+  async getLoyaltyReport(
+    @Query('type') type: LoyaltyReportType,
+    @Req() req: ICustomRequestHeaders,
+    @Query('gmt') gmt: number,
+    @Query('store_ids') storeIdsString?: string,
+  ) {
+    const data = await this.reportService.getLoyaltyReport(
+      type,
+      req,
+      gmt,
+      storeIdsString,
+    );
+    return {
+      message: 'Loyalty report data retrieved successfully',
       result: data,
     };
   }
@@ -188,11 +231,16 @@ export class ReportController {
   })
   async getCustomerReport(
     @Req() req: ICustomRequestHeaders,
-    @Query('store_ids') storeIds?: string,
+    @Query('gmt') gmt: number,
+    @Query('store_ids') storeIdsString?: string,
   ) {
-    const data = await this.reportService.getCustomerReport(req, storeIds);
+    const data = await this.reportService.getCustomerReport(
+      req,
+      gmt,
+      storeIdsString,
+    );
     return {
-      message: 'Customer report data retrieved successfully',
+      message: 'Loyalty report data retrieved successfully',
       result: data,
     };
   }

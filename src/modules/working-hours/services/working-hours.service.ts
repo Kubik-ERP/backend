@@ -15,9 +15,10 @@ export class WorkingHoursService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateWorkingHoursDto) {
+    const staffId = await this.resolveStaffId(dto.staffId);
     const result = await this.prisma.working_hours.create({
       data: {
-        staff_id: dto.staffId,
+        staff_id: staffId,
         date: new Date(dto.date),
         notes: dto.notes,
         repeat_type: dto.repeatType,
@@ -77,6 +78,25 @@ export class WorkingHoursService {
     };
   }
 
+  async findByStaffId(staffId: string) {
+    const resolvedStaffId = await this.resolveStaffId(staffId);
+    if (!resolvedStaffId) {
+      throw new NotFoundException('Staff tidak ditemukan');
+    }
+
+    const items = await this.prisma.working_hours.findMany({
+      where: { staff_id: resolvedStaffId },
+      include: {
+        working_hour_time_slots: true,
+        working_hour_recurrence: true,
+        employees: true,
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    return items;
+  }
+
   async findOne(id: number) {
     const result = await this.prisma.working_hours.findUnique({
       where: { id },
@@ -89,10 +109,11 @@ export class WorkingHoursService {
   async update(id: number, dto: CreateWorkingHoursDto) {
     await this.findOne(id);
 
+    const staffId = await this.resolveStaffId(dto.staffId);
     const result = await this.prisma.working_hours.update({
       where: { id },
       data: {
-        staff_id: dto.staffId,
+        staff_id: staffId,
         date: new Date(dto.date),
         notes: dto.notes,
         repeat_type: dto.repeatType,
@@ -143,5 +164,22 @@ export class WorkingHoursService {
       include: { working_hour_time_slots: true, working_hour_recurrence: true },
     });
     return result;
+  }
+
+  private async resolveStaffId(staffId?: string | null) {
+    if (!staffId) {
+      return null;
+    }
+
+    const staff = await this.prisma.employees.findUnique({
+      where: { id: staffId },
+      select: { id: true },
+    });
+
+    if (!staff) {
+      throw new NotFoundException('Staff tidak ditemukan');
+    }
+
+    return staff.id;
   }
 }

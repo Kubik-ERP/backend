@@ -34,7 +34,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
       useFactory: async (configService: JwtConfigService) => ({
         secret: configService.jwtSecret,
         signOptions: {
-          expiresIn: configService.jwtExp,
+          expiresIn: configService.jwtExp as any,
           issuer: configService.jwtIssuer,
         },
       }),

@@ -21,11 +21,17 @@ import {
 import { CancelPurchaseOrderDto } from './dto/cancel-purchase-order.dto';
 import {
   generateNextId,
+  getClosestExpiryDate,
   requireStoreId,
 } from 'src/common/helpers/common.helpers';
 import { idToNumber } from 'src/common/helpers/common.helpers';
 import { ConfirmPurchaseOrderDto } from './dto/confirm-purchase-order.dto';
 import { ReceivePurchaseOrderDto } from './dto/receive-purchase-order.dto';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as handlebars from 'handlebars';
+import * as puppeteer from 'puppeteer';
+import { APP_LOGO_BASE64 } from '../report/constant/base64.constants';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -99,11 +105,41 @@ export class PurchaseOrdersService {
   async findOne(id: string, header: ICustomRequestHeaders) {
     const store_id = requireStoreId(header);
 
-    const purchaseOrder = await this._prisma.purchase_orders.findUnique({
+    const purchaseOrderRaw = await this._prisma.purchase_orders.findUnique({
       where: { id, store_id },
       include: {
         purchase_order_items: true,
-        receiver: {
+        users_purchase_orders_received_byTousers: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
+        users_purchase_orders_cancelled_byTousers: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
+        users_purchase_orders_confirmed_byTousers: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
+        users_purchase_orders_created_byTousers: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
+        users_purchase_orders_paid_byTousers: {
+          select: {
+            id: true,
+            fullname: true,
+          },
+        },
+        users_purchase_orders_shipped_byTousers: {
           select: {
             id: true,
             fullname: true,
@@ -112,11 +148,32 @@ export class PurchaseOrdersService {
       },
     });
 
-    if (!purchaseOrder) {
+    // ✅ Cek dulu apakah datanya ada
+    if (!purchaseOrderRaw) {
       throw new NotFoundException('Purchase order not found');
     }
 
-    return purchaseOrder;
+    // ✅ Rename users -> receiver
+    const {
+      users_purchase_orders_received_byTousers: receiver,
+      users_purchase_orders_cancelled_byTousers: cancelled,
+      users_purchase_orders_confirmed_byTousers: confirmed,
+      users_purchase_orders_created_byTousers: created,
+      users_purchase_orders_paid_byTousers: paid,
+      users_purchase_orders_shipped_byTousers: shipped,
+      ...purchaseOrder
+    } = purchaseOrderRaw;
+
+    // ✅ Return hasil dengan alias receiver
+    return {
+      ...purchaseOrder,
+      receiver,
+      cancelled,
+      confirmed,
+      created,
+      paid,
+      shipped,
+    };
   }
 
   async create(dto: CreatePurchaseOrdersDto, header: ICustomRequestHeaders) {
@@ -127,6 +184,9 @@ export class PurchaseOrdersService {
     if (!productItems?.length) {
       throw new BadRequestException('productItems is required');
     }
+
+    // akan di assign otomatis ke user yang login
+    const userId = header.user.id;
 
     // Validasi Supplier
     const supplier = await this._prisma.master_suppliers.findFirst({
@@ -174,19 +234,20 @@ export class PurchaseOrdersService {
       // Prepare PO items & total
       let totalPrice = 0;
       const purchaseOrderItems = productItems.map(
-        ({ masterItemId, quantity }) => {
+        ({ masterItemId, quantity, expiredAt }) => {
           const inv = invById.get(masterItemId)!;
-          const unitPrice = Number(inv.price_per_unit); // consider Decimal if you need exact money math
-          const lineTotal = unitPrice * quantity;
+          const unitGrosir = Number(inv.price_grosir); // consider Decimal if you need exact money math
+          const lineTotal = unitGrosir * quantity;
           totalPrice += lineTotal;
 
           return {
             master_inventory_item_id: masterItemId,
             quantity,
-            unit_price: unitPrice,
+            unit_price: unitGrosir,
             total_price: lineTotal,
             actual_quantity: 0,
             diff_quantity: -quantity,
+            expired_at: expiredAt,
             item_info: {
               sku: inv.sku,
               name: inv.name,
@@ -216,6 +277,7 @@ export class PurchaseOrdersService {
           purchase_order_items: {
             createMany: { data: purchaseOrderItems },
           },
+          created_by: userId,
         },
         include: { purchase_order_items: true },
       });
@@ -293,6 +355,7 @@ export class PurchaseOrdersService {
         diff_quantity: number;
         actual_quantity: number;
         item_info: any;
+        expired_at?: Date;
       }> = [];
       const itemsUpdate: Array<{
         id: string;
@@ -303,12 +366,13 @@ export class PurchaseOrdersService {
         diff_quantity: number;
         actual_quantity: number;
         item_info: any;
+        expired_at?: Date;
       }> = [];
 
       for (const item of productItems) {
         const inv = invById.get(item.masterItemId)!;
-        const unitPrice = Number(inv.price_per_unit);
-        const lineTotal = unitPrice * item.quantity;
+        const unitGrosir = Number(inv.price_grosir);
+        const lineTotal = unitGrosir * item.quantity;
         totalPrice += lineTotal;
 
         if (item.id) {
@@ -322,10 +386,11 @@ export class PurchaseOrdersService {
             id: item.id,
             master_inventory_item_id: item.masterItemId,
             quantity: item.quantity,
-            unit_price: unitPrice,
+            unit_price: unitGrosir,
             total_price: lineTotal,
             actual_quantity: 0,
             diff_quantity: -item.quantity,
+            expired_at: item.expiredAt,
             item_info: {
               sku: inv.sku,
               name: inv.name,
@@ -338,10 +403,11 @@ export class PurchaseOrdersService {
           itemsCreate.push({
             master_inventory_item_id: item.masterItemId,
             quantity: item.quantity,
-            unit_price: unitPrice,
+            unit_price: unitGrosir,
             total_price: lineTotal,
             actual_quantity: 0,
             diff_quantity: -item.quantity,
+            expired_at: item.expiredAt,
             item_info: {
               sku: inv.sku,
               name: inv.name,
@@ -398,6 +464,7 @@ export class PurchaseOrdersService {
                 actual_quantity: 0,
                 diff_quantity: -u.quantity,
                 updated_at: new Date(),
+                expired_at: u.expired_at,
               },
             }),
           ),
@@ -440,6 +507,9 @@ export class PurchaseOrdersService {
     });
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
+    // akan di assign otomatis ke user yang login
+    const userId = header.user.id;
+
     const disallowedStatuses = [
       purchase_order_status.cancelled,
       purchase_order_status.received,
@@ -457,6 +527,7 @@ export class PurchaseOrdersService {
         cancel_reason: dto.reason,
         cancelled_at: new Date(),
         updated_at: new Date(),
+        cancelled_by: userId,
       },
     });
 
@@ -478,6 +549,9 @@ export class PurchaseOrdersService {
       select: { id: true, order_status: true },
     });
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
+
+    // akan di assign otomatis ke user yang login
+    const userId = header.user.id;
 
     // Check if PO status is allowed to confirm
     const disallowedStatuses = [
@@ -511,7 +585,9 @@ export class PurchaseOrdersService {
         order_status: purchase_order_status.confirmed,
         delivery_number: doNumber,
         delivery_date: dto.delivery_date,
+        confirmed_at: new Date(),
         updated_at: new Date(),
+        confirmed_by: userId,
       },
     });
 
@@ -532,6 +608,9 @@ export class PurchaseOrdersService {
     });
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
+    // akan di assign otomatis ke user yang login
+    const userId = header.user.id;
+
     // Check if PO status is allowed to ship
     const disallowedStatuses = [
       purchase_order_status.shipped,
@@ -550,6 +629,7 @@ export class PurchaseOrdersService {
         order_status: purchase_order_status.shipped,
         shipped_at: new Date(),
         updated_at: new Date(),
+        shipped_by: userId,
       },
     });
 
@@ -583,6 +663,7 @@ export class PurchaseOrdersService {
     });
     if (!existingPO) throw new BadRequestException('Purchase Order not found');
 
+    // akan di assign otomatis ke user yang login
     // Check if PO status is allowed to receive
     const disallowedStatuses = [
       purchase_order_status.received,
@@ -602,6 +683,7 @@ export class PurchaseOrdersService {
           id: true,
           master_inventory_item_id: true,
           quantity: true,
+          expired_at: true,
         },
       });
 
@@ -614,6 +696,11 @@ export class PurchaseOrdersService {
         where: {
           id: { in: poItems.map((i) => i.master_inventory_item_id) },
           store_id: store_id,
+        },
+        select: {
+          id: true,
+          stock_quantity: true,
+          expiry_date: true,
         },
       });
 
@@ -647,6 +734,7 @@ export class PurchaseOrdersService {
             diff_quantity: itemDto.actualQuantity - item.quantity,
             updated_at: new Date(),
             notes: itemDto.notes ?? null,
+            expired_at: itemDto.expiredAt,
           },
         });
       });
@@ -656,10 +744,24 @@ export class PurchaseOrdersService {
         const inv = invById.get(item.master_inventory_item_id)!;
         const newQuantity = inv.stock_quantity + item.quantity;
 
+        const itemDto = dto.productItems.find((i) => i.id === item.id);
+        if (!itemDto) {
+          throw new BadRequestException(
+            `Item id ${item.id} not found in purchase order items`,
+          );
+        }
+
+        // Determine the best expiry date
+        const bestExpiryDate = getClosestExpiryDate(
+          inv.expiry_date,
+          itemDto.expiredAt ?? null,
+        );
+
         return tx.master_inventory_items.update({
           where: { id: item.master_inventory_item_id },
           data: {
             stock_quantity: newQuantity,
+            expiry_date: bestExpiryDate,
             updated_at: new Date(),
           },
         });
@@ -671,6 +773,13 @@ export class PurchaseOrdersService {
         const previousQuantity = inv.stock_quantity;
         const newQuantity = previousQuantity + item.quantity;
 
+        const itemDto = dto.productItems.find((i) => i.id === item.id);
+        if (!itemDto) {
+          throw new BadRequestException(
+            `Item id ${item.id} not found in purchase order items`,
+          );
+        }
+
         return tx.inventory_stock_adjustments.create({
           data: {
             master_inventory_items_id: item.master_inventory_item_id,
@@ -680,6 +789,7 @@ export class PurchaseOrdersService {
             notes: `Received PO (${existingPO.order_number})`,
             previous_quantity: previousQuantity,
             new_quantity: newQuantity,
+            expiry_date: itemDto.expiredAt ?? null,
           },
         });
       });
@@ -713,6 +823,9 @@ export class PurchaseOrdersService {
       `Processing payment for purchase order ${id} for store ${store_id}`,
     );
 
+    // akan di assign otomatis ke user yang login
+    const userId = header.user.id;
+
     // Ensure PO exists & belongs to store (prevents cross-store updates)
     const existingPO = await this._prisma.purchase_orders.findFirst({
       where: { id, store_id },
@@ -735,10 +848,125 @@ export class PurchaseOrdersService {
         order_status: purchase_order_status.paid,
         paid_at: new Date(),
         updated_at: new Date(),
+        paid_by: userId,
       },
     });
 
     this.logger.log(`Successfully processed payment for purchase order ${id}`);
     return result;
+  }
+
+  async generatePurchaseOrderPdf(
+    purchaseOrderId: string,
+    header: ICustomRequestHeaders,
+  ) {
+    const store_id = requireStoreId(header);
+    const store = await this._prisma.stores.findUnique({
+      where: { id: store_id },
+      select: { name: true, photo: true },
+    });
+
+    const purchaseOrder = await this.findOne(purchaseOrderId, header);
+    const totalPrice = purchaseOrder.total_price;
+
+    const supplierInfo = purchaseOrder.supplier_info as {
+      address: string;
+      phone_number: string;
+      supplier_name: string;
+      contact_person: string;
+    };
+
+    // 4. Prepare template data
+    const templateData = {
+      // Header Information
+      orderInfo: {
+        deliveryNumber: purchaseOrder.delivery_number,
+        supplier: supplierInfo.supplier_name || '-',
+        orderDate: new Date(purchaseOrder.order_date).toLocaleDateString(
+          'id-ID',
+        ),
+        deliveryDate: purchaseOrder.delivery_date
+          ? new Date(purchaseOrder.delivery_date).toLocaleDateString('id-ID')
+          : '-',
+        receiver: purchaseOrder.receiver?.fullname || '-',
+        deliveryAddress: supplierInfo.address || '-',
+        status: purchaseOrder.order_status,
+        deliveredBy: purchaseOrder.confirmed?.fullname || '-',
+        preparedBy: purchaseOrder.created?.fullname || '-',
+      },
+
+      // Items data
+      items: purchaseOrder.purchase_order_items,
+      totalPrice: totalPrice,
+
+      // Store info
+      storeName: store?.name || '-',
+      // Generation info
+      generatedDate: new Date().toLocaleDateString('id-ID'),
+      generatedTime: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+
+      // Logo
+      appLogoBase64: APP_LOGO_BASE64,
+    };
+
+    // 5. Generate PDF using the purchase order template
+    return this.generatePdfFromTemplate('purchase-order', templateData);
+  }
+
+  async generatePdfFromTemplate(
+    templateName: string,
+    data: any,
+  ): Promise<Buffer> {
+    // Register handlebars helpers
+    handlebars.registerHelper('formatNumber', (value) => {
+      if (typeof value !== 'number') return value;
+      return Math.round(value).toLocaleString('id-ID');
+    });
+
+    // 1. Tentukan path template yang benar
+    const dir = __dirname;
+    const templatePath = path.join(dir, `/template-pdf/${templateName}.hbs`);
+
+    // Cek apakah file template ada
+    if (!fs.existsSync(templatePath)) {
+      throw new Error(`Template file not found at path: ${templatePath}.`);
+    }
+
+    // 2. Baca dan kompilasi template Handlebars dengan Handlebars
+    const templateHtml = fs.readFileSync(templatePath, 'utf8');
+    const template = handlebars.compile(templateHtml);
+
+    // 3. Masukkan data ke HTML
+    const finalHtml = template({ ...data });
+
+    // 4. Luncurkan Puppeteer dengan konfigurasi production-ready
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+      ],
+    });
+    const page = await browser.newPage();
+
+    await page.setContent(finalHtml, { waitUntil: 'networkidle0' });
+
+    // 5. Hasilkan PDF
+    const pdfBuffer = await page.pdf({
+      printBackground: true,
+      format: 'A4',
+    });
+
+    await browser.close();
+    return Buffer.from(pdfBuffer);
   }
 }

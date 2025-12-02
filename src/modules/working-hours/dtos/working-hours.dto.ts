@@ -8,6 +8,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Min,
   ValidateNested,
@@ -57,8 +58,12 @@ class CustomRecurrenceDto {
 }
 
 export class CreateWorkingHoursDto {
-  @ApiProperty({ example: 1, nullable: true })
+  @ApiProperty({
+    example: 'c73c0f40-6df3-4e56-b5a6-5b4b24da5f55',
+    nullable: true,
+  })
   @IsOptional()
+  @IsUUID()
   staffId: UUID | null;
 
   @ApiProperty({ example: '2025-09-10' })
@@ -109,4 +114,13 @@ export class WorkingHoursListDto {
   @IsInt()
   @Min(1)
   pageSize: number = 10;
+}
+
+export class WorkingHoursStaffParamDto {
+  @ApiProperty({
+    description: 'Staff ID',
+    example: 'c73c0f40-6df3-4e56-b5a6-5b4b24da5f55',
+  })
+  @IsUUID()
+  staffId: UUID;
 }

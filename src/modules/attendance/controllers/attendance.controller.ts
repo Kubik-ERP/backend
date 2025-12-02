@@ -7,12 +7,16 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { AttendanceService } from '../services/attendance.service';
-import { CreateAttendanceDto } from '../dtos/attendance.dto';
+import {
+  AttendanceListDto,
+  CreateAttendanceDto,
+} from '../dtos/attendance.dto';
 
 @ApiTags('Attendance')
 @ApiBearerAuth()
@@ -28,8 +32,8 @@ export class AttendanceController {
   }
 
   @Get()
-  async findAll() {
-    const data = await this.service.findAll();
+  async findAll(@Query() query: AttendanceListDto) {
+    const data = await this.service.findAll(query);
     return { message: 'Attendance list', result: data };
   }
 
