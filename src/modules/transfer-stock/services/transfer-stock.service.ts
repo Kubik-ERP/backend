@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { master_inventory_items, Prisma } from '@prisma/client';
 import {
   camelToSnake,
   toCamelCase,
@@ -22,6 +22,7 @@ import { UUID } from 'crypto';
 import { ChangeStatusDto } from '../dtos/change-status.dto';
 import { ChangeStatusReceiveDto } from '../dtos/change-status-received.dto';
 import { TransferStockLossDto } from '../dtos/transfer-stock-loss.dto';
+import { UpdateInventoryItemDto } from 'src/modules/inventory-items/dtos';
 
 @Injectable()
 export class TransferStockService {
@@ -447,48 +448,58 @@ export class TransferStockService {
   }
 
   async checkProduct(req: ICustomRequestHeaders, transferStockId: UUID) {
-    const store_id = requireStoreId(req);
-    const transferStock = await this.prisma.transfer_stocks.findFirst({
-      where: { id: transferStockId },
-      include: {
-        transfer_stock_items: true,
-      },
-    });
+    return await this.prisma.$transaction(async (tx) => {
+      const store_id = requireStoreId(req);
 
-    if (!transferStock) {
-      throw new BadRequestException('Transfer stock not found.');
-    }
+      const transferStock = await tx.transfer_stocks.findFirst({
+        where: { id: transferStockId },
+        include: {
+          transfer_stock_items: true,
+          stores_transfer_stocks_store_to_idTostores: true
+        },
+      });
 
-    if (store_id !== transferStock.store_to_id) {
-      throw new BadRequestException('You are not authorized to check products for this destination store.');
-    }
+      if (!transferStock) {
+        throw new BadRequestException('Transfer stock not found.');
+      }
 
-    let createNew = false;
-    for (const item of transferStock.transfer_stock_items) {
-      if (!item.has_destination_product) {
-        const getProduct = await this.prisma.master_inventory_items.findFirst({
-          where: {id: item.master_inventory_item_id}
-        });
+      if (store_id !== transferStock.store_to_id) {
+        throw new BadRequestException(
+          'You are not authorized to check products for this destination store.'
+        );
+      }
 
-        if (!getProduct) {
-          throw new BadRequestException('Source product not found.');
-        }
+      let createNew = false;
+      const isRetail = transferStock.stores_transfer_stocks_store_to_idTostores.business_type == 'Retail';
 
-        const getProductDestination = await this.prisma.master_inventory_items.findFirst({
-          where: {
-            store_id: store_id,
-            sku: getProduct.sku
+      for (const item of transferStock.transfer_stock_items) {
+        if (!item.has_destination_product) {
+          const getProduct = await tx.master_inventory_items.findFirst({
+            where: { id: item.master_inventory_item_id }
+          });
+
+          if (!getProduct) {
+            throw new BadRequestException('Source product not found.');
           }
-        });
 
-        if (!getProductDestination) {
-          await this.prisma.master_inventory_items.create({
-            data: {
+          const getProductDestination = await tx.master_inventory_items.findFirst({
+            where: {
+              store_id: store_id,
+              sku: getProduct.sku
+            }
+          });
+
+          if (!getProductDestination) {
+            const categoryId = await this.checkCategory(tx, transferStock.store_to_id);
+            const supplierId = await this.checkSupplier(tx, transferStock.store_to_id);
+            createNew = true;
+
+            const dto = {
               name: getProduct.name,
               brand_id: null,
               barcode: getProduct.barcode,
               sku: getProduct.sku,
-              category_id: null,
+              category_id: categoryId,
               unit: getProduct.unit,
               notes: getProduct.notes,
               stock_quantity: 0,
@@ -497,31 +508,235 @@ export class TransferStockService {
               expiry_date: getProduct.expiry_date,
               storage_location_id: null,
               price_per_unit: getProduct.price_per_unit,
-              supplier_id: undefined,
+              supplier_id: supplierId,
               store_id: store_id,
               price_grosir: getProduct.price_grosir,
               created_at: new Date(),
               updated_at: new Date()
-            }
-          });
+            };
+            const createItem = await tx.master_inventory_items.create({
+              data: dto
+            });
 
-          createNew = true;
+            await this.upsertCatalog(tx, createItem);
+          }
         }
       }
-    }
 
-    if (createNew) {
+      if (createNew) {
+        return {
+          statusCode: 200,
+          message:
+            'Some products were not found in the destination store and have been created automatically.',
+        };
+      }
+
       return {
         statusCode: 200,
-        message: 'Some products were not found in the destination store and have been created automatically.'
+        message: 'All products exist in destination store.',
       };
+    });
+  }
+
+  async checkCategory(tx: any, storeDestinationId: string) {
+    let categoryId = null;
+
+    const category = await tx.master_inventory_categories.findFirst({
+      where: {
+        store_id: storeDestinationId,
+        code: 'DEFAULT_CATEGORY'
+      }
+    });
+
+    if (category) {
+      categoryId = category.id;
+    } else {
+      const createCategory = await tx.master_inventory_categories.create({
+        data: {
+          store_id: storeDestinationId,
+          code: 'DEFAULT_CATEGORY',
+          name: 'Default'
+        }
+      });
+
+      categoryId = createCategory.id;
     }
 
-    return {
-      statusCode: 200,
-      message: 'All products exist in destination store.'
-    };
+    return categoryId;
   }
+
+  async checkSupplier(tx: any, storeDestinationId: string) {
+    let supplierId = null;
+
+    const supplier = await tx.master_suppliers.findFirst({
+      where: {
+        store_id: storeDestinationId,
+        code: 'DEFAULT_SUPPLIER'
+      }
+    });
+
+    if (supplier) {
+      supplierId = supplier.id;
+    } else {
+      const createSupplier = await tx.master_suppliers.create({
+        data: {
+          store_id: storeDestinationId,
+          code: 'DEFAULT_SUPPLIER',
+          supplier_name: 'Default',
+          contact_person: '-',
+          phone_number: '-'
+        }
+      });
+
+      supplierId = createSupplier.id;
+    }
+
+    return supplierId;
+  }
+
+  private upsertCatalog = async (
+    tx: Prisma.TransactionClient,
+    dto: master_inventory_items,
+  ) => {
+    if (!dto.store_id) {
+      throw new BadRequestException('Store ID is required');
+    }
+
+    if (!dto.category_id) {
+      throw new BadRequestException('Category ID is required');
+    }
+
+    // reset categories product
+    await tx.categories_has_products.deleteMany({
+      where: {
+        products: {
+          master_inventory_item_id: dto.id,
+          stores_id: dto.store_id,
+        },
+      },
+    });
+
+    const categoryId = await this.getOrInsertCategoryProduct(
+      tx,
+      dto
+    );
+
+    const productId = await this.upsertProduct(
+      tx,
+      dto
+    );
+
+    // update category product
+    await tx.categories_has_products.create({
+      data: {
+        categories_id: categoryId,
+        products_id: productId,
+      },
+    });
+  };
+
+  private getOrInsertCategoryProduct = async (
+    tx: Prisma.TransactionClient,
+    dto: master_inventory_items
+  ) => {
+    if (!dto.store_id) {
+      throw new BadRequestException('Store ID is required');
+    }
+
+    if (!dto.category_id) {
+      throw new BadRequestException('Category ID is required');
+    }
+
+    // cek, apakah inventory category sudah terhubung dengan category product
+    const categoryProduct = await this.prisma.categories.findFirst({
+      where: {
+        master_inventory_category_id: dto.category_id,
+        stores_id: dto.store_id
+      },
+    });
+
+    // jika category product sudah ada, maka langsung return id nya
+    if (categoryProduct) return categoryProduct.id;
+
+    // jika belum, maka buat terlebih dahulu dan hubungkan
+    const inventoryCategory =
+      await tx.master_inventory_categories.findFirstOrThrow({
+        where: {
+          id: dto.category_id,
+          store_id: dto.store_id,
+        },
+      });
+
+    const existingCategory = await tx.categories.findFirst({
+      where: {
+        category: inventoryCategory.name,
+        stores_id: dto.store_id,
+      },
+    });
+    if (existingCategory) {
+      throw new BadRequestException(
+        `Category product with name '${inventoryCategory.name}' already exists in this store`,
+      );
+    }
+
+    const categoryCatalogCreated = await tx.categories.create({
+      data: {
+        category: inventoryCategory.name,
+        description: inventoryCategory.notes,
+        stores_id: dto.store_id,
+        master_inventory_category_id: dto.category_id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return categoryCatalogCreated.id;
+  };
+
+  private upsertProduct = async (
+    tx: Prisma.TransactionClient,
+    dto: master_inventory_items
+  ) => {
+    if (!dto.store_id) {
+      throw new BadRequestException('Store ID is required');
+    }
+
+    if (!dto.category_id) {
+      throw new BadRequestException('Category ID is required');
+    }
+
+    const existing = await tx.products.findFirst({
+      where: { name: dto.name, stores_id: dto.store_id },
+    });
+    if (existing && existing.master_inventory_item_id !== dto.id) {
+      throw new BadRequestException(
+        `Product with name '${dto.name}' already exists in this store`,
+      );
+    }
+    const result = await tx.products.upsert({
+      where: {
+        master_inventory_item_id: dto.id,
+      },
+      update: {
+        name: dto.name,
+        price: dto.price_per_unit.toNumber(),
+        barcode: dto.barcode,
+        stores_id: dto.store_id,
+        picture_url: '',
+      },
+      create: {
+        name: dto.name,
+        price: dto.price_per_unit.toNumber(),
+        barcode: dto.barcode,
+        stores_id: dto.store_id,
+        picture_url: '',
+        master_inventory_item_id: dto.id,
+      },
+    });
+
+    return result.id;
+  };
 
   async approve(userId: number, transferStockId: UUID, tx: Prisma.TransactionClient) {
     const transferStock = await tx.transfer_stocks.findFirst({
