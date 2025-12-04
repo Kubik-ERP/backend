@@ -927,8 +927,26 @@ export class PurchaseOrdersService {
     });
 
     // 1. Tentukan path template yang benar
+    // Handle both development (src/) and production (dist/src/) paths
     const dir = __dirname;
-    const templatePath = path.join(dir, `/template-pdf/${templateName}.hbs`);
+    let templatePath = path.join(dir, `template-pdf/${templateName}.hbs`);
+
+    // Jika di production build, template ada di dist/src/modules/purchase-orders/template-pdf/
+    if (!fs.existsSync(templatePath)) {
+      // Fallback untuk production build
+      const distPath = path.join(
+        process.cwd(),
+        'dist',
+        'src',
+        'modules',
+        'purchase-orders',
+        'template-pdf',
+        `${templateName}.hbs`,
+      );
+      if (fs.existsSync(distPath)) {
+        templatePath = distPath;
+      }
+    }
 
     // Cek apakah file template ada
     if (!fs.existsSync(templatePath)) {
@@ -942,8 +960,8 @@ export class PurchaseOrdersService {
     // 3. Masukkan data ke HTML
     const finalHtml = template({ ...data });
 
-    // 4. Luncurkan Puppeteer dengan konfigurasi production-ready
-    const browser = await puppeteer.launch({
+    // 4. Konfigurasi Puppeteer untuk Docker
+    const puppeteerOptions: any = {
       headless: true,
       args: [
         '--no-sandbox',
@@ -954,8 +972,18 @@ export class PurchaseOrdersService {
         '--no-zygote',
         '--single-process',
         '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-extensions',
       ],
-    });
+    };
+
+    // Jika di Docker, gunakan Chromium yang sudah diinstall
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      puppeteerOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+
+    // Luncurkan Puppeteer dengan konfigurasi production-ready
+    const browser = await puppeteer.launch(puppeteerOptions);
     const page = await browser.newPage();
 
     await page.setContent(finalHtml, { waitUntil: 'networkidle0' });
