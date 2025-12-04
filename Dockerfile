@@ -46,8 +46,8 @@ RUN apt-get update && apt-get install -y \
 # Set working directory dalam container
 WORKDIR /app
 
-# Salin code ke dalam container
-COPY ./ ./
+# Salin package files terlebih dahulu untuk caching
+COPY package*.json ./
 
 # Install dependencies
 RUN npm install --no-fund --no-audit
