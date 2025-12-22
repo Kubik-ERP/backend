@@ -13,10 +13,7 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthPermissionGuard } from 'src/common/guards/auth-permission.guard';
 import { AttendanceService } from '../services/attendance.service';
-import {
-  AttendanceListDto,
-  CreateAttendanceDto,
-} from '../dtos/attendance.dto';
+import { AttendanceListDto, CreateAttendanceDto } from '../dtos/attendance.dto';
 
 @ApiTags('Attendance')
 @ApiBearerAuth()

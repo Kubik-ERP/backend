@@ -466,7 +466,7 @@ export class TransferStockService {
         where: { id: transferStockId },
         include: {
           transfer_stock_items: true,
-          stores_transfer_stocks_store_to_idTostores: true
+          stores_transfer_stocks_store_to_idTostores: true,
         },
       });
 
@@ -476,33 +476,42 @@ export class TransferStockService {
 
       if (store_id !== transferStock.store_to_id) {
         throw new BadRequestException(
-          'You are not authorized to check products for this destination store.'
+          'You are not authorized to check products for this destination store.',
         );
       }
 
       let createNew = false;
-      const isRetail = transferStock.stores_transfer_stocks_store_to_idTostores.business_type == 'Retail';
+      const isRetail =
+        transferStock.stores_transfer_stocks_store_to_idTostores
+          .business_type == 'Retail';
 
       for (const item of transferStock.transfer_stock_items) {
         if (!item.has_destination_product) {
           const getProduct = await tx.master_inventory_items.findFirst({
-            where: { id: item.master_inventory_item_id }
+            where: { id: item.master_inventory_item_id },
           });
 
           if (!getProduct) {
             throw new BadRequestException('Source product not found.');
           }
 
-          const getProductDestination = await tx.master_inventory_items.findFirst({
-            where: {
-              store_id: store_id,
-              sku: getProduct.sku
-            }
-          });
+          const getProductDestination =
+            await tx.master_inventory_items.findFirst({
+              where: {
+                store_id: store_id,
+                sku: getProduct.sku,
+              },
+            });
 
           if (!getProductDestination) {
-            const categoryId = await this.checkCategory(tx, transferStock.store_to_id);
-            const supplierId = await this.checkSupplier(tx, transferStock.store_to_id);
+            const categoryId = await this.checkCategory(
+              tx,
+              transferStock.store_to_id,
+            );
+            const supplierId = await this.checkSupplier(
+              tx,
+              transferStock.store_to_id,
+            );
             createNew = true;
 
             const dto = {
@@ -523,10 +532,10 @@ export class TransferStockService {
               store_id: store_id,
               price_grosir: getProduct.price_grosir,
               created_at: new Date(),
-              updated_at: new Date()
+              updated_at: new Date(),
             };
             const createItem = await tx.master_inventory_items.create({
-              data: dto
+              data: dto,
             });
 
             await this.upsertCatalog(tx, createItem);
@@ -555,8 +564,8 @@ export class TransferStockService {
     const category = await tx.master_inventory_categories.findFirst({
       where: {
         store_id: storeDestinationId,
-        code: 'DEFAULT_CATEGORY'
-      }
+        code: 'DEFAULT_CATEGORY',
+      },
     });
 
     if (category) {
@@ -566,8 +575,8 @@ export class TransferStockService {
         data: {
           store_id: storeDestinationId,
           code: 'DEFAULT_CATEGORY',
-          name: 'Default'
-        }
+          name: 'Default',
+        },
       });
 
       categoryId = createCategory.id;
@@ -582,8 +591,8 @@ export class TransferStockService {
     const supplier = await tx.master_suppliers.findFirst({
       where: {
         store_id: storeDestinationId,
-        code: 'DEFAULT_SUPPLIER'
-      }
+        code: 'DEFAULT_SUPPLIER',
+      },
     });
 
     if (supplier) {
@@ -595,8 +604,8 @@ export class TransferStockService {
           code: 'DEFAULT_SUPPLIER',
           supplier_name: 'Default',
           contact_person: '-',
-          phone_number: '-'
-        }
+          phone_number: '-',
+        },
       });
 
       supplierId = createSupplier.id;
@@ -627,15 +636,9 @@ export class TransferStockService {
       },
     });
 
-    const categoryId = await this.getOrInsertCategoryProduct(
-      tx,
-      dto
-    );
+    const categoryId = await this.getOrInsertCategoryProduct(tx, dto);
 
-    const productId = await this.upsertProduct(
-      tx,
-      dto
-    );
+    const productId = await this.upsertProduct(tx, dto);
 
     // update category product
     await tx.categories_has_products.create({
@@ -648,7 +651,7 @@ export class TransferStockService {
 
   private getOrInsertCategoryProduct = async (
     tx: Prisma.TransactionClient,
-    dto: master_inventory_items
+    dto: master_inventory_items,
   ) => {
     if (!dto.store_id) {
       throw new BadRequestException('Store ID is required');
@@ -662,7 +665,7 @@ export class TransferStockService {
     const categoryProduct = await this.prisma.categories.findFirst({
       where: {
         master_inventory_category_id: dto.category_id,
-        stores_id: dto.store_id
+        stores_id: dto.store_id,
       },
     });
 
@@ -684,30 +687,32 @@ export class TransferStockService {
         stores_id: dto.store_id,
       },
     });
+    
+    let categoryCatalogId = null;
     if (existingCategory) {
-      throw new BadRequestException(
-        `Category product with name '${inventoryCategory.name}' already exists in this store`,
-      );
+      categoryCatalogId = existingCategory.id;
+    } else {
+      const categoryCatalogCreated = await tx.categories.create({
+        data: {
+          category: inventoryCategory.name,
+          description: inventoryCategory.notes,
+          stores_id: dto.store_id,
+          master_inventory_category_id: dto.category_id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      categoryCatalogId = categoryCatalogCreated.id;
     }
 
-    const categoryCatalogCreated = await tx.categories.create({
-      data: {
-        category: inventoryCategory.name,
-        description: inventoryCategory.notes,
-        stores_id: dto.store_id,
-        master_inventory_category_id: dto.category_id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    return categoryCatalogCreated.id;
+    return categoryCatalogId;
   };
 
   private upsertProduct = async (
     tx: Prisma.TransactionClient,
-    dto: master_inventory_items
+    dto: master_inventory_items,
   ) => {
     if (!dto.store_id) {
       throw new BadRequestException('Store ID is required');
@@ -749,7 +754,11 @@ export class TransferStockService {
     return result.id;
   };
 
-  async approve(userId: number, transferStockId: UUID, tx: Prisma.TransactionClient) {
+  async approve(
+    userId: number,
+    transferStockId: UUID,
+    tx: Prisma.TransactionClient,
+  ) {
     const transferStock = await tx.transfer_stocks.findFirst({
       where: { id: transferStockId },
       include: {

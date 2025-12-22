@@ -285,7 +285,26 @@ export class PurchaseOrdersController {
 
       // Get purchase order details for filename
       const purchaseOrder = await this.purchaseOrderService.findOne(id, req);
-      const filename = `PO-${purchaseOrder.order_number}.pdf`;
+
+      // Prepare filename components
+      const supplierInfo = purchaseOrder.supplier_info as {
+        supplier_name: string;
+      };
+      const supplierName = (supplierInfo?.supplier_name || 'Unknown')
+        .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .substring(0, 30); // Limit length
+
+      const orderDate = new Date(purchaseOrder.order_date)
+        .toISOString()
+        .split('T')[0]
+        .replace(/-/g, ''); // Format: YYYYMMDD
+
+      const deliveryNumber = purchaseOrder.delivery_number
+        ? `_DO-${purchaseOrder.delivery_number}`
+        : '';
+
+      const filename = `Purchase-Order-${purchaseOrder.order_number}${deliveryNumber}_${orderDate}_${supplierName}.pdf`;
 
       res.set({
         'Content-Type': 'application/pdf',

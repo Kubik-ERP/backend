@@ -5,10 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import {
-  AttendanceListDto,
-  CreateAttendanceDto,
-} from '../dtos/attendance.dto';
+import { AttendanceListDto, CreateAttendanceDto } from '../dtos/attendance.dto';
 import {
   getOffset,
   getTotalPages,
