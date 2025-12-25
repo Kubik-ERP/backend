@@ -58,6 +58,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { TransferStockModule } from './modules/transfer-stock/transfer-stock.module';
 import { StoresController } from './modules/stores/controllers/stores.controller';
 import { BatchRecipeModule } from './modules/batch-recipe/batch-recipe.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -126,6 +127,7 @@ import { BatchRecipeModule } from './modules/batch-recipe/batch-recipe.module';
     WasteLogModule,
     SchedulerModule,
     BatchRecipeModule,
+    WebhooksModule,
   ],
   providers: [
     {
