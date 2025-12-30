@@ -74,6 +74,13 @@ export class CashDrawerService {
       orderBy: {
         created_at: 'desc',
       },
+      include: {
+        users_cash_drawers_created_byTousers: {
+          select: {
+            fullname: true,
+          },
+        },
+      },
     });
     return cashDrawer;
   }
@@ -126,6 +133,11 @@ export class CashDrawerService {
               name: true,
             },
           },
+          users_cash_drawers_created_byTousers: {
+            select: {
+              fullname: true,
+            },
+          },
         },
         orderBy: { created_at: 'desc' },
         take: limit,
@@ -134,10 +146,13 @@ export class CashDrawerService {
       this.prisma.cash_drawers.count({ where }),
     ]);
 
-    const formatted = cashDrawer.map(({ users, ...rest }) => ({
-      ...rest,
-      closed_by_user: users,
-    }));
+    const formatted = cashDrawer.map(
+      ({ users, users_cash_drawers_created_byTousers, ...rest }) => ({
+        ...rest,
+        closed_by_user: users,
+        openedBy: users_cash_drawers_created_byTousers?.fullname,
+      }),
+    );
 
     return [formatted, count];
   }
@@ -287,6 +302,11 @@ export class CashDrawerService {
             fullname: true,
           },
         },
+        users_cash_drawers_created_byTousers: {
+          select: {
+            fullname: true,
+          },
+        },
       },
     });
 
@@ -297,6 +317,7 @@ export class CashDrawerService {
     const data = {
       ...cashDrawer,
       closed_by_user: cashDrawer.users,
+      openedBy: cashDrawer.users_cash_drawers_created_byTousers?.fullname,
     };
     delete (data as any).users;
     return data;

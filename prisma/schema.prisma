@@ -124,23 +124,24 @@ model cash_drawer_transactions {
 }
 
 model cash_drawers {
-  id               String            @id(map: "cash_drawers_pk") @db.Uuid
-  expected_balance Float             @default(0)
-  actual_balance   Float?
-  status           cash_drawer_type?
-  date             DateTime?         @db.Date
-  notes            String?           @db.VarChar(45)
-  created_by       BigInt?
-  created_at       BigInt?
-  updated_by       BigInt?
-  updated_at       BigInt?
-  store_id         String?           @db.Uuid
-  closed_at        BigInt?
-  closed_by        Int?
-  staff_id         String?           @db.Uuid
-  employees        employees?        @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_employees_fk")
-  stores           stores?           @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_stores_fk")
-  users            users?            @relation(fields: [closed_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_users_fk")
+  id                                   String            @id(map: "cash_drawers_pk") @db.Uuid
+  expected_balance                     Float             @default(0)
+  actual_balance                       Float?
+  status                               cash_drawer_type?
+  date                                 DateTime?         @db.Date
+  notes                                String?           @db.VarChar(45)
+  created_by                           Int?
+  created_at                           BigInt?
+  updated_by                           Int?
+  updated_at                           BigInt?
+  store_id                             String?           @db.Uuid
+  closed_at                            BigInt?
+  closed_by                            Int?
+  staff_id                             String?           @db.Uuid
+  employees                            employees?        @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_employees_fk")
+  users_cash_drawers_created_byTousers users?            @relation("cash_drawers_created_byTousers", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_opened_fk")
+  stores                               stores?           @relation(fields: [store_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_stores_fk")
+  users                                users?            @relation(fields: [closed_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cash_drawers_users_fk")
 }
 
 model catalog_bundling {
@@ -1507,6 +1508,7 @@ model users {
   is_staff                                            Boolean                       @default(false)
   store_quota                                         Int                           @default(0)
   cash_drawer_transactions                            cash_drawer_transactions[]
+  cash_drawers_cash_drawers_created_byTousers         cash_drawers[]                @relation("cash_drawers_created_byTousers")
   cash_drawers                                        cash_drawers[]
   employees                                           employees?
   inventory_stock_adjustments                         inventory_stock_adjustments[]

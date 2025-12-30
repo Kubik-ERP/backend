@@ -107,6 +107,7 @@ export class CashDrawerController {
           ? convertFromUnixTimestamp(result.created_at)
           : null,
         createdBy: result.created_by,
+        openedBy: result.users_cash_drawers_created_byTousers?.fullname,
       };
     }
     return {
