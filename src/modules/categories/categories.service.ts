@@ -308,6 +308,14 @@ export class CategoriesService {
       throw new BadRequestException('store_id is required');
     }
 
+    // Check if store is retail type
+    const store = await this.prisma.stores.findUnique({
+      where: { id: store_id },
+      select: { business_type: true },
+    });
+
+    const isRetail = store?.business_type === 'Retail';
+
     // Build dynamic where clause
     const whereClause: Prisma.categoriesWhereInput = {
       stores_id: store_id,
@@ -359,30 +367,37 @@ export class CategoriesService {
     });
 
     // Transform result data
-    const transformedData = categories.map((category) => ({
-      id: category.id,
-      category: category.category,
-      description: category.description,
-      items: category.categories_has_products.map((categoryProduct) => ({
-        id: categoryProduct.products.id,
-        name: categoryProduct.products.name,
-        price: categoryProduct.products.price,
-        discountPrice: categoryProduct.products.discount_price,
-        pictureUrl: categoryProduct.products.picture_url,
-        barcode: categoryProduct.products.barcode,
-        isPercent: categoryProduct.products.is_percent,
-        stockQuantity:
-          categoryProduct.products?.master_inventory_items?.stock_quantity,
-        variant: categoryProduct.products.variant_has_products.map(
-          (variantProduct) => ({
-            id: variantProduct.variant.id,
-            productsId: variantProduct.products_id,
-            name: variantProduct.variant.name,
-            price: variantProduct.variant.price,
-          }),
-        ),
-      })),
-    }));
+    const transformedData = categories.map((category) => {
+      return {
+        id: category.id,
+        category: category.category,
+        description: category.description,
+        items: category.categories_has_products.map((categoryProduct) => {
+          const stockQuantity = isRetail
+            ? categoryProduct.products?.master_inventory_items?.stock_quantity
+            : categoryProduct.products.stock_quantity;
+
+          return {
+            id: categoryProduct.products.id,
+            name: categoryProduct.products.name,
+            price: categoryProduct.products.price,
+            discountPrice: categoryProduct.products.discount_price,
+            pictureUrl: categoryProduct.products.picture_url,
+            barcode: categoryProduct.products.barcode,
+            isPercent: categoryProduct.products.is_percent,
+            stockQuantity: stockQuantity,
+            variant: categoryProduct.products.variant_has_products.map(
+              (variantProduct) => ({
+                id: variantProduct.variant.id,
+                productsId: variantProduct.products_id,
+                name: variantProduct.variant.name,
+                price: variantProduct.variant.price,
+              }),
+            ),
+          };
+        }),
+      };
+    });
 
     // Filter out empty categories if a search is applied
     return transformedData.filter(
