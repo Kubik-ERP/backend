@@ -1189,6 +1189,10 @@ model stores {
   business_type                                         String                        @db.VarChar(50)
   created_at                                            DateTime?                     @default(now()) @db.Timestamp(6)
   updated_at                                            DateTime?                     @default(now()) @db.Timestamp(6)
+  bayarind_store_id                                     Int?
+  bank_code                                             String?                       @db.VarChar(100)
+  bank_name                                             String?                       @db.VarChar(100)
+  bank_number                                           String?                       @db.VarChar(100)
   batch_cooking_recipe                                  batch_cooking_recipe[]
   business_owner_has_stores                             business_owner_has_stores[]
   cash_drawer_transactions                              cash_drawer_transactions[]

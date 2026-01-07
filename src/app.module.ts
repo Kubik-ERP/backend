@@ -59,6 +59,8 @@ import { TransferStockModule } from './modules/transfer-stock/transfer-stock.mod
 import { StoresController } from './modules/stores/controllers/stores.controller';
 import { BatchRecipeModule } from './modules/batch-recipe/batch-recipe.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { BayarindModule } from './bayarind/bayarind.module';
+import { BayarindModule } from './modules/bayarind/bayarind.module';
 
 @Module({
   imports: [
@@ -128,6 +130,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     SchedulerModule,
     BatchRecipeModule,
     WebhooksModule,
+    BayarindModule,
   ],
   providers: [
     {

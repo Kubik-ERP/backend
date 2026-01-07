@@ -15,8 +15,8 @@ import { InvoiceService } from 'src/modules/invoices/services/invoices.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateStoreDto, UpdateProfileDto } from '../dtos/request.dto';
-import { StoresListDto } from '../dtos/stores-list.dto';
 import { StoresByEmailDto } from '../dtos/stores-by-email.dto';
+import { StoresListDto } from '../dtos/stores-list.dto';
 
 @Injectable()
 export class StoresService {
