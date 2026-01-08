@@ -1192,9 +1192,11 @@ export class InvoiceService {
       };
     }
 
-    // Create stock adjustments if store is retail and payment is successful (cash)
     if (request.provider === 'cash') {
+      // Create stock adjustments if store is retail and payment is successful
       await this.createStockAdjustmentsForInvoice(invoiceId, storeId);
+      // Create stock adjustments if store is FnB and payment is successful
+      await this.createStockAdjustmentsForInvoiceFnB(invoiceId, storeId);
     }
 
     // Check loyalty points if customer exists
@@ -3071,7 +3073,10 @@ export class InvoiceService {
       header.user?.id,
     );
 
+    // Create stock adjustments if store is retail and payment is successful
     await this.createStockAdjustmentsForInvoice(invoice.id, storeId);
+    // Create stock adjustments if store is FnB and payment is successful
+    await this.createStockAdjustmentsForInvoiceFnB(invoice.id, storeId);
 
     const loyaltyPayload = await this.prepareUpdateLoyaltyPoints(
       storeId,
@@ -3142,9 +3147,14 @@ export class InvoiceService {
       message: this.getTransactionMessage(status),
     };
 
-    // Create stock adjustments if payment is successful
     if (status === invoice_type.paid) {
+      // Create stock adjustments if store is retail and payment is successful
       await this.createStockAdjustmentsForInvoice(order_id, invoice.store_id!);
+      // Create stock adjustments if store is FnB and payment is successful
+      await this.createStockAdjustmentsForInvoiceFnB(
+        order_id,
+        invoice.store_id!,
+      );
 
       // Update loyalty points
       if (invoice.store_id) {
@@ -3239,9 +3249,14 @@ export class InvoiceService {
     // notify the FE
     this._notificationHelper.notifyPaymentSuccess(requestCallback.order_id);
 
-    // Create stock adjustments if payment is successful
     if (status === invoice_type.paid) {
+      // Create stock adjustments if store is retail and payment is successful
       await this.createStockAdjustmentsForInvoice(
+        requestCallback.order_id,
+        invoice.store_id!,
+      );
+      // Create stock adjustments if store is FnB and payment is successful
+      await this.createStockAdjustmentsForInvoiceFnB(
         requestCallback.order_id,
         invoice.store_id!,
       );
@@ -3953,6 +3968,113 @@ export class InvoiceService {
 
         this.logger.log(
           `Stock adjustment created for item ${inventoryItem.name}: ${currentStock} -> ${newStock} (${quantity} units deducted)`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to create stock adjustments for invoice ${invoiceId}:`,
+        error,
+      );
+      // Don't throw error to avoid disrupting payment flow
+    }
+  }
+
+  /**
+   * Create stock adjustments for invoice items when payment is successful for FnB
+   */
+  private async createStockAdjustmentsForInvoiceFnB(
+    invoiceId: string,
+    storeId: string,
+  ): Promise<void> {
+    try {
+      // Check if store is FnB type
+      const store = await this._prisma.stores.findUnique({
+        where: { id: storeId },
+        select: { business_type: true },
+      });
+
+      const isFnB = store?.business_type === 'Restaurant';
+      if (!isFnB) {
+        // Only process stock adjustments for FnB stores
+        return;
+      }
+
+      // Get invoice details with product information
+      const invoiceDetails = await this._prisma.invoice_details.findMany({
+        where: { invoice_id: invoiceId },
+        include: {
+          products: {
+            select: {
+              id: true,
+              name: true,
+              stock_quantity: true,
+            },
+          },
+        },
+      });
+
+      if (invoiceDetails.length === 0) {
+        this.logger.warn(`No invoice details found for invoice ${invoiceId}`);
+        return;
+      }
+
+      // Process each invoice detail item
+      for (const detail of invoiceDetails) {
+        if (!detail.products) {
+          this.logger.warn(
+            `Product ${detail.product_id} not found, skipping stock adjustment`,
+          );
+          continue;
+        }
+
+        const productId = detail.products.id;
+        const productName = detail.products.name;
+        const quantity = detail.qty || 0;
+
+        if (quantity <= 0) {
+          this.logger.warn(
+            `Invalid quantity ${quantity} for product ${detail.product_id}, skipping stock adjustment`,
+          );
+          continue;
+        }
+
+        const currentStock = detail.products.stock_quantity;
+        const newStock = currentStock - quantity;
+
+        if (newStock < 0) {
+          this.logger.warn(
+            `Insufficient stock for product ${productName}. Current: ${currentStock}, Required: ${quantity}. Creating adjustment anyway.`,
+          );
+        }
+
+        // Create stock adjustment and update product stock in transaction
+        await this._prisma.$transaction(async (tx) => {
+          // Update product stock quantity
+          await tx.products.update({
+            where: { id: productId },
+            data: {
+              stock_quantity: newStock,
+            },
+          });
+
+          // Create product portion stock record
+          await tx.product_portion_stock.create({
+            data: {
+              product_id: productId,
+              stores_id: storeId,
+              action: 'DECREASE',
+              adjustment_quantity: quantity,
+              notes: 'Stock deduction from completed order/invoice checkout',
+              previous_quantity: currentStock,
+              new_quantity: newStock,
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+          });
+        });
+
+        this.logger.log(
+          `Stock adjustment created for product ${productName}: ${currentStock} -> ${newStock} (${quantity} units deducted)`,
         );
       }
     } catch (error) {
