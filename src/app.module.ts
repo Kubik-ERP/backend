@@ -21,6 +21,7 @@ import { HeaderMiddleware } from './common/middleware/header-middleware';
 import { ServerKeyMiddleware } from './common/middleware/server-middleware';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { BankModule } from './modules/bank/bank.module';
+import { BatchRecipeModule } from './modules/batch-recipe/batch-recipe.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { CashDrawerModule } from './modules/cash-drawer/cash-drawer.module';
 import { ChargesModule } from './modules/charges/charges.module';
@@ -39,6 +40,8 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { ProductBundlingModule } from './modules/product-bundling/product-bundling.module';
 import { ProductsModule } from './modules/products/products.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
+import { RecipesModule } from './modules/recipes/recipes.module';
+import { ReportModule } from './modules/report/report.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { SelfOrderModule } from './modules/self-order/self-order.module';
 import { StockOpnamesModule } from './modules/stock-opnames/stock-opnames.module';
@@ -49,18 +52,12 @@ import { SubscriptionController } from './modules/subscription/controllers/subsc
 import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { TablesModule } from './modules/tables/tables.module';
-import { VouchersModule } from './modules/vouchers/vouchers.module';
-import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
-import { ReportModule } from './modules/report/report.module';
-import { RecipesModule } from './modules/recipes/recipes.module';
-import { WasteLogModule } from './modules/waste-log/waste-log.module';
-import { SchedulerModule } from './scheduler/scheduler.module';
 import { TransferStockModule } from './modules/transfer-stock/transfer-stock.module';
-import { StoresController } from './modules/stores/controllers/stores.controller';
-import { BatchRecipeModule } from './modules/batch-recipe/batch-recipe.module';
+import { VouchersModule } from './modules/vouchers/vouchers.module';
+import { WasteLogModule } from './modules/waste-log/waste-log.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
-import { BayarindModule } from './bayarind/bayarind.module';
-import { BayarindModule } from './modules/bayarind/bayarind.module';
+import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -130,7 +127,6 @@ import { BayarindModule } from './modules/bayarind/bayarind.module';
     SchedulerModule,
     BatchRecipeModule,
     WebhooksModule,
-    BayarindModule,
   ],
   providers: [
     {
