@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { stores } from '@prisma/client';
 import * as NodeFormData from 'form-data';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -80,7 +81,7 @@ export class BayarindService {
     const clientKey = process.env.BAYARIND_CLIENT_KEY!;
 
     // Format timestamp ISO 8601 (YYYY-MM-DDTHH:mm:ss.sssZ)
-    const timestamp = new Date().toISOString();
+    const timestamp = this.getTimestampWithOffset(7);
 
     // 1. Ambil isi file Private Key
     const privateKeyContent = this.getPrivateKey();
@@ -239,6 +240,7 @@ export class BayarindService {
     let bayarindId: number;
     try {
       bayarindId = await this.callRegisterApi(dto, store, files);
+      await this.callAddBankAccountApi(dto, String(bayarindId));
     } catch (error) {
       console.error(
         'Bayarind API Error:',
@@ -267,15 +269,15 @@ export class BayarindService {
 
   private async callRegisterApi(
     dto: RegisterBayarindDto,
-    storeData: any,
+    storeData: stores,
     files: StoreFiles,
   ): Promise<number> {
     const formData = new NodeFormData();
 
     const payloadData = {
       name: dto.ownerName,
-      email: dto.ownerEmail,
-      msisdn: dto.ownerPhone,
+      email: storeData.email,
+      msisdn: storeData.phone_number,
       password: '123456',
       storeName: storeData.name,
       storeAddress: storeData.address,
@@ -364,6 +366,131 @@ export class BayarindService {
       const errorData = error.response?.data || error.message;
       console.error('Bayarind API Error Details:', errorData);
       throw error;
+    }
+  }
+
+  async callAddBankAccountApi(dto: RegisterBayarindDto, store_id: string) {
+    // 1. Siapkan Payload
+    const payload = {
+      storeId: store_id,
+      bankCode: dto.bankCode,
+      accountNumber: dto.accountNumber,
+      accountName: dto.accountName,
+    };
+    // 2. Generate Signature
+
+    const clientKey = process.env.BAYARIND_CLIENT_KEY!;
+    const clientSecret = process.env.BAYARIND_CLIENT_SECRET!;
+    const accessToken = await this.getSnapAccessToken();
+    const timestamp = this.getTimestampWithOffset(7);
+
+    // 2. Generate Signature
+    const signature = SignatureUtil.generatePOSSignature(
+      clientKey,
+      clientSecret,
+      timestamp,
+      payload,
+    );
+    // 3. Susun Header
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-CLIENT-KEY': clientKey,
+      'X-TIMESTAMP': timestamp,
+      'X-SIGNATURE': signature,
+      Authorization: `Bearer ${accessToken.accessToken}`,
+    };
+    console.log('Add Bank Account Payload:', payload);
+    console.log('Add Bank Account Headers:', headers);
+
+    try {
+      // 4. Kirim Request
+      const response = await lastValueFrom(
+        this.httpService.post(
+          process.env.BAYARIND_BASE_URL + '/acquisitor/withdraw/addbankaccount',
+          payload,
+          { headers },
+        ),
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error(
+        'Add Bank Account Error:',
+        error.response?.data || error.message,
+      );
+      throw new InternalServerErrorException(
+        error.response?.data?.message || error.message,
+      );
+    }
+  }
+
+  async getRegisterdBankAccounts(req: ICustomRequestHeaders) {
+    const { store_id } = req;
+    if (!store_id) {
+      throw new BadRequestException('Store ID is required');
+    }
+
+    const store = await this.prisma.stores.findUnique({
+      where: { id: store_id },
+    });
+
+    if (!store || !store.bayarind_store_id) {
+      throw new BadRequestException(
+        'Store tidak terdaftar di Bayarind. Silakan registrasi terlebih dahulu.',
+      );
+    }
+    // 1. Siapkan Payload
+    const payload = {
+      storeId: store.bayarind_store_id,
+      email: store.email,
+    };
+
+    const clientKey = process.env.BAYARIND_CLIENT_KEY!;
+    const clientSecret = process.env.BAYARIND_CLIENT_SECRET!;
+    const accessToken = await this.getSnapAccessToken();
+    const timestamp = this.getTimestampWithOffset(7);
+
+    // 2. Generate Signature
+    const signature = SignatureUtil.generatePOSSignature(
+      clientKey,
+      clientSecret,
+      timestamp,
+      payload,
+    );
+
+    console.log('Get Bank Accounts Payload:', payload);
+
+    // 3. Susun Header
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken.accessToken}`,
+      'X-CLIENT-KEY': clientKey,
+      'X-TIMESTAMP': timestamp,
+      'X-SIGNATURE': signature,
+      'User-Agent': 'PostmanRuntime/7.26.8',
+    };
+    console.log('Get Bank Accounts Payload:', payload);
+    console.log('Get Bank Accounts Headers:', headers);
+
+    try {
+      // 4. Kirim Request
+      const response = await lastValueFrom(
+        this.httpService.post(
+          process.env.BAYARIND_BASE_URL + '/acquisitor/withdraw/bankaccount',
+          payload,
+          { headers },
+        ),
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error(
+        'Get Bank Accounts Error:',
+        error.response?.data || error.message,
+      );
+      throw new InternalServerErrorException(
+        error.response?.data?.message || error.message,
+      );
     }
   }
 
@@ -589,7 +716,7 @@ export class BayarindService {
         ),
       );
 
-      return response.data;
+      return response.data.data;
     } catch (error) {
       console.error('List Bank Error:', error.response?.data || error.message);
       throw new InternalServerErrorException(

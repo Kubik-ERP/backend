@@ -63,6 +63,24 @@ export class BayarindController {
     };
   }
 
+  @Get('list-bank-accounts')
+  @ApiOperation({
+    summary: 'Get Bayarind Store Bank Accounts',
+  })
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  async getStoreBankAccounts(@Req() req: ICustomRequestHeaders) {
+    const result = await this.bayarindService.getRegisterdBankAccounts(req);
+    return {
+      message: 'Store bank accounts retrieved successfully',
+      result: toCamelCase(result),
+    };
+  }
+
   @Get('provinces')
   @ApiOperation({
     summary: 'Get Bayarind Provinces',

@@ -100,7 +100,7 @@ export class SignatureUtil {
     privateKeyContent: string,
   ): string {
     // 1. Susun StringToSign
-    const stringToSign = clientKey + '/' + timestamp;
+    const stringToSign = clientKey + '|' + timestamp;
 
     console.log('📝 SNAP StringToSign:', stringToSign);
 
