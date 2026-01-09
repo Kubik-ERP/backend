@@ -2,25 +2,14 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsEmail,
-  IsNotEmpty,
   IsNumber,
   IsNumberString,
   IsString,
-  IsUUID,
   MaxLength,
   MinLength,
 } from 'class-validator';
 
 export class RegisterBayarindDto {
-  // --- KUNCI UTAMA ---
-  @ApiProperty({
-    example: 'uuid-store-id-lokal',
-    description: 'ID Toko dari response Create Store',
-  })
-  @IsUUID()
-  @IsNotEmpty()
-  storeId: string;
-
   // --- DATA PEMILIK (Owner) ---
   @ApiProperty({ example: 'Budi Santoso' })
   @IsString()

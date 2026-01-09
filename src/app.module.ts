@@ -22,6 +22,7 @@ import { ServerKeyMiddleware } from './common/middleware/server-middleware';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { BankModule } from './modules/bank/bank.module';
 import { BatchRecipeModule } from './modules/batch-recipe/batch-recipe.module';
+import { BayarindModule } from './modules/bayarind/bayarind.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { CashDrawerModule } from './modules/cash-drawer/cash-drawer.module';
 import { ChargesModule } from './modules/charges/charges.module';
@@ -80,6 +81,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     }),
     AppConfigurationModule,
     DatabasePostgresConfigModule,
+    BayarindModule,
 
     // Core Feature Modules
     AuthenticationModule,

@@ -5,7 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import * as FormData from 'form-data';
+import * as NodeFormData from 'form-data';
 import { lastValueFrom } from 'rxjs';
 import { SignatureUtil } from 'src/common/utils/signature.util';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -24,10 +24,41 @@ export class BayarindService {
     private httpService: HttpService,
   ) {}
 
-  async registerStore(dto: RegisterBayarindDto, files: StoreFiles) {
+  private getTimestampWithOffset(offset: number = 7): string {
+    const now = new Date();
+
+    // 1. Hitung Waktu Target (UTC + Offset)
+    const targetTime = new Date(now.getTime() + offset * 60 * 60 * 1000);
+
+    // 2. Ambil komponen string ISO dari waktu yang sudah digeser
+    const isoString = targetTime.toISOString();
+
+    // 3. Buang milidetik dan Z
+    const cleanTime = isoString.substring(0, 19);
+
+    // 4. Format Offset String (misal: 7 jadi "+07:00")
+    const sign = offset >= 0 ? '+' : '-';
+    const absOffset = Math.abs(offset);
+    const hours = Math.floor(absOffset).toString().padStart(2, '0');
+    const minutes = ((absOffset % 1) * 60).toString().padStart(2, '0');
+
+    const offsetString = `${sign}${hours}:${minutes}`;
+    // 5. Gabungkan
+    return cleanTime + offsetString;
+  }
+
+  async registerStore(
+    dto: RegisterBayarindDto,
+    files: StoreFiles,
+    req: ICustomRequestHeaders,
+  ) {
+    const { store_id } = req;
+    if (!store_id) {
+      throw new BadRequestException('Store ID is required');
+    }
     // 1. Cek apakah Store Lokal Ada
     const store = await this.prisma.stores.findUnique({
-      where: { id: dto.storeId },
+      where: { id: store_id },
     });
 
     if (!store) {
@@ -65,7 +96,7 @@ export class BayarindService {
 
     // 4. UPDATE STORE LOKAL
     await this.prisma.stores.update({
-      where: { id: dto.storeId },
+      where: { id: store_id },
       data: {
         bayarind_store_id: bayarindId,
       },
@@ -74,7 +105,7 @@ export class BayarindService {
     return {
       success: true,
       message: 'Registrasi Bayarind Berhasil',
-      localStoreId: dto.storeId,
+      localStoreId: store_id,
       bayarindStoreId: bayarindId,
     };
   }
@@ -85,28 +116,38 @@ export class BayarindService {
     storeData: any,
     files: StoreFiles,
   ): Promise<number> {
-    const formData = new FormData();
+    const formData = new NodeFormData();
 
-    formData.append('name', dto.ownerName);
-    formData.append('email', dto.ownerEmail);
-    formData.append('msisdn', dto.ownerPhone);
-    formData.append('password', '123456');
-    formData.append('storeName', storeData.name);
-    formData.append('storeAddress', storeData.address);
+    const payloadData = {
+      name: dto.ownerName,
+      email: dto.ownerEmail,
+      msisdn: dto.ownerPhone,
+      password: '123456',
+      storeName: storeData.name,
+      storeAddress: storeData.address,
 
-    // Data Bayarind
-    formData.append('businessTypeId', dto.bayarindBusinessTypeId);
-    formData.append('provinceId', dto.provinceId);
-    formData.append('cityId', dto.cityId);
-    formData.append('districtId', dto.districtId);
-    formData.append('subdistrictId', dto.subdistrictId);
-    formData.append('latitude', dto.latitude);
-    formData.append('longitude', dto.longitude);
-    formData.append('idCardNumber', dto.idCardNumber);
-    formData.append('birthDate', dto.birthDate);
-    formData.append('birthPlace', dto.birthPlace);
+      // [FIX UTAMA: KONVERSI KE STRING]
+      businessTypeId: String(dto.bayarindBusinessTypeId),
+      provinceId: String(dto.provinceId),
+      cityId: String(dto.cityId),
+      districtId: String(dto.districtId),
+      subdistrictId: String(dto.subdistrictId),
+      latitude: String(dto.latitude),
+      longitude: String(dto.longitude),
 
-    // Files
+      idCardNumber: dto.idCardNumber,
+      birthDate: dto.birthDate,
+      birthPlace: dto.birthPlace,
+    };
+
+    // 2. Masukkan ke FormData & Signature
+    // Karena payloadData values sudah string semua, aman untuk FormData & Signature
+    Object.keys(payloadData).forEach((key) => {
+      const typedKey = key as keyof typeof payloadData;
+      formData.append(typedKey, payloadData[typedKey]);
+    });
+
+    // 3. Append Files
     const appendFile = (
       field: string,
       file: Express.Multer.File | undefined,
@@ -118,15 +159,24 @@ export class BayarindService {
         });
       }
     };
-
     appendFile('idCardImage', files.idCardImage?.[0]);
     appendFile('businessImage', files.businessImage?.[0]);
     appendFile('selfie', files.selfie?.[0]);
 
-    // Headers & Signature
-    const timestamp = new Date().toISOString();
+    // --- SETUP AUTH ---
     const clientKey = process.env.BAYARIND_CLIENT_KEY!;
-    const signature = SignatureUtil.generateAuthSignature(clientKey, timestamp);
+    const clientSecret = process.env.BAYARIND_CLIENT_SECRET!;
+    const timestamp = this.getTimestampWithOffset(7);
+
+    // 4. GENERATE SIGNATURE
+    // Sekarang JSON yang di-sign adalah: { "businessTypeId": "2", ... }
+    // Cocok dengan FormData yang dikirim (Text)
+    const signature = SignatureUtil.generatePOSSignature(
+      clientKey,
+      clientSecret,
+      timestamp,
+      payloadData,
+    );
 
     const headers = {
       'X-TIMESTAMP': timestamp,
@@ -135,14 +185,216 @@ export class BayarindService {
       ...formData.getHeaders(),
     };
 
-    const response = await lastValueFrom(
-      this.httpService.post(
-        process.env.BAYARIND_BASE_URL + '/acquisitor/account/register',
-        formData,
-        { headers },
-      ),
+    console.log('Sending Request to Bayarind...');
+    console.log('Headers:', JSON.stringify(headers));
+
+    try {
+      const response = await lastValueFrom(
+        this.httpService.post(
+          process.env.BAYARIND_BASE_URL + '/acquisitor/account/register',
+          formData,
+          { headers },
+        ),
+      );
+
+      // [FIX UTAMA DISINI]
+      // Cek status response dari body, bukan hanya HTTP Code
+      if (response.data.status === false) {
+        // Code 00 atau 0 biasanya sukses
+        console.error('Bayarind Logic Error:', response.data);
+        throw new BadRequestException(
+          response.data.message || 'Registrasi Gagal di sisi Bayarind',
+        );
+      }
+
+      // Pastikan data storeId benar-benar ada
+      if (!response.data.data || !response.data.data.storeId) {
+        throw new InternalServerErrorException(
+          'Response Bayarind tidak memiliki storeId',
+        );
+      }
+
+      return response.data.data.storeId;
+    } catch (error) {
+      // Tangkap error axios (HTTP error) atau error logic di atas
+      const errorData = error.response?.data || error.message;
+      console.error('Bayarind API Error Details:', errorData);
+      throw error; // Lempar ulang agar controller tahu proses gagal
+    }
+  }
+
+  // ================= MASTER DATA ================
+
+  async getBusinessTypes(timezoneOffset: number = 7) {
+    const clientKey = process.env.BAYARIND_CLIENT_KEY!;
+    const clientSecret = process.env.BAYARIND_CLIENT_SECRET!;
+    const timestamp = this.getTimestampWithOffset(timezoneOffset);
+
+    // 2. Generate Signature
+    const signature = SignatureUtil.generatePOSSignature(
+      clientKey,
+      clientSecret,
+      timestamp,
+      '',
     );
 
-    return response.data.data.storeId;
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-CLIENT-KEY': clientKey,
+      'X-TIMESTAMP': timestamp,
+      'X-SIGNATURE': signature,
+    };
+
+    try {
+      const response = await lastValueFrom(
+        this.httpService.get(
+          process.env.BAYARIND_BASE_URL + '/acquisitor/static/businesstype',
+          { headers },
+        ),
+      );
+
+      return response.data.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async getProvinces(timezoneOffset: number = 7) {
+    const clientKey = process.env.BAYARIND_CLIENT_KEY!;
+    const clientSecret = process.env.BAYARIND_CLIENT_SECRET!;
+    const timestamp = this.getTimestampWithOffset(timezoneOffset);
+
+    // 2. Generate Signature
+    const signature = SignatureUtil.generatePOSSignature(
+      clientKey,
+      clientSecret,
+      timestamp,
+      '',
+    );
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-CLIENT-KEY': clientKey,
+      'X-TIMESTAMP': timestamp,
+      'X-SIGNATURE': signature,
+    };
+
+    try {
+      const response = await lastValueFrom(
+        this.httpService.get(
+          process.env.BAYARIND_BASE_URL + '/acquisitor/static/province',
+          { headers },
+        ),
+      );
+
+      return response.data.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async getCities(timezoneOffset: number = 7, provinceId: string) {
+    const clientKey = process.env.BAYARIND_CLIENT_KEY!;
+    const clientSecret = process.env.BAYARIND_CLIENT_SECRET!;
+    const timestamp = this.getTimestampWithOffset(timezoneOffset);
+
+    // 2. Generate Signature
+    const signature = SignatureUtil.generatePOSSignature(
+      clientKey,
+      clientSecret,
+      timestamp,
+      '',
+    );
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-CLIENT-KEY': clientKey,
+      'X-TIMESTAMP': timestamp,
+      'X-SIGNATURE': signature,
+    };
+
+    try {
+      const response = await lastValueFrom(
+        this.httpService.get(
+          process.env.BAYARIND_BASE_URL +
+            `/acquisitor/static/city/${provinceId}`,
+          { headers },
+        ),
+      );
+
+      return response.data.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async getDistricts(timezoneOffset: number = 7, cityId: string) {
+    const clientKey = process.env.BAYARIND_CLIENT_KEY!;
+    const clientSecret = process.env.BAYARIND_CLIENT_SECRET!;
+    const timestamp = this.getTimestampWithOffset(timezoneOffset);
+
+    // 2. Generate Signature
+    const signature = SignatureUtil.generatePOSSignature(
+      clientKey,
+      clientSecret,
+      timestamp,
+      '',
+    );
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-CLIENT-KEY': clientKey,
+      'X-TIMESTAMP': timestamp,
+      'X-SIGNATURE': signature,
+    };
+
+    try {
+      const response = await lastValueFrom(
+        this.httpService.get(
+          process.env.BAYARIND_BASE_URL +
+            `/acquisitor/static/district/${cityId}`,
+          { headers },
+        ),
+      );
+
+      return response.data.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async getSubdistricts(timezoneOffset: number = 7, districtId: string) {
+    const clientKey = process.env.BAYARIND_CLIENT_KEY!;
+    const clientSecret = process.env.BAYARIND_CLIENT_SECRET!;
+    const timestamp = this.getTimestampWithOffset(timezoneOffset);
+
+    // 2. Generate Signature
+    const signature = SignatureUtil.generatePOSSignature(
+      clientKey,
+      clientSecret,
+      timestamp,
+      '',
+    );
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-CLIENT-KEY': clientKey,
+      'X-TIMESTAMP': timestamp,
+      'X-SIGNATURE': signature,
+    };
+
+    try {
+      const response = await lastValueFrom(
+        this.httpService.get(
+          process.env.BAYARIND_BASE_URL +
+            `/acquisitor/static/subdistrict/${districtId}`,
+          { headers },
+        ),
+      );
+
+      return response.data.data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
   }
 }

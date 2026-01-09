@@ -56,4 +56,41 @@ export class SignatureUtil {
     hmac.update(stringToSign);
     return hmac.digest('base64');
   }
+
+  static generatePOSSignature(
+    clientKey: string,
+    clientSecret: string,
+    timestamp: string,
+    body: any = '', // Default string kosong untuk GET
+  ): string {
+    // 1. Minify Body (Sama seperti logic Postman)
+    let minifiedBody = '';
+    if (body && typeof body === 'object') {
+      minifiedBody = JSON.stringify(body);
+    } else if (typeof body === 'string') {
+      minifiedBody = body;
+    }
+
+    // 2. Susun String to Sign
+    // Rumus: ClientKey + Timestamp + Secret + MinifiedBody
+    const stringToSign = clientKey + timestamp + clientSecret + minifiedBody;
+
+    // 3. Base64 Encode
+    const base64Encoded = Buffer.from(stringToSign, 'utf8').toString('base64');
+
+    // 4. SHA-256 Hash -> Hex Lowercase
+    const signature = crypto
+      .createHash('sha256')
+      .update(base64Encoded)
+      .digest('hex')
+      .toLowerCase();
+    console.log('🔥 DEBUG SIGNATURE 🔥');
+    console.log('Timestamp:', timestamp);
+    console.log('ClientKey:', clientKey);
+    console.log('Secret:', clientSecret);
+    console.log('Body used for Sign:', JSON.stringify(body));
+    console.log('Generated Signature:', signature);
+
+    return signature;
+  }
 }
