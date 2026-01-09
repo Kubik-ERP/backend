@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UploadedFiles,
   UseInterceptors,
@@ -13,6 +14,7 @@ import { ApiConsumes, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { toCamelCase } from 'src/common/helpers/object-transformer.helper';
 import { BayarindService, StoreFiles } from './bayarind.service';
 import { RegisterBayarindDto } from './dto/create-store.dto';
+import { ListBankDto } from './dto/list-bank.dto';
 
 @ApiTags('Bayarind Integration')
 @Controller('bayarind')
@@ -105,6 +107,24 @@ export class BayarindController {
     const result = await this.bayarindService.getSubdistricts(7, districtId);
     return {
       message: 'Subdistricts retrieved successfully',
+      result: toCamelCase(result),
+    };
+  }
+
+  @Get('banks')
+  @ApiOperation({
+    summary: 'Get Bayarind Banks',
+  })
+  @ApiHeader({
+    name: 'X-STORE-ID',
+    description: 'Store ID associated with this request',
+    required: true,
+    schema: { type: 'string' },
+  })
+  async getBanks(@Query() dto: ListBankDto, @Req() req: ICustomRequestHeaders) {
+    const result = await this.bayarindService.getListBanks(dto, req);
+    return {
+      message: 'Banks retrieved successfully',
       result: toCamelCase(result),
     };
   }

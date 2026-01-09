@@ -93,4 +93,24 @@ export class SignatureUtil {
 
     return signature;
   }
+
+  static generateSnapAuthSignature(
+    clientKey: string,
+    timestamp: string,
+    privateKeyContent: string,
+  ): string {
+    // 1. Susun StringToSign
+    const stringToSign = clientKey + '/' + timestamp;
+
+    console.log('📝 SNAP StringToSign:', stringToSign);
+
+    // 2. Buat Signer RSA-SHA256
+    const signer = crypto.createSign('RSA-SHA256');
+    signer.update(stringToSign);
+
+    // 3. Sign menggunakan Private Key dan output Base64
+    const signature = signer.sign(privateKeyContent, 'base64');
+
+    return signature;
+  }
 }

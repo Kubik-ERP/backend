@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsEmail,
+  IsNotEmpty,
   IsNumber,
   IsNumberString,
   IsString,
@@ -68,7 +69,24 @@ export class RegisterBayarindDto {
   @IsNumber()
   longitude: number;
 
-  // --- FILE DEFINITION (Swagger Only) ---
+  @ApiProperty({ example: 'BCA', description: 'Kode Bank' })
+  @IsString()
+  @IsNotEmpty()
+  bankCode: string;
+
+  @ApiProperty({ example: '1234567890', description: 'Nomor Rekening' })
+  @IsNumberString()
+  @IsNotEmpty()
+  accountNumber: string;
+
+  @ApiProperty({
+    example: 'Budi Santoso',
+    description: 'Nama Pemilik di Buku Tabungan',
+  })
+  @IsString()
+  @IsNotEmpty()
+  accountName: string;
+
   @ApiProperty({ type: 'string', format: 'binary' }) idCardImage: any;
   @ApiProperty({ type: 'string', format: 'binary' }) businessImage: any;
   @ApiProperty({ type: 'string', format: 'binary' }) selfie: any;
